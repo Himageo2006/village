@@ -34,6 +34,25 @@ function worldToTile(x, y) {
 const WALK=[0,1,2,3].map(i=>{ const im=new Image(); im.src='walk_'+i+'.webp'; return im; });
 const ready=im=>im&&im.complete&&im.naturalWidth>0;
 
+/* Building artwork is OPTIONAL. If art/<key>.png exists it is drawn; if it is
+   missing or has not decoded yet the procedural version draws instead, so the
+   game never shows a hole and art can arrive one file at a time.
+   Each sprite is anchored by the CENTRE OF ITS BASE, which is where the building
+   meets the ground -- see art/ASSETS.md for the specs these must be drawn to. */
+const ART = {};
+function artFor(key) {
+  if (!(key in ART)) {
+    const im = new Image();
+    im.onerror = () => { ART[key] = null; };      // no file: stay procedural, silently
+    im.src = 'art/' + key + '.png';
+    ART[key] = im;
+  }
+  const im = ART[key];
+  return ready(im) ? im : null;
+}
+// world height in px that a 1x1 footprint should occupy, so art scales with the grid
+const ART_UNIT = 150;
+
 /* ---------- scenery ----------
    Seeded from the tile index so the trees never move between frames or reloads,
    and never need storing in the save. */
@@ -267,6 +286,23 @@ function drawBuilding(p, alpha, tint) {
   const b = B(p.key);
   const a = tileToWorld(p.c, p.r), d = tileToWorld(p.c + b.w - 1, p.r + b.h - 1);
   const cx = (a.x + d.x) / 2, cy = (a.y + d.y) / 2;
+  const art = artFor(p.key);
+  if (art && !tint) {                       // tint is only used by the ghost preview
+    const grow = p.t < 1 ? 0.35 + 0.65 * p.t : 1;
+    const hgt = ART_UNIT * Math.max(b.w, b.h) * grow;
+    const wid = art.width * (hgt / art.height);
+    g.save(); g.globalAlpha = alpha;
+    g.fillStyle = 'rgba(10,18,8,.32)';
+    g.beginPath(); g.ellipse(cx, cy + 6, wid * 0.42, hgt * 0.13, 0, 0, 7); g.fill();
+    g.drawImage(art, cx - wid / 2, cy - hgt + hgt * 0.14, wid, hgt);
+    if (p.t < 1) {                          // scaffold while it goes up
+      g.strokeStyle = 'rgba(230,200,140,.85)'; g.lineWidth = 3; g.setLineDash([8, 6]);
+      g.beginPath(); g.moveTo(cx - wid * 0.4, cy); g.lineTo(cx, cy - hgt * 0.5); g.lineTo(cx + wid * 0.4, cy); g.stroke();
+      g.setLineDash([]);
+    }
+    g.restore();
+    return;
+  }
   const halfW = (b.w + b.h) * TW / 4.6, halfH = (b.w + b.h) * TH / 4.6;
   const grow = p.t < 1 ? 0.35 + 0.65 * p.t : 1;      // rises as it is built
   const wallH = (b.key === 'store' ? 74 : b.key === 'farm' ? 26 : 62) * grow;

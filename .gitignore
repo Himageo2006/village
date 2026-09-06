@@ -1,3 +1,5 @@
 cap/
 node_modules/
-*.png
+# working screenshots at the repo root
+/*.png
+# art/ is NOT ignored -- generated building sprites belong in version control
