@@ -30,6 +30,63 @@ function worldToTile(x, y) {
   return { c: (dy / TH + dx / TW), r: (dy / TH - dx / TW) };
 }
 
+/* ---------- sprites ---------- */
+const WALK=[0,1,2,3].map(i=>{ const im=new Image(); im.src='walk_'+i+'.webp'; return im; });
+const ready=im=>im&&im.complete&&im.naturalWidth>0;
+
+/* ---------- scenery ----------
+   Seeded from the tile index so the trees never move between frames or reloads,
+   and never need storing in the save. */
+/* A plain XOR of two multiples barely mixes for small c/r -- measured 0..0.25
+   across the whole grid, so nothing ever cleared the scenery threshold. This is
+   an integer avalanche hash, verified uniform over the grid. */
+function hash(c,r){
+  let h = (Math.imul(c, 374761393) + Math.imul(r, 668265263)) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177) | 0;
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+const SCENERY=[];
+for(let r=0;r<GH;r++) for(let c=0;c<GW;c++){
+  const n=hash(c,r);
+  const edge = c<1||r<1||c>=GW-1||r>=GH-1;
+  if(n>0.86 || (edge && n>0.55)){
+    SCENERY.push({c,r,kind:n>0.955?'rock':'tree',s:0.78+((n*97)%1)*0.5,f:(n*31)%1});
+  }
+}
+const sceneryAt=new Set(SCENERY.map(o=>o.c+','+o.r));
+
+/* ---------- villagers ----------
+   One per house-pop, wandering between finished buildings. They are what makes a
+   base read as ALIVE rather than as a diagram -- the reference footage is mostly
+   little figures walking around. */
+const villagers=[];
+const VIL_SPD=26;
+function targetBuilding(){
+  const done=placed.filter(p=>p.t>=1);
+  if(!done.length) return null;
+  const p=done[(Math.random()*done.length)|0], b=B(p.key);
+  return tileToWorld(p.c+(b.w-1)/2, p.r+(b.h-1)/2);
+}
+function syncVillagers(){
+  let want=0;
+  for(const p of placed) if(p.key==='house'&&p.t>=1) want+=2;
+  want=Math.min(want,24);
+  while(villagers.length<want){
+    const t=targetBuilding()||tileToWorld(GW/2,GH/2);
+    villagers.push({x:t.x,y:t.y,tx:t.x,ty:t.y,ph:Math.random()*7,wait:Math.random()*2,face:1});
+  }
+  while(villagers.length>want) villagers.pop();
+}
+function stepVillagers(dt){
+  for(const v of villagers){
+    if(v.wait>0){ v.wait-=dt; continue; }
+    const dx=v.tx-v.x, dy=v.ty-v.y, d=Math.hypot(dx,dy);
+    if(d<6){ const t=targetBuilding(); if(t){ v.tx=t.x+(Math.random()*2-1)*46; v.ty=t.y+(Math.random()*2-1)*26; }
+      v.wait=0.6+Math.random()*2.2; continue; }
+    v.x+=dx/d*VIL_SPD*dt; v.y+=dy/d*VIL_SPD*dt;
+    v.face=dx<0?-1:1; v.ph+=dt*7;
+  }
+}
 /* ---------- camera (pan + pinch) ---------- */
 const CAM = { z: 1, base: 1, x: W / 2, y: 520 };
 const ZMIN = 0.55, ZMAX = 2.2;
@@ -116,6 +173,8 @@ function load() {
 /* ---------- simulation ---------- */
 const BUILD_TIME = 3.0;
 function step(dt) {
+  syncVillagers();
+  stepVillagers(dt);
   for (const p of placed) {
     if (p.t < 1) { p.t = Math.min(1, p.t + dt / BUILD_TIME); if (p.t >= 1) recomputeCaps(); continue; }
     const b = B(p.key);
@@ -139,13 +198,68 @@ function tilePath(c, r) {
   g.closePath();
 }
 function drawGround() {
+  // soft ground shadow so the plot sits ON something instead of floating
+  const b = worldBounds(), cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2;
+  g.save(); g.fillStyle = 'rgba(8,14,6,.5)'; g.filter = 'blur(26px)';
+  g.beginPath(); g.ellipse(cx, cy + 26, (b.x1 - b.x0) / 2 + 30, (b.y1 - b.y0) / 2 + 24, 0, 0, 7); g.fill();
+  g.filter = 'none'; g.restore();
   for (let r = 0; r < GH; r++) for (let c = 0; c < GW; c++) {
-    const n = ((c * 7 + r * 13) % 5) / 5;
+    const n = hash(c, r), n2 = hash(r * 3 + 1, c * 5 + 2);
     tilePath(c, r);
-    g.fillStyle = `hsl(${96 + n * 10}, ${34 + n * 8}%, ${33 + n * 6}%)`;
+    // two greens mottled together, lighter toward the middle of the plot
+    const mid = 1 - (Math.abs(c - GW / 2) + Math.abs(r - GH / 2)) / (GW / 2 + GH / 2);
+    const hue = 92 + n * 14, sat = 30 + n2 * 14, lit = 27 + n * 9 + mid * 7;
+    g.fillStyle = `hsl(${hue}, ${sat}%, ${lit}%)`;
     g.fill();
-    g.strokeStyle = 'rgba(20,40,18,.30)'; g.lineWidth = 1.5; g.stroke();
+    g.strokeStyle = 'rgba(24,44,20,.22)'; g.lineWidth = 1.2; g.stroke();
+    // scattered grass tufts
+    if (n2 > 0.74) { const p = tileToWorld(c, r);
+      g.strokeStyle = `hsla(${hue - 6},${sat + 16}%,${lit + 14}%,.75)`; g.lineWidth = 2.5; g.lineCap = 'round';
+      for (let i = 0; i < 3; i++) { const a = n * 6 + i * 2.1, ox = Math.cos(a) * 20, oy = Math.sin(a) * 9;
+        g.beginPath(); g.moveTo(p.x + ox, p.y + oy); g.lineTo(p.x + ox + 2, p.y + oy - 7); g.stroke(); } }
   }
+}
+function drawScenery(o) {
+  const p = tileToWorld(o.c, o.r), s2 = o.s;
+  g.save();
+  g.fillStyle = 'rgba(10,18,8,.30)';
+  g.beginPath(); g.ellipse(p.x, p.y + 4, 20 * s2, 9 * s2, 0, 0, 7); g.fill();
+  if (o.kind === 'rock') {
+    g.fillStyle = '#7d7a72';
+    g.beginPath(); g.moveTo(p.x - 20 * s2, p.y + 3); g.lineTo(p.x - 7 * s2, p.y - 18 * s2);
+    g.lineTo(p.x + 12 * s2, p.y - 14 * s2); g.lineTo(p.x + 20 * s2, p.y + 3); g.closePath(); g.fill();
+    g.fillStyle = 'rgba(255,255,255,.16)';
+    g.beginPath(); g.moveTo(p.x - 7 * s2, p.y - 18 * s2); g.lineTo(p.x + 12 * s2, p.y - 14 * s2); g.lineTo(p.x + 2 * s2, p.y - 6 * s2); g.closePath(); g.fill();
+  } else {
+    g.strokeStyle = '#54341c'; g.lineWidth = 7 * s2; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(p.x, p.y); g.lineTo(p.x, p.y - 26 * s2); g.stroke();
+    const tiers = [[30, 20], [24, 34], [17, 46]];
+    for (let i = 0; i < tiers.length; i++) {
+      const [rw, ry] = tiers[i];
+      g.fillStyle = `hsl(${104 + o.f * 12}, 38%, ${20 + i * 5}%)`;
+      g.beginPath(); g.moveTo(p.x, p.y - (ry + 20) * s2);
+      g.lineTo(p.x + rw * s2, p.y - ry * s2); g.lineTo(p.x - rw * s2, p.y - ry * s2); g.closePath(); g.fill();
+    }
+  }
+  g.restore();
+}
+function drawVillager(v) {
+  const fr = WALK[Math.floor(v.ph) % 4];
+  const moving = Math.hypot(v.tx - v.x, v.ty - v.y) > 6 && v.wait <= 0;
+  const im = moving ? fr : WALK[0];
+  const HGT = 46, bob = moving ? Math.sin(v.ph * 2) * 1.5 : 0;
+  g.save();
+  g.fillStyle = 'rgba(10,18,8,.34)';
+  g.beginPath(); g.ellipse(v.x, v.y + 2, 11, 5, 0, 0, 7); g.fill();
+  if (ready(im)) {
+    const w = im.width * (HGT / im.height);
+    g.translate(v.x, v.y + bob); g.scale(v.face, 1);
+    g.drawImage(im, -w / 2, -HGT, w, HGT);
+  } else {                                   // sprite not decoded yet
+    g.fillStyle = '#c9b089'; g.beginPath(); g.arc(v.x, v.y - HGT * 0.75, 6, 0, 7); g.fill();
+    g.fillStyle = '#5a6f8a'; g.fillRect(v.x - 5, v.y - HGT * 0.6, 10, HGT * 0.6);
+  }
+  g.restore();
 }
 /* Buildings are drawn, not sprited: there is no house art in the project, and a
    consistent procedural style beats mismatched borrowed sprites. */
@@ -173,18 +287,64 @@ function drawBuilding(p, alpha, tint) {
       for (let i = 0; i < 7; i++) { const t = i / 6;
         g.beginPath(); g.arc(cx - halfW * 0.6 + t * halfW * 1.2, cy - halfH * 0.1 + Math.sin(t * 6) * 8, 5, 0, 7); g.fill(); } }
   } else {
-    // timber walls: two visible faces
     const top = cy - wallH;
-    g.fillStyle = tint || '#7a5a34';
+    const lit = tint || '#8a6740', dark = tint || '#63482a';
+    // left wall (lit) and right wall (shaded)
+    g.fillStyle = lit;
     g.beginPath(); g.moveTo(cx - halfW, cy); g.lineTo(cx, cy + halfH); g.lineTo(cx, cy + halfH - wallH); g.lineTo(cx - halfW, cy - wallH); g.closePath(); g.fill();
-    g.fillStyle = tint || '#5e4527';
+    g.fillStyle = dark;
     g.beginPath(); g.moveTo(cx + halfW, cy); g.lineTo(cx, cy + halfH); g.lineTo(cx, cy + halfH - wallH); g.lineTo(cx + halfW, cy - wallH); g.closePath(); g.fill();
-    // roof
-    g.fillStyle = tint || '#8c3f2a';
-    g.beginPath(); g.moveTo(cx, top - halfH * 0.75); g.lineTo(cx + halfW, top); g.lineTo(cx, top + halfH); g.lineTo(cx - halfW, top); g.closePath(); g.fill();
-    g.strokeStyle = 'rgba(30,18,10,.6)'; g.lineWidth = 2.5; g.stroke();
-    g.strokeStyle = 'rgba(255,225,190,.18)'; g.lineWidth = 2;
-    g.beginPath(); g.moveTo(cx, top - halfH * 0.75); g.lineTo(cx, top + halfH); g.stroke();
+    // timber framing: uprights following the iso rake of each wall
+    if (p.t >= 1) {
+      g.strokeStyle = 'rgba(48,32,16,.55)'; g.lineWidth = 3;
+      for (let i = 1; i < 4; i++) {
+        const t1 = i / 4;
+        const lx = cx - halfW + halfW * t1, ly = cy + halfH * t1;
+        g.beginPath(); g.moveTo(lx, ly); g.lineTo(lx, ly - wallH); g.stroke();
+        const rx = cx + halfW - halfW * t1, ry = cy + halfH * t1;
+        g.beginPath(); g.moveTo(rx, ry); g.lineTo(rx, ry - wallH); g.stroke();
+      }
+      // door on the left face, a shuttered window on the right
+      const dh = wallH * 0.52, dw = halfW * 0.24;
+      g.fillStyle = '#3b2716';
+      g.beginPath(); g.moveTo(cx - halfW * 0.46, cy + halfH * 0.46);
+      g.lineTo(cx - halfW * 0.46 + dw, cy + halfH * 0.46 + dw * halfH / halfW);
+      g.lineTo(cx - halfW * 0.46 + dw, cy + halfH * 0.46 + dw * halfH / halfW - dh);
+      g.lineTo(cx - halfW * 0.46, cy + halfH * 0.46 - dh); g.closePath(); g.fill();
+      g.fillStyle = '#e8c477';
+      const wy = cy + halfH * 0.30 - wallH * 0.62, ww = halfW * 0.20;
+      g.beginPath(); g.moveTo(cx + halfW * 0.40, wy);
+      g.lineTo(cx + halfW * 0.40 + ww, wy - ww * halfH / halfW);
+      g.lineTo(cx + halfW * 0.40 + ww, wy - ww * halfH / halfW + wallH * 0.26);
+      g.lineTo(cx + halfW * 0.40, wy + wallH * 0.26); g.closePath(); g.fill();
+    }
+    // pitched roof: two slopes off a ridge, so it is not a flat lozenge
+    const ridge = top - halfH * 0.95, eave = top + halfH * 0.10;
+    g.fillStyle = '#a4482e';
+    g.beginPath(); g.moveTo(cx, ridge); g.lineTo(cx - halfW * 1.06, eave);
+    g.lineTo(cx, eave + halfH * 0.92); g.closePath(); g.fill();
+    g.fillStyle = '#7d3320';
+    g.beginPath(); g.moveTo(cx, ridge); g.lineTo(cx + halfW * 1.06, eave);
+    g.lineTo(cx, eave + halfH * 0.92); g.closePath(); g.fill();
+    g.strokeStyle = 'rgba(38,16,8,.55)'; g.lineWidth = 2.5;
+    g.beginPath(); g.moveTo(cx, ridge); g.lineTo(cx - halfW * 1.06, eave); g.lineTo(cx, eave + halfH * 0.92);
+    g.lineTo(cx + halfW * 1.06, eave); g.closePath(); g.stroke();
+    g.strokeStyle = 'rgba(255,214,180,.30)'; g.lineWidth = 2.5;
+    g.beginPath(); g.moveTo(cx, ridge); g.lineTo(cx, eave + halfH * 0.92); g.stroke();
+    // chimney + smoke once it is working
+    if (p.t >= 1 && b.key !== 'lumber') {
+      const chx = cx + halfW * 0.42, chy = ridge + halfH * 0.30;
+      g.fillStyle = '#6e6157'; g.fillRect(chx - 6, chy - 26, 13, 28);
+      g.fillStyle = 'rgba(226,226,226,.34)';
+      for (let i = 0; i < 3; i++) { const t2 = ((Date.now() / 900 + i * 0.33) % 1);
+        g.beginPath(); g.arc(chx + Math.sin(t2 * 5 + i) * 7, chy - 30 - t2 * 40, 5 + t2 * 9, 0, 7); g.fill(); }
+    }
+    // log pile marks the lumber camp
+    if (p.t >= 1 && b.key === 'lumber') {
+      g.fillStyle = '#6b4a28';
+      for (let i = 0; i < 3; i++) { g.beginPath();
+        g.ellipse(cx - halfW * 0.55 + i * 13, cy + halfH * 0.30 - i * 5, 11, 6, 0, 0, 7); g.fill(); }
+    }
   }
   // scaffold while building
   if (p.t < 1) {
@@ -196,6 +356,7 @@ function drawBuilding(p, alpha, tint) {
 }
 
 function drawWorld() {
+  const occSet = occupied();          // scenery hides under buildings
   drawGround();
   if (ghost && selBuild) {                              // placement preview
     const b = B(selBuild), occ = occupied();
@@ -206,8 +367,16 @@ function drawWorld() {
     }
     if (ghost.ok) drawBuilding({ key: selBuild, c: ghost.c, r: ghost.r, t: 1 }, 0.55);
   }
-  // painter's order: back rows first
-  for (const p of [...placed].sort((a, b2) => (a.c + a.r) - (b2.c + b2.r))) drawBuilding(p, 1);
+  /* One depth-sorted pass over everything that stands on the ground, so a
+     villager can walk behind a house and in front of the next one. */
+  const ents = [];
+  for (const p of placed) { const b = B(p.key);
+    ents.push({ y: tileToWorld(p.c + b.w - 1, p.r + b.h - 1).y, d: () => drawBuilding(p, 1) }); }
+  for (const o of SCENERY) { if (occSet.has(o.c + ',' + o.r)) continue;
+    ents.push({ y: tileToWorld(o.c, o.r).y, d: () => drawScenery(o) }); }
+  for (const v of villagers) ents.push({ y: v.y, d: () => drawVillager(v) });
+  ents.sort((a, b2) => a.y - b2.y);
+  for (const e of ents) e.d();
 }
 
 /* ---------- HUD ---------- */
