@@ -39,7 +39,22 @@ const TOL = 26;        // how close to a palette colour still counts as backgrou
 const SEAM = 14;       // how far a near-neutral pixel may sit between two palette
                        // colours and still count — catches the soft seam lines
                        // where checkerboard squares meet
-const KEYS = ['house', 'farm', 'lumber', 'store'];
+const KEYS = [
+  'house', 'farm', 'lumber', 'store',
+  'villager_farmer', 'villager_basket', 'villager_woodcutter',
+  'tree_pine', 'tree_oak', 'rock', 'bush',
+  'ground', 'water',
+];
+
+/* Art that is MEANT to be a solid rectangle. The background keyer works by
+   agreeing on a border colour and flooding inwards, which on a full-bleed
+   image of water agrees on blue and erases the lot. These are only resized
+   and re-encoded. */
+const OPAQUE = new Set(['water']);
+
+// backdrops are drawn far larger than a building, so the 800px cap would show
+const WIDE = new Set(['ground', 'water']);
+const wideMax = 1800;
 
 const near = (p, c, tol) => Math.abs(p[0] - c[0]) < tol && Math.abs(p[1] - c[1]) < tol && Math.abs(p[2] - c[2]) < tol;
 
@@ -97,7 +112,7 @@ const ORIG = path.join(ART, 'original');
       const { width: w, height: h, channels: ch } = info;
       const at = (x, y) => { const i = (y * w + x) * ch; return [data[i], data[i + 1], data[i + 2], data[i + 3]]; };
 
-      const pal = palette(at, w, h);
+      const pal = OPAQUE.has(key) ? [] : palette(at, w, h);
 
       // brightness span of the palette, used to bridge checkerboard seams
       const lum = c => (c[0] + c[1] + c[2]) / 3;
@@ -158,19 +173,22 @@ const ORIG = path.join(ART, 'original');
         }
       }
 
-      const trimmed = await sharp(data, { raw: { width: w, height: h, channels: ch } })
-        .png().trim({ threshold: 1 }).toBuffer();
+      let src = sharp(data, { raw: { width: w, height: h, channels: ch } }).png();
+      if (!OPAQUE.has(key)) src = src.trim({ threshold: 1 });   // nothing to trim on a full-bleed plate
+      const trimmed = await src.toBuffer();
       const tm = await sharp(trimmed).metadata();
 
       // WebP, not PNG: these are painted gradients, where a palette PNG bands
       // badly and a true-colour one stays in the megabytes
+      const cap = WIDE.has(key) ? wideMax : MAX_W;
       let img = sharp(trimmed);
-      if (tm.width > MAX_W) img = img.resize(MAX_W);
+      if (tm.width > cap) img = img.resize(cap);
       const out = await img.webp({ quality: 88, alphaQuality: 100, effort: 6 }).toBuffer();
       fs.writeFileSync(path.join(ART, key + '.webp'), out);
       const meta = await sharp(out).metadata();
 
-      const desc = !pal.length ? 'already transparent'
+      const desc = OPAQUE.has(key) ? 'solid plate, kept as drawn'
+        : !pal.length ? 'already transparent'
         : `${pal.length > 1 ? 'checkerboard' : 'flat'} bg keyed${holes ? ` +${holes} gaps` : ''}`;
       console.log(name.padEnd(12), desc.padEnd(28),
         `-> ${key}.webp  ${meta.width}x${meta.height}  ${(out.length / 1024).toFixed(0)} KB`);
