@@ -34,9 +34,11 @@ function worldToTile(x, y) {
 const WALK=[0,1,2,3].map(i=>{ const im=new Image(); im.src='walk_'+i+'.webp'; return im; });
 const ready=im=>im&&im.complete&&im.naturalWidth>0;
 
-/* Building artwork is OPTIONAL. If art/<key>.png exists it is drawn; if it is
+/* Building artwork is OPTIONAL. If art/<key>.webp exists it is drawn; if it is
    missing or has not decoded yet the procedural version draws instead, so the
    game never shows a hole and art can arrive one file at a time.
+   The .webp files are built from the PNG masters in art/original/ by
+   tools/prep-art.js -- do not edit them by hand.
    Each sprite is anchored by the CENTRE OF ITS BASE, which is where the building
    meets the ground -- see art/ASSETS.md for the specs these must be drawn to. */
 const ART = {};
@@ -44,14 +46,39 @@ function artFor(key) {
   if (!(key in ART)) {
     const im = new Image();
     im.onerror = () => { ART[key] = null; };      // no file: stay procedural, silently
-    im.src = 'art/' + key + '.png';
+    im.src = 'art/' + key + '.webp';
     ART[key] = im;
   }
   const im = ART[key];
   return ready(im) ? im : null;
 }
-// world height in px that a 1x1 footprint should occupy, so art scales with the grid
-const ART_UNIT = 150;
+/* How each sprite is fitted to its plot.
+
+   Art is scaled to the FOOTPRINT rather than to a fixed height, or buildings of
+   different sizes stop looking like they share a world. The one landmark every
+   sprite has in common is its FRONT CORNER -- the near point of its base, where
+   it touches the ground -- so that is the anchor, and everything else is
+   measured against it:
+
+     w   drawn width as a multiple of the plot's diamond width. Above 1 the
+         building overhangs its plot, which is normal: painted eaves, log piles
+         and stacked sacks all sit outside the foundation. The cottage and the
+         barn are also RECTANGULAR in plan while their plots are square, so they
+         need more room than the farm, whose fence really is a square.
+     ax  where the front corner sits across the image, 0..1. Rarely 0.5 -- the
+         buildings are drawn slightly off-centre.
+     ay  where the front corner sits down the image, 0..1. Below 1 when
+         something is drawn BELOW the foundation, as the barn's sacks are.
+
+   ax and ay come from tools/measure-art.js; w is set by eye against the plot
+   outline. Anything missing falls back to a plain bottom-centre fit. */
+const ART_FIT = {
+  house:  { w: 1.20, ax: 0.652, ay: 0.994 },
+  farm:   { w: 0.85, ax: 0.531, ay: 1.000 },
+  lumber: { w: 1.18, ax: 0.570, ay: 1.000 },
+  store:  { w: 1.09, ax: 0.522, ay: 1.000 },
+};
+const FIT_DEF = { w: 1.2, ax: 0.5, ay: 1 };
 
 /* ---------- scenery ----------
    Seeded from the tile index so the trees never move between frames or reloads,
@@ -134,7 +161,7 @@ const mS = v => v * US();
 
 /* ---------- buildings ---------- */
 const BUILDINGS = [
-  { key: 'house',  name: 'House',     w: 1, h: 1, cost: { wood: 30 },            pop: 4,   icon: '🏠' },
+  { key: 'house',  name: 'House',     w: 2, h: 1, cost: { wood: 30 },            pop: 4,   icon: '🏠' },
   { key: 'farm',   name: 'Farm',      w: 2, h: 2, cost: { wood: 45 },            makes: { food: 0.5 }, icon: '🌾' },
   { key: 'lumber', name: 'Lumber Camp', w: 2, h: 1, cost: { wood: 20, food: 15 }, makes: { wood: 0.45 }, icon: '🪵' },
   { key: 'store',  name: 'Storehouse',w: 2, h: 2, cost: { wood: 60, food: 20 },  caps: { wood: 400, food: 400 }, icon: '📦' },
@@ -176,11 +203,12 @@ function recomputeCaps() {
 
 /* ---------- save ---------- */
 const KEY = 'vil_save';
-function save() { try { localStorage.setItem(KEY, JSON.stringify({ v: 1, res, placed })); } catch (e) {} }
+const SAVE_V = 2;      // 2: house became 2x1 when the painted art arrived
+function save() { try { localStorage.setItem(KEY, JSON.stringify({ v: SAVE_V, res, placed })); } catch (e) {} }
 function load() {
   let s = null; try { s = JSON.parse(localStorage.getItem(KEY)); } catch (e) {}
   // same defensive shape as Gatestorm's loadProg: never trust what comes back
-  if (!s || typeof s !== 'object' || s.v !== 1) return;
+  if (!s || typeof s !== 'object' || s.v !== SAVE_V) return;
   if (s.res && typeof s.res === 'object') for (const k of ['wood', 'food'])
     if (typeof s.res[k] === 'number' && isFinite(s.res[k])) res[k] = s.res[k];
   if (Array.isArray(s.placed)) placed = s.placed.filter(p =>
@@ -262,14 +290,20 @@ function drawScenery(o) {
   }
   g.restore();
 }
+/* Villager height in world px. Set against the painted buildings rather than
+   the tile: a villager should stand about as tall as a cottage doorway, which
+   is roughly a third of the cottage itself. The procedural buildings this
+   started with were much smaller, so 46 read fine then and looks like a mouse
+   next to the art. */
+const VILLAGER_H = 60;
 function drawVillager(v) {
   const fr = WALK[Math.floor(v.ph) % 4];
   const moving = Math.hypot(v.tx - v.x, v.ty - v.y) > 6 && v.wait <= 0;
   const im = moving ? fr : WALK[0];
-  const HGT = 46, bob = moving ? Math.sin(v.ph * 2) * 1.5 : 0;
+  const HGT = VILLAGER_H, bob = moving ? Math.sin(v.ph * 2) * 1.5 : 0;
   g.save();
   g.fillStyle = 'rgba(10,18,8,.34)';
-  g.beginPath(); g.ellipse(v.x, v.y + 2, 11, 5, 0, 0, 7); g.fill();
+  g.beginPath(); g.ellipse(v.x, v.y + 2, VILLAGER_H * 0.24, VILLAGER_H * 0.11, 0, 0, 7); g.fill();
   if (ready(im)) {
     const w = im.width * (HGT / im.height);
     g.translate(v.x, v.y + bob); g.scale(v.face, 1);
@@ -280,8 +314,9 @@ function drawVillager(v) {
   }
   g.restore();
 }
-/* Buildings are drawn, not sprited: there is no house art in the project, and a
-   consistent procedural style beats mismatched borrowed sprites. */
+/* Draws the painted sprite when it has loaded, and the procedural building when
+   it has not -- so the village still works before the art arrives, and while it
+   is still decoding on a cold start. */
 function drawBuilding(p, alpha, tint) {
   const b = B(p.key);
   const a = tileToWorld(p.c, p.r), d = tileToWorld(p.c + b.w - 1, p.r + b.h - 1);
@@ -289,15 +324,20 @@ function drawBuilding(p, alpha, tint) {
   const art = artFor(p.key);
   if (art && !tint) {                       // tint is only used by the ghost preview
     const grow = p.t < 1 ? 0.35 + 0.65 * p.t : 1;
-    const hgt = ART_UNIT * Math.max(b.w, b.h) * grow;
-    const wid = art.width * (hgt / art.height);
+    const f = ART_FIT[p.key] || FIT_DEF;
+    const fw = (b.w + b.h) * TW / 2;        // width of the plot's diamond
+    const wid = fw * f.w * grow;
+    const hgt = art.height * (wid / art.width);
+    // the plot's near vertex: where the front corner of the building lands
+    const ny = cy + (b.w + b.h) * TH / 4;
+    const left = cx - f.ax * wid, top = ny - f.ay * hgt;
     g.save(); g.globalAlpha = alpha;
-    g.fillStyle = 'rgba(10,18,8,.32)';
-    g.beginPath(); g.ellipse(cx, cy + 6, wid * 0.42, hgt * 0.13, 0, 0, 7); g.fill();
-    g.drawImage(art, cx - wid / 2, cy - hgt + hgt * 0.14, wid, hgt);
+    g.fillStyle = 'rgba(10,18,8,.30)';
+    g.beginPath(); g.ellipse(cx, cy, fw * 0.40, fw * 0.20, 0, 0, 7); g.fill();
+    g.drawImage(art, left, top, wid, hgt);
     if (p.t < 1) {                          // scaffold while it goes up
       g.strokeStyle = 'rgba(230,200,140,.85)'; g.lineWidth = 3; g.setLineDash([8, 6]);
-      g.beginPath(); g.moveTo(cx - wid * 0.4, cy); g.lineTo(cx, cy - hgt * 0.5); g.lineTo(cx + wid * 0.4, cy); g.stroke();
+      g.beginPath(); g.moveTo(cx - fw * 0.4, ny); g.lineTo(cx, ny - hgt * 0.5); g.lineTo(cx + fw * 0.4, ny); g.stroke();
       g.setLineDash([]);
     }
     g.restore();

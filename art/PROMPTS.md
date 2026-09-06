@@ -160,9 +160,11 @@ character figures, or any ground surface.
 
 ## If the tool refuses transparency
 
-Many image tools quietly return a white or checkered background. That is fine —
-`tools/prep-art.js` removes a flat background automatically. If it warns that the
-corners disagree, add this line to the prompt and regenerate:
+Many image tools quietly return a white background, or *paint* a fake
+transparency checkerboard as real pixels. Both are fine — `tools/prep-art.js`
+removes either, including checkerboard showing through gaps in the building. If
+a background survives it was not flat enough to key; add this line to the prompt
+and regenerate:
 
 ```
 Render the subject on a plain solid pure white background, evenly lit, with
