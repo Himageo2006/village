@@ -39,49 +39,10 @@ on its own.
 
 ## Prompts
 
-Generate **all four in one conversation**, and after the first image tell it
-*"same style, same camera angle, same lighting, same scale"* for each one after.
-Style drift between separate chats is the single most likely thing to go wrong.
+The full copy-paste prompts live in **[PROMPTS.md](PROMPTS.md)** — one per
+building, each carrying the whole style spec so it works even if pasted alone.
 
-### 1. House — `art/house.png`
-> A single medieval peasant cottage, 2:1 isometric game asset, viewed from a
-> corner at about 30 degrees above the horizon. Timber-framed walls with exposed
-> dark wooden beams and warm cream plaster, a steep pitched roof of weathered red
-> clay tiles with a visible ridge line, a small wooden door on the front-left
-> face, one shuttered window with a warm glow, and a stone chimney. Stylised
-> low-poly mobile-game art, clean readable shapes, warm saturated colours, soft
-> painted shading. Light coming from the upper left so the left wall is lit and
-> the right wall is in shadow. Completely transparent background, no ground, no
-> grass, no shadow underneath. The base of the building at the bottom centre of
-> the frame.
-
-### 2. Farm — `art/farm.png`
-> A medieval farm plot, 2:1 isometric game asset, same camera angle and lighting
-> as the cottage. Ploughed brown earth in neat furrows with rows of ripe golden
-> wheat, a low wooden fence along two sides, a couple of hay bales and a small
-> wooden cart. Low and flat — this is a field, not a building. Stylised low-poly
-> mobile-game art, warm saturated colours, soft painted shading, light from the
-> upper left. Completely transparent background, no ground beneath the plot, no
-> shadow. Bottom centre anchored.
-
-### 3. Lumber Camp — `art/lumber.png`
-> A medieval lumberjack's camp, 2:1 isometric game asset, same camera angle and
-> lighting as the cottage. An open-sided timber workshop with a plank roof, a
-> large stack of cut logs, a sawhorse with a two-handled saw, and an axe embedded
-> in a chopping stump. Wider than it is deep. Stylised low-poly mobile-game art,
-> warm saturated colours, soft painted shading, light from the upper left.
-> Completely transparent background, no ground, no shadow. Bottom centre anchored.
-
-### 4. Storehouse — `art/store.png`
-> A medieval granary and storehouse, 2:1 isometric game asset, same camera angle
-> and lighting as the cottage. A tall sturdy timber barn with wide double doors,
-> a steep shingled roof, a hoist beam projecting from the gable, and barrels and
-> sacks stacked against the near wall. Noticeably taller and bulkier than the
-> cottage. Stylised low-poly mobile-game art, warm saturated colours, soft painted
-> shading, light from the upper left. Completely transparent background, no
-> ground, no shadow. Bottom centre anchored.
-
----
+Generate all four in one conversation, in the order given there.
 
 ## After generating
 
