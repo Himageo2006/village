@@ -900,8 +900,12 @@ function drawDecor(p, alpha) {
      without touching this function again. */
   const art = artFor(p.key);
   if (art) {
-    if (b.flat) {                       // a path tile is laid into the diamond
-      const wid = TW * 1.02, hgt = art.height * (wid / art.width);
+    if (b.flat) {
+      /* Forced to the tile's own diamond rather than to the art's aspect. The
+         generated tile came back 1.83:1 instead of 2:1, and preserving that
+         would leave every path tile 11% too tall and creeping over the row
+         behind it. Squashing dirt by 9% is invisible; a misaligned grid is not. */
+      const wid = TW * 1.02, hgt = TH * 1.02;
       g.drawImage(art, o.x - wid / 2, o.y - hgt / 2, wid, hgt);
     } else {
       g.fillStyle = 'rgba(10,18,8,.28)';

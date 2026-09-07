@@ -53,6 +53,54 @@ const KEYS = [
    and re-encoded. */
 const OPAQUE = new Set(['water']);
 
+/* Art that is laid down REPEATEDLY on the grid. A generator almost always
+   shades a tile darker towards its edges -- it makes a single tile look better
+   in isolation -- but laid side by side that shading meets itself and draws a
+   dark lattice across the whole map. The measured path tile ran 163 at the
+   centre and 76 at the corners.
+
+   So the vignette is divided out: the average brightness is measured as a
+   function of distance from the centre and each pixel is scaled to flatten
+   that curve. It is a flat-field correction, the same idea as removing lens
+   falloff from a photograph, and it keeps the texture while losing the shading. */
+const TILES = new Set(['path']);
+const FLAT_BINS = 24, FLAT_MAX_GAIN = 2.4;
+
+function flatten(data, w, h, ch) {
+  const cx = (w - 1) / 2, cy = (h - 1) / 2;
+  // diamond distance, because the tile is a diamond and not a circle
+  const dist = (x, y) => Math.min(1, Math.abs(x - cx) / cx + Math.abs(y - cy) / cy);
+  const sum = new Float64Array(FLAT_BINS), cnt = new Float64Array(FLAT_BINS);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = (y * w + x) * ch;
+    if (data[i + 3] < 200) continue;                 // ignore the soft rim
+    const b = Math.min(FLAT_BINS - 1, Math.floor(dist(x, y) * FLAT_BINS));
+    sum[b] += (data[i] + data[i + 1] + data[i + 2]) / 3; cnt[b]++;
+  }
+  const prof = [];
+  for (let b = 0; b < FLAT_BINS; b++) prof[b] = cnt[b] > 24 ? sum[b] / cnt[b] : null;
+  // fill gaps and smooth, so the correction is a curve and not a set of steps
+  for (let b = 0; b < FLAT_BINS; b++) if (prof[b] === null) prof[b] = prof[b - 1] ?? prof.find(v => v !== null);
+  const sm = prof.map((_, b) => {
+    let t = 0, n = 0;
+    for (let k = Math.max(0, b - 2); k <= Math.min(FLAT_BINS - 1, b + 2); k++) { t += prof[k]; n++; }
+    return t / n;
+  });
+  const target = sm[0];
+  if (!target) return 0;
+  let touched = 0;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = (y * w + x) * ch;
+    if (!data[i + 3]) continue;
+    const b = Math.min(FLAT_BINS - 1, Math.floor(dist(x, y) * FLAT_BINS));
+    const gain = Math.min(FLAT_MAX_GAIN, target / sm[b]);
+    if (gain <= 1.01) continue;
+    for (let k = 0; k < 3; k++) data[i + k] = Math.min(255, Math.round(data[i + k] * gain));
+    touched++;
+  }
+  return Math.round((1 - sm[FLAT_BINS - 1] / target) * 100);   // how deep the vignette was
+}
+
 /* How big each kind is actually drawn on screen, longest side, at full zoom-in.
    A villager stands 60 world px tall and the camera tops out near 3x, so
    shipping one at 1536px is 8x more pixels than can ever be shown. Anything not
@@ -190,18 +238,30 @@ const ORIG = path.join(ART, 'original');
       const trimmed = await src.toBuffer();
       const tm = await sharp(trimmed).metadata();
 
+      // repeating tiles get their edge shading divided out, once they are
+      // trimmed and the centre of the image really is the centre of the tile
+      let flatPc = 0;
+      let src2 = trimmed;
+      if (TILES.has(key)) {
+        const r = await sharp(trimmed).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+        flatPc = flatten(r.data, r.info.width, r.info.height, r.info.channels);
+        src2 = await sharp(r.data, { raw: { width: r.info.width, height: r.info.height, channels: r.info.channels } })
+          .png().toBuffer();
+      }
+
       // WebP, not PNG: these are painted gradients, where a palette PNG bands
       // badly and a true-colour one stays in the megabytes
       // cap the LONGEST side: villagers and pines are tall, buildings are wide
       const cap = CAP[key] || MAX_W;
-      let img = sharp(trimmed);
+      let img = sharp(src2);
       if (Math.max(tm.width, tm.height) > cap)
         img = img.resize({ width: cap, height: cap, fit: 'inside', withoutEnlargement: true });
       const out = await img.webp({ quality: 88, alphaQuality: 100, effort: 6 }).toBuffer();
       fs.writeFileSync(path.join(ART, key + '.webp'), out);
       const meta = await sharp(out).metadata();
 
-      const desc = OPAQUE.has(key) ? 'solid plate, kept as drawn'
+      const desc = TILES.has(key) ? 'tile, ' + flatPc + '% edge shading removed'
+        : OPAQUE.has(key) ? 'solid plate, kept as drawn'
         : !pal.length ? 'already transparent'
         : `${pal.length > 1 ? 'checkerboard' : 'flat'} bg keyed${holes ? ` +${holes} gaps` : ''}`;
       console.log(name.padEnd(12), desc.padEnd(28),
