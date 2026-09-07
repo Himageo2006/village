@@ -453,6 +453,7 @@ let nextId = 1;
 let selBuild = null;                  // key being placed
 let ghost = null;                     // {c,r,ok}
 let panel = null;                     // id of the building whose panel is open
+let moving = null;                    // id of the building being relocated
 
 const hallOf = () => placed.find(p => p.key === 'hall');
 const hallLevel = () => { const h = hallOf(); return h ? Math.min(HALL_MAX, Math.max(1, h.lvl | 0)) : 1; };
@@ -476,9 +477,11 @@ const CHARM_FULL = 600, CHARM_CAP = 0.20;
 const charmTotal = () => placed.reduce((n, p) => n + (isDecor(p.key) ? B(p.key).charm : 0), 0);
 const charmMul = () => 1 + Math.min(CHARM_CAP, charmTotal() / CHARM_FULL * CHARM_CAP);
 
-const occupied = () => {
+const occupied = (exceptId) => {
   const set = new Set();
-  for (const p of placed) { const b = B(p.key);
+  for (const p of placed) {
+    if (exceptId !== undefined && p.id === exceptId) continue;   // a building being moved
+    const b = B(p.key);
     for (let dc = 0; dc < b.w; dc++) for (let dr = 0; dr < b.h; dr++) set.add((p.c + dc) + ',' + (p.r + dr)); }
   return set;
 };
@@ -510,6 +513,36 @@ function recomputeCaps() {
   caps = { wood: base, food: base };
   for (const p of placed) { if (B(p.key).caps && p.t >= 1)
     for (const k of ['wood', 'food']) caps[k] += capsOf(p, k); }
+}
+
+/* Everything ever paid into a building, so selling can return a fair half
+   rather than half of the original price -- a level 4 farm has had far more
+   than a farm's worth put into it. Derived from the level, so nothing extra
+   has to be stored or kept in step. */
+function investedIn(p) {
+  const t = { wood: 0, food: 0 };
+  for (const [k, v] of Object.entries(B(p.key).cost)) t[k] += v;
+  for (let l = 1; l < lvlOf(p); l++) {
+    const c = p.key === 'hall' ? (HALL[l] && HALL[l].up) : upCostOf({ key: p.key, lvl: l });
+    if (c) for (const [k, v] of Object.entries(c)) t[k] += v;
+  }
+  return t;
+}
+const sellValue = p => {
+  const t = investedIn(p), o = {};
+  for (const k of ['wood', 'food']) if (t[k]) o[k] = Math.floor(t[k] / 2);
+  return o;
+};
+const canSell = p => !!p && p.key !== 'hall';      // the hall is the village
+function sellBuilding(p) {
+  if (!canSell(p)) return false;
+  for (const [k, v] of Object.entries(sellValue(p))) res[k] = Math.min(caps[k], res[k] + v);
+  placed = placed.filter(q => q !== p);
+  if (panel === p.id) panel = null;
+  if (moving === p.id) moving = null;
+  recomputeCaps();
+  save();
+  return true;
 }
 
 /* Decorations can be taken away again -- half the price back, which is enough
@@ -1039,14 +1072,14 @@ function drawWorld() {
   drawGround();
   // paths are painted ON the ground, so they go down before anything stands up
   for (const p of placed) if (B(p.key).flat) drawDecor(p, 1);
-  if (ghost && selBuild) {                              // placement preview
-    const b = B(selBuild), occ = occupied();
+  if (ghost && ghostKey()) {                            // placement preview
+    const selKey = ghostKey(), b = B(selKey);
     for (let dc = 0; dc < b.w; dc++) for (let dr = 0; dr < b.h; dr++) {
       tilePath(ghost.c + dc, ghost.r + dr);
       g.fillStyle = ghost.ok ? 'rgba(120,230,120,.40)' : 'rgba(235,90,70,.40)';
       g.fill();
     }
-    if (ghost.ok) drawPlaced({ id: -1, key: selBuild, c: ghost.c, r: ghost.r, t: 1, lvl: 1 }, 0.55);
+    if (ghost.ok) drawPlaced({ id: -1, key: selKey, c: ghost.c, r: ghost.r, t: 1, lvl: 1 }, 0.55);
   }
   /* One depth-sorted pass over everything that stands on the ground, so a
      villager can walk behind a house and in front of the next one. */
@@ -1169,10 +1202,12 @@ function drawHUD() {
     g.fillText(t.label, t.x, t.y);
     g.restore();
   }
-  if (selBuild) {
+  if (selBuild || moving != null) {
     g.save(); g.textAlign = 'center'; g.fillStyle = '#cfe0a8';
     g.font = `bold ${Math.round(24 * u)}px Segoe UI, sans-serif`;
-    g.fillText('Tap a green tile to place  ·  tap the icon again to cancel',
+    g.fillText(moving != null
+        ? 'Tap where it should go  ·  tap a tab to cancel'
+        : 'Tap a green tile to place  ·  tap the icon again to cancel',
       W / 2, tabRects()[0].y - tabRects()[0].h / 2 - 16 * u);
     g.restore();
   }
@@ -1189,9 +1224,16 @@ function panelRects() {
   const btn = !!p;                             // every building has an upgrade button
   const w = Math.min(W - 48 * u, 720 * u), h = (btn ? 232 : 152) * u;
   const y = tabs[0].y - tabs[0].h / 2 - 14 * u - h / 2;
-  return { u, x: W / 2, y, w, h, btn,
-    close: { x: W / 2 + w / 2 - 34 * u, y: y - h / 2 + 34 * u, r: 27 * u },
-    up:    { x: W / 2, y: y + h / 2 - 44 * u, w: w * 0.66, h: 62 * u } };
+  const dec = !!(p && isDecor(p.key)), by = y + h / 2 - 44 * u, bh = 60 * u, gap = 10 * u;
+  // a decoration has no upgrade, so its two buttons share the width differently
+  const mw = dec ? w * 0.34 : w * 0.24, sw = dec ? w * 0.54 : w * 0.24;
+  const uw = w - mw - sw - gap * 2 - 40 * u;
+  let bx = W / 2 - (mw + sw + (dec ? 0 : uw + gap) + gap) / 2;
+  const move = { x: bx + mw / 2, y: by, w: mw, h: bh }; bx += mw + gap;
+  const sell = { x: bx + sw / 2, y: by, w: sw, h: bh }; bx += sw + gap;
+  const up   = dec ? null : { x: bx + uw / 2, y: by, w: uw, h: bh };
+  return { u, x: W / 2, y, w, h, btn, dec, move, sell, up,
+    close: { x: W / 2 + w / 2 - 34 * u, y: y - h / 2 + 34 * u, r: 27 * u } };
 }
 function drawPanel() {
   if (panel == null) return;
@@ -1254,6 +1296,22 @@ function drawPanel() {
   const i = dec ? { max: true, cost: null, gate: 0 } : upInfo(p);
   const ok = dec ? true : canUpgrade(p);
   const busy = p.t < 1;
+
+  const btnFace = (r2, on, text, small) => {
+    g.fillStyle = on ? 'rgba(62,104,44,.98)' : 'rgba(40,44,36,.9)';
+    g.strokeStyle = on ? '#9fe86b' : 'rgba(255,255,255,.16)'; g.lineWidth = 3;
+    g.beginPath(); g.roundRect(r2.x - r2.w / 2, r2.y - r2.h / 2, r2.w, r2.h, 16 * u); g.fill(); g.stroke();
+    g.fillStyle = on ? '#eaffd6' : '#9aa693';
+    g.textAlign = 'center';
+    g.font = `bold ${Math.round((small ? 21 : 24) * u)}px Segoe UI, sans-serif`;
+    g.fillText(text, r2.x, r2.y);
+  };
+  btnFace(R.move, true, 'Move', true);
+  const sv = canSell(p) ? sellValue(p) : null;
+  btnFace(R.sell, !!sv, sv
+    ? (dec ? 'Remove  ' : 'Sell  ') + Object.entries(sv).map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join(' ')
+    : 'Cannot sell', true);
+  if (!R.up) { g.restore(); return; }
   /* A late upgrade can cost more than the village can physically hold, and then
      the button would sit grey for ever with no hint why. Storage being a real
      constraint is the point -- it just has to say so. */
@@ -1312,7 +1370,7 @@ cv.addEventListener('pointermove', ev => {
     if (pinchD0 > 4) { CAM.z = Math.max(ZMIN, Math.min(ZMAX, pinchZ0 * (m.d / pinchD0))); camClamp(); }
     return; }
   if (rec.moved > DRAG_SLOP) { rec.drag = true; CAM.x -= dx / camScale(); CAM.y -= dy / camScale(); camClamp(); }
-  if (selBuild) updateGhost(p.x, p.y);
+  if (selBuild || moving != null) updateGhost(p.x, p.y);
 });
 function ptrEnd(ev) {
   const rec = PTRS.get(ev.pointerId); if (!rec) return;
@@ -1331,10 +1389,18 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('pagehide', save);
 window.addEventListener('resize', fitCanvas);
 
+function ghostKey() {
+  if (moving != null) { const p = byId(moving); return p ? p.key : null; }
+  return selBuild;
+}
 function updateGhost(sx, sy) {
+  const key = ghostKey();
+  if (!key) { ghost = null; return; }
   const w = camUnproject(sx, sy), t = worldToTile(w.x, w.y);
   const c = Math.floor(t.c), r = Math.floor(t.r);
-  ghost = { c, r, ok: canPlace(selBuild, c, r, occupied()) && buildable(selBuild) };
+  // a building being moved must not be blocked by the ground it is standing on
+  const occ = occupied(moving == null ? undefined : moving);
+  ghost = { c, r, ok: canPlace(key, c, r, occ) && (moving != null || buildable(key)) };
 }
 /* Which placed building covers a screen point, if any. */
 function buildingAt(sx, sy) {
@@ -1348,21 +1414,22 @@ function tap(sx, sy) {
   if (panel != null) {
     const R = panelRects(), p = byId(panel);
     if (Math.hypot(sx - R.close.x, sy - R.close.y) < R.close.r * 1.3) { panel = null; return; }
-    if (p && Math.abs(sx - R.up.x) < R.up.w / 2 && Math.abs(sy - R.up.y) < R.up.h / 2) {
-      if (isDecor(p.key)) removeDecor(p); else upgradeBuilding(p);
-      return;
-    }
+    const hit = r2 => r2 && Math.abs(sx - r2.x) < r2.w / 2 && Math.abs(sy - r2.y) < r2.h / 2;
+    if (p && hit(R.move)) { moving = p.id; panel = null; selBuild = null; ghost = null; return; }
+    if (p && hit(R.sell)) { sellBuilding(p); return; }
+    if (p && hit(R.up))   { upgradeBuilding(p); return; }
     // anywhere else inside the panel is swallowed, so a stray tap on it does
     // not fall through and place a building underneath
     if (Math.abs(sx - R.x) < R.w / 2 && Math.abs(sy - R.y) < R.h / 2) return;
   }
   for (const t of tabRects()) {
     if (Math.abs(sx - t.x) < t.w / 2 && Math.abs(sy - t.y) < t.h / 2) {
-      barMode = t.mode; selBuild = null; ghost = null; return;
+      barMode = t.mode; selBuild = null; moving = null; ghost = null; return;
     }
   }
   for (const r of barRects()) {
     if (Math.abs(sx - r.x) < r.w / 2 && Math.abs(sy - r.y) < r.h / 2) {
+      moving = null;                       // picking something new abandons a move
       if (atLimit(r.b.key)) {
         if (!isDecor(r.b.key)) panel = (hallOf() || {}).id ?? null;
         selBuild = null; ghost = null; return;
@@ -1371,6 +1438,12 @@ function tap(sx, sy) {
       panel = null; ghost = null;
       return;
     }
+  }
+  if (moving != null) {
+    updateGhost(sx, sy);
+    const p = byId(moving);
+    if (p && ghost && ghost.ok) { p.c = ghost.c; p.r = ghost.r; moving = null; ghost = null; save(); }
+    return;
   }
   if (selBuild) {
     updateGhost(sx, sy);
@@ -1403,4 +1476,6 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   get villagers() { return villagers; }, workersAt, boostAt, producers, stores,
   assignJobs, buildingAt, ensureHall,
   isDecor, decorCount, DECOR_MAX, charmTotal, charmMul, removeDecor, tabRects, drawDecor,
+  sellBuilding, canSell, sellValue, investedIn, get moving() { return moving; }, set moving(v) { moving = v; },
+  get pops() { return pops; }, get rateNow() { return rateNow; },
   get barMode() { return barMode; }, set barMode(v) { barMode = v; } };
