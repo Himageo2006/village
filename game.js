@@ -114,32 +114,126 @@ const sceneryAt=new Set(SCENERY.map(o=>o.c+','+o.r));
    base read as ALIVE rather than as a diagram -- the reference footage is mostly
    little figures walking around. */
 const villagers=[];
-const VIL_SPD=26;
-function targetBuilding(){
-  const done=placed.filter(p=>p.t>=1);
-  if(!done.length) return null;
-  const p=done[(Math.random()*done.length)|0], b=B(p.key);
-  return tileToWorld(p.c+(b.w-1)/2, p.r+(b.h-1)/2);
+/* Walking pace, world px per second. A tile is 128 wide, so at the 26 this
+   started at a villager took ten seconds to cross two tiles and spent most of
+   the game in transit rather than working -- the first delivery landed a minute
+   in. Fast enough to look purposeful, slow enough to watch. */
+const VIL_SPD=58;
+/* Small loads on purpose. A big load means the resource counter sits still for
+   half a minute and then jumps, which reads as a broken game; small ones keep
+   something arriving every few seconds. */
+const CARRY=8;
+const STOCK_MAX=CARRY*2;    // a workplace stops filling once it has this much waiting
+
+const byId = id => placed.find(p=>p.id===id);
+const centreOf = p => { const b=B(p.key); return tileToWorld(p.c+(b.w-1)/2, p.r+(b.h-1)/2); };
+const producers = () => placed.filter(p=>p.t>=1 && B(p.key).jobs);
+// the hall always accepts a delivery, so a village can never deadlock for want
+// of somewhere to put things
+const stores = () => placed.filter(p=>p.t>=1 && (B(p.key).caps || p.key==='hall'));
+const workersAt = id => villagers.reduce((n,v)=>n+(v.job===id?1:0),0);
+
+/* Output multiplier from wells in reach. Distance is measured centre to centre
+   in TILES, not world pixels, so a well's reach is a circle on the grid rather
+   than the squashed ellipse the iso projection would give. */
+function boostAt(p){
+  const bp=B(p.key); let m=1;
+  for(const w of placed){
+    if(w.key!=='well' || w.t<1) continue;
+    const bw=B('well');
+    const dx=(w.c+(bw.w-1)/2)-(p.c+(bp.w-1)/2);
+    const dy=(w.r+(bw.h-1)/2)-(p.r+(bp.h-1)/2);
+    if(Math.hypot(dx,dy)<=bw.boostR) m+=bw.boost;
+  }
+  return m;
 }
+function nearestStore(x,y){
+  let best=null,bd=Infinity;
+  for(const s of stores()){ const c=centreOf(s), d=Math.hypot(c.x-x,c.y-y); if(d<bd){bd=d;best=s;} }
+  return best;
+}
+function wanderTarget(){
+  const done=placed.filter(p=>p.t>=1);
+  if(!done.length) return tileToWorld(GW/2,GH/2);
+  const c=centreOf(done[(Math.random()*done.length)|0]);
+  return { x:c.x+(Math.random()*2-1)*46, y:c.y+(Math.random()*2-1)*26 };
+}
+const postNear = p => { const c=centreOf(p);
+  return { x:c.x+(Math.random()*2-1)*34, y:c.y+(Math.random()*2-1)*18 }; };
+
 function syncVillagers(){
   let want=0;
-  for(const p of placed) if(p.key==='house'&&p.t>=1) want+=2;
+  for(const p of placed) if(p.key==='house'&&p.t>=1) want+=B('house').pop;
   want=Math.min(want,24);
   while(villagers.length<want){
-    const t=targetBuilding()||tileToWorld(GW/2,GH/2);
+    const h=hallOf(), t=h?centreOf(h):tileToWorld(GW/2,GH/2);
     villagers.push({x:t.x,y:t.y,tx:t.x,ty:t.y,ph:Math.random()*7,wait:Math.random()*2,face:1,
-      k:(Math.random()*VILLAGERS.length)|0});
+      k:(Math.random()*VILLAGERS.length)|0, job:null, st:'idle', carry:null});
   }
   while(villagers.length>want) villagers.pop();
 }
+
+/* Hand out posts. A villager keeps its workplace until that workplace is gone,
+   so the village does not reshuffle every time something new is built. */
+function assignJobs(){
+  for(const v of villagers){
+    if(v.job==null) continue;
+    const p=byId(v.job);
+    if(!p || p.t<1 || !B(p.key).jobs){ v.job=null; v.st='idle'; v.carry=null; }
+  }
+  for(const v of villagers){
+    if(v.job!=null) continue;
+    // the emptiest workplace first, so two villagers staff two buildings rather
+    // than filling one and leaving the other asleep
+    const free=producers()
+      .filter(p=>workersAt(p.id) < B(p.key).jobs)
+      .sort((a,b)=>workersAt(a.id)/B(a.key).jobs - workersAt(b.id)/B(b.key).jobs)[0];
+    if(!free) break;                        // no vacancies, so none for anyone
+    v.job=free.id; v.st='toWork';
+    const t=postNear(free); v.tx=t.x; v.ty=t.y;
+  }
+}
+
+/* Villagers are the economy: a workplace fills only while someone is standing
+   at it, and what it makes reaches the player only when that villager walks a
+   load to a store. Nothing ticks on its own. */
 function stepVillagers(dt){
   for(const v of villagers){
+    const step1=()=>{ const dx=v.tx-v.x, dy=v.ty-v.y, d=Math.hypot(dx,dy);
+      if(d<6) return true;
+      v.x+=dx/d*VIL_SPD*dt; v.y+=dy/d*VIL_SPD*dt; v.face=dx<0?-1:1; v.ph+=dt*7; return false; };
+
+    if(v.st==='toWork'){ if(step1()) v.st='work'; continue; }
+
+    if(v.st==='work'){
+      const p=byId(v.job); if(!p){ v.st='idle'; continue; }
+      const b=B(p.key);
+      if(b.makes && p.stock<STOCK_MAX){
+        const rate=Object.values(b.makes)[0]*boostAt(p);
+        p.stock=Math.min(STOCK_MAX, p.stock+rate*dt);
+      }
+      v.ph+=dt*2.5;                          // a slow sway while working
+      if(p.stock>=CARRY){
+        const kind=Object.keys(b.makes)[0];
+        p.stock-=CARRY; v.carry={k:kind,n:CARRY};
+        const s=nearestStore(v.x,v.y);
+        if(s){ const c=centreOf(s); v.tx=c.x; v.ty=c.y+10; v.st='toStore'; }
+        else { res[kind]=Math.min(caps[kind],res[kind]+CARRY); v.carry=null; }
+      }
+      continue;
+    }
+
+    if(v.st==='toStore'){
+      if(!step1()) continue;
+      if(v.carry){ res[v.carry.k]=Math.min(caps[v.carry.k], res[v.carry.k]+v.carry.n); v.carry=null; }
+      const p=byId(v.job);
+      if(p){ const t=postNear(p); v.tx=t.x; v.ty=t.y; v.st='toWork'; } else v.st='idle';
+      continue;
+    }
+
+    // idle: drift between finished buildings, as before
     if(v.wait>0){ v.wait-=dt; continue; }
-    const dx=v.tx-v.x, dy=v.ty-v.y, d=Math.hypot(dx,dy);
-    if(d<6){ const t=targetBuilding(); if(t){ v.tx=t.x+(Math.random()*2-1)*46; v.ty=t.y+(Math.random()*2-1)*26; }
-      v.wait=0.6+Math.random()*2.2; continue; }
-    v.x+=dx/d*VIL_SPD*dt; v.y+=dy/d*VIL_SPD*dt;
-    v.face=dx<0?-1:1; v.ph+=dt*7;
+    if(step1()){ const t=wanderTarget(); v.tx=t.x; v.ty=t.y; v.wait=0.6+Math.random()*2.2; }
   }
 }
 /* ---------- camera (pan + pinch) ---------- */
@@ -168,20 +262,63 @@ const hudTop = () => -OY;
 const hudBot = () => H + OY;
 const mS = v => v * US();
 
-/* ---------- buildings ---------- */
+/* ---------- buildings ----------
+   jobs   how many villagers can work here. A building with jobs produces
+          NOTHING on its own -- see stepVillagers.
+   wallH  height of the procedural stand-in, used until art arrives.
+   boost  a well lifts the output of producers near it. */
 const BUILDINGS = [
-  { key: 'house',  name: 'House',     w: 2, h: 1, cost: { wood: 30 },            pop: 4,   icon: '🏠' },
-  { key: 'farm',   name: 'Farm',      w: 2, h: 2, cost: { wood: 45 },            makes: { food: 0.5 }, icon: '🌾' },
-  { key: 'lumber', name: 'Lumber Camp', w: 2, h: 1, cost: { wood: 20, food: 15 }, makes: { wood: 0.45 }, icon: '🪵' },
-  { key: 'store',  name: 'Storehouse',w: 2, h: 2, cost: { wood: 60, food: 20 },  caps: { wood: 400, food: 400 }, icon: '📦' },
+  { key: 'hall',   name: 'Town Hall', w: 2, h: 2, cost: { wood: 0 }, unique: true, wallH: 88, icon: '🏛️',
+    blurb: 'The heart of the village. Upgrade it to raise your building limits.' },
+  { key: 'house',  name: 'House',     w: 2, h: 1, cost: { wood: 30 },            pop: 2,   icon: '🏠',
+    blurb: 'Two more villagers move in.' },
+  { key: 'farm',   name: 'Farm',      w: 2, h: 2, cost: { wood: 45 },            makes: { food: 0.7 },  jobs: 2, wallH: 26, icon: '🌾',
+    blurb: 'Grows food. Needs villagers to work it.' },
+  { key: 'lumber', name: 'Lumber Camp', w: 2, h: 1, cost: { wood: 20, food: 15 }, makes: { wood: 0.6 },  jobs: 2, icon: '🪵',
+    blurb: 'Cuts wood. Needs villagers to work it.' },
+  { key: 'store',  name: 'Storehouse',w: 2, h: 2, cost: { wood: 60, food: 20 },  caps: { wood: 400, food: 400 }, wallH: 74, icon: '📦',
+    blurb: 'Raises how much you can hold. Villagers deliver here.' },
+  { key: 'well',   name: 'Well',      w: 1, h: 1, cost: { wood: 40 },            boost: 0.35, boostR: 2.6, wallH: 30, icon: '⛲',
+    blurb: 'Producers within a couple of tiles work 35% faster.' },
+  { key: 'mill',   name: 'Mill',      w: 2, h: 2, cost: { wood: 120, food: 60 }, makes: { food: 1.8 },  jobs: 2, wallH: 96, icon: '🌬️',
+    blurb: 'Grinds grain. Far more food than a farm, for two workers.' },
+  { key: 'market', name: 'Market',    w: 2, h: 2, cost: { wood: 200, food: 120 }, caps: { wood: 800, food: 800 }, makes: { wood: 0.55 }, jobs: 1, wallH: 62, icon: '🏪',
+    blurb: 'Trades for wood, and holds a great deal of both.' },
 ];
 const B = k => BUILDINGS.find(b => b.key === k);
 
+/* ---------- town hall levels ----------
+   The hall is the spine of the game: every level raises the cap on what you may
+   build, and introduces the next kind. `allow` is the TOTAL permitted at that
+   level, not an increment, so the table reads as the shape of the village at
+   each stage. `up` is the cost of reaching the NEXT level; null means the top. */
+const HALL = [
+  null,
+  { allow: { house: 2,  farm: 1, lumber: 1 },                                       up: { wood: 150,  food: 80 } },
+  { allow: { house: 4,  farm: 2, lumber: 2, store: 1, well: 1 },                    up: { wood: 400,  food: 220 } },
+  { allow: { house: 6,  farm: 3, lumber: 3, store: 2, well: 2, mill: 1 },           up: { wood: 900,  food: 500 } },
+  { allow: { house: 9,  farm: 4, lumber: 4, store: 3, well: 3, mill: 2, market: 1 }, up: { wood: 2000, food: 1100 } },
+  { allow: { house: 12, farm: 6, lumber: 6, store: 4, well: 4, mill: 3, market: 2 }, up: null },
+];
+const HALL_MAX = HALL.length - 1;
+const HALL_TIME = 6;                  // seconds an upgrade takes
+
 let res = { wood: 120, food: 60 };
 let caps = { wood: 300, food: 300 };
-let placed = [];                      // {key,c,r,t} t = build progress 0..1
+let placed = [];                      // {id,key,c,r,t,lvl,stock} t = build progress 0..1
+let nextId = 1;
 let selBuild = null;                  // key being placed
 let ghost = null;                     // {c,r,ok}
+let panel = null;                     // id of the building whose panel is open
+
+const hallOf = () => placed.find(p => p.key === 'hall');
+const hallLevel = () => { const h = hallOf(); return h ? Math.min(HALL_MAX, Math.max(1, h.lvl | 0)) : 1; };
+const allowedOf = key => (HALL[hallLevel()].allow[key] || 0);
+const countOf = key => placed.reduce((n, p) => n + (p.key === key ? 1 : 0), 0);
+// a building type you cannot have yet is hidden entirely; one you have run out
+// of room for stays visible but locked, so the limit is legible
+const unlocked = key => key === 'hall' || allowedOf(key) > 0;
+const atLimit = key => countOf(key) >= allowedOf(key);
 
 const occupied = () => {
   const set = new Set();
@@ -195,24 +332,51 @@ function canPlace(key, c, r, occ) {
   for (let dc = 0; dc < b.w; dc++) for (let dr = 0; dr < b.h; dr++) if (occ.has((c + dc) + ',' + (r + dr))) return false;
   return true;
 }
-const affordable = key => Object.entries(B(key).cost).every(([k, v]) => res[k] >= v);
+const canAfford = cost => Object.entries(cost).every(([k, v]) => res[k] >= v);
+const affordable = key => canAfford(B(key).cost);
+const buildable = key => unlocked(key) && !atLimit(key) && affordable(key);
 
 function place(key, c, r) {
   const b = B(key);
+  // the UI already gates this, but place() is also the API a test or a future
+  // caller reaches for, and unguarded it will happily spend into the negative
+  if (!canAfford(b.cost)) return false;
   for (const [k, v] of Object.entries(b.cost)) res[k] -= v;
-  placed.push({ key, c, r, t: 0 });
+  placed.push({ id: nextId++, key, c, r, t: 0, lvl: key === 'hall' ? 1 : 0, stock: 0, build: BUILD_TIME });
   recomputeCaps();
   save();
+  return true;
 }
 function recomputeCaps() {
-  caps = { wood: 300, food: 300 };
+  // the hall itself holds more as it grows, so an upgrade is worth something
+  // even before you have spent the room it unlocks
+  const base = 200 + 100 * hallLevel();
+  caps = { wood: base, food: base };
   for (const p of placed) { const b = B(p.key); if (b.caps && p.t >= 1)
     for (const [k, v] of Object.entries(b.caps)) caps[k] += v; }
 }
 
+/* ---------- town hall upgrades ---------- */
+const hallNext = () => HALL[hallLevel()].up;
+function canUpgrade() {
+  const h = hallOf();
+  return !!(h && h.t >= 1 && hallNext() && canAfford(hallNext()));
+}
+function upgradeHall() {
+  if (!canUpgrade()) return false;
+  const h = hallOf();
+  for (const [k, v] of Object.entries(hallNext())) res[k] -= v;
+  h.lvl = Math.min(HALL_MAX, (h.lvl | 0) + 1);
+  h.t = 0;                            // it goes back under scaffolding while it grows
+  h.build = HALL_TIME;
+  recomputeCaps();
+  save();
+  return true;
+}
+
 /* ---------- save ---------- */
 const KEY = 'vil_save';
-const SAVE_V = 2;      // 2: house became 2x1 when the painted art arrived
+const SAVE_V = 3;      // 2: house became 2x1 with the art. 3: town hall and jobs
 function save() { try { localStorage.setItem(KEY, JSON.stringify({ v: SAVE_V, res, placed })); } catch (e) {} }
 function load() {
   let s = null; try { s = JSON.parse(localStorage.getItem(KEY)); } catch (e) {}
@@ -222,20 +386,48 @@ function load() {
     if (typeof s.res[k] === 'number' && isFinite(s.res[k])) res[k] = s.res[k];
   if (Array.isArray(s.placed)) placed = s.placed.filter(p =>
     p && B(p.key) && Number.isFinite(p.c) && Number.isFinite(p.r))
-    .map(p => ({ key: p.key, c: p.c | 0, r: p.r | 0, t: typeof p.t === 'number' ? Math.min(1, Math.max(0, p.t)) : 1 }));
+    .map(p => ({
+      id: Number.isFinite(p.id) ? p.id | 0 : nextId++,
+      key: p.key, c: p.c | 0, r: p.r | 0,
+      t: typeof p.t === 'number' ? Math.min(1, Math.max(0, p.t)) : 1,
+      lvl: p.key === 'hall' ? Math.min(HALL_MAX, Math.max(1, p.lvl | 0)) : 0,
+      stock: typeof p.stock === 'number' && isFinite(p.stock) ? Math.max(0, p.stock) : 0,
+      build: BUILD_TIME,
+    }));
+  // ids must not collide with anything placed later in the session
+  nextId = Math.max(nextId, ...placed.map(p => p.id + 1), 1);
+  recomputeCaps();
+}
+/* A village with no hall has no rules and no centre, so one is founded for free
+   at the middle of the map. Also repairs a save that predates the hall. */
+function ensureHall() {
+  if (hallOf()) return;
+  const b = B('hall'), c = Math.floor((GW - b.w) / 2), r = Math.floor((GH - b.h) / 2);
+  placed.push({ id: nextId++, key: 'hall', c, r, t: 1, lvl: 1, stock: 0, build: BUILD_TIME });
   recomputeCaps();
 }
 
 /* ---------- simulation ---------- */
 const BUILD_TIME = 3.0;
+const SAVE_EVERY = 5;                 // seconds
+let saveT = 0;
 function step(dt) {
   syncVillagers();
+  assignJobs();
   stepVillagers(dt);
+  // nothing produces here any more -- see stepVillagers
   for (const p of placed) {
-    if (p.t < 1) { p.t = Math.min(1, p.t + dt / BUILD_TIME); if (p.t >= 1) recomputeCaps(); continue; }
-    const b = B(p.key);
-    if (b.makes) for (const [k, v] of Object.entries(b.makes)) res[k] = Math.min(caps[k], res[k] + v * dt);
+    if (p.t < 1) {
+      p.t = Math.min(1, p.t + dt / (p.build || BUILD_TIME));
+      // a finished building has to be written down, or reloading replays its
+      // construction from wherever the last save caught it
+      if (p.t >= 1) { recomputeCaps(); save(); }
+    }
   }
+  /* Everything the villagers carry in changes res without going through place(),
+     so without this a session's whole harvest is lost on reload. */
+  saveT += dt;
+  if (saveT >= SAVE_EVERY) { saveT = 0; save(); }
 }
 
 /* ---------- drawing ---------- */
@@ -396,6 +588,17 @@ function drawVillager(v) {
     g.fillStyle = '#5a6f8a'; g.fillRect(v.x - 5, v.y - HGT * 0.6, 10, HGT * 0.6);
   }
   g.restore();
+  /* What they are carrying, drawn OUTSIDE the mirrored transform so the icon
+     does not flip when a villager turns round. */
+  if (v.carry) {
+    const y = v.y - HGT - 13;
+    g.save();
+    g.fillStyle = 'rgba(14,22,12,.72)';
+    g.beginPath(); g.roundRect(v.x - 15, y - 12, 30, 24, 12); g.fill();
+    g.font = '17px Segoe UI, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(v.carry.k === 'wood' ? '🪵' : '🌾', v.x, y + 1);
+    g.restore();
+  }
 }
 /* Draws the painted sprite when it has loaded, and the procedural building when
    it has not -- so the village still works before the art arrives, and while it
@@ -428,7 +631,7 @@ function drawBuilding(p, alpha, tint) {
   }
   const halfW = (b.w + b.h) * TW / 4.6, halfH = (b.w + b.h) * TH / 4.6;
   const grow = p.t < 1 ? 0.35 + 0.65 * p.t : 1;      // rises as it is built
-  const wallH = (b.key === 'store' ? 74 : b.key === 'farm' ? 26 : 62) * grow;
+  const wallH = (b.wallH || 62) * grow;
 
   g.save(); g.globalAlpha = alpha;
   // footprint shadow
@@ -514,6 +717,55 @@ function drawBuilding(p, alpha, tint) {
   g.restore();
 }
 
+/* Roughly where the top of a building is in world space, so a badge can sit
+   above it. The art path knows its real height; the procedural one is measured
+   from its wall height. */
+function topOf(p) {
+  const b = B(p.key), art = artFor(p.key);
+  const a = tileToWorld(p.c, p.r), d = tileToWorld(p.c + b.w - 1, p.r + b.h - 1);
+  const cx = (a.x + d.x) / 2, cy = (a.y + d.y) / 2;
+  const ny = cy + (b.w + b.h) * TH / 4;
+  if (art) {
+    const f = ART_FIT[p.key] || FIT_DEF, fw = (b.w + b.h) * TW / 2;
+    const wid = fw * f.w, hgt = art.height * (wid / art.width);
+    return { x: cx, y: ny - f.ay * hgt };
+  }
+  return { x: cx, y: cy - (b.wallH || 62) - (b.w + b.h) * TH / 4 };
+}
+/* Badges are counter-scaled so they stay readable when the camera pulls back.
+   Clamped, or at minimum zoom they swell over the buildings they label. */
+const badgeScale = () => Math.max(0.55, Math.min(1.25, 1 / camScale()));
+
+function drawStatus(p) {
+  if (p.t < 1) return;
+  const b = B(p.key);
+  const hall = p.key === 'hall';
+  const idle = b.jobs && workersAt(p.id) === 0;
+  if (!hall && !idle) return;
+  const t = topOf(p), s = badgeScale();
+  g.save();
+  g.translate(t.x, t.y - 14 * s); g.scale(s, s);
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  if (hall) {
+    const label = 'Lv ' + hallLevel();
+    g.font = 'bold 20px Segoe UI, sans-serif';
+    const w = g.measureText(label).width + 22;
+    g.fillStyle = 'rgba(20,32,16,.86)'; g.strokeStyle = 'rgba(226,200,120,.9)'; g.lineWidth = 2;
+    g.beginPath(); g.roundRect(-w / 2, -15, w, 30, 15); g.fill(); g.stroke();
+    g.fillStyle = '#f0d894'; g.fillText(label, 0, 1);
+  } else {
+    /* A producer with nobody at it is the single most confusing state in the
+       game, so it says so rather than quietly making nothing. Drawn as a plain
+       glyph, not an emoji: at this size an emoji is a smudge, and it would be
+       drawn in whatever colour happened to be current. */
+    g.fillStyle = 'rgba(52,20,14,.9)'; g.strokeStyle = 'rgba(240,170,110,.95)'; g.lineWidth = 2.5;
+    g.beginPath(); g.roundRect(-17, -16, 34, 32, 16); g.fill(); g.stroke();
+    g.font = 'bold 23px Segoe UI, sans-serif'; g.fillStyle = '#ffca7a';
+    g.fillText('!', 0, 1);
+  }
+  g.restore();
+}
+
 function drawWorld() {
   const occSet = occupied();          // scenery hides under buildings
   drawGround();
@@ -530,7 +782,7 @@ function drawWorld() {
      villager can walk behind a house and in front of the next one. */
   const ents = [];
   for (const p of placed) { const b = B(p.key);
-    ents.push({ y: tileToWorld(p.c + b.w - 1, p.r + b.h - 1).y, d: () => drawBuilding(p, 1) }); }
+    ents.push({ y: tileToWorld(p.c + b.w - 1, p.r + b.h - 1).y, d: () => { drawBuilding(p, 1); drawStatus(p); } }); }
   for (const o of SCENERY) { if (occSet.has(o.c + ',' + o.r)) continue;
     ents.push({ y: tileToWorld(o.c, o.r).y, d: () => drawScenery(o) }); }
   for (const v of villagers) ents.push({ y: v.y, d: () => drawVillager(v) });
@@ -539,13 +791,16 @@ function drawWorld() {
 }
 
 /* ---------- HUD ---------- */
+/* The bar shows what the hall has unlocked, and nothing else. The town hall is
+   never on it -- there is exactly one and it is founded for you. */
+const barList = () => BUILDINGS.filter(b => b.key !== 'hall' && unlocked(b.key));
 function barRects() {
-  const u = US(), n = BUILDINGS.length;
-  const h = 118 * u, pad = 10 * u;
+  const list = barList(), u = US(), n = list.length;
+  const h = 118 * u, pad = 8 * u;
   const w = Math.min(190 * u, (W - pad * (n + 1)) / n);
   const y = hudBot() - h / 2 - 22 * u;
   const total = n * w + (n - 1) * pad;
-  return BUILDINGS.map((b, i) => ({ b, x: (W - total) / 2 + w / 2 + i * (w + pad), y, w, h }));
+  return list.map((b, i) => ({ b, x: (W - total) / 2 + w / 2 + i * (w + pad), y, w, h }));
 }
 function drawHUD() {
   const u = US();
@@ -568,28 +823,106 @@ function drawHUD() {
 
   // build bar
   for (const r of barRects()) {
-    const can = affordable(r.b.key), sel = selBuild === r.b.key;
+    const full = atLimit(r.b.key), can = !full && affordable(r.b.key), sel = selBuild === r.b.key;
     g.save();
     g.fillStyle = sel ? 'rgba(60,96,44,.95)' : can ? 'rgba(22,32,20,.92)' : 'rgba(40,22,20,.92)';
     g.strokeStyle = sel ? '#9fe86b' : can ? 'rgba(255,255,255,.22)' : 'rgba(200,110,90,.5)';
     g.lineWidth = sel ? 4 : 2.5;
     g.beginPath(); g.roundRect(r.x - r.w / 2, r.y - r.h / 2, r.w, r.h, 16); g.fill(); g.stroke();
     g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.font = `${Math.round(40 * US())}px Segoe UI, sans-serif`;
-    g.fillText(r.b.icon, r.x, r.y - r.h * 0.22);
-    g.font = `bold ${Math.round(19 * US())}px Segoe UI, sans-serif`;
-    g.fillStyle = '#fff'; g.fillText(r.b.name, r.x, r.y + r.h * 0.10);
-    g.font = `${Math.round(18 * US())}px Segoe UI, sans-serif`;
-    g.fillStyle = can ? '#e8c98a' : '#e59a86';
-    g.fillText(Object.entries(r.b.cost).map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join('  '), r.x, r.y + r.h * 0.34);
+    g.globalAlpha = full ? 0.55 : 1;
+    g.font = `${Math.round(38 * u)}px Segoe UI, sans-serif`;
+    g.fillText(r.b.icon, r.x, r.y - r.h * 0.24);
+    g.font = `bold ${Math.round(18 * u)}px Segoe UI, sans-serif`;
+    g.fillStyle = '#fff'; g.fillText(r.b.name, r.x, r.y + r.h * 0.08);
+    g.globalAlpha = 1;
+    g.font = `${Math.round(17 * u)}px Segoe UI, sans-serif`;
+    if (full) {
+      // the cost is irrelevant when the hall will not allow another one
+      g.fillStyle = '#e5b28a';
+      g.fillText(countOf(r.b.key) + '/' + allowedOf(r.b.key) + ' · upgrade hall', r.x, r.y + r.h * 0.32);
+    } else {
+      g.fillStyle = can ? '#e8c98a' : '#e59a86';
+      g.fillText(Object.entries(r.b.cost).map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join('  '), r.x, r.y + r.h * 0.32);
+    }
     g.restore();
   }
   if (selBuild) {
     g.save(); g.textAlign = 'center'; g.fillStyle = '#cfe0a8';
-    g.font = `bold ${Math.round(26 * US())}px Segoe UI, sans-serif`;
-    g.fillText('Tap a green tile to build  ·  tap here to cancel', W / 2, barRects()[0].y - barRects()[0].h / 2 - 22 * US());
+    g.font = `bold ${Math.round(26 * u)}px Segoe UI, sans-serif`;
+    g.fillText('Tap a green tile to build  ·  tap here to cancel', W / 2, barRects()[0].y - barRects()[0].h / 2 - 22 * u);
     g.restore();
   }
+  drawPanel();
+}
+
+/* ---------- building panel ----------
+   One definition drives both the drawing and the hit-testing, the same
+   discipline as the build bar, so what you can tap cannot drift from what you
+   can see. */
+function panelRects() {
+  const u = US(), bar = barRects()[0];
+  const p = panel == null ? null : byId(panel);
+  const btn = !!(p && p.key === 'hall');       // only the hall has a button to fit
+  const w = Math.min(W - 48 * u, 720 * u), h = (btn ? 232 : 152) * u;
+  const y = (bar ? bar.y - bar.h / 2 : hudBot()) - 20 * u - h / 2;
+  return { u, x: W / 2, y, w, h, btn,
+    close: { x: W / 2 + w / 2 - 34 * u, y: y - h / 2 + 34 * u, r: 27 * u },
+    up:    { x: W / 2, y: y + h / 2 - 44 * u, w: w * 0.66, h: 62 * u } };
+}
+function drawPanel() {
+  if (panel == null) return;
+  const p = byId(panel); if (!p) { panel = null; return; }
+  const b = B(p.key), R = panelRects(), u = R.u;
+  g.save();
+  g.fillStyle = 'rgba(14,22,13,.95)'; g.strokeStyle = 'rgba(255,255,255,.18)'; g.lineWidth = 2.5;
+  g.beginPath(); g.roundRect(R.x - R.w / 2, R.y - R.h / 2, R.w, R.h, 20 * u); g.fill(); g.stroke();
+  g.textAlign = 'left'; g.textBaseline = 'middle';
+  const lx = R.x - R.w / 2 + 26 * u;
+  g.font = `bold ${Math.round(30 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#fff';
+  g.fillText(b.icon + '  ' + b.name + (p.key === 'hall' ? '  ·  Level ' + hallLevel() : ''), lx, R.y - R.h / 2 + 38 * u);
+  g.font = `${Math.round(21 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#bccfae';
+  g.fillText(b.blurb, lx, R.y - R.h / 2 + 78 * u);
+
+  let line = '';
+  if (b.jobs) {
+    const n = workersAt(p.id);
+    line = 'Workers ' + n + ' / ' + b.jobs + (n ? '' : '   — build a house for more villagers');
+    const boost = boostAt(p);
+    if (boost > 1) line += '   ·   +' + Math.round((boost - 1) * 100) + '% from wells';
+  } else if (b.caps) {
+    line = 'Holds +' + b.caps.wood + ' wood and +' + b.caps.food + ' food';
+  } else if (b.pop) {
+    line = 'Houses ' + b.pop + ' villagers';
+  } else if (b.boost) {
+    line = 'Producers within ' + b.boostR + ' tiles work +' + Math.round(b.boost * 100) + '% faster';
+  }
+  if (p.key === 'hall') {
+    const a = HALL[hallLevel()].allow;
+    line = Object.keys(a).map(k => B(k).icon + a[k]).join('   ');
+  }
+  g.font = `${Math.round(21 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#e8c98a';
+  g.fillText(line, lx, R.y - R.h / 2 + 116 * u);
+
+  // close
+  g.fillStyle = 'rgba(255,255,255,.12)';
+  g.beginPath(); g.arc(R.close.x, R.close.y, R.close.r, 0, 7); g.fill();
+  g.textAlign = 'center'; g.fillStyle = '#fff';
+  g.font = `bold ${Math.round(26 * u)}px Segoe UI, sans-serif`; g.fillText('×', R.close.x, R.close.y);
+
+  if (p.key === 'hall') {
+    const nx = hallNext(), ok = canUpgrade(), busy = p.t < 1;
+    const label = busy ? 'Building…'
+      : !nx ? 'Highest level'
+      : 'Upgrade   ' + Object.entries(nx).map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join('  ');
+    g.fillStyle = ok ? 'rgba(62,104,44,.98)' : 'rgba(40,44,36,.9)';
+    g.strokeStyle = ok ? '#9fe86b' : 'rgba(255,255,255,.16)'; g.lineWidth = 3;
+    g.beginPath(); g.roundRect(R.up.x - R.up.w / 2, R.up.y - R.up.h / 2, R.up.w, R.up.h, 16 * u); g.fill(); g.stroke();
+    g.fillStyle = ok ? '#eaffd6' : '#9aa693';
+    g.font = `bold ${Math.round(25 * u)}px Segoe UI, sans-serif`;
+    g.fillText(label, R.up.x, R.up.y);
+  }
+  g.restore();
 }
 
 function draw() {
@@ -640,20 +973,41 @@ cv.addEventListener('pointerup', ptrEnd);
 cv.addEventListener('pointercancel', ptrEnd);
 cv.addEventListener('lostpointercapture', ev => PTRS.delete(ev.pointerId));
 window.addEventListener('blur', () => PTRS.clear());
-document.addEventListener('visibilitychange', () => { if (document.hidden) PTRS.clear(); });
+document.addEventListener('visibilitychange', () => {
+  // a backgrounded tab may never come back, so bank the progress now
+  if (document.hidden) { PTRS.clear(); save(); }
+});
+window.addEventListener('pagehide', save);
 window.addEventListener('resize', fitCanvas);
 
 function updateGhost(sx, sy) {
   const w = camUnproject(sx, sy), t = worldToTile(w.x, w.y);
   const c = Math.floor(t.c), r = Math.floor(t.r);
-  ghost = { c, r, ok: canPlace(selBuild, c, r, occupied()) && affordable(selBuild) };
+  ghost = { c, r, ok: canPlace(selBuild, c, r, occupied()) && buildable(selBuild) };
+}
+/* Which placed building covers a screen point, if any. */
+function buildingAt(sx, sy) {
+  const w = camUnproject(sx, sy), t = worldToTile(w.x, w.y);
+  const c = Math.floor(t.c), r = Math.floor(t.r);
+  return placed.find(p => { const b = B(p.key);
+    return c >= p.c && c < p.c + b.w && r >= p.r && r < p.r + b.h; }) || null;
 }
 function tap(sx, sy) {
   // HUD first, exactly as in Gatestorm: the bar must always win over the world
+  if (panel != null) {
+    const R = panelRects(), p = byId(panel);
+    if (Math.hypot(sx - R.close.x, sy - R.close.y) < R.close.r * 1.3) { panel = null; return; }
+    if (p && p.key === 'hall'
+        && Math.abs(sx - R.up.x) < R.up.w / 2 && Math.abs(sy - R.up.y) < R.up.h / 2) { upgradeHall(); return; }
+    // anywhere else inside the panel is swallowed, so a stray tap on it does
+    // not fall through and place a building underneath
+    if (Math.abs(sx - R.x) < R.w / 2 && Math.abs(sy - R.y) < R.h / 2) return;
+  }
   for (const r of barRects()) {
     if (Math.abs(sx - r.x) < r.w / 2 && Math.abs(sy - r.y) < r.h / 2) {
+      if (atLimit(r.b.key)) { panel = (hallOf() || {}).id ?? null; selBuild = null; ghost = null; return; }
       selBuild = (selBuild === r.b.key) ? null : r.b.key;
-      ghost = null;
+      panel = null; ghost = null;
       return;
     }
   }
@@ -662,10 +1016,13 @@ function tap(sx, sy) {
     if (ghost && ghost.ok) { place(selBuild, ghost.c, ghost.r); selBuild = null; ghost = null; }
     return;
   }
+  const hit = buildingAt(sx, sy);
+  panel = hit ? hit.id : null;
 }
 
 /* ---------- boot ---------- */
 load();
+ensureHall();
 fitCanvas();
 CAM.x = W / 2; CAM.y = tileToWorld(GW / 2, GH / 2).y; camClamp();
 let last = performance.now();
@@ -676,6 +1033,10 @@ setInterval(() => {
 
 /* test hooks */
 window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, worldToTile,
-  camProject, camUnproject, canPlace, occupied, place, step, draw, barRects,
+  camProject, camUnproject, canPlace, occupied, place, step, draw, barRects, barList,
   get sel() { return selBuild; }, set sel(v) { selBuild = v; },
-  tap, CAM, save, load, get caps() { return caps; } };
+  tap, CAM, save, load, get caps() { return caps; },
+  HALL, hallOf, hallLevel, allowedOf, countOf, atLimit, unlocked, buildable,
+  canUpgrade, upgradeHall, panelRects, get panel() { return panel; }, set panel(v) { panel = v; },
+  get villagers() { return villagers; }, workersAt, boostAt, producers, stores,
+  assignJobs, buildingAt, ensureHall };
