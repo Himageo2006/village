@@ -134,6 +134,66 @@ const VIL_SPD=58;
 const CARRY=8;
 const STOCK_MAX=CARRY*2;    // a workplace stops filling once it has this much waiting
 
+/* ---------- sound ----------
+   Synthesised rather than sampled: a handful of oscillators and envelopes cost
+   nothing to ship, need no art pass, and cannot be the wrong style. Everything
+   here is a short shaped tone, which is enough to make an action feel like it
+   landed.
+
+   The context is created on the FIRST TOUCH and not before. Browsers refuse to
+   start audio without a gesture, and a context made at load sits in 'suspended'
+   for ever -- silently, so it looks like the code is broken rather than the
+   policy. */
+let actx = null, master = null, muted = false;
+let lastDeliverAt = 0;
+
+function audioOn() {
+  if (actx) { if (actx.state === 'suspended') actx.resume(); return; }
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return;
+  try {
+    actx = new AC();
+    master = actx.createGain();
+    master.gain.value = 0.35;
+    master.connect(actx.destination);
+  } catch (e) { actx = null; }
+}
+
+/* One shaped tone. type/freq/dur describe it; slide bends the pitch, which is
+   what separates a rising "that worked" from a falling "that did not". */
+function tone({ f = 440, to = 0, type = 'sine', dur = 0.14, vol = 0.5, delay = 0 }) {
+  if (!actx || muted) return;
+  const t0 = actx.currentTime + delay;
+  const o = actx.createOscillator(), gn = actx.createGain();
+  o.type = type;
+  o.frequency.setValueAtTime(f, t0);
+  if (to) o.frequency.exponentialRampToValueAtTime(Math.max(30, to), t0 + dur);
+  // a quick attack and a smooth tail; a square cut at the end clicks
+  gn.gain.setValueAtTime(0.0001, t0);
+  gn.gain.exponentialRampToValueAtTime(vol, t0 + 0.012);
+  gn.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(gn); gn.connect(master);
+  o.start(t0); o.stop(t0 + dur + 0.02);
+}
+
+const SFX = {
+  tap:     () => tone({ f: 620, to: 520, type: 'triangle', dur: 0.06, vol: 0.22 }),
+  place:   () => { tone({ f: 180, to: 90, type: 'sine', dur: 0.22, vol: 0.55 });
+                   tone({ f: 300, to: 200, type: 'triangle', dur: 0.10, vol: 0.22, delay: 0.02 }); },
+  deliver: () => { // throttled: a busy village delivers constantly and would chatter
+                   const now = performance.now();
+                   if (now - lastDeliverAt < 220) return;
+                   lastDeliverAt = now;
+                   tone({ f: 880, type: 'sine', dur: 0.08, vol: 0.16 });
+                   tone({ f: 1320, type: 'sine', dur: 0.09, vol: 0.12, delay: 0.055 }); },
+  upgrade: () => [0, 0.09, 0.18].forEach((d, i) =>
+                   tone({ f: 523 * Math.pow(1.26, i), type: 'triangle', dur: 0.20, vol: 0.34, delay: d })),
+  sell:    () => { tone({ f: 420, to: 240, type: 'triangle', dur: 0.16, vol: 0.30 }); },
+  deny:    () => tone({ f: 170, to: 120, type: 'square', dur: 0.16, vol: 0.20 }),
+  goal:    () => [0, 0.10, 0.20, 0.32].forEach((d, i) =>
+                   tone({ f: [523, 659, 784, 1047][i], type: 'sine', dur: 0.30, vol: 0.30, delay: d })),
+};
+
 /* ---------- feedback ----------
    Deliveries used to change a number in the corner and nothing else, which
    makes a working village indistinguishable from a stalled one. Everything that
@@ -151,7 +211,7 @@ function deliver(k, n, x, y) {
   res[k] = Math.min(caps[k], res[k] + n);
   const got = res[k] - before;
   rateAcc[k] += got;
-  if (got > 0.01 && pops.length < POP_MAX) pops.push({ x, y, k, n: got, age: 0 });
+  if (got > 0.01 && pops.length < POP_MAX) { pops.push({ x, y, k, n: got, age: 0 }); SFX.deliver(); }
   return got;
 }
 function stepFeedback(dt) {
@@ -443,6 +503,7 @@ function upgradeBuilding(p) {
   p.build = p.key === 'hall' ? HALL_TIME : upTime(p);
   recomputeCaps();
   save();
+  SFX.upgrade();
   return true;
 }
 
@@ -534,6 +595,7 @@ function place(key, c, r) {
   placed.push({ id: nextId++, key, c, r, t: b.decor ? 1 : 0, lvl: 1, stock: 0, build: BUILD_TIME });
   recomputeCaps();
   save();
+  SFX.place();
   return true;
 }
 function recomputeCaps() {
@@ -572,6 +634,7 @@ function sellBuilding(p) {
   if (moving === p.id) moving = null;
   recomputeCaps();
   save();
+  SFX.sell();
   return true;
 }
 
@@ -599,7 +662,7 @@ const SAVE_V = 4;      // 2: house 2x1. 3: hall and jobs. 4: every building leve
    better than playing. */
 function save() {
   try { localStorage.setItem(KEY, JSON.stringify({
-    v: SAVE_V, res, placed, t: Date.now(), rate: rateNow, seen: tutSeen })); } catch (e) {}
+    v: SAVE_V, res, placed, t: Date.now(), rate: rateNow, seen: tutSeen, mute: muted })); } catch (e) {}
 }
 function load() {
   let s = null; try { s = JSON.parse(localStorage.getItem(KEY)); } catch (e) {}
@@ -610,6 +673,7 @@ function load() {
       rateNow[k] = Math.min(20, s.rate[k]);
   if (Number.isFinite(s.t)) savedAt = s.t;
   if (Array.isArray(s.seen)) tutSeen = s.seen.filter(x => typeof x === 'string');
+  if (typeof s.mute === 'boolean') muted = s.mute;
   if (s.res && typeof s.res === 'object') for (const k of ['wood', 'food'])
     if (typeof s.res[k] === 'number' && isFinite(s.res[k])) res[k] = s.res[k];
   if (Array.isArray(s.placed)) placed = s.placed.filter(p =>
@@ -1280,6 +1344,7 @@ function drawHUD() {
       W / 2, tabRects()[0].y - tabRects()[0].h / 2 - 16 * u);
     g.restore();
   }
+  drawMute();
   drawPanel();
   drawHint();
   drawAway();
@@ -1324,6 +1389,24 @@ function drawAway() {
   g.fillText(parts.join('     '), R.x, R.y + 6 * u);
   g.font = `bold ${Math.round(24 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#9fe86b';
   g.fillText('tap to continue', R.x, R.y + R.h / 2 - 40 * u);
+  g.restore();
+}
+
+/* Sound you cannot switch off is worse than no sound, so the toggle sits in the
+   HUD rather than in a settings screen this game does not have. */
+function muteRect() {
+  const u = US();
+  return { x: W - 52 * u, y: hudTop() + 52 * u, r: 34 * u };
+}
+function drawMute() {
+  const R = muteRect(), u = US();
+  g.save();
+  g.fillStyle = 'rgba(16,26,14,.78)'; g.strokeStyle = 'rgba(255,255,255,.14)'; g.lineWidth = 2;
+  g.beginPath(); g.arc(R.x, R.y, R.r, 0, 7); g.fill(); g.stroke();
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.font = `${Math.round(30 * u)}px Segoe UI, sans-serif`;
+  g.fillStyle = muted ? '#8d9487' : '#fff';
+  g.fillText(muted ? '🔇' : '🔊', R.x, R.y + 1 * u);
   g.restore();
 }
 
@@ -1468,6 +1551,7 @@ const ptrMid = () => { const a = [...PTRS.values()];
 function ptrSweep() { const now = Date.now(); for (const [id, r] of PTRS) if (now - r.tLast > PTR_STALE) PTRS.delete(id); }
 
 cv.addEventListener('pointerdown', ev => {
+  audioOn();                          // must happen inside a gesture
   ptrSweep();
   const p = evPos(ev);
   PTRS.set(ev.pointerId, { x: p.x, y: p.y, x0: p.x, y0: p.y, moved: 0, drag: false, pinch: false, tLast: Date.now() });
@@ -1524,30 +1608,40 @@ function buildingAt(sx, sy) {
 }
 function tap(sx, sy) {
   if (away) { away = null; return; }
+  {
+    const M = muteRect();
+    if (Math.hypot(sx - M.x, sy - M.y) < M.r * 1.15) {
+      muted = !muted; save();
+      if (!muted) SFX.tap();
+      return;
+    }
+  }
   // HUD first, exactly as in Gatestorm: the bar must always win over the world
   if (panel != null) {
     const R = panelRects(), p = byId(panel);
     if (Math.hypot(sx - R.close.x, sy - R.close.y) < R.close.r * 1.3) { panel = null; return; }
     const hit = r2 => r2 && Math.abs(sx - r2.x) < r2.w / 2 && Math.abs(sy - r2.y) < r2.h / 2;
-    if (p && hit(R.move)) { moving = p.id; panel = null; selBuild = null; ghost = null; return; }
-    if (p && hit(R.sell)) { sellBuilding(p); return; }
-    if (p && hit(R.up))   { upgradeBuilding(p); return; }
+    if (p && hit(R.move)) { moving = p.id; panel = null; selBuild = null; ghost = null; SFX.tap(); return; }
+    if (p && hit(R.sell)) { if (!sellBuilding(p)) SFX.deny(); return; }
+    if (p && hit(R.up))   { if (!upgradeBuilding(p)) SFX.deny(); return; }
     // anywhere else inside the panel is swallowed, so a stray tap on it does
     // not fall through and place a building underneath
     if (Math.abs(sx - R.x) < R.w / 2 && Math.abs(sy - R.y) < R.h / 2) return;
   }
   for (const t of tabRects()) {
     if (Math.abs(sx - t.x) < t.w / 2 && Math.abs(sy - t.y) < t.h / 2) {
-      barMode = t.mode; selBuild = null; moving = null; ghost = null; return;
+      barMode = t.mode; selBuild = null; moving = null; ghost = null; SFX.tap(); return;
     }
   }
   for (const r of barRects()) {
     if (Math.abs(sx - r.x) < r.w / 2 && Math.abs(sy - r.y) < r.h / 2) {
       moving = null;                       // picking something new abandons a move
       if (atLimit(r.b.key)) {
+        SFX.deny();
         if (!isDecor(r.b.key)) panel = (hallOf() || {}).id ?? null;
         selBuild = null; ghost = null; return;
       }
+      SFX.tap();
       selBuild = (selBuild === r.b.key) ? null : r.b.key;
       panel = null; ghost = null;
       return;
@@ -1565,6 +1659,7 @@ function tap(sx, sy) {
     return;
   }
   const hit = buildingAt(sx, sy);
+  if (hit) SFX.tap();
   panel = hit ? hit.id : null;
 }
 
@@ -1593,6 +1688,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   isDecor, decorCount, DECOR_MAX, charmTotal, charmMul, removeDecor, tabRects, drawDecor,
   sellBuilding, canSell, sellValue, investedIn, get moving() { return moving; }, set moving(v) { moving = v; },
   collectAway, currentHint, get away() { return away; }, set away(v) { away = v; },
+  SFX, muteRect, audioOn, get muted() { return muted; }, set muted(v) { muted = v; },
   get tutSeen() { return tutSeen; }, set tutSeen(v) { tutSeen = v; },
   get savedAt() { return savedAt; }, set savedAt(v) { savedAt = v; },
   get pops() { return pops; }, get rateNow() { return rateNow; },
