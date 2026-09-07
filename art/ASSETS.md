@@ -104,3 +104,57 @@ ART_FIT.house.w = 1.2;          // tweak this line and watch
   edge flood could not reach it. `prep-art.js` handles this; if a patch
   survives, it did not contain two distinct background greys, and needs removing
   by hand.
+
+---
+
+## Beyond the buildings
+
+Buildings are the fiddly case, because their base has to land on a plot. The
+rest is simpler.
+
+**Villagers** (`villager_farmer`, `villager_basket`, `villager_woodcutter`) are
+single standing poses, anchored bottom-centre. The game picks one per villager
+and fakes the walk by rocking the sprite about its feet and lifting it on each
+step. Two things they must be drawn with:
+
+- **Flat, frontal light** — unlike everything else. The game mirrors a villager
+  to turn them round, and a strong key light would flip with them.
+- **Bold shapes.** They are drawn 60 world px tall.
+
+**Scenery** (`tree_pine`, `tree_oak`, `rock`, `bush`) is anchored bottom-centre
+too, and sized by `SCENERY_H` in `game.js` — world height at scale 1, which each
+piece then varies by its own seeded factor. Set against a cottage at ~207px.
+
+**The ground** (`ground`) is one painted island, and **the sea** (`water`) is a
+single image mirrored into a 2×2 tile at runtime, so it repeats with no seam
+whatever the artwork does at its edges.
+
+The island needs `GROUND_FIT`, because the plate is not just a diamond — a rim
+of earth and rock hangs below the grass, so the bottom of the *image* is the
+foot of the cliff, not the corner of the ground the village stands on. Those
+three numbers say where the grass surface itself is. Check a new plate by
+outlining the grid over it:
+
+```js
+// paste in the browser console
+const _dg = drawGround;
+window.drawGround = function () {
+  _dg();
+  const t = (c, r) => tileToWorld(c, r);
+  const top = t(0, 0), right = t(GW - 1, 0), bot = t(GW - 1, GH - 1), left = t(0, GH - 1);
+  g.save(); g.strokeStyle = '#ff2ad4'; g.lineWidth = 3;
+  g.beginPath(); g.moveTo(top.x, top.y - TH / 2); g.lineTo(right.x + TW / 2, right.y);
+  g.lineTo(bot.x, bot.y + TH / 2); g.lineTo(left.x - TW / 2, left.y); g.closePath(); g.stroke();
+  g.restore();
+};
+```
+
+The outline should sit on the painted edge all the way round.
+
+### A caution about `measure-art.js`
+
+It reads the anchor off the lowest opaque pixel, which is the front corner **of
+a building**. A standing figure bottoms out on one foot and a boulder on the
+near edge of a broad base, so on those it returns a point off to one side. It
+warns when it detects this. Villagers and scenery are anchored bottom-centre and
+do not use `ART_FIT` at all.

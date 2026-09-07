@@ -57,8 +57,13 @@ const ALPHA = 40;      // ignore the faint fringe left by anti-aliasing
   if (odd.length) {
     console.log('\nWarning: the bottom edge is flat rather than a corner on '
       + odd.map(r => r.key).join(', ') + '.');
-    console.log('That sprite is probably not drawn at a true isometric angle, or');
-    console.log('something is resting on the ground in front of the building.');
+    console.log('These numbers do not apply. The measurement assumes the lowest');
+    console.log('pixel is the front corner of an isometric base, which is only');
+    console.log('true of buildings. A standing figure bottoms out on one FOOT and');
+    console.log('a boulder on the near edge of a broad base, so ax lands off to');
+    console.log('one side. Anchor those bottom-centre instead -- which is what');
+    console.log('drawVillager and drawScenery already do.');
+    console.log('A building that trips this really is drawn at the wrong angle.');
   }
   console.log('');
 })();

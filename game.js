@@ -31,7 +31,11 @@ function worldToTile(x, y) {
 }
 
 /* ---------- sprites ---------- */
-const WALK=[0,1,2,3].map(i=>{ const im=new Image(); im.src='walk_'+i+'.webp'; return im; });
+/* Villagers are three STANDING figures, not a walk cycle. Four frames that
+   match each other will not come back from an image generator, and one good
+   pose swayed and bobbed in code reads as walking at the size these are drawn.
+   Each villager keeps its own index into this list. */
+const VILLAGERS = ['villager_farmer', 'villager_basket', 'villager_woodcutter'];
 const ready=im=>im&&im.complete&&im.naturalWidth>0;
 
 /* Building artwork is OPTIONAL. If art/<key>.webp exists it is drawn; if it is
@@ -96,7 +100,11 @@ for(let r=0;r<GH;r++) for(let c=0;c<GW;c++){
   const n=hash(c,r);
   const edge = c<1||r<1||c>=GW-1||r>=GH-1;
   if(n>0.86 || (edge && n>0.55)){
-    SCENERY.push({c,r,kind:n>0.955?'rock':'tree',s:0.78+((n*97)%1)*0.5,f:(n*31)%1});
+    // a second, independent hash picks the variety -- reusing n would tie the
+    // kind to the threshold above and put every rock in the same places
+    const v=hash(c*7+3, r*11+5);
+    const kind = n>0.955 ? (v<0.55?'rock':'bush') : (v<0.62?'tree_pine':'tree_oak');
+    SCENERY.push({c,r,kind,rock:kind==='rock',s:0.78+((n*97)%1)*0.5,f:(n*31)%1});
   }
 }
 const sceneryAt=new Set(SCENERY.map(o=>o.c+','+o.r));
@@ -119,7 +127,8 @@ function syncVillagers(){
   want=Math.min(want,24);
   while(villagers.length<want){
     const t=targetBuilding()||tileToWorld(GW/2,GH/2);
-    villagers.push({x:t.x,y:t.y,tx:t.x,ty:t.y,ph:Math.random()*7,wait:Math.random()*2,face:1});
+    villagers.push({x:t.x,y:t.y,tx:t.x,ty:t.y,ph:Math.random()*7,wait:Math.random()*2,face:1,
+      k:(Math.random()*VILLAGERS.length)|0});
   }
   while(villagers.length>want) villagers.pop();
 }
@@ -244,12 +253,68 @@ function tilePath(c, r) {
   g.lineTo(p.x, p.y + TH / 2); g.lineTo(p.x - TW / 2, p.y);
   g.closePath();
 }
+/* Fitting the painted island to the grid.
+
+   The plate is not simply a diamond: below the grass there is a rim of earth
+   and rock, so the bottom of the IMAGE is the bottom of the cliff, not the
+   corner of the ground the village stands on. These three numbers, measured
+   off the alpha channel, say where the top face actually is:
+
+     faceW  width of the grass surface as a fraction of the image width
+     ax,ay  where the near corner of that surface sits in the image
+
+   The measured top face came out 1761 x 880 -- 2.001:1, so the plate really is
+   drawn at the same projection as the tile grid and lines up exactly. */
+const GROUND_FIT = { faceW: 0.9932, ax: 0.4994, ay: 0.9921 };
+
+/* The sea is one painted image mirrored into a 2x2 tile, which makes it repeat
+   with no seam whatever the artwork does at its edges: every tile boundary
+   meets its own reflection. Built once, on the first frame after it loads. */
+let waterPat = null;
+function waterPattern() {
+  if (waterPat) return waterPat;
+  const im = artFor('water');
+  if (!ready(im)) return null;
+  const w = im.width, h = im.height;
+  const cv = document.createElement('canvas');
+  cv.width = w * 2; cv.height = h * 2;
+  const q = cv.getContext('2d');
+  q.drawImage(im, 0, 0);
+  q.save(); q.translate(w * 2, 0); q.scale(-1, 1); q.drawImage(im, 0, 0); q.restore();
+  q.save(); q.translate(0, h * 2); q.scale(1, -1); q.drawImage(im, 0, 0); q.restore();
+  q.save(); q.translate(w * 2, h * 2); q.scale(-1, -1); q.drawImage(im, 0, 0); q.restore();
+  waterPat = g.createPattern(cv, 'repeat');
+  return waterPat;
+}
+
 function drawGround() {
-  // soft ground shadow so the plot sits ON something instead of floating
   const b = worldBounds(), cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2;
+
+  // sea, drawn far enough out that it still fills the screen at minimum zoom
+  const pat = waterPattern();
+  if (pat) {
+    const pad = 2600;
+    g.save(); g.fillStyle = pat;
+    g.fillRect(b.x0 - pad, b.y0 - pad, (b.x1 - b.x0) + pad * 2, (b.y1 - b.y0) + pad * 2);
+    g.restore();
+  }
+
+  // soft ground shadow so the plot sits ON something instead of floating
   g.save(); g.fillStyle = 'rgba(8,14,6,.5)'; g.filter = 'blur(26px)';
   g.beginPath(); g.ellipse(cx, cy + 26, (b.x1 - b.x0) / 2 + 30, (b.y1 - b.y0) / 2 + 24, 0, 0, 7); g.fill();
   g.filter = 'none'; g.restore();
+
+  const land = artFor('ground');
+  if (ready(land)) {
+    const f = GROUND_FIT;
+    const wid = (b.x1 - b.x0) / f.faceW;              // grass surface spans the grid
+    const hgt = land.height * (wid / land.width);
+    // the near corner of the grass meets the near corner of tile (GW-1, GH-1)
+    const ny = tileToWorld(GW - 1, GH - 1).y + TH / 2;
+    g.drawImage(land, cx - f.ax * wid, ny - f.ay * hgt, wid, hgt);
+    return;
+  }
+
   for (let r = 0; r < GH; r++) for (let c = 0; c < GW; c++) {
     const n = hash(c, r), n2 = hash(r * 3 + 1, c * 5 + 2);
     tilePath(c, r);
@@ -266,12 +331,26 @@ function drawGround() {
         g.beginPath(); g.moveTo(p.x + ox, p.y + oy); g.lineTo(p.x + ox + 2, p.y + oy - 7); g.stroke(); } }
   }
 }
+/* World height of each kind at scale 1, set against a cottage at ~207px so the
+   trees read as trees rather than shrubs or redwoods. */
+const SCENERY_H = { tree_pine: 115, tree_oak: 100, rock: 54, bush: 46 };
+
 function drawScenery(o) {
   const p = tileToWorld(o.c, o.r), s2 = o.s;
+  const art = artFor(o.kind);
+  if (art) {
+    const hgt = (SCENERY_H[o.kind] || 90) * s2, wid = art.width * (hgt / art.height);
+    g.save();
+    g.fillStyle = 'rgba(10,18,8,.30)';
+    g.beginPath(); g.ellipse(p.x, p.y + 3, wid * 0.30, wid * 0.15, 0, 0, 7); g.fill();
+    g.drawImage(art, p.x - wid / 2, p.y - hgt, wid, hgt);   // anchored bottom-centre
+    g.restore();
+    return;
+  }
   g.save();
   g.fillStyle = 'rgba(10,18,8,.30)';
   g.beginPath(); g.ellipse(p.x, p.y + 4, 20 * s2, 9 * s2, 0, 0, 7); g.fill();
-  if (o.kind === 'rock') {
+  if (o.rock) {
     g.fillStyle = '#7d7a72';
     g.beginPath(); g.moveTo(p.x - 20 * s2, p.y + 3); g.lineTo(p.x - 7 * s2, p.y - 18 * s2);
     g.lineTo(p.x + 12 * s2, p.y - 14 * s2); g.lineTo(p.x + 20 * s2, p.y + 3); g.closePath(); g.fill();
@@ -297,17 +376,21 @@ function drawScenery(o) {
    next to the art. */
 const VILLAGER_H = 60;
 function drawVillager(v) {
-  const fr = WALK[Math.floor(v.ph) % 4];
+  const im = artFor(VILLAGERS[v.k % VILLAGERS.length]);
   const moving = Math.hypot(v.tx - v.x, v.ty - v.y) > 6 && v.wait <= 0;
-  const im = moving ? fr : WALK[0];
-  const HGT = VILLAGER_H, bob = moving ? Math.sin(v.ph * 2) * 1.5 : 0;
+  const HGT = VILLAGER_H;
+  /* Standing art walks by leaning: rocked about the feet and lifted on each
+     step, twice per stride so both feet read. Kept small -- at this size a
+     hint of motion is convincing and anything more looks like staggering. */
+  const bob = moving ? Math.abs(Math.sin(v.ph * 3)) * HGT * 0.05 : 0;
+  const lean = moving ? Math.sin(v.ph * 1.5) * 0.055 : 0;
   g.save();
   g.fillStyle = 'rgba(10,18,8,.34)';
-  g.beginPath(); g.ellipse(v.x, v.y + 2, VILLAGER_H * 0.24, VILLAGER_H * 0.11, 0, 0, 7); g.fill();
+  g.beginPath(); g.ellipse(v.x, v.y + 2, HGT * 0.24, HGT * 0.11, 0, 0, 7); g.fill();
   if (ready(im)) {
     const w = im.width * (HGT / im.height);
-    g.translate(v.x, v.y + bob); g.scale(v.face, 1);
-    g.drawImage(im, -w / 2, -HGT, w, HGT);
+    g.translate(v.x, v.y); g.rotate(lean); g.scale(v.face, 1);
+    g.drawImage(im, -w / 2, -HGT - bob, w, HGT);
   } else {                                   // sprite not decoded yet
     g.fillStyle = '#c9b089'; g.beginPath(); g.arc(v.x, v.y - HGT * 0.75, 6, 0, 7); g.fill();
     g.fillStyle = '#5a6f8a'; g.fillRect(v.x - 5, v.y - HGT * 0.6, 10, HGT * 0.6);

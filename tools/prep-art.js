@@ -52,9 +52,18 @@ const KEYS = [
    and re-encoded. */
 const OPAQUE = new Set(['water']);
 
-// backdrops are drawn far larger than a building, so the 800px cap would show
-const WIDE = new Set(['ground', 'water']);
-const wideMax = 1800;
+/* How big each kind is actually drawn on screen, longest side, at full zoom-in.
+   A villager stands 60 world px tall and the camera tops out near 3x, so
+   shipping one at 1536px is 8x more pixels than can ever be shown. Anything not
+   listed gets MAX_W. */
+const CAP = {
+  villager_farmer: 320, villager_basket: 320, villager_woodcutter: 320,
+  tree_pine: 560, tree_oak: 560, rock: 360, bush: 360,
+  ground: 1800,
+  // the water is mirrored into a 2x2 tile at runtime, so its pixels cost four
+  // times what they measure here; it is a soft background and can take it
+  water: 900,
+};
 
 const near = (p, c, tol) => Math.abs(p[0] - c[0]) < tol && Math.abs(p[1] - c[1]) < tol && Math.abs(p[2] - c[2]) < tol;
 
@@ -180,9 +189,11 @@ const ORIG = path.join(ART, 'original');
 
       // WebP, not PNG: these are painted gradients, where a palette PNG bands
       // badly and a true-colour one stays in the megabytes
-      const cap = WIDE.has(key) ? wideMax : MAX_W;
+      // cap the LONGEST side: villagers and pines are tall, buildings are wide
+      const cap = CAP[key] || MAX_W;
       let img = sharp(trimmed);
-      if (tm.width > cap) img = img.resize(cap);
+      if (Math.max(tm.width, tm.height) > cap)
+        img = img.resize({ width: cap, height: cap, fit: 'inside', withoutEnlargement: true });
       const out = await img.webp({ quality: 88, alphaQuality: 100, effort: 6 }).toBuffer();
       fs.writeFileSync(path.join(ART, key + '.webp'), out);
       const meta = await sharp(out).metadata();
