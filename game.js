@@ -81,6 +81,15 @@ const ART_FIT = {
   farm:   { w: 0.85, ax: 0.531, ay: 1.000 },
   lumber: { w: 1.18, ax: 0.570, ay: 1.000 },
   store:  { w: 1.09, ax: 0.522, ay: 1.000 },
+  hall:   { w: 1.15, ax: 0.500, ay: 0.999 },
+  // ax measured 0.344, which is the water trough spilling off the well's
+  // lower-left, not the well. Set to the centre of the stone ring by hand --
+  // exactly the case measure-art.js warns about for broad-based objects.
+  well:   { w: 1.15, ax: 0.500, ay: 0.995 },
+  // the tower base matches its plot; the sails then overhang by a good margin,
+  // which is what a windmill does
+  mill:   { w: 1.05, ax: 0.551, ay: 0.998 },
+  market: { w: 1.10, ax: 0.561, ay: 0.999 },
 };
 const FIT_DEF = { w: 1.2, ax: 0.5, ay: 1 };
 
