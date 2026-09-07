@@ -1,0 +1,27 @@
+{
+  "name": "village",
+  "version": "1.0.0",
+  "description": "Village - an isometric village builder",
+  "private": true,
+  "scripts": {
+    "serve": "node server.js",
+    "art": "node tools/prep-art.js",
+    "measure": "node tools/measure-art.js",
+    "sync:www": "node scripts/sync-www.js",
+    "sync": "npm run sync:www && cap sync android",
+    "open": "cap open android",
+    "build:debug": "npm run sync && node scripts/gradle.js assembleDebug",
+    "build:release": "npm run sync && node scripts/gradle.js bundleRelease",
+    "build:release:apk": "npm run sync && node scripts/gradle.js assembleRelease",
+    "clean": "node scripts/gradle.js clean",
+    "assets": "capacitor-assets generate --android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.2.0",
+    "@capacitor/core": "^6.2.0"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^6.2.0"
+  }
+}

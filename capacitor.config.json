@@ -1,0 +1,8 @@
+{
+  "appId": "com.himageo.village",
+  "appName": "Village",
+  "webDir": "www",
+  "android": {
+    "backgroundColor": "#0e1410"
+  }
+}
