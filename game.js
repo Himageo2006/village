@@ -134,6 +134,61 @@ const VIL_SPD=58;
 const CARRY=8;
 const STOCK_MAX=CARRY*2;    // a workplace stops filling once it has this much waiting
 
+/* ---------- time of day ----------
+   Driven off the wall clock rather than a counter, so the cycle carries on
+   while the game is shut and you come back to a different hour instead of
+   always to the moment you left. It also gives the lamp decoration a reason to
+   exist: until now it was an ornament that glowed at noon.
+
+   Night is capped well short of black. This is a village you are meant to keep
+   playing in, not a stealth game, and a build bar you cannot read at 2am is a
+   bug however pretty it looks. */
+const DAY_MS = 8 * 60 * 1000;         // a full cycle
+const NIGHT_MAX = 0.42;               // strongest wash, tuned to stay readable
+const dayPhase = () => (Date.now() % DAY_MS) / DAY_MS;
+
+/* sun: 1 at noon, 0 at dawn and dusk, -1 at midnight. */
+function sky() {
+  const sun = Math.cos((dayPhase() - 0.25) * Math.PI * 2);
+  const night = Math.max(0, Math.min(1, (0.25 - sun) / 1.1));
+  const warm = Math.max(0, 1 - Math.abs(sun) * 2.6);   // peaks at sunrise and sunset
+  return { sun, night, warm };
+}
+function drawSky() {
+  const { night, warm } = sky();
+  if (night <= 0.001 && warm <= 0.001) return;
+  g.save();
+  if (warm > 0) {                      // low sun spills orange across everything
+    g.fillStyle = 'rgba(255,146,58,' + (0.20 * warm).toFixed(3) + ')';
+    g.fillRect(0, hudTop(), W, hudBot() - hudTop());
+  }
+  if (night > 0) {
+    g.fillStyle = 'rgba(16,30,74,' + (NIGHT_MAX * night).toFixed(3) + ')';
+    g.fillRect(0, hudTop(), W, hudBot() - hudTop());
+  }
+  g.restore();
+}
+/* Lamps are drawn AFTER the night wash so their light sits on top of it rather
+   than being dimmed along with everything else. */
+function drawLamps() {
+  const { night } = sky();
+  if (night < 0.04) return;
+  g.save();
+  g.globalCompositeOperation = 'lighter';
+  for (const p of placed) {
+    if (p.key !== 'lamp') continue;
+    const o = tileToWorld(p.c, p.r), y = o.y - 52;
+    const r = 92, gr = g.createRadialGradient(o.x, y, 0, o.x, y, r);
+    const a = 0.50 * night;
+    gr.addColorStop(0, 'rgba(255,206,120,' + a.toFixed(3) + ')');
+    gr.addColorStop(0.45, 'rgba(255,178,80,' + (a * 0.35).toFixed(3) + ')');
+    gr.addColorStop(1, 'rgba(255,170,70,0)');
+    g.fillStyle = gr;
+    g.beginPath(); g.arc(o.x, y, r, 0, 7); g.fill();
+  }
+  g.restore();
+}
+
 /* ---------- sound ----------
    Synthesised rather than sampled: a handful of oscillators and envelopes cost
    nothing to ship, need no art pass, and cannot be the wrong style. Everything
@@ -1628,6 +1683,8 @@ function draw() {
   g.fillStyle = '#0e1410'; g.fillRect(0, 0, W, VH);
   g.save(); g.translate(0, OY);
   g.save(); camApply(); drawWorld(); g.restore();
+  drawSky();                                   // dusk and night wash over the world
+  g.save(); camApply(); drawLamps(); g.restore();   // but not over lamplight
   drawHUD();
   g.restore();
 }
@@ -1783,6 +1840,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   GOALS, currentGoal, get goalIdx() { return goalIdx; }, set goalIdx(v) { goalIdx = v; },
   get goalDone() { return goalDone; }, set goalDone(v) { goalDone = v; },
   SFX, muteRect, audioOn, get muted() { return muted; }, set muted(v) { muted = v; },
+  sky, dayPhase, DAY_MS,
   get tutSeen() { return tutSeen; }, set tutSeen(v) { tutSeen = v; },
   get savedAt() { return savedAt; }, set savedAt(v) { savedAt = v; },
   get pops() { return pops; }, get rateNow() { return rateNow; },
