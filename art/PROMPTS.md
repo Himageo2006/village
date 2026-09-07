@@ -1,7 +1,8 @@
 # Copy-paste prompts — village art
 
-Five groups: **buildings** (1-4), **villagers** (5-7), **scenery** (8-11),
-**ground and backdrop** (12-13) and **buildings, part two** (14-17).
+Six groups: **buildings** (1-4), **villagers** (5-7), **scenery** (8-11),
+**ground and backdrop** (12-13), **buildings, part two** (14-17) and
+**decorations** (18-23).
 
 Generate each group **in one conversation, in the order given**. Every prompt
 repeats the whole style spec so it still works pasted alone, but keeping a group
@@ -727,4 +728,248 @@ No empty padding.
 
 DO NOT INCLUDE: text, labels, watermarks, UI, borders, signage, multiple
 angles, character figures, shoppers, or any ground surface.
+```
+
+---
+---
+
+# Decorations
+
+Six small pieces the player places to make the village theirs. They are drawn
+in code today and it shows — the path reads well, the hedges are green pills —
+so these are the last things standing between the village and being entirely
+painted.
+
+Same rules as everything else: **2:1 isometric, light from the upper LEFT,
+transparent background, base at the bottom of the image**. Two differences:
+
+- These are **small**. A lamp stands about a third the height of a cottage; a
+  flowerbed is ankle high. Say so, or they come back the size of a house.
+- The **path is a floor tile**, not an object. It is the one asset that must be
+  a diamond filling the frame, because the game lays it flat into the grid.
+
+| Prompt | Drawn at | Notes |
+|---|---|---|
+| Path | fills one tile | flat on the ground; must tile edge to edge |
+| Fence | ~42px tall | a single segment, laid end to end |
+| Flowerbed | ~34px tall | low and wide |
+| Hedge | ~48px tall | low and wide |
+| Lamp | ~80px tall | the tallest of the six |
+| Statue | ~88px tall | the showpiece |
+
+---
+
+## 18 — Path → `art/path.png`
+
+```
+A square tile of worn dirt path seen from above at an isometric angle, as a
+game floor tile. Match the art style of the cottage image.
+
+SHAPE: the tile is a DIAMOND that fills the frame — a square of ground seen
+from a corner, so it is exactly twice as wide as it is tall, with its
+corners touching the left, right, top and bottom edges of the image.
+
+CAMERA: seen from a corner at 30 degrees above the horizon, the standard 2:1
+isometric game view. Completely flat — this is ground, not an object.
+
+SUBJECT: packed earth in warm mid-brown, lightly rutted, with a scatter of
+small embedded pebbles and a few faint wheel tracks. Slightly darker towards
+the edges so that laying several side by side reads as a continuous track.
+Nothing standing on it.
+
+STYLE: stylised low-poly mobile strategy game art, in the vein of Clash of
+Clans or Rise of Kingdoms. Soft hand-painted shading, warm saturated
+colours, broad simple shapes. No photorealism, no fine gravel texture.
+
+LIGHTING: soft even overhead daylight. No long shadows, no directional
+lighting, no vignette — this tile is repeated, so any highlight would repeat
+with it and read as a grid.
+
+BACKGROUND: fully transparent outside the diamond. No grass, no border, no
+drop shadow.
+
+DO NOT INCLUDE: grass, plants, buildings, characters, fences, text, labels,
+watermarks, UI, borders, or a visible tile outline.
+```
+
+---
+
+## 19 — Fence → `art/fence.png`
+
+```
+A single short section of medieval wooden fence, as a small game asset
+sprite. Same art style, same camera angle and same lighting as the cottage
+image.
+
+CAMERA: seen from a corner at 30 degrees above the horizon. No top-down
+view, no straight-on elevation.
+
+SCALE: this is a SMALL object — about knee high on a person, roughly a fifth
+the height of a cottage. Draw it as one short section that could be repeated
+end to end to make a run of fence.
+
+SUBJECT: two stout weathered timber posts with two horizontal split rails
+between them. Rough-hewn pale brown wood with visible grain and a couple of
+knots. A tuft or two of grass at the foot of each post.
+
+STYLE: stylised low-poly mobile strategy game art, in the vein of Clash of
+Clans or Rise of Kingdoms. Chunky simplified forms, warm saturated colours,
+soft hand-painted shading, crisp edges. Bold enough to read small.
+
+LIGHTING: single key light from the upper LEFT. Left lit, right in soft
+shadow.
+
+BACKGROUND: fully transparent. No ground, no grass patch, no baseplate, no
+drop shadow, no cast shadow.
+
+FRAMING: fills the frame, the foot of the posts resting on the bottom edge,
+centred horizontally. No empty padding.
+
+DO NOT INCLUDE: gates, a long run of fencing, text, labels, watermarks, UI,
+borders, character figures, or any ground surface.
+```
+
+---
+
+## 20 — Flowerbed → `art/flowers.png`
+
+```
+A small bed of wildflowers, as a game asset sprite. Same art style, same
+camera angle and same lighting as the cottage image.
+
+CAMERA: seen from a corner at 30 degrees above the horizon. No top-down
+view.
+
+SCALE: a SMALL, LOW object — ankle high, wider than it is tall, about a
+seventh the height of a cottage.
+
+SUBJECT: a rounded patch of rich dark soil edged with a few small stones,
+planted with clusters of simple wildflowers — red, warm yellow, soft pink
+and white — on short green stems. Full and cheerful, slightly irregular.
+
+STYLE: stylised low-poly mobile strategy game art, in the vein of Clash of
+Clans or Rise of Kingdoms. Chunky simplified forms, flowers as bold dots of
+colour rather than detailed petals, soft hand-painted shading. Must read
+clearly at a small size.
+
+LIGHTING: single key light from the upper LEFT. Left lit, right in soft
+shadow.
+
+BACKGROUND: fully transparent. No grass, no ground beyond the bed itself, no
+baseplate, no drop shadow, no cast shadow.
+
+FRAMING: fills the frame, resting on the bottom edge, centred horizontally.
+No empty padding.
+
+DO NOT INCLUDE: pots, planters, text, labels, watermarks, UI, borders,
+character figures, or any ground surface.
+```
+
+---
+
+## 21 — Hedge → `art/hedge.png`
+
+```
+A short section of clipped garden hedge, as a game asset sprite. Same art
+style, same camera angle and same lighting as the cottage image.
+
+CAMERA: seen from a corner at 30 degrees above the horizon. No top-down
+view, no straight-on elevation.
+
+SCALE: a SMALL, LOW object — waist high, wider than it is tall, about a
+quarter the height of a cottage. One section, repeatable end to end.
+
+SUBJECT: a neatly clipped block of dense dark green foliage with softly
+rounded corners and a flat top, built from a few large sculpted leafy masses.
+A hint of woody stems at the base. Lighter fresh green on the upper
+surfaces, deeper green underneath.
+
+STYLE: stylised low-poly mobile strategy game art, in the vein of Clash of
+Clans or Rise of Kingdoms. Chunky simplified forms, foliage as sculpted
+masses rather than individual leaves, soft hand-painted shading.
+
+LIGHTING: single key light from the upper LEFT. The left face and the top
+are lit; the right face falls into soft shadow.
+
+BACKGROUND: fully transparent. No ground, no grass, no baseplate, no drop
+shadow, no cast shadow.
+
+FRAMING: fills the frame, resting on the bottom edge, centred horizontally.
+No empty padding.
+
+DO NOT INCLUDE: flowers, topiary shapes, text, labels, watermarks, UI,
+borders, character figures, or any ground surface.
+```
+
+---
+
+## 22 — Lamp → `art/lamp.png`
+
+```
+A medieval iron lamp post, as a game asset sprite. Same art style, same
+camera angle and same lighting as the cottage image.
+
+CAMERA: seen from a corner at 30 degrees above the horizon. No top-down
+view, no straight-on elevation.
+
+SCALE: TALL AND NARROW, but small overall — roughly a third the height of a
+cottage, and only a hand's width across.
+
+SUBJECT: a slender black wrought-iron post on a small round stone base,
+topped with a four-sided glass lantern in an iron frame with a little
+pointed cap. A warm candle flame glowing amber inside the glass, casting a
+soft golden light on the ironwork immediately around it. A simple curled
+iron bracket where the lantern meets the post.
+
+STYLE: stylised low-poly mobile strategy game art, in the vein of Clash of
+Clans or Rise of Kingdoms. Chunky simplified forms, bold silhouette, soft
+hand-painted shading. The lantern must read clearly at a small size.
+
+LIGHTING: single key light from the upper LEFT on the post and base. The
+lantern glows from within — warm amber, contained to the lamp itself.
+
+BACKGROUND: fully transparent. No ground, no grass, no baseplate, no drop
+shadow, no cast shadow, and NO glow spilling onto the background.
+
+FRAMING: fills the frame vertically, the base resting on the bottom edge,
+centred horizontally. No empty padding.
+
+DO NOT INCLUDE: light rays, lens flare, a pool of light on the ground, text,
+labels, watermarks, UI, borders, character figures, or any ground surface.
+```
+
+---
+
+## 23 — Statue → `art/statue.png`
+
+```
+A small stone statue on a plinth, as a game asset sprite. Same art style,
+same camera angle and same lighting as the cottage image.
+
+CAMERA: seen from a corner at 30 degrees above the horizon. No top-down
+view, no straight-on elevation.
+
+SCALE: small — roughly a third the height of a cottage, standing on a
+single square base.
+
+SUBJECT: a carved pale limestone figure of a robed villager holding a sheaf
+of wheat, standing on a square stepped plinth of dressed grey stone. Weathered
+and slightly mossy at the base. Calm and dignified, a village monument rather
+than a grand civic sculpture. Simple robes, no fine facial detail.
+
+STYLE: stylised low-poly mobile strategy game art, in the vein of Clash of
+Clans or Rise of Kingdoms. Chunky simplified forms, broad carved planes, soft
+hand-painted shading. Bold enough to read at a small size.
+
+LIGHTING: single key light from the upper LEFT. The left of the figure and
+plinth is lit; the right falls into soft shadow.
+
+BACKGROUND: fully transparent. No ground, no grass, no baseplate beyond the
+plinth itself, no drop shadow, no cast shadow.
+
+FRAMING: fills the frame, the plinth resting on the bottom edge, centred
+horizontally. No empty padding.
+
+DO NOT INCLUDE: weapons, armour, horses, fountains, water, text, labels,
+watermarks, UI, borders, other figures, or any ground surface.
 ```
