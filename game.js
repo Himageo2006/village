@@ -134,6 +134,56 @@ const VIL_SPD=58;
 const CARRY=8;
 const STOCK_MAX=CARRY*2;    // a workplace stops filling once it has this much waiting
 
+/* ---------- feedback ----------
+   Deliveries used to change a number in the corner and nothing else, which
+   makes a working village indistinguishable from a stalled one. Everything that
+   arrives now says so where it arrived, and the HUD reports the rate the
+   village is ACTUALLY achieving rather than the rate its buildings are rated
+   for -- the gap between the two is walking time, and it is large. */
+const pops = [];
+const POP_MAX = 24, POP_LIFE = 1.5;
+let rateNow = { wood: 0, food: 0 };          // smoothed, shown in the HUD
+let rateAcc = { wood: 0, food: 0 }, rateT = 0;
+const RATE_WINDOW = 3;
+
+function deliver(k, n, x, y) {
+  const before = res[k];
+  res[k] = Math.min(caps[k], res[k] + n);
+  const got = res[k] - before;
+  rateAcc[k] += got;
+  if (got > 0.01 && pops.length < POP_MAX) pops.push({ x, y, k, n: got, age: 0 });
+  return got;
+}
+function stepFeedback(dt) {
+  for (const q of pops) q.age += dt;
+  for (let i = pops.length - 1; i >= 0; i--) if (pops[i].age > POP_LIFE) pops.splice(i, 1);
+  rateT += dt;
+  if (rateT >= RATE_WINDOW) {
+    for (const k of ['wood', 'food']) {
+      // eased so the readout settles instead of flickering between windows
+      rateNow[k] += (rateAcc[k] / rateT - rateNow[k]) * 0.55;
+      rateAcc[k] = 0;
+    }
+    rateT = 0;
+  }
+}
+function drawPops() {
+  for (const q of pops) {
+    const t = q.age / POP_LIFE;
+    g.save();
+    g.globalAlpha = Math.min(1, (1 - t) * 2.2);
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = 'bold 21px Segoe UI, sans-serif';
+    g.lineWidth = 4; g.strokeStyle = 'rgba(8,16,8,.75)';
+    const txt = '+' + Math.round(q.n) + (q.k === 'wood' ? ' 🪵' : ' 🌾');
+    const y = q.y - 26 - t * 34;
+    g.strokeText(txt, q.x, y); 
+    g.fillStyle = q.k === 'wood' ? '#f0d49a' : '#cdeb9a';
+    g.fillText(txt, q.x, y);
+    g.restore();
+  }
+}
+
 const byId = id => placed.find(p=>p.id===id);
 const centreOf = p => { const b=B(p.key); return tileToWorld(p.c+(b.w-1)/2, p.r+(b.h-1)/2); };
 const producers = () => placed.filter(p=>p.t>=1 && B(p.key).jobs);
@@ -230,14 +280,14 @@ function stepVillagers(dt){
         p.stock-=CARRY; v.carry={k:kind,n:CARRY};
         const s=nearestStore(v.x,v.y);
         if(s){ const c=centreOf(s); v.tx=c.x; v.ty=c.y+10; v.st='toStore'; }
-        else { res[kind]=Math.min(caps[kind],res[kind]+CARRY); v.carry=null; }
+        else { deliver(kind, CARRY, v.x, v.y); v.carry=null; }
       }
       continue;
     }
 
     if(v.st==='toStore'){
       if(!step1()) continue;
-      if(v.carry){ res[v.carry.k]=Math.min(caps[v.carry.k], res[v.carry.k]+v.carry.n); v.carry=null; }
+      if(v.carry){ deliver(v.carry.k, v.carry.n, v.x, v.y); v.carry=null; }
       const p=byId(v.job);
       if(p){ const t=postNear(p); v.tx=t.x; v.ty=t.y; v.st='toWork'; } else v.st='idle';
       continue;
@@ -516,6 +566,7 @@ function step(dt) {
   syncVillagers();
   assignJobs();
   stepVillagers(dt);
+  stepFeedback(dt);
   // nothing produces here any more -- see stepVillagers
   for (const p of placed) {
     if (p.t < 1) {
@@ -1009,6 +1060,7 @@ function drawWorld() {
   for (const v of villagers) ents.push({ y: v.y, d: () => drawVillager(v) });
   ents.sort((a, b2) => a.y - b2.y);
   for (const e of ents) e.d();
+  drawPops();
 }
 
 /* ---------- HUD ---------- */
@@ -1043,26 +1095,38 @@ function drawHUD() {
   const ry = hudTop() + 52 * u;
   g.save();
   g.font = `bold ${Math.round(34 * u)}px Segoe UI, sans-serif`; g.textBaseline = 'middle';
-  const chip = (x, icon, val, cap, col) => {
-    const wch = 210 * u;
-    g.fillStyle = 'rgba(16,26,14,.78)'; g.strokeStyle = 'rgba(255,255,255,.14)'; g.lineWidth = 2;
-    g.beginPath(); g.roundRect(x, ry - 30 * u, wch, 60 * u, 30 * u); g.fill(); g.stroke();
-    g.textAlign = 'left'; g.font = `${Math.round(30 * u)}px Segoe UI, sans-serif`;
-    g.fillStyle = '#fff'; g.fillText(icon, x + 16 * u, ry);
-    g.font = `bold ${Math.round(30 * u)}px Segoe UI, sans-serif`; g.fillStyle = col;
-    g.fillText(Math.floor(val) + ' / ' + cap, x + 62 * u, ry);
+  /* Two lines inside the pill: the amount, and beneath it what the village is
+     really achieving. The second number is measured from actual deliveries, not
+     summed from the buildings' rated output -- the gap between the two is
+     walking time, and it is easily half. */
+  const chip = (x, icon, val, cap, col, rate) => {
+    const wch = 210 * u, h = 76 * u, full = val >= cap - 0.5;
+    g.fillStyle = 'rgba(16,26,14,.80)';
+    g.strokeStyle = full ? 'rgba(235,150,110,.75)' : 'rgba(255,255,255,.14)';
+    g.lineWidth = full ? 3 : 2;
+    g.beginPath(); g.roundRect(x, ry - h / 2, wch, h, h / 2); g.fill(); g.stroke();
+    g.textAlign = 'left'; g.font = `${Math.round(28 * u)}px Segoe UI, sans-serif`;
+    g.fillStyle = '#fff'; g.fillText(icon, x + 16 * u, ry - 1 * u);
+    g.font = `bold ${Math.round(27 * u)}px Segoe UI, sans-serif`; g.fillStyle = col;
+    g.fillText(Math.floor(val) + ' / ' + cap, x + 58 * u, ry - 12 * u);
+    g.font = `bold ${Math.round(19 * u)}px Segoe UI, sans-serif`;
+    if (full) { g.fillStyle = '#f0a583'; g.fillText('storage full', x + 58 * u, ry + 18 * u); }
+    else { g.fillStyle = rate > 0.02 ? '#8fd06a' : '#7d8a76';
+      g.fillText(rate > 0.02 ? '+' + rate.toFixed(1) + ' / s' : 'idle', x + 58 * u, ry + 18 * u); }
   };
-  chip(24 * u, '🪵', res.wood, caps.wood, '#e8c98a');
-  chip(24 * u + 226 * u, '🌾', res.food, caps.food, '#bfe08a');
+  chip(24 * u, '🪵', res.wood, caps.wood, '#e8c98a', rateNow.wood);
+  chip(24 * u + 226 * u, '🌾', res.food, caps.food, '#bfe08a', rateNow.food);
   const ch = charmTotal();
   if (ch > 0) {
-    const x = 24 * u + 452 * u, wch = 190 * u;
-    g.fillStyle = 'rgba(16,26,14,.78)'; g.strokeStyle = 'rgba(255,255,255,.14)'; g.lineWidth = 2;
-    g.beginPath(); g.roundRect(x, ry - 30 * u, wch, 60 * u, 30 * u); g.fill(); g.stroke();
-    g.textAlign = 'left'; g.font = `${Math.round(30 * u)}px Segoe UI, sans-serif`;
-    g.fillStyle = '#fff'; g.fillText('✨', x + 16 * u, ry);
-    g.font = `bold ${Math.round(28 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#cbb6f0';
-    g.fillText('+' + Math.round((charmMul() - 1) * 100) + '%', x + 62 * u, ry);
+    const x = 24 * u + 452 * u, wch = 190 * u, hh = 76 * u;
+    g.fillStyle = 'rgba(16,26,14,.80)'; g.strokeStyle = 'rgba(255,255,255,.14)'; g.lineWidth = 2;
+    g.beginPath(); g.roundRect(x, ry - hh / 2, wch, hh, hh / 2); g.fill(); g.stroke();
+    g.textAlign = 'left'; g.font = `${Math.round(28 * u)}px Segoe UI, sans-serif`;
+    g.fillStyle = '#fff'; g.fillText('✨', x + 16 * u, ry - 1 * u);
+    g.font = `bold ${Math.round(27 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#cbb6f0';
+    g.fillText('+' + Math.round((charmMul() - 1) * 100) + '%', x + 58 * u, ry - 12 * u);
+    g.font = `bold ${Math.round(19 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#8d84a8';
+    g.fillText('charm ' + ch, x + 58 * u, ry + 18 * u);
   }
   g.restore();
 
