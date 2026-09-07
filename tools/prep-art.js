@@ -43,6 +43,7 @@ const KEYS = [
   'house', 'farm', 'lumber', 'store', 'hall', 'well', 'mill', 'market',
   'villager_farmer', 'villager_basket', 'villager_woodcutter',
   'tree_pine', 'tree_oak', 'rock', 'bush',
+  'path', 'fence', 'flowers', 'hedge', 'lamp', 'statue',
   'ground', 'water',
 ];
 
@@ -60,6 +61,7 @@ const CAP = {
   villager_farmer: 320, villager_basket: 320, villager_woodcutter: 320,
   tree_pine: 560, tree_oak: 560, rock: 360, bush: 360,
   well: 420, hall: 800, mill: 800, market: 800,
+  path: 300, fence: 300, flowers: 300, hedge: 320, lamp: 380, statue: 400,
   ground: 1800,
   // the water is mirrored into a 2x2 tile at runtime, so its pixels cost four
   // times what they measure here; it is a soft background and can take it

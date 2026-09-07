@@ -222,7 +222,7 @@ function stepVillagers(dt){
       const b=B(p.key);
       if(b.makes && p.stock<STOCK_MAX){
         const kind=Object.keys(b.makes)[0];
-        p.stock=Math.min(STOCK_MAX, p.stock+rateOf(p,kind)*boostAt(p)*dt);
+        p.stock=Math.min(STOCK_MAX, p.stock+rateOf(p,kind)*boostAt(p)*charmMul()*dt);
       }
       v.ph+=dt*2.5;                          // a slow sway while working
       if(p.stock>=CARRY){
@@ -301,6 +301,24 @@ const BUILDINGS = [
     blurb: 'Grinds grain. Far more food than a farm, for two workers.' },
   { key: 'market', name: 'Market',    w: 2, h: 2, cost: { wood: 200, food: 120 }, caps: { wood: 800, food: 800 }, makes: { wood: 0.55 }, jobs: 1, wallH: 62, icon: '🏪',
     blurb: 'Trades for wood, and holds a great deal of both.' },
+
+  /* ---------- decorations ----------
+     Bought and placed like buildings, but they take no time to put up, have no
+     level, and can be taken away again. `charm` is what they are for: a village
+     people want to look at works a little harder. `flat` marks the ones painted
+     ONTO the ground rather than standing on it. */
+  { key: 'path',    name: 'Path',      w: 1, h: 1, cost: { wood: 5 },             decor: true, flat: true, charm: 1,  icon: '🟫',
+    blurb: 'A worn dirt track. Lay them end to end.' },
+  { key: 'fence',   name: 'Fence',     w: 1, h: 1, cost: { wood: 8 },             decor: true, charm: 2,  icon: '🚧',
+    blurb: 'Split rails. Good for edging a farm.' },
+  { key: 'flowers', name: 'Flowerbed', w: 1, h: 1, cost: { wood: 10, food: 10 },  decor: true, charm: 5,  icon: '🌷',
+    blurb: 'A bed of wildflowers.' },
+  { key: 'hedge',   name: 'Hedge',     w: 1, h: 1, cost: { wood: 16, food: 8 },   decor: true, charm: 7,  icon: '🌲',
+    blurb: 'A clipped green hedge.' },
+  { key: 'lamp',    name: 'Lamp',      w: 1, h: 1, cost: { wood: 30 },            decor: true, charm: 12, icon: '🏮',
+    blurb: 'An iron lamp on a post, lit at dusk.' },
+  { key: 'statue',  name: 'Statue',    w: 1, h: 1, cost: { wood: 150, food: 80 }, decor: true, charm: 45, icon: '🗿',
+    blurb: 'A stone figure on a plinth. The pride of the village.' },
 ];
 const B = k => BUILDINGS.find(b => b.key === k);
 
@@ -392,8 +410,21 @@ const allowedOf = key => (HALL[hallLevel()].allow[key] || 0);
 const countOf = key => placed.reduce((n, p) => n + (p.key === key ? 1 : 0), 0);
 // a building type you cannot have yet is hidden entirely; one you have run out
 // of room for stays visible but locked, so the limit is legible
-const unlocked = key => key === 'hall' || allowedOf(key) > 0;
-const atLimit = key => countOf(key) >= allowedOf(key);
+// takes a KEY, not a placed record, and tolerates an unknown one
+const isDecor = key => { const b = B(key); return !!(b && b.decor); };
+/* Decorations are not rationed by hall level -- the whole point is to let people
+   fiddle -- but there is a ceiling on the total, so a village cannot be carpeted
+   into an unreadable mess or a performance problem. */
+const DECOR_MAX = 60;
+const decorCount = () => placed.reduce((n, p) => n + (isDecor(p.key) ? 1 : 0), 0);
+const unlocked = key => key === 'hall' || isDecor(key) || allowedOf(key) > 0;
+const atLimit = key => isDecor(key) ? decorCount() >= DECOR_MAX : countOf(key) >= allowedOf(key);
+
+/* Charm: what decorations are actually for. A pleasant village works a little
+   harder, capped so it stays a bonus rather than the main economy. */
+const CHARM_FULL = 600, CHARM_CAP = 0.20;
+const charmTotal = () => placed.reduce((n, p) => n + (isDecor(p.key) ? B(p.key).charm : 0), 0);
+const charmMul = () => 1 + Math.min(CHARM_CAP, charmTotal() / CHARM_FULL * CHARM_CAP);
 
 const occupied = () => {
   const set = new Set();
@@ -417,7 +448,7 @@ function place(key, c, r) {
   // caller reaches for, and unguarded it will happily spend into the negative
   if (!canAfford(b.cost)) return false;
   for (const [k, v] of Object.entries(b.cost)) res[k] -= v;
-  placed.push({ id: nextId++, key, c, r, t: 0, lvl: 1, stock: 0, build: BUILD_TIME });
+  placed.push({ id: nextId++, key, c, r, t: b.decor ? 1 : 0, lvl: 1, stock: 0, build: BUILD_TIME });
   recomputeCaps();
   save();
   return true;
@@ -429,6 +460,19 @@ function recomputeCaps() {
   caps = { wood: base, food: base };
   for (const p of placed) { if (B(p.key).caps && p.t >= 1)
     for (const k of ['wood', 'food']) caps[k] += capsOf(p, k); }
+}
+
+/* Decorations can be taken away again -- half the price back, which is enough
+   that rearranging is not punished but not so much that they are free to try.
+   Buildings deliberately cannot: moving the economy around is a different
+   feature with different rules. */
+function removeDecor(p) {
+  if (!p || !isDecor(p.key)) return false;
+  for (const [k, v] of Object.entries(B(p.key).cost)) res[k] = Math.min(caps[k], res[k] + Math.floor(v / 2));
+  placed = placed.filter(q => q !== p);
+  if (panel === p.id) panel = null;
+  save();
+  return true;
 }
 
 /* ---------- save ---------- */
@@ -838,9 +882,108 @@ function drawStatus(p) {
   g.restore();
 }
 
+/* Decorations, drawn in code rather than from art. They are simple enough that
+   a few shapes read cleanly, and unlike the buildings there is no silhouette to
+   get wrong. Seeded off the tile so a flowerbed does not shimmer between
+   frames. */
+/* World height of each decoration at scale 1, for when art arrives. A path is
+   not here: it is fitted to the tile diamond instead of standing on it. */
+const DECOR_H = { fence: 42, flowers: 34, hedge: 48, lamp: 80, statue: 88 };
+
+function drawDecor(p, alpha) {
+  const b = B(p.key), o = tileToWorld(p.c, p.r), n = hash(p.c * 13 + 7, p.r * 17 + 3);
+  g.save();
+  g.globalAlpha = alpha === undefined ? 1 : alpha;
+
+  /* Painted art if it exists, the drawn version if not -- the same optional-art
+     path the buildings use, so a decoration sprite can be dropped in later
+     without touching this function again. */
+  const art = artFor(p.key);
+  if (art) {
+    if (b.flat) {                       // a path tile is laid into the diamond
+      const wid = TW * 1.02, hgt = art.height * (wid / art.width);
+      g.drawImage(art, o.x - wid / 2, o.y - hgt / 2, wid, hgt);
+    } else {
+      g.fillStyle = 'rgba(10,18,8,.28)';
+      g.beginPath(); g.ellipse(o.x, o.y + 3, 24, 11, 0, 0, 7); g.fill();
+      const hgt = DECOR_H[p.key] || 48, wid = art.width * (hgt / art.height);
+      g.drawImage(art, o.x - wid / 2, o.y - hgt, wid, hgt);
+    }
+    g.restore(); return;
+  }
+
+  if (p.key === 'path') {
+    // painted onto the ground: a soft diamond, inset so neighbours run together
+    tilePath(p.c, p.r);
+    g.fillStyle = 'rgba(150,118,74,.85)'; g.fill();
+    g.fillStyle = 'rgba(126,98,60,.55)';
+    for (let i = 0; i < 4; i++) { const a = n * 7 + i * 1.7;
+      g.beginPath(); g.ellipse(o.x + Math.cos(a) * 34, o.y + Math.sin(a) * 16, 7, 4, 0, 0, 7); g.fill(); }
+    g.restore(); return;
+  }
+  const shade = () => { g.fillStyle = 'rgba(10,18,8,.28)';
+    g.beginPath(); g.ellipse(o.x, o.y + 3, 26, 12, 0, 0, 7); g.fill(); };
+  if (p.key === 'fence') {
+    shade();
+    g.strokeStyle = '#8a6438'; g.lineCap = 'round';
+    // two posts on the tile's long axis, rails between, following the iso rake
+    const dx = TW / 2 * 0.8, dy = TH / 2 * 0.8;
+    g.lineWidth = 7;
+    g.beginPath(); g.moveTo(o.x - dx, o.y + dy); g.lineTo(o.x - dx, o.y + dy - 26); g.stroke();
+    g.beginPath(); g.moveTo(o.x + dx, o.y - dy); g.lineTo(o.x + dx, o.y - dy - 26); g.stroke();
+    g.lineWidth = 5; g.strokeStyle = '#a37a48';
+    for (const h2 of [10, 20]) { g.beginPath();
+      g.moveTo(o.x - dx, o.y + dy - h2); g.lineTo(o.x + dx, o.y - dy - h2); g.stroke(); }
+  } else if (p.key === 'flowers') {
+    shade();
+    g.fillStyle = '#4c7a35';
+    g.beginPath(); g.ellipse(o.x, o.y, 30, 15, 0, 0, 7); g.fill();
+    const cols = ['#e4574c', '#f0c04a', '#d97fc0', '#f2f0e4'];
+    for (let i = 0; i < 9; i++) { const a = n * 11 + i * 0.9, r = 6 + (i % 3) * 7;
+      g.fillStyle = cols[(i + Math.floor(n * 4)) % cols.length];
+      g.beginPath(); g.arc(o.x + Math.cos(a) * r * 1.9, o.y + Math.sin(a) * r * 0.9 - 5, 4, 0, 7); g.fill(); }
+  } else if (p.key === 'hedge') {
+    shade();
+    g.fillStyle = '#2f5a28';
+    g.beginPath(); g.roundRect(o.x - 32, o.y - 30, 64, 34, 12); g.fill();
+    g.fillStyle = '#3e7433';
+    g.beginPath(); g.roundRect(o.x - 32, o.y - 34, 64, 24, 12); g.fill();
+    g.fillStyle = 'rgba(150,200,120,.35)';
+    g.beginPath(); g.ellipse(o.x - 10, o.y - 28, 16, 7, 0, 0, 7); g.fill();
+  } else if (p.key === 'lamp') {
+    shade();
+    g.fillStyle = '#6a5a48';
+    g.beginPath(); g.ellipse(o.x, o.y, 11, 5, 0, 0, 7); g.fill();
+    g.strokeStyle = '#3f3830'; g.lineWidth = 6; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(o.x, o.y - 2); g.lineTo(o.x, o.y - 52); g.stroke();
+    const glow = 0.7 + 0.3 * Math.sin(Date.now() / 700 + n * 6);
+    g.fillStyle = 'rgba(255,206,120,' + (0.20 * glow) + ')';
+    g.beginPath(); g.arc(o.x, o.y - 58, 20, 0, 7); g.fill();
+    g.fillStyle = '#ffd98a';
+    g.beginPath(); g.roundRect(o.x - 8, o.y - 68, 16, 18, 4); g.fill();
+    g.strokeStyle = '#3f3830'; g.lineWidth = 2.5;
+    g.beginPath(); g.roundRect(o.x - 8, o.y - 68, 16, 18, 4); g.stroke();
+  } else if (p.key === 'statue') {
+    shade();
+    g.fillStyle = '#8d8a82';                     // plinth
+    g.beginPath(); g.ellipse(o.x, o.y - 4, 26, 13, 0, 0, 7); g.fill();
+    g.fillStyle = '#9a978e';
+    g.beginPath(); g.roundRect(o.x - 20, o.y - 20, 40, 18, 4); g.fill();
+    g.fillStyle = '#b3b0a6';                     // figure
+    g.beginPath(); g.roundRect(o.x - 10, o.y - 60, 20, 42, 8); g.fill();
+    g.beginPath(); g.arc(o.x, o.y - 66, 10, 0, 7); g.fill();
+    g.fillStyle = 'rgba(255,255,255,.30)';
+    g.beginPath(); g.roundRect(o.x - 10, o.y - 60, 8, 42, 8); g.fill();
+  }
+  g.restore();
+}
+const drawPlaced = (p, alpha, tint) => isDecor(p.key) ? drawDecor(p, alpha) : drawBuilding(p, alpha, tint);
+
 function drawWorld() {
   const occSet = occupied();          // scenery hides under buildings
   drawGround();
+  // paths are painted ON the ground, so they go down before anything stands up
+  for (const p of placed) if (B(p.key).flat) drawDecor(p, 1);
   if (ghost && selBuild) {                              // placement preview
     const b = B(selBuild), occ = occupied();
     for (let dc = 0; dc < b.w; dc++) for (let dr = 0; dr < b.h; dr++) {
@@ -848,13 +991,15 @@ function drawWorld() {
       g.fillStyle = ghost.ok ? 'rgba(120,230,120,.40)' : 'rgba(235,90,70,.40)';
       g.fill();
     }
-    if (ghost.ok) drawBuilding({ key: selBuild, c: ghost.c, r: ghost.r, t: 1 }, 0.55);
+    if (ghost.ok) drawPlaced({ id: -1, key: selBuild, c: ghost.c, r: ghost.r, t: 1, lvl: 1 }, 0.55);
   }
   /* One depth-sorted pass over everything that stands on the ground, so a
      villager can walk behind a house and in front of the next one. */
   const ents = [];
   for (const p of placed) { const b = B(p.key);
-    ents.push({ y: tileToWorld(p.c + b.w - 1, p.r + b.h - 1).y, d: () => { drawBuilding(p, 1); drawStatus(p); } }); }
+    if (b.flat) continue;                      // already drawn with the ground
+    ents.push({ y: tileToWorld(p.c + b.w - 1, p.r + b.h - 1).y,
+      d: () => { drawPlaced(p, 1); if (!b.decor) drawStatus(p); } }); }
   for (const o of SCENERY) { if (occSet.has(o.c + ',' + o.r)) continue;
     ents.push({ y: tileToWorld(o.c, o.r).y, d: () => drawScenery(o) }); }
   for (const v of villagers) ents.push({ y: v.y, d: () => drawVillager(v) });
@@ -865,7 +1010,21 @@ function drawWorld() {
 /* ---------- HUD ---------- */
 /* The bar shows what the hall has unlocked, and nothing else. The town hall is
    never on it -- there is exactly one and it is founded for you. */
-const barList = () => BUILDINGS.filter(b => b.key !== 'hall' && unlocked(b.key));
+let barMode = 'build';                 // 'build' | 'decor'
+const barList = () => barMode === 'decor'
+  ? BUILDINGS.filter(b => b.decor)
+  : BUILDINGS.filter(b => b.key !== 'hall' && !b.decor && unlocked(b.key));
+
+/* The two tabs above the bar. One definition, used to draw and to hit-test. */
+function tabRects() {
+  const u = US(), bar = barRects()[0];
+  const w = 168 * u, h = 46 * u, pad = 8 * u;
+  const y = (bar ? bar.y - bar.h / 2 : hudBot()) - h / 2 - 10 * u;
+  return [
+    { mode: 'build', label: 'Build',  x: W / 2 - w / 2 - pad / 2, y, w, h },
+    { mode: 'decor', label: 'Decorate', x: W / 2 + w / 2 + pad / 2, y, w, h },
+  ];
+}
 function barRects() {
   const list = barList(), u = US(), n = list.length;
   const h = 118 * u, pad = 8 * u;
@@ -891,6 +1050,16 @@ function drawHUD() {
   };
   chip(24 * u, '🪵', res.wood, caps.wood, '#e8c98a');
   chip(24 * u + 226 * u, '🌾', res.food, caps.food, '#bfe08a');
+  const ch = charmTotal();
+  if (ch > 0) {
+    const x = 24 * u + 452 * u, wch = 190 * u;
+    g.fillStyle = 'rgba(16,26,14,.78)'; g.strokeStyle = 'rgba(255,255,255,.14)'; g.lineWidth = 2;
+    g.beginPath(); g.roundRect(x, ry - 30 * u, wch, 60 * u, 30 * u); g.fill(); g.stroke();
+    g.textAlign = 'left'; g.font = `${Math.round(30 * u)}px Segoe UI, sans-serif`;
+    g.fillStyle = '#fff'; g.fillText('✨', x + 16 * u, ry);
+    g.font = `bold ${Math.round(28 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#cbb6f0';
+    g.fillText('+' + Math.round((charmMul() - 1) * 100) + '%', x + 62 * u, ry);
+  }
   g.restore();
 
   // build bar
@@ -912,17 +1081,31 @@ function drawHUD() {
     if (full) {
       // the cost is irrelevant when the hall will not allow another one
       g.fillStyle = '#e5b28a';
-      g.fillText(countOf(r.b.key) + '/' + allowedOf(r.b.key) + ' · upgrade hall', r.x, r.y + r.h * 0.32);
+      g.fillText(isDecor(r.b.key) ? decorCount() + '/' + DECOR_MAX + ' placed'
+        : countOf(r.b.key) + '/' + allowedOf(r.b.key) + ' · upgrade hall', r.x, r.y + r.h * 0.32);
     } else {
       g.fillStyle = can ? '#e8c98a' : '#e59a86';
       g.fillText(Object.entries(r.b.cost).map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join('  '), r.x, r.y + r.h * 0.32);
     }
     g.restore();
   }
+  for (const t of tabRects()) {
+    const on = barMode === t.mode;
+    g.save();
+    g.fillStyle = on ? 'rgba(60,96,44,.95)' : 'rgba(18,26,16,.9)';
+    g.strokeStyle = on ? '#9fe86b' : 'rgba(255,255,255,.18)'; g.lineWidth = on ? 3 : 2;
+    g.beginPath(); g.roundRect(t.x - t.w / 2, t.y - t.h / 2, t.w, t.h, t.h / 2); g.fill(); g.stroke();
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = `bold ${Math.round(22 * u)}px Segoe UI, sans-serif`;
+    g.fillStyle = on ? '#eaffd6' : '#9fb094';
+    g.fillText(t.label, t.x, t.y);
+    g.restore();
+  }
   if (selBuild) {
     g.save(); g.textAlign = 'center'; g.fillStyle = '#cfe0a8';
-    g.font = `bold ${Math.round(26 * u)}px Segoe UI, sans-serif`;
-    g.fillText('Tap a green tile to build  ·  tap here to cancel', W / 2, barRects()[0].y - barRects()[0].h / 2 - 22 * u);
+    g.font = `bold ${Math.round(24 * u)}px Segoe UI, sans-serif`;
+    g.fillText('Tap a green tile to place  ·  tap the icon again to cancel',
+      W / 2, tabRects()[0].y - tabRects()[0].h / 2 - 16 * u);
     g.restore();
   }
   drawPanel();
@@ -933,11 +1116,11 @@ function drawHUD() {
    discipline as the build bar, so what you can tap cannot drift from what you
    can see. */
 function panelRects() {
-  const u = US(), bar = barRects()[0];
+  const u = US(), tabs = tabRects();
   const p = panel == null ? null : byId(panel);
   const btn = !!p;                             // every building has an upgrade button
   const w = Math.min(W - 48 * u, 720 * u), h = (btn ? 232 : 152) * u;
-  const y = (bar ? bar.y - bar.h / 2 : hudBot()) - 20 * u - h / 2;
+  const y = tabs[0].y - tabs[0].h / 2 - 14 * u - h / 2;
   return { u, x: W / 2, y, w, h, btn,
     close: { x: W / 2 + w / 2 - 34 * u, y: y - h / 2 + 34 * u, r: 27 * u },
     up:    { x: W / 2, y: y + h / 2 - 44 * u, w: w * 0.66, h: 62 * u } };
@@ -952,7 +1135,8 @@ function drawPanel() {
   g.textAlign = 'left'; g.textBaseline = 'middle';
   const lx = R.x - R.w / 2 + 26 * u;
   g.font = `bold ${Math.round(30 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#fff';
-  g.fillText(b.icon + '  ' + b.name + '  ·  Level ' + lvlOf(p), lx, R.y - R.h / 2 + 38 * u);
+  g.fillText(b.icon + '  ' + b.name + (B(p.key).decor ? '' : '  ·  Level ' + lvlOf(p)),
+    lx, R.y - R.h / 2 + 38 * u);
   g.font = `${Math.round(21 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#bccfae';
   g.fillText(b.blurb, lx, R.y - R.h / 2 + 78 * u);
 
@@ -981,6 +1165,9 @@ function drawPanel() {
     const pc = l => Math.round(b.boost * outMul(l) * 100);
     line = 'Producers within ' + b.boostR + ' tiles work +' + pc(lvlOf(p)) + '% faster';
     if (nl > lvlOf(p)) line += '  →  +' + pc(nl) + '%';
+  } else if (b.charm) {
+    line = '✨ ' + b.charm + ' charm   ·   village total ' + charmTotal()
+      + '  (+' + Math.round((charmMul() - 1) * 100) + '% to everything made)';
   }
   if (p.key === 'hall') {
     const a = HALL[hallLevel()].allow;
@@ -995,13 +1182,19 @@ function drawPanel() {
   g.textAlign = 'center'; g.fillStyle = '#fff';
   g.font = `bold ${Math.round(26 * u)}px Segoe UI, sans-serif`; g.fillText('×', R.close.x, R.close.y);
 
-  const i = upInfo(p), ok = canUpgrade(p), busy = p.t < 1;
+  const dec = isDecor(p.key);
+  const i = dec ? { max: true, cost: null, gate: 0 } : upInfo(p);
+  const ok = dec ? true : canUpgrade(p);
+  const busy = p.t < 1;
   /* A late upgrade can cost more than the village can physically hold, and then
      the button would sit grey for ever with no hint why. Storage being a real
      constraint is the point -- it just has to say so. */
   const overCap = !!i.cost && !canAfford(i.cost)
     && Object.entries(i.cost).some(([k, v]) => v > caps[k]);
-  const label = busy ? 'Building…'
+  const back = dec ? Object.entries(B(p.key).cost)
+    .map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + Math.floor(v / 2)).join('  ') : '';
+  const label = dec ? 'Remove   ' + back + ' back'
+    : busy ? 'Building…'
     : i.max ? 'Highest level'
     : i.gate ? 'Needs town hall level ' + i.gate
     : overCap ? 'Needs a bigger storehouse'
@@ -1087,14 +1280,25 @@ function tap(sx, sy) {
   if (panel != null) {
     const R = panelRects(), p = byId(panel);
     if (Math.hypot(sx - R.close.x, sy - R.close.y) < R.close.r * 1.3) { panel = null; return; }
-    if (p && Math.abs(sx - R.up.x) < R.up.w / 2 && Math.abs(sy - R.up.y) < R.up.h / 2) { upgradeBuilding(p); return; }
+    if (p && Math.abs(sx - R.up.x) < R.up.w / 2 && Math.abs(sy - R.up.y) < R.up.h / 2) {
+      if (isDecor(p.key)) removeDecor(p); else upgradeBuilding(p);
+      return;
+    }
     // anywhere else inside the panel is swallowed, so a stray tap on it does
     // not fall through and place a building underneath
     if (Math.abs(sx - R.x) < R.w / 2 && Math.abs(sy - R.y) < R.h / 2) return;
   }
+  for (const t of tabRects()) {
+    if (Math.abs(sx - t.x) < t.w / 2 && Math.abs(sy - t.y) < t.h / 2) {
+      barMode = t.mode; selBuild = null; ghost = null; return;
+    }
+  }
   for (const r of barRects()) {
     if (Math.abs(sx - r.x) < r.w / 2 && Math.abs(sy - r.y) < r.h / 2) {
-      if (atLimit(r.b.key)) { panel = (hallOf() || {}).id ?? null; selBuild = null; ghost = null; return; }
+      if (atLimit(r.b.key)) {
+        if (!isDecor(r.b.key)) panel = (hallOf() || {}).id ?? null;
+        selBuild = null; ghost = null; return;
+      }
       selBuild = (selBuild === r.b.key) ? null : r.b.key;
       panel = null; ghost = null;
       return;
@@ -1129,4 +1333,6 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   canUpgrade, upgradeBuilding, upInfo, upCostOf, lvlOf, popOf, capsOf, rateOf, outMul, LVL_MAX,
   panelRects, get panel() { return panel; }, set panel(v) { panel = v; },
   get villagers() { return villagers; }, workersAt, boostAt, producers, stores,
-  assignJobs, buildingAt, ensureHall };
+  assignJobs, buildingAt, ensureHall,
+  isDecor, decorCount, DECOR_MAX, charmTotal, charmMul, removeDecor, tabRects, drawDecor,
+  get barMode() { return barMode; }, set barMode(v) { barMode = v; } };

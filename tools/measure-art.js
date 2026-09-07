@@ -22,6 +22,7 @@ try { sharp = require(path.join(ROOT, '..', 'gatestorm', 'node_modules', 'sharp'
 catch (e) { console.error('Could not load sharp from the gatestorm project.'); process.exit(1); }
 
 const KEYS = ['house', 'farm', 'lumber', 'store', 'hall', 'well', 'mill', 'market'];
+// decorations are anchored bottom-centre and do not use ART_FIT at all
 const ALPHA = 40;      // ignore the faint fringe left by anti-aliasing
 
 (async () => {
