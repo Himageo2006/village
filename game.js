@@ -144,7 +144,7 @@ const pops = [];
 const POP_MAX = 24, POP_LIFE = 1.5;
 let rateNow = { wood: 0, food: 0 };          // smoothed, shown in the HUD
 let rateAcc = { wood: 0, food: 0 }, rateT = 0;
-const RATE_WINDOW = 3;
+const RATE_WINDOW = 5;                       // long enough that a sparse village does not flicker
 
 function deliver(k, n, x, y) {
   const before = res[k];
@@ -161,7 +161,7 @@ function stepFeedback(dt) {
   if (rateT >= RATE_WINDOW) {
     for (const k of ['wood', 'food']) {
       // eased so the readout settles instead of flickering between windows
-      rateNow[k] += (rateAcc[k] / rateT - rateNow[k]) * 0.55;
+      rateNow[k] += (rateAcc[k] / rateT - rateNow[k]) * 0.40;
       rateAcc[k] = 0;
     }
     rateT = 0;
@@ -455,6 +455,36 @@ let ghost = null;                     // {c,r,ok}
 let panel = null;                     // id of the building whose panel is open
 let moving = null;                    // id of the building being relocated
 
+/* ---------- first-time hints ----------
+   The village opens with an island, a hall and a row of icons, and says nothing
+   about villagers being the entire economy. One line at a time, driven by what
+   the village actually looks like, each shown ONCE and then remembered -- a hint
+   that keeps coming back is nagging, not teaching. */
+let tutSeen = [];
+let tutT = 0;
+const TUT_SHOW = 11;                  // seconds a hint stays up before it counts as read
+const TUT = [
+  { id: 'house', text: 'Build a house first — villagers live there, and villagers do all the work',
+    when: () => countOf('house') === 0 },
+  { id: 'work',  text: 'Now a lumber camp. Villagers will work it and carry the wood to your hall',
+    when: () => countOf('house') > 0 && placed.some(p => p.key === 'house' && p.t >= 1)
+                && !placed.some(p => B(p.key).jobs && p.key !== 'hall') },
+  { id: 'tap',   text: 'Tap any building to upgrade, move or sell it',
+    when: () => placed.some(p => B(p.key).jobs && p.key !== 'hall' && p.t >= 1) },
+  { id: 'hall',  text: 'Your town hall can grow — tap it to raise what you are allowed to build',
+    when: () => canUpgrade(hallOf()) },
+];
+function currentHint() {
+  for (const h of TUT) if (!tutSeen.includes(h.id) && h.when()) return h;
+  return null;
+}
+function stepHints(dt) {
+  const h = currentHint();
+  if (!h) { tutT = 0; return; }
+  tutT += dt;
+  if (tutT >= TUT_SHOW) { tutSeen.push(h.id); tutT = 0; save(); }
+}
+
 const hallOf = () => placed.find(p => p.key === 'hall');
 const hallLevel = () => { const h = hallOf(); return h ? Math.min(HALL_MAX, Math.max(1, h.lvl | 0)) : 1; };
 const allowedOf = key => (HALL[hallLevel()].allow[key] || 0);
@@ -561,11 +591,25 @@ function removeDecor(p) {
 /* ---------- save ---------- */
 const KEY = 'vil_save';
 const SAVE_V = 4;      // 2: house 2x1. 3: hall and jobs. 4: every building levels
-function save() { try { localStorage.setItem(KEY, JSON.stringify({ v: SAVE_V, res, placed })); } catch (e) {} }
+/* The measured delivery rate is saved along with the time, so a village can
+   carry on working while the game is shut. Saving the RATE rather than
+   recomputing it on load matters: the rate the buildings are rated for is
+   roughly double what they actually deliver, because villagers spend half
+   their time walking, and paying out the rated figure would make being away
+   better than playing. */
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify({
+    v: SAVE_V, res, placed, t: Date.now(), rate: rateNow, seen: tutSeen })); } catch (e) {}
+}
 function load() {
   let s = null; try { s = JSON.parse(localStorage.getItem(KEY)); } catch (e) {}
   // same defensive shape as Gatestorm's loadProg: never trust what comes back
   if (!s || typeof s !== 'object' || s.v !== SAVE_V) return;
+  if (s.rate && typeof s.rate === 'object') for (const k of ['wood', 'food'])
+    if (typeof s.rate[k] === 'number' && isFinite(s.rate[k]) && s.rate[k] >= 0)
+      rateNow[k] = Math.min(20, s.rate[k]);
+  if (Number.isFinite(s.t)) savedAt = s.t;
+  if (Array.isArray(s.seen)) tutSeen = s.seen.filter(x => typeof x === 'string');
   if (s.res && typeof s.res === 'object') for (const k of ['wood', 'food'])
     if (typeof s.res[k] === 'number' && isFinite(s.res[k])) res[k] = s.res[k];
   if (Array.isArray(s.placed)) placed = s.placed.filter(p =>
@@ -582,6 +626,30 @@ function load() {
   nextId = Math.max(nextId, ...placed.map(p => p.id + 1), 1);
   recomputeCaps();
 }
+/* What the village earned while the game was closed.
+
+   The storage cap does the limiting rather than an arbitrary percentage: come
+   back after an hour and you find full storehouses, which is the honest result
+   and quietly makes upgrading storage worth more. Anything under a minute is
+   ignored so a reload is not a reward. */
+const AWAY_MIN = 60, AWAY_MAX = 12 * 3600;
+let savedAt = 0;
+let away = null;                      // {secs, got:{wood,food}} until dismissed
+
+function collectAway() {
+  if (!savedAt) return;
+  const secs = Math.min(AWAY_MAX, (Date.now() - savedAt) / 1000);
+  if (secs < AWAY_MIN) return;
+  const got = {};
+  let any = false;
+  for (const k of ['wood', 'food']) {
+    const room = caps[k] - res[k];
+    const earned = Math.max(0, Math.min(room, rateNow[k] * secs));
+    if (earned >= 1) { res[k] += earned; got[k] = Math.floor(earned); any = true; }
+  }
+  if (any) away = { secs, got };
+}
+
 /* A village with no hall has no rules and no centre, so one is founded for free
    at the middle of the map. Also repairs a save that predates the hall. */
 function ensureHall() {
@@ -600,6 +668,7 @@ function step(dt) {
   assignJobs();
   stepVillagers(dt);
   stepFeedback(dt);
+  stepHints(dt);
   // nothing produces here any more -- see stepVillagers
   for (const p of placed) {
     if (p.t < 1) {
@@ -1212,6 +1281,50 @@ function drawHUD() {
     g.restore();
   }
   drawPanel();
+  drawHint();
+  drawAway();
+}
+
+function drawHint() {
+  if (away) return;                   // one thing at a time
+  const h = currentHint(); if (!h) return;
+  const u = US(), y = hudTop() + 132 * u;
+  g.save();
+  g.font = `bold ${Math.round(23 * u)}px Segoe UI, sans-serif`;
+  const tw = g.measureText(h.text).width, w = Math.min(W - 40 * u, tw + 56 * u), hh = 58 * u;
+  g.globalAlpha = Math.min(1, tutT * 3);           // fades in rather than snapping
+  g.fillStyle = 'rgba(20,32,18,.92)'; g.strokeStyle = 'rgba(159,232,107,.55)'; g.lineWidth = 2.5;
+  g.beginPath(); g.roundRect(W / 2 - w / 2, y - hh / 2, w, hh, hh / 2); g.fill(); g.stroke();
+  g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#dff0c8';
+  g.fillText(h.text, W / 2, y);
+  g.restore();
+}
+
+/* Shown once on return, then dismissed by a tap anywhere. */
+function awayRect() {
+  const u = US(), w = Math.min(W - 80 * u, 620 * u), h = 300 * u;
+  return { u, x: W / 2, y: hudTop() + (hudBot() - hudTop()) / 2, w, h };
+}
+function drawAway() {
+  if (!away) return;
+  const R = awayRect(), u = R.u;
+  g.save();
+  g.fillStyle = 'rgba(6,10,6,.66)'; g.fillRect(0, hudTop(), W, hudBot() - hudTop());
+  g.fillStyle = 'rgba(16,26,15,.98)'; g.strokeStyle = 'rgba(159,232,107,.5)'; g.lineWidth = 3;
+  g.beginPath(); g.roundRect(R.x - R.w / 2, R.y - R.h / 2, R.w, R.h, 24 * u); g.fill(); g.stroke();
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.font = `bold ${Math.round(34 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#fff';
+  g.fillText('While you were away', R.x, R.y - R.h / 2 + 52 * u);
+  const mins = away.secs / 60;
+  const span = mins < 60 ? Math.round(mins) + ' minutes' : (mins / 60).toFixed(1) + ' hours';
+  g.font = `${Math.round(22 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#a9bd9c';
+  g.fillText('your villagers kept working for ' + span, R.x, R.y - R.h / 2 + 92 * u);
+  const parts = Object.entries(away.got).map(([k, v]) => (k === 'wood' ? '🪵 +' : '🌾 +') + v);
+  g.font = `bold ${Math.round(40 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#e8c98a';
+  g.fillText(parts.join('     '), R.x, R.y + 6 * u);
+  g.font = `bold ${Math.round(24 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#9fe86b';
+  g.fillText('tap to continue', R.x, R.y + R.h / 2 - 40 * u);
+  g.restore();
 }
 
 /* ---------- building panel ----------
@@ -1410,6 +1523,7 @@ function buildingAt(sx, sy) {
     return c >= p.c && c < p.c + b.w && r >= p.r && r < p.r + b.h; }) || null;
 }
 function tap(sx, sy) {
+  if (away) { away = null; return; }
   // HUD first, exactly as in Gatestorm: the bar must always win over the world
   if (panel != null) {
     const R = panelRects(), p = byId(panel);
@@ -1457,6 +1571,7 @@ function tap(sx, sy) {
 /* ---------- boot ---------- */
 load();
 ensureHall();
+collectAway();
 fitCanvas();
 CAM.x = W / 2; CAM.y = tileToWorld(GW / 2, GH / 2).y; camClamp();
 let last = performance.now();
@@ -1477,5 +1592,8 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   assignJobs, buildingAt, ensureHall,
   isDecor, decorCount, DECOR_MAX, charmTotal, charmMul, removeDecor, tabRects, drawDecor,
   sellBuilding, canSell, sellValue, investedIn, get moving() { return moving; }, set moving(v) { moving = v; },
+  collectAway, currentHint, get away() { return away; }, set away(v) { away = v; },
+  get tutSeen() { return tutSeen; }, set tutSeen(v) { tutSeen = v; },
+  get savedAt() { return savedAt; }, set savedAt(v) { savedAt = v; },
   get pops() { return pops; }, get rateNow() { return rateNow; },
   get barMode() { return barMode; }, set barMode(v) { barMode = v; } };
