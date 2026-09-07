@@ -152,7 +152,7 @@ function boostAt(p){
     const bw=B('well');
     const dx=(w.c+(bw.w-1)/2)-(p.c+(bp.w-1)/2);
     const dy=(w.r+(bw.h-1)/2)-(p.r+(bp.h-1)/2);
-    if(Math.hypot(dx,dy)<=bw.boostR) m+=bw.boost;
+    if(Math.hypot(dx,dy)<=bw.boostR) m+=bw.boost*outMul(lvlOf(w));
   }
   return m;
 }
@@ -172,7 +172,7 @@ const postNear = p => { const c=centreOf(p);
 
 function syncVillagers(){
   let want=0;
-  for(const p of placed) if(p.key==='house'&&p.t>=1) want+=B('house').pop;
+  for(const p of placed) if(p.key==='house'&&p.t>=1) want+=popOf(p);
   want=Math.min(want,24);
   while(villagers.length<want){
     const h=hallOf(), t=h?centreOf(h):tileToWorld(GW/2,GH/2);
@@ -192,11 +192,14 @@ function assignJobs(){
   }
   for(const v of villagers){
     if(v.job!=null) continue;
-    // the emptiest workplace first, so two villagers staff two buildings rather
-    // than filling one and leaving the other asleep
+    /* The emptiest workplace first, so two villagers staff two buildings rather
+       than filling one and leaving the other asleep -- but the hall's woodpile
+       is always last, or the very first villager would mind it at 0.15/s
+       instead of cutting wood at 0.6/s. */
     const free=producers()
       .filter(p=>workersAt(p.id) < B(p.key).jobs)
-      .sort((a,b)=>workersAt(a.id)/B(a.key).jobs - workersAt(b.id)/B(b.key).jobs)[0];
+      .sort((a,b)=>(a.key==='hall')-(b.key==='hall')
+        || workersAt(a.id)/B(a.key).jobs - workersAt(b.id)/B(b.key).jobs)[0];
     if(!free) break;                        // no vacancies, so none for anyone
     v.job=free.id; v.st='toWork';
     const t=postNear(free); v.tx=t.x; v.ty=t.y;
@@ -218,8 +221,8 @@ function stepVillagers(dt){
       const p=byId(v.job); if(!p){ v.st='idle'; continue; }
       const b=B(p.key);
       if(b.makes && p.stock<STOCK_MAX){
-        const rate=Object.values(b.makes)[0]*boostAt(p);
-        p.stock=Math.min(STOCK_MAX, p.stock+rate*dt);
+        const kind=Object.keys(b.makes)[0];
+        p.stock=Math.min(STOCK_MAX, p.stock+rateOf(p,kind)*boostAt(p)*dt);
       }
       v.ph+=dt*2.5;                          // a slow sway while working
       if(p.stock>=CARRY){
@@ -277,8 +280,13 @@ const mS = v => v * US();
    wallH  height of the procedural stand-in, used until art arrives.
    boost  a well lifts the output of producers near it. */
 const BUILDINGS = [
+  /* The hall keeps a woodpile, worked by whoever is spare. It is deliberately
+     feeble -- its job is not to feed the village but to make a dead end
+     impossible. Two houses and a farm at level 1 leave you 15 wood, no wood
+     income, and a lumber camp costs 20: without this the game is over. */
   { key: 'hall',   name: 'Town Hall', w: 2, h: 2, cost: { wood: 0 }, unique: true, wallH: 88, icon: '🏛️',
-    blurb: 'The heart of the village. Upgrade it to raise your building limits.' },
+    makes: { wood: 0.15 }, jobs: 1,
+    blurb: 'The heart of the village. Spare villagers keep its woodpile.' },
   { key: 'house',  name: 'House',     w: 2, h: 1, cost: { wood: 30 },            pop: 2,   icon: '🏠',
     blurb: 'Two more villagers move in.' },
   { key: 'farm',   name: 'Farm',      w: 2, h: 2, cost: { wood: 45 },            makes: { food: 0.7 },  jobs: 2, wallH: 26, icon: '🌾',
@@ -311,6 +319,64 @@ const HALL = [
 ];
 const HALL_MAX = HALL.length - 1;
 const HALL_TIME = 6;                  // seconds an upgrade takes
+
+/* ---------- building levels ----------
+   The hall caps HOW MANY of each building you may have, which on its own runs
+   out: by hall level 4 the village is full and there is nothing left to want.
+   Levels are the sink. Every building goes to 5, each step costing sharply more
+   than the last, so a full storehouse always has somewhere to go.
+
+   A building may never outrank its hall. That is what keeps the hall the centre
+   of the game rather than a gate you walk through once. */
+const LVL_MAX = 5;
+const lvlOf = p => Math.min(LVL_MAX, Math.max(1, p.lvl | 0));
+// what a level is worth: level 5 is 2.4x level 1
+const outMul = l => 1 + 0.35 * (l - 1);
+const popOf  = p => B(p.key).pop ? B(p.key).pop + (lvlOf(p) - 1) : 0;
+const capsOf = (p, k) => B(p.key).caps ? Math.round(B(p.key).caps[k] * outMul(lvlOf(p))) : 0;
+const rateOf = (p, k) => (B(p.key).makes ? B(p.key).makes[k] || 0 : 0) * outMul(lvlOf(p));
+
+/* Upgrade prices climb steeply on purpose -- a gentle curve is exhausted in an
+   evening. A house runs 65, 140, 295, 620 wood across its four steps. */
+const UP_STEP = 2.2, UP_GROWTH = 2.1;
+function upCostOf(p) {
+  const b = B(p.key), f = UP_STEP * Math.pow(UP_GROWTH, lvlOf(p) - 1);
+  const c = {};
+  for (const [k, v] of Object.entries(b.cost)) if (v) c[k] = Math.round(v * f / 5) * 5;
+  // wood-only buildings start wanting food too, so late upgrades drain both
+  // piles rather than leaving one of them pointless
+  if (!c.food) c.food = Math.round(f * 9 / 5) * 5;
+  return c;
+}
+const upTime = p => 4 + 2 * lvlOf(p);
+
+/* Everything the upgrade button needs to know, for the hall and for the rest. */
+function upInfo(p) {
+  const l = lvlOf(p);
+  if (p.key === 'hall') {
+    const nx = HALL[l].up;
+    return { max: !nx, cost: nx, gate: 0 };
+  }
+  if (l >= LVL_MAX) return { max: true, cost: null, gate: 0 };
+  // gate: the hall level you would need first, or 0 if none
+  return { max: false, cost: upCostOf(p), gate: l >= hallLevel() ? l + 1 : 0 };
+}
+function canUpgrade(p) {
+  if (!p || p.t < 1) return false;
+  const i = upInfo(p);
+  return !i.max && !i.gate && canAfford(i.cost);
+}
+function upgradeBuilding(p) {
+  if (!canUpgrade(p)) return false;
+  const i = upInfo(p);
+  for (const [k, v] of Object.entries(i.cost)) res[k] -= v;
+  p.lvl = Math.min(p.key === 'hall' ? HALL_MAX : LVL_MAX, lvlOf(p) + 1);
+  p.t = 0;                            // back under scaffolding while it grows
+  p.build = p.key === 'hall' ? HALL_TIME : upTime(p);
+  recomputeCaps();
+  save();
+  return true;
+}
 
 let res = { wood: 120, food: 60 };
 let caps = { wood: 300, food: 300 };
@@ -351,7 +417,7 @@ function place(key, c, r) {
   // caller reaches for, and unguarded it will happily spend into the negative
   if (!canAfford(b.cost)) return false;
   for (const [k, v] of Object.entries(b.cost)) res[k] -= v;
-  placed.push({ id: nextId++, key, c, r, t: 0, lvl: key === 'hall' ? 1 : 0, stock: 0, build: BUILD_TIME });
+  placed.push({ id: nextId++, key, c, r, t: 0, lvl: 1, stock: 0, build: BUILD_TIME });
   recomputeCaps();
   save();
   return true;
@@ -361,31 +427,13 @@ function recomputeCaps() {
   // even before you have spent the room it unlocks
   const base = 200 + 100 * hallLevel();
   caps = { wood: base, food: base };
-  for (const p of placed) { const b = B(p.key); if (b.caps && p.t >= 1)
-    for (const [k, v] of Object.entries(b.caps)) caps[k] += v; }
-}
-
-/* ---------- town hall upgrades ---------- */
-const hallNext = () => HALL[hallLevel()].up;
-function canUpgrade() {
-  const h = hallOf();
-  return !!(h && h.t >= 1 && hallNext() && canAfford(hallNext()));
-}
-function upgradeHall() {
-  if (!canUpgrade()) return false;
-  const h = hallOf();
-  for (const [k, v] of Object.entries(hallNext())) res[k] -= v;
-  h.lvl = Math.min(HALL_MAX, (h.lvl | 0) + 1);
-  h.t = 0;                            // it goes back under scaffolding while it grows
-  h.build = HALL_TIME;
-  recomputeCaps();
-  save();
-  return true;
+  for (const p of placed) { if (B(p.key).caps && p.t >= 1)
+    for (const k of ['wood', 'food']) caps[k] += capsOf(p, k); }
 }
 
 /* ---------- save ---------- */
 const KEY = 'vil_save';
-const SAVE_V = 3;      // 2: house became 2x1 with the art. 3: town hall and jobs
+const SAVE_V = 4;      // 2: house 2x1. 3: hall and jobs. 4: every building levels
 function save() { try { localStorage.setItem(KEY, JSON.stringify({ v: SAVE_V, res, placed })); } catch (e) {} }
 function load() {
   let s = null; try { s = JSON.parse(localStorage.getItem(KEY)); } catch (e) {}
@@ -399,7 +447,7 @@ function load() {
       id: Number.isFinite(p.id) ? p.id | 0 : nextId++,
       key: p.key, c: p.c | 0, r: p.r | 0,
       t: typeof p.t === 'number' ? Math.min(1, Math.max(0, p.t)) : 1,
-      lvl: p.key === 'hall' ? Math.min(HALL_MAX, Math.max(1, p.lvl | 0)) : 0,
+      lvl: Math.min(p.key === 'hall' ? HALL_MAX : LVL_MAX, Math.max(1, p.lvl | 0)),
       stock: typeof p.stock === 'number' && isFinite(p.stock) ? Math.max(0, p.stock) : 0,
       build: BUILD_TIME,
     }));
@@ -749,19 +797,34 @@ function drawStatus(p) {
   if (p.t < 1) return;
   const b = B(p.key);
   const hall = p.key === 'hall';
-  const idle = b.jobs && workersAt(p.id) === 0;
-  if (!hall && !idle) return;
+  const idle = b.jobs && !hall && workersAt(p.id) === 0;
+  const up = !idle && canUpgrade(p);
+  if (!hall && !idle && !up) return;
   const t = topOf(p), s = badgeScale();
   g.save();
   g.translate(t.x, t.y - 14 * s); g.scale(s, s);
   g.textAlign = 'center'; g.textBaseline = 'middle';
-  if (hall) {
+  if (!hall && up) {
+    /* You can afford to improve this. Shown only when it is actually
+       affordable, so the village points at what to do next instead of wearing
+       a permanent row of level numbers. */
+    g.fillStyle = 'rgba(24,52,20,.9)'; g.strokeStyle = 'rgba(150,232,110,.95)'; g.lineWidth = 2.5;
+    g.beginPath(); g.roundRect(-17, -16, 34, 32, 16); g.fill(); g.stroke();
+    g.font = 'bold 20px Segoe UI, sans-serif'; g.fillStyle = '#b6f58a';
+    g.fillText('▲', 0, 1);
+  } else if (hall) {
     const label = 'Lv ' + hallLevel();
     g.font = 'bold 20px Segoe UI, sans-serif';
     const w = g.measureText(label).width + 22;
     g.fillStyle = 'rgba(20,32,16,.86)'; g.strokeStyle = 'rgba(226,200,120,.9)'; g.lineWidth = 2;
     g.beginPath(); g.roundRect(-w / 2, -15, w, 30, 15); g.fill(); g.stroke();
     g.fillStyle = '#f0d894'; g.fillText(label, 0, 1);
+    if (up) {                       // a hall that can grow gets a tick beside it
+      g.fillStyle = 'rgba(24,52,20,.92)'; g.strokeStyle = 'rgba(150,232,110,.95)'; g.lineWidth = 2;
+      g.beginPath(); g.arc(w / 2 + 15, 0, 13, 0, 7); g.fill(); g.stroke();
+      g.font = 'bold 15px Segoe UI, sans-serif'; g.fillStyle = '#b6f58a';
+      g.fillText('▲', w / 2 + 15, 1);
+    }
   } else {
     /* A producer with nobody at it is the single most confusing state in the
        game, so it says so rather than quietly making nothing. Drawn as a plain
@@ -872,7 +935,7 @@ function drawHUD() {
 function panelRects() {
   const u = US(), bar = barRects()[0];
   const p = panel == null ? null : byId(panel);
-  const btn = !!(p && p.key === 'hall');       // only the hall has a button to fit
+  const btn = !!p;                             // every building has an upgrade button
   const w = Math.min(W - 48 * u, 720 * u), h = (btn ? 232 : 152) * u;
   const y = (bar ? bar.y - bar.h / 2 : hudBot()) - 20 * u - h / 2;
   return { u, x: W / 2, y, w, h, btn,
@@ -889,22 +952,35 @@ function drawPanel() {
   g.textAlign = 'left'; g.textBaseline = 'middle';
   const lx = R.x - R.w / 2 + 26 * u;
   g.font = `bold ${Math.round(30 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#fff';
-  g.fillText(b.icon + '  ' + b.name + (p.key === 'hall' ? '  ·  Level ' + hallLevel() : ''), lx, R.y - R.h / 2 + 38 * u);
+  g.fillText(b.icon + '  ' + b.name + '  ·  Level ' + lvlOf(p), lx, R.y - R.h / 2 + 38 * u);
   g.font = `${Math.round(21 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#bccfae';
   g.fillText(b.blurb, lx, R.y - R.h / 2 + 78 * u);
 
+  /* What this building does at its CURRENT level, and what the next one would
+     make it -- the number is the whole reason to spend, so it is spelled out
+     rather than left to the player to infer from a rising counter. */
+  const nl = Math.min(p.key === 'hall' ? HALL_MAX : LVL_MAX, lvlOf(p) + 1);
+  const at = (n, f) => f({ ...p, lvl: n });
   let line = '';
-  if (b.jobs) {
+  if (b.jobs && b.makes) {
+    const k = Object.keys(b.makes)[0], icon = k === 'wood' ? '🪵' : '🌾';
     const n = workersAt(p.id);
-    line = 'Workers ' + n + ' / ' + b.jobs + (n ? '' : '   — build a house for more villagers');
+    line = icon + ' ' + at(lvlOf(p), q => rateOf(q, k)).toFixed(2) + '/s';
+    if (nl > lvlOf(p)) line += '  →  ' + at(nl, q => rateOf(q, k)).toFixed(2) + '/s';
+    line += '   ·   workers ' + n + ' / ' + b.jobs;
     const boost = boostAt(p);
     if (boost > 1) line += '   ·   +' + Math.round((boost - 1) * 100) + '% from wells';
+    else if (!n) line += '   — no villagers';
   } else if (b.caps) {
-    line = 'Holds +' + b.caps.wood + ' wood and +' + b.caps.food + ' food';
+    line = 'Holds 🪵' + capsOf(p, 'wood') + '  🌾' + capsOf(p, 'food');
+    if (nl > lvlOf(p)) line += '  →  🪵' + at(nl, q => capsOf(q, 'wood')) + '  🌾' + at(nl, q => capsOf(q, 'food'));
   } else if (b.pop) {
-    line = 'Houses ' + b.pop + ' villagers';
+    line = 'Houses ' + popOf(p) + ' villagers';
+    if (nl > lvlOf(p)) line += '  →  ' + at(nl, popOf);
   } else if (b.boost) {
-    line = 'Producers within ' + b.boostR + ' tiles work +' + Math.round(b.boost * 100) + '% faster';
+    const pc = l => Math.round(b.boost * outMul(l) * 100);
+    line = 'Producers within ' + b.boostR + ' tiles work +' + pc(lvlOf(p)) + '% faster';
+    if (nl > lvlOf(p)) line += '  →  +' + pc(nl) + '%';
   }
   if (p.key === 'hall') {
     const a = HALL[hallLevel()].allow;
@@ -919,18 +995,23 @@ function drawPanel() {
   g.textAlign = 'center'; g.fillStyle = '#fff';
   g.font = `bold ${Math.round(26 * u)}px Segoe UI, sans-serif`; g.fillText('×', R.close.x, R.close.y);
 
-  if (p.key === 'hall') {
-    const nx = hallNext(), ok = canUpgrade(), busy = p.t < 1;
-    const label = busy ? 'Building…'
-      : !nx ? 'Highest level'
-      : 'Upgrade   ' + Object.entries(nx).map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join('  ');
-    g.fillStyle = ok ? 'rgba(62,104,44,.98)' : 'rgba(40,44,36,.9)';
-    g.strokeStyle = ok ? '#9fe86b' : 'rgba(255,255,255,.16)'; g.lineWidth = 3;
-    g.beginPath(); g.roundRect(R.up.x - R.up.w / 2, R.up.y - R.up.h / 2, R.up.w, R.up.h, 16 * u); g.fill(); g.stroke();
-    g.fillStyle = ok ? '#eaffd6' : '#9aa693';
-    g.font = `bold ${Math.round(25 * u)}px Segoe UI, sans-serif`;
-    g.fillText(label, R.up.x, R.up.y);
-  }
+  const i = upInfo(p), ok = canUpgrade(p), busy = p.t < 1;
+  /* A late upgrade can cost more than the village can physically hold, and then
+     the button would sit grey for ever with no hint why. Storage being a real
+     constraint is the point -- it just has to say so. */
+  const overCap = !!i.cost && !canAfford(i.cost)
+    && Object.entries(i.cost).some(([k, v]) => v > caps[k]);
+  const label = busy ? 'Building…'
+    : i.max ? 'Highest level'
+    : i.gate ? 'Needs town hall level ' + i.gate
+    : overCap ? 'Needs a bigger storehouse'
+    : 'Upgrade to ' + (lvlOf(p) + 1) + '   ' + Object.entries(i.cost).map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join('  ');
+  g.fillStyle = ok ? 'rgba(62,104,44,.98)' : 'rgba(40,44,36,.9)';
+  g.strokeStyle = ok ? '#9fe86b' : 'rgba(255,255,255,.16)'; g.lineWidth = 3;
+  g.beginPath(); g.roundRect(R.up.x - R.up.w / 2, R.up.y - R.up.h / 2, R.up.w, R.up.h, 16 * u); g.fill(); g.stroke();
+  g.fillStyle = ok ? '#eaffd6' : '#9aa693';
+  g.font = `bold ${Math.round(24 * u)}px Segoe UI, sans-serif`;
+  g.fillText(label, R.up.x, R.up.y);
   g.restore();
 }
 
@@ -1006,8 +1087,7 @@ function tap(sx, sy) {
   if (panel != null) {
     const R = panelRects(), p = byId(panel);
     if (Math.hypot(sx - R.close.x, sy - R.close.y) < R.close.r * 1.3) { panel = null; return; }
-    if (p && p.key === 'hall'
-        && Math.abs(sx - R.up.x) < R.up.w / 2 && Math.abs(sy - R.up.y) < R.up.h / 2) { upgradeHall(); return; }
+    if (p && Math.abs(sx - R.up.x) < R.up.w / 2 && Math.abs(sy - R.up.y) < R.up.h / 2) { upgradeBuilding(p); return; }
     // anywhere else inside the panel is swallowed, so a stray tap on it does
     // not fall through and place a building underneath
     if (Math.abs(sx - R.x) < R.w / 2 && Math.abs(sy - R.y) < R.h / 2) return;
@@ -1046,6 +1126,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   get sel() { return selBuild; }, set sel(v) { selBuild = v; },
   tap, CAM, save, load, get caps() { return caps; },
   HALL, hallOf, hallLevel, allowedOf, countOf, atLimit, unlocked, buildable,
-  canUpgrade, upgradeHall, panelRects, get panel() { return panel; }, set panel(v) { panel = v; },
+  canUpgrade, upgradeBuilding, upInfo, upCostOf, lvlOf, popOf, capsOf, rateOf, outMul, LVL_MAX,
+  panelRects, get panel() { return panel; }, set panel(v) { panel = v; },
   get villagers() { return villagers; }, workersAt, boostAt, producers, stores,
   assignJobs, buildingAt, ensureHall };
