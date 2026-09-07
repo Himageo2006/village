@@ -1,7 +1,7 @@
 # Copy-paste prompts — village art
 
-Four groups: **buildings** (1-4), **villagers** (5-7), **scenery** (8-11) and
-**ground and backdrop** (12-13).
+Five groups: **buildings** (1-4), **villagers** (5-7), **scenery** (8-11),
+**ground and backdrop** (12-13) and **buildings, part two** (14-17).
 
 Generate each group **in one conversation, in the order given**. Every prompt
 repeats the whole style spec so it still works pasted alone, but keeping a group
@@ -554,4 +554,177 @@ tall.
 
 DO NOT INCLUDE: land, shore, beach, sand, rocks, islands, boats, buildings,
 characters, sky, horizon, text, labels, watermarks, UI, or borders.
+```
+
+---
+---
+
+# Buildings, part two
+
+Four more, for the town hall and the buildings its later levels unlock. Same
+rules as the first four — **2:1 isometric, light from the upper LEFT,
+transparent background, base at the bottom of the image**.
+
+One rule is new, and it is there because the cottage caught us out. The cottage
+was drawn as a rectangle roughly twice as long as it is deep, so on a single
+square tile packed houses swallowed each other's doors and it had to be given a
+2×1 plot instead. These four all stand on **square** plots, so each prompt asks
+for a square plan outright: *as deep as it is wide*. If one comes back long and
+thin, regenerate it rather than living with it.
+
+| Prompt | Plot | Notes |
+|---|---|---|
+| Town Hall | 2 × 2 | the tallest thing in the village |
+| Well | 1 × 1 | small; sits between other buildings |
+| Mill | 2 × 2 | tall, with sails |
+| Market | 2 × 2 | low and wide, open stalls |
+
+---
+
+## 14 — Town Hall → `art/hall.png`
+
+```
+A medieval village town hall, as a game asset sprite. Match the art style of
+the cottage image.
+
+CAMERA: strict 2:1 isometric projection, viewed from a corner at 30 degrees
+above the horizon. A square floor must appear as a diamond exactly twice as
+wide as it is tall. No vanishing point, no top-down view.
+
+PLAN: the building is SQUARE in plan — as deep as it is wide. Not a long
+hall, not a rectangle.
+
+SUBJECT: the grandest building in a small medieval village, and clearly the
+centre of it. A solid ground floor of pale dressed stone with a wide arched
+double doorway and stone steps up to it. An upper storey of cream plaster
+with dark oak timber framing, slightly overhanging the stone below. A steep
+red tiled roof. A short square bell tower rising from one corner with a
+visible bronze bell under a small pointed roof, and a plain cloth banner on
+a pole. Well kept and civic, not a castle and not a church.
+
+STYLE: stylised low-poly mobile strategy game art, in the vein of Clash of
+Clans or Rise of Kingdoms. Clean readable silhouette, chunky simplified
+forms, warm saturated colours, soft hand-painted shading. No photorealism.
+
+LIGHTING: single key light from the upper LEFT. Left-facing walls and the
+left roof slope are lit; right-facing walls and the right roof slope fall
+into soft shadow.
+
+BACKGROUND: fully transparent. No ground, no grass, no baseplate, no drop
+shadow, no cast shadow of any kind.
+
+FRAMING: fills the frame, the base of the walls resting on the bottom edge,
+centred horizontally. No empty padding.
+
+DO NOT INCLUDE: text, labels, watermarks, UI, borders, multiple angles,
+character figures, or any ground surface.
+```
+
+---
+
+## 15 — Well → `art/well.png`
+
+```
+A medieval stone well, as a game asset sprite. Same art style, same camera
+angle and same lighting as the cottage image.
+
+CAMERA: strict 2:1 isometric projection, viewed from a corner at 30 degrees
+above the horizon. No top-down view, no straight-on elevation.
+
+PLAN: square and compact — as deep as it is wide. This is a SMALL object,
+about a quarter the footprint of a cottage.
+
+SUBJECT: a round well of mossy grey fieldstone, waist high, with a wooden
+bucket hanging from a rope on a hand crank. Two timber posts carry a small
+pitched roof of wooden shingles over it. A second bucket and a spill of wet
+cobbles at the base. Worn and well used.
+
+STYLE: stylised low-poly mobile strategy game art, in the vein of Clash of
+Clans or Rise of Kingdoms. Chunky simplified forms, warm saturated colours,
+soft hand-painted shading, crisp edges. No photorealism.
+
+LIGHTING: single key light from the upper LEFT. Left lit, right in soft
+shadow.
+
+BACKGROUND: fully transparent. No ground, no grass, no baseplate, no drop
+shadow, no cast shadow.
+
+FRAMING: fills the frame, resting on the bottom edge, centred horizontally.
+No empty padding.
+
+DO NOT INCLUDE: text, labels, watermarks, UI, borders, multiple angles,
+character figures, or any ground surface.
+```
+
+---
+
+## 16 — Mill → `art/mill.png`
+
+```
+A medieval windmill, as a game asset sprite. Same art style, same camera
+angle and same lighting as the cottage image.
+
+CAMERA: strict 2:1 isometric projection, viewed from a corner at 30 degrees
+above the horizon. No top-down view, no straight-on elevation.
+
+PLAN: SQUARE in plan — as deep as it is wide. Tall rather than long.
+
+SUBJECT: a stout windmill. A broad tapering tower of pale stone and timber
+with a wooden door and a couple of small windows, capped with a domed
+shingled roof. Four large wooden sails on a hub at the front, latticed and
+partly covered in cloth, angled so all four are clearly visible. Sacks of
+grain and a small handcart at the base.
+
+STYLE: stylised low-poly mobile strategy game art, in the vein of Clash of
+Clans or Rise of Kingdoms. Clean readable silhouette, chunky simplified
+forms, warm saturated colours, soft hand-painted shading. No photorealism.
+
+LIGHTING: single key light from the upper LEFT. Left-facing surfaces lit,
+right-facing surfaces in soft shadow.
+
+BACKGROUND: fully transparent. No ground, no grass, no baseplate, no drop
+shadow, no cast shadow.
+
+FRAMING: fills the frame, the base of the tower resting on the bottom edge,
+centred horizontally. No empty padding.
+
+DO NOT INCLUDE: text, labels, watermarks, UI, borders, multiple angles,
+character figures, wind, motion blur, or any ground surface.
+```
+
+---
+
+## 17 — Market → `art/market.png`
+
+```
+A medieval village market, as a game asset sprite. Same art style, same
+camera angle and same lighting as the cottage image.
+
+CAMERA: strict 2:1 isometric projection, viewed from a corner at 30 degrees
+above the horizon. No top-down view, no straight-on elevation.
+
+PLAN: SQUARE in plan — as deep as it is wide. Low and spread out rather than
+tall; noticeably shorter than a cottage.
+
+SUBJECT: two or three open market stalls set together in a square. Simple
+timber frames with striped cloth awnings in faded red and cream, held up on
+wooden poles. Wooden trestle counters piled with produce — apples, bread,
+cloth bolts, clay pots. Barrels and crates stacked at the corners, a set of
+brass scales on one counter. Busy and colourful, but no people.
+
+STYLE: stylised low-poly mobile strategy game art, in the vein of Clash of
+Clans or Rise of Kingdoms. Clean readable silhouette, chunky simplified
+forms, warm saturated colours, soft hand-painted shading. No photorealism.
+
+LIGHTING: single key light from the upper LEFT. Left-facing surfaces and the
+left of each awning are lit; right-facing surfaces fall into soft shadow.
+
+BACKGROUND: fully transparent. No ground, no grass, no cobbles, no
+baseplate, no drop shadow, no cast shadow.
+
+FRAMING: fills the frame, resting on the bottom edge, centred horizontally.
+No empty padding.
+
+DO NOT INCLUDE: text, labels, watermarks, UI, borders, signage, multiple
+angles, character figures, shoppers, or any ground surface.
 ```

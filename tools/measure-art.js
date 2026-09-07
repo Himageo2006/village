@@ -21,7 +21,7 @@ let sharp;
 try { sharp = require(path.join(ROOT, '..', 'gatestorm', 'node_modules', 'sharp')); }
 catch (e) { console.error('Could not load sharp from the gatestorm project.'); process.exit(1); }
 
-const KEYS = ['house', 'farm', 'lumber', 'store'];
+const KEYS = ['house', 'farm', 'lumber', 'store', 'hall', 'well', 'mill', 'market'];
 const ALPHA = 40;      // ignore the faint fringe left by anti-aliasing
 
 (async () => {
