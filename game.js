@@ -516,6 +516,51 @@ let ghost = null;                     // {c,r,ok}
 let panel = null;                     // id of the building whose panel is open
 let moving = null;                    // id of the building being relocated
 
+/* ---------- goals ----------
+   Levels alone give a village somewhere to spend, but nothing to aim at. These
+   run in a fixed order, one at a time, each naming the next thing worth doing
+   and paying for it. Rewards are about a THIRD of what the next step costs: a
+   nudge, not a bypass. Paying the full cost was tried and it let a player skip
+   the entire early game -- the first hall upgrade fell from four minutes to
+   nothing, because each goal handed over enough to complete the next one.
+
+   done() is checked against the village itself rather than counted by events,
+   so a goal cannot be missed by a reload, a sell, or anything done out of
+   order. */
+let goalIdx = 0, goalDone = null;     // goalDone: {g, age} while the banner shows
+const GOAL_SHOW = 4.5;
+
+const anyAtLevel = n => placed.some(p => p.key !== 'hall' && lvlOf(p) >= n && p.t >= 1);
+const GOALS = [
+  { text: 'Build your first house',        done: () => countOf('house') >= 1,  give: { wood: 15 } },
+  { text: 'Build a lumber camp',           done: () => countOf('lumber') >= 1, give: { food: 15 } },
+  { text: 'Build a farm',                  done: () => countOf('farm') >= 1,   give: { wood: 25 } },
+  { text: 'House four villagers',          done: () => villagers.length >= 4,  give: { wood: 30, food: 20 } },
+  { text: 'Raise the town hall to level 2', done: () => hallLevel() >= 2,      give: { wood: 60, food: 40 } },
+  { text: 'Build a storehouse',            done: () => countOf('store') >= 1,  give: { wood: 70 } },
+  { text: 'Upgrade any building to level 2', done: () => anyAtLevel(2),        give: { wood: 90, food: 50 } },
+  { text: 'Dig a well',                    done: () => countOf('well') >= 1,   give: { wood: 110 } },
+  { text: 'Raise the town hall to level 3', done: () => hallLevel() >= 3,      give: { wood: 180, food: 120 } },
+  { text: 'Place five decorations',        done: () => decorCount() >= 5,      give: { wood: 150, food: 90 } },
+  { text: 'Upgrade any building to level 3', done: () => anyAtLevel(3),        give: { wood: 250, food: 160 } },
+  { text: 'Build a mill',                  done: () => countOf('mill') >= 1,   give: { wood: 350, food: 220 } },
+  { text: 'Raise the town hall to level 4', done: () => hallLevel() >= 4,      give: { wood: 550, food: 360 } },
+  { text: 'Open a market',                 done: () => countOf('market') >= 1, give: { wood: 800, food: 500 } },
+  { text: 'Raise the town hall to level 5', done: () => hallLevel() >= 5,      give: { wood: 1400, food: 900 } },
+];
+const currentGoal = () => GOALS[goalIdx] || null;
+
+function stepGoals(dt) {
+  if (goalDone) { goalDone.age += dt; if (goalDone.age > GOAL_SHOW) goalDone = null; }
+  const g2 = currentGoal();
+  if (!g2 || !g2.done()) return;
+  for (const [k, v] of Object.entries(g2.give)) res[k] = Math.min(caps[k], res[k] + v);
+  goalDone = { g: g2, age: 0 };
+  goalIdx++;
+  SFX.goal();
+  save();
+}
+
 /* ---------- first-time hints ----------
    The village opens with an island, a hall and a row of icons, and says nothing
    about villagers being the entire economy. One line at a time, driven by what
@@ -662,7 +707,8 @@ const SAVE_V = 4;      // 2: house 2x1. 3: hall and jobs. 4: every building leve
    better than playing. */
 function save() {
   try { localStorage.setItem(KEY, JSON.stringify({
-    v: SAVE_V, res, placed, t: Date.now(), rate: rateNow, seen: tutSeen, mute: muted })); } catch (e) {}
+    v: SAVE_V, res, placed, t: Date.now(), rate: rateNow, seen: tutSeen, mute: muted,
+    goal: goalIdx })); } catch (e) {}
 }
 function load() {
   let s = null; try { s = JSON.parse(localStorage.getItem(KEY)); } catch (e) {}
@@ -674,6 +720,7 @@ function load() {
   if (Number.isFinite(s.t)) savedAt = s.t;
   if (Array.isArray(s.seen)) tutSeen = s.seen.filter(x => typeof x === 'string');
   if (typeof s.mute === 'boolean') muted = s.mute;
+  if (Number.isFinite(s.goal)) goalIdx = Math.max(0, Math.min(GOALS.length, s.goal | 0));
   if (s.res && typeof s.res === 'object') for (const k of ['wood', 'food'])
     if (typeof s.res[k] === 'number' && isFinite(s.res[k])) res[k] = s.res[k];
   if (Array.isArray(s.placed)) placed = s.placed.filter(p =>
@@ -733,6 +780,7 @@ function step(dt) {
   stepVillagers(dt);
   stepFeedback(dt);
   stepHints(dt);
+  stepGoals(dt);
   // nothing produces here any more -- see stepVillagers
   for (const p of placed) {
     if (p.t < 1) {
@@ -1346,12 +1394,56 @@ function drawHUD() {
   }
   drawMute();
   drawPanel();
+  drawGoal();
   drawHint();
   drawAway();
 }
 
+/* The standing goal, and the flash when one is finished. Both live in the same
+   strip under the resource pills, and a first-time hint outranks them: a hint
+   is only ever shown once, a goal is always there. */
+function drawGoal() {
+  if (away) return;
+  const u = US(), y = hudTop() + 132 * u;
+  if (goalDone) {
+    const t = goalDone.age / GOAL_SHOW;
+    const parts = Object.entries(goalDone.g.give)
+      .map(([k, v]) => (k === 'wood' ? '🪵 +' : '🌾 +') + v).join('   ');
+    g.save();
+    g.globalAlpha = Math.min(1, (1 - t) * 3);
+    g.font = `bold ${Math.round(24 * u)}px Segoe UI, sans-serif`;
+    const txt = 'Goal complete!   ' + parts;
+    const tw = g.measureText(txt).width, w = Math.min(W - 40 * u, tw + 60 * u), hh = 62 * u;
+    g.fillStyle = 'rgba(30,50,22,.95)'; g.strokeStyle = '#9fe86b'; g.lineWidth = 3;
+    g.beginPath(); g.roundRect(W / 2 - w / 2, y - hh / 2, w, hh, hh / 2); g.fill(); g.stroke();
+    g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#eaffd6';
+    g.fillText(txt, W / 2, y);
+    g.restore();
+    return;
+  }
+  if (currentHint()) return;          // a one-off hint takes the strip first
+  const gl = currentGoal();
+  g.save();
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  if (!gl) {
+    g.font = `bold ${Math.round(21 * u)}px Segoe UI, sans-serif`;
+    g.fillStyle = 'rgba(210,230,190,.55)';
+    g.fillText('Every goal done — the village is yours', W / 2, y);
+    g.restore(); return;
+  }
+  g.font = `bold ${Math.round(22 * u)}px Segoe UI, sans-serif`;
+  const reward = Object.entries(gl.give).map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join(' ');
+  const txt = gl.text + '   ·   ' + reward;
+  const tw = g.measureText(txt).width, w = Math.min(W - 40 * u, tw + 56 * u), hh = 52 * u;
+  g.fillStyle = 'rgba(16,26,14,.80)'; g.strokeStyle = 'rgba(255,255,255,.16)'; g.lineWidth = 2;
+  g.beginPath(); g.roundRect(W / 2 - w / 2, y - hh / 2, w, hh, hh / 2); g.fill(); g.stroke();
+  g.fillStyle = '#c8d9b8';
+  g.fillText(txt, W / 2, y);
+  g.restore();
+}
+
 function drawHint() {
-  if (away) return;                   // one thing at a time
+  if (away || goalDone) return;       // one thing at a time
   const h = currentHint(); if (!h) return;
   const u = US(), y = hudTop() + 132 * u;
   g.save();
@@ -1688,6 +1780,8 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   isDecor, decorCount, DECOR_MAX, charmTotal, charmMul, removeDecor, tabRects, drawDecor,
   sellBuilding, canSell, sellValue, investedIn, get moving() { return moving; }, set moving(v) { moving = v; },
   collectAway, currentHint, get away() { return away; }, set away(v) { away = v; },
+  GOALS, currentGoal, get goalIdx() { return goalIdx; }, set goalIdx(v) { goalIdx = v; },
+  get goalDone() { return goalDone; }, set goalDone(v) { goalDone = v; },
   SFX, muteRect, audioOn, get muted() { return muted; }, set muted(v) { muted = v; },
   get tutSeen() { return tutSeen; }, set tutSeen(v) { tutSeen = v; },
   get savedAt() { return savedAt; }, set savedAt(v) { savedAt = v; },
