@@ -683,6 +683,61 @@ let moving = null;                    // id of the building being relocated
    a mis-tap now costs nothing. */
 let armed = null;                     // {c,r} the ghost is waiting to confirm
 
+/* ---------- orders ----------
+   Two problems, one system.
+
+   Between decisions there was nothing to do but watch numbers rise. And one
+   resource always ran ahead of the other -- food routinely sat at its cap doing
+   nothing while wood was the bottleneck -- so half the village's output was
+   being thrown away.
+
+   Orders are a standing trade: hand over the resource you have too much of, take
+   the one you need. They are deliberately SMALL and slow to arrive, because an
+   order that beats a lumber camp would replace the game rather than season it.
+   Sized against the storage cap so they stay meaningful as the village grows. */
+const ORDER_SLOTS = 3;
+const ORDER_EVERY = 75;               // seconds between new offers
+let orders = [], orderT = 0, orderSeq = 1, ordersDone = 0;
+
+function makeOrder() {
+  // ask for whichever resource the village is currently richer in
+  const richWood = (res.wood / Math.max(1, caps.wood)) > (res.food / Math.max(1, caps.food));
+  const giveK = richWood ? 'wood' : 'food', getK = richWood ? 'food' : 'wood';
+  /* Both sides are sized as a share of the SAME storage cap, so the trade is
+     close to even in absolute terms with a small tilt in the player's favour.
+     It has to be near even: an order that pays out more than it costs can be
+     looped -- give food, take wood, now wood is the rich one, give it back --
+     and one that pays less drains the village doing exactly the same thing. My
+     first numbers gave 14% and returned 8%, and auto-filling every order stalled
+     the run completely. The VALUE here is turning a capped resource you cannot
+     use into the one you are short of, not the arithmetic. */
+  const giveN = Math.max(10, Math.round(caps[giveK] * (0.10 + Math.random() * 0.04) / 5) * 5);
+  const getN  = Math.max(10, Math.round(caps[getK]  * (0.10 + Math.random() * 0.03) / 5) * 5);
+  return { id: orderSeq++, giveK, giveN, getK, getN };
+}
+function stepOrders(dt) {
+  orderT += dt;
+  if (orderT >= ORDER_EVERY) {
+    orderT = 0;
+    if (orders.length < ORDER_SLOTS) { orders.push(makeOrder()); save(); }
+  }
+}
+/* Room for the reward is part of the price. Without this an order filled while
+   the paid resource is capped takes the goods and hands back nothing, silently
+   -- I gave 40 food for 0 wood before this check existed. */
+const hasRoom = o => caps[o.getK] - res[o.getK] >= o.getN;
+const canFill = o => !!o && res[o.giveK] >= o.giveN && hasRoom(o);
+function fillOrder(o) {
+  if (!canFill(o)) return false;
+  res[o.giveK] -= o.giveN;
+  res[o.getK] = Math.min(caps[o.getK], res[o.getK] + o.getN);
+  orders = orders.filter(q => q.id !== o.id);
+  ordersDone++;
+  SFX.goal();
+  save();
+  return true;
+}
+
 /* ---------- goals ----------
    Levels alone give a village somewhere to spend, but nothing to aim at. These
    run in a fixed order, one at a time, each naming the next thing worth doing
@@ -705,6 +760,7 @@ const GOALS = [
   { text: 'House four villagers',          done: () => villagers.length >= 4,  give: { wood: 30, food: 20 } },
   { text: 'Raise the town hall to level 2', done: () => hallLevel() >= 2,      give: { wood: 60, food: 40 } },
   { text: 'Build a storehouse',            done: () => countOf('store') >= 1,  give: { wood: 70 } },
+  { text: 'Fill three orders at the market', done: () => ordersDone >= 3,       give: { wood: 100, food: 60 } },
   { text: 'Claim land beyond your border', done: () => landTier >= 1,          give: { wood: 120, food: 70 } },
   { text: 'Upgrade any building to level 2', done: () => anyAtLevel(2),        give: { wood: 90, food: 50 } },
   { text: 'Dig a well',                    done: () => countOf('well') >= 1,   give: { wood: 110 } },
@@ -885,7 +941,7 @@ const SAVE_V = 4;      // 2: house 2x1. 3: hall and jobs. 4: every building leve
 function save() {
   try { localStorage.setItem(KEY, JSON.stringify({
     v: SAVE_V, res, placed, t: Date.now(), rate: rateNow, seen: tutSeen, mute: muted,
-    goal: goalIdx, land: landTier })); } catch (e) {}
+    goal: goalIdx, land: landTier, orders, ordersDone })); } catch (e) {}
 }
 function load() {
   let s = null; try { s = JSON.parse(localStorage.getItem(KEY)); } catch (e) {}
@@ -899,6 +955,14 @@ function load() {
   if (typeof s.mute === 'boolean') muted = s.mute;
   if (Number.isFinite(s.goal)) goalIdx = Math.max(0, Math.min(GOALS.length, s.goal | 0));
   if (Number.isFinite(s.land)) landTier = Math.max(0, Math.min(LAND_MAX, s.land | 0));
+  if (Number.isFinite(s.ordersDone)) ordersDone = Math.max(0, s.ordersDone | 0);
+  if (Array.isArray(s.orders)) {
+    orders = s.orders.filter(o => o && ['wood', 'food'].includes(o.giveK) && ['wood', 'food'].includes(o.getK)
+      && Number.isFinite(o.giveN) && Number.isFinite(o.getN))
+      .slice(0, ORDER_SLOTS)
+      .map(o => ({ id: orderSeq++, giveK: o.giveK, getK: o.getK,
+        giveN: Math.max(1, o.giveN | 0), getN: Math.max(1, o.getN | 0) }));
+  }
   if (s.res && typeof s.res === 'object') for (const k of ['wood', 'food'])
     if (typeof s.res[k] === 'number' && isFinite(s.res[k])) res[k] = s.res[k];
   if (Array.isArray(s.placed)) placed = s.placed.filter(p =>
@@ -960,6 +1024,7 @@ function step(dt) {
   stepFeedback(dt);
   stepHints(dt);
   stepGoals(dt);
+  stepOrders(dt);
   // nothing produces here any more -- see stepVillagers
   for (const p of placed) {
     if (p.t < 1) {
@@ -1523,19 +1588,34 @@ function drawWorld() {
 /* ---------- HUD ---------- */
 /* The bar shows what the hall has unlocked, and nothing else. The town hall is
    never on it -- there is exactly one and it is founded for you. */
-let barMode = 'build';                 // 'build' | 'decor'
+let barMode = 'build';                 // 'build' | 'decor' | 'orders'
 const barList = () => barMode === 'decor'
   ? BUILDINGS.filter(b => b.decor)
+  : barMode === 'orders' ? []
   : BUILDINGS.filter(b => b.key !== 'hall' && !b.decor && unlocked(b.key));
+
+/* Order cards occupy the same strip as the build bar, laid out on the same
+   geometry so the two cannot drift apart. */
+function orderRects() {
+  const u = US(), n = ORDER_SLOTS;
+  const h = 118 * u, pad = 8 * u;
+  const w = Math.min(250 * u, (W - pad * (n + 1)) / n);
+  const y = hudBot() - h / 2 - 22 * u;
+  const total = n * w + (n - 1) * pad;
+  return orders.slice(0, n).map((o, i) => ({ o, x: (W - total) / 2 + w / 2 + i * (w + pad), y, w, h }));
+}
 
 /* The two tabs above the bar. One definition, used to draw and to hit-test. */
 function tabRects() {
   const u = US(), bar = barRects()[0];
-  const w = 168 * u, h = 46 * u, pad = 8 * u;
-  const y = (bar ? bar.y - bar.h / 2 : hudBot()) - h / 2 - 10 * u;
+  const w = 152 * u, h = 46 * u, pad = 8 * u;
+  const y0 = hudBot() - 118 * US() - 22 * US();
+  const y = (bar ? bar.y - bar.h / 2 : y0) - h / 2 - 10 * u;
+  const step = w + pad;
   return [
-    { mode: 'build', label: 'Build',  x: W / 2 - w / 2 - pad / 2, y, w, h },
-    { mode: 'decor', label: 'Decorate', x: W / 2 + w / 2 + pad / 2, y, w, h },
+    { mode: 'build',    label: 'Build',    x: W / 2 - step, y, w, h },
+    { mode: 'decor',    label: 'Decorate', x: W / 2,        y, w, h },
+    { mode: 'orders',   label: 'Orders',   x: W / 2 + step, y, w, h },
   ];
 }
 function barRects() {
@@ -1613,6 +1693,37 @@ function drawHUD() {
       g.fillText(Object.entries(r.b.cost).map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join('  '), r.x, r.y + r.h * 0.32);
     }
     g.restore();
+  }
+  if (barMode === 'orders') {
+    const rs = orderRects();
+    if (!rs.length) {
+      g.save(); g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.font = `${Math.round(23 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#8d9a85';
+      g.fillText('No orders just now — a trader will be along shortly',
+        W / 2, hudBot() - 80 * u);
+      g.restore();
+    }
+    for (const r of rs) {
+      const ok = canFill(r.o);
+      g.save();
+      g.fillStyle = ok ? 'rgba(22,32,20,.92)' : 'rgba(40,22,20,.92)';
+      g.strokeStyle = ok ? 'rgba(159,232,107,.75)' : 'rgba(200,110,90,.5)';
+      g.lineWidth = ok ? 3 : 2.5;
+      g.beginPath(); g.roundRect(r.x - r.w / 2, r.y - r.h / 2, r.w, r.h, 16); g.fill(); g.stroke();
+      g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.font = `bold ${Math.round(26 * u)}px Segoe UI, sans-serif`;
+      g.fillStyle = ok ? '#fff' : '#d8b3a6';
+      g.fillText((r.o.giveK === 'wood' ? '🪵' : '🌾') + ' ' + r.o.giveN, r.x, r.y - r.h * 0.26);
+      g.font = `${Math.round(20 * u)}px Segoe UI, sans-serif`;
+      // say WHY a card cannot be taken, rather than just greying it
+      const why = res[r.o.giveK] < r.o.giveN ? 'not enough' : !hasRoom(r.o) ? 'no room' : 'for';
+      g.fillStyle = why === 'for' ? '#8d9a85' : '#e59a86';
+      g.fillText(why, r.x, r.y);
+      g.font = `bold ${Math.round(26 * u)}px Segoe UI, sans-serif`;
+      g.fillStyle = ok ? '#9fe86b' : '#a2907f';
+      g.fillText((r.o.getK === 'wood' ? '🪵' : '🌾') + ' ' + r.o.getN, r.x, r.y + r.h * 0.26);
+      g.restore();
+    }
   }
   for (const t of tabRects()) {
     const on = barMode === t.mode;
@@ -2036,6 +2147,14 @@ function tap(sx, sy) {
       barMode = t.mode; selBuild = null; moving = null; ghost = null; armed = null; SFX.tap(); return;
     }
   }
+  if (barMode === 'orders') {
+    for (const r of orderRects()) {
+      if (Math.abs(sx - r.x) < r.w / 2 && Math.abs(sy - r.y) < r.h / 2) {
+        if (!fillOrder(r.o)) SFX.deny();
+        return;
+      }
+    }
+  }
   for (const r of barRects()) {
     if (Math.abs(sx - r.x) < r.w / 2 && Math.abs(sy - r.y) < r.h / 2) {
       moving = null; armed = null;         // picking something new abandons a move
@@ -2104,6 +2223,10 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   get armed() { return armed; }, set armed(v) { armed = v; },
   collectAway, currentHint, get away() { return away; }, set away(v) { away = v; },
   GOALS, currentGoal, get goalIdx() { return goalIdx; }, set goalIdx(v) { goalIdx = v; },
+  get orders() { return orders; }, set orders(v) { orders = v; },
+  makeOrder, fillOrder, canFill, orderRects, ORDER_EVERY, ORDER_SLOTS,
+  get ordersDone() { return ordersDone; }, set ordersDone(v) { ordersDone = v; },
+  get orderT() { return orderT; }, set orderT(v) { orderT = v; },
   get goalDone() { return goalDone; }, set goalDone(v) { goalDone = v; },
   SFX, muteRect, audioOn, get muted() { return muted; }, set muted(v) { muted = v; },
   sky, dayPhase, DAY_MS,
