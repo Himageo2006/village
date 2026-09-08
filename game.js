@@ -951,8 +951,17 @@ function recomputeCaps() {
   // even before you have spent the room it unlocks
   const base = 200 + 100 * hallLevel();
   caps = { wood: base, food: base };
-  for (const p of placed) { if (B(p.key).caps && p.t >= 1)
-    for (const k of ['wood', 'food']) caps[k] += capsOf(p, k); }
+  for (const p of placed) {
+    if (!B(p.key).caps) continue;
+    /* A storehouse being UPGRADED keeps the capacity it already had. Counting
+       only finished buildings meant starting an upgrade collapsed the ceiling,
+       put the village instantly over it, and stopped every delivery until the
+       work finished -- so improving your storage punished you for improving
+       your storage. It earns the new capacity when it is done, not before. */
+    const lvl = p.t >= 1 ? lvlOf(p) : lvlOf(p) - 1;
+    if (lvl < 1) continue;                        // still being built the first time
+    for (const k of ['wood', 'food']) caps[k] += capsOf({ key: p.key, lvl }, k);
+  }
 }
 
 /* Everything ever paid into a building, so selling can return a fair half
