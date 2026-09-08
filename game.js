@@ -212,15 +212,47 @@ function deliveredWith(p, rate) {
 const ratedOf = (p, kind, mul) =>
   rateOf(p, kind) * boostAt(p) * (mul === undefined ? charmMul() : mul);
 
-function efficiencyOf(p, atC, atR) {
+/* The share of its own rate a workplace actually delivers. This is the honest
+   multiplier for what the village produces -- offline earnings are built on it
+   -- but it is NOT shown to the player any more, because it is not comparable
+   between levels and was being read as a placement score. reachOf is what the
+   interface uses for that. */
+function efficiencyOf(p) {
   const b = B(p.key);
   if (!b.makes || !b.jobs) return null;
-  const probe = (atC === undefined) ? p : { ...p, c: atC, r: atR };
-  if (hasStore(probe) === null) return 1;
-  const kind = Object.keys(b.makes)[0];
-  const rate = ratedOf(probe, kind);
+  if (hasStore(p) === null) return 1;
+  const rate = ratedOf(p, Object.keys(b.makes)[0]);
   if (rate <= 0) return 1;
-  return Math.max(0.05, Math.min(1, deliveredWith(probe, rate) / rate));
+  return Math.max(0.05, Math.min(1, deliveredWith(p, rate) / rate));
+}
+/* The round trip a workplace gets when it stands right beside a storehouse.
+   Measured on the real grid rather than assumed: the tightest legal placements
+   come out at 2.2 to 2.5 seconds, so one tile-step is a figure the player can
+   actually achieve and not an aspiration. */
+const SNUG_WALK = 2 * Math.hypot(TW / 2, TH / 2) / VIL_SPD;
+/* What this workplace would deliver in that spot -- the yardstick a placement
+   should be judged against.
+
+   Efficiency on its own cannot be that yardstick, because it is not comparable
+   between levels: a level five farm empties its stock four times faster than a
+   level one, so the same walk costs it far more, and the best figure it can
+   EVER show, standing next to a store, is 66% against the level one's 82%. The
+   badge threshold of 45% therefore said almost nothing early on and hung a
+   warning on seven buildings in ten in a maxed village, where it was both
+   unavoidable and useless as advice. Measured against what the same building
+   would do in a good spot, the number means the same thing at every level: how
+   much of it the walk is taking. */
+function bestDeliveredOf(p, lvl) {
+  const b = B(p.key);
+  if (!b.makes || !b.jobs) return 0;
+  const q = lvl === undefined ? p : { ...p, lvl };
+  const rate = ratedOf(q, Object.keys(b.makes)[0]);
+  return rate <= 0 ? 0 : CARRY / (CARRY / rate + SNUG_WALK);
+}
+// 0..1: the share of its potential this building is actually delivering
+function reachOf(p) {
+  const best = bestDeliveredOf(p);
+  return best <= 0 ? 1 : Math.max(0, Math.min(1, deliveredOf(p) / best));
 }
 /* What this workplace hands over per second -- for ONE pair of hands.
 
@@ -1659,8 +1691,11 @@ function drawStatus(p) {
   const b = B(p.key);
   const hall = p.key === 'hall';
   const idle = b.jobs && !hall && workersAt(p.id) === 0;
-  const eff = (!hall && b.makes && b.jobs && !idle) ? efficiencyOf(p) : null;
-  const far = eff !== null && eff < 0.45;
+  /* How much of this building the walk is taking, measured against the same
+     building beside a store -- not its raw efficiency, which falls as a
+     building improves and so flagged most of a finished village. */
+  const reach = (!hall && b.makes && b.jobs && !idle) ? reachOf(p) : null;
+  const far = reach !== null && reach < 0.5;
   const up = !idle && !far && canUpgrade(p);
   if (!hall && !idle && !far && !up) return;
   const t = topOf(p), s = badgeScale();
@@ -1676,12 +1711,15 @@ function drawStatus(p) {
     g.font = 'bold 20px Segoe UI, sans-serif'; g.fillStyle = '#b6f58a';
     g.fillText('▲', 0, 1);
   } else if (far) {
-    /* Most of this building's day is spent walking. Amber rather than red: it
-       is working, just badly, and the fix is a storehouse or a road. */
+    /* This building is losing more than half of itself to the walk. Amber
+       rather than red: it is working, just badly, and the fix is a storehouse
+       or a road. The figure is what it is LOSING, which is the thing worth
+       acting on -- the old badge showed efficiency, so a well-placed level five
+       farm and a stranded level one could wear the same number. */
     g.fillStyle = 'rgba(52,38,12,.9)'; g.strokeStyle = 'rgba(240,200,110,.95)'; g.lineWidth = 2.5;
-    g.beginPath(); g.roundRect(-26, -16, 52, 32, 16); g.fill(); g.stroke();
+    g.beginPath(); g.roundRect(-30, -16, 60, 32, 16); g.fill(); g.stroke();
     g.font = 'bold 19px Segoe UI, sans-serif'; g.fillStyle = '#ffd98a';
-    g.fillText(Math.round(eff * 100) + '%', 0, 1);
+    g.fillText('−' + Math.round((1 - reach) * 100) + '%', 0, 1);
   } else if (hall) {
     const label = 'Lv ' + hallLevel();
     g.font = 'bold 20px Segoe UI, sans-serif';
@@ -1854,7 +1892,11 @@ function drawWorld() {
       /* What this spot would actually be worth. Shown DURING placement, because
          telling the player afterwards is telling them too late. */
       const probe = { id: -1, key: selKey, c: ghost.c, r: ghost.r, t: 1, lvl: 1 };
-      const eff = efficiencyOf(probe);
+      /* The two rates rather than a percentage. The player is comparing spots,
+         and "0.31/s here, 0.58 beside a store" answers that directly, where a
+         percentage has to be decoded first -- and decoded wrongly, since the
+         same percentage means different things at different levels. */
+      const eff = B(selKey).caps ? null : reachOf(probe);
       if (eff !== null) {
         const a = tileToWorld(ghost.c, ghost.r), d2 = tileToWorld(ghost.c + b.w - 1, ghost.r + b.h - 1);
         const cx = (a.x + d2.x) / 2, cy = (a.y + d2.y) / 2;
@@ -1863,7 +1905,8 @@ function drawWorld() {
         g.translate(cx, cy - 96 * sc); g.scale(sc, sc);
         g.textAlign = 'center'; g.textBaseline = 'middle';
         g.font = 'bold 22px Segoe UI, sans-serif';
-        const txt = Math.round(eff * 100) + '% efficient here';
+        const txt = deliveredOf(probe).toFixed(2) + '/s here'
+          + (eff > 0.85 ? '' : '   ·   best ' + bestDeliveredOf(probe).toFixed(2));
         const w2 = g.measureText(txt).width + 26;
         g.fillStyle = 'rgba(14,22,12,.9)';
         g.strokeStyle = eff > 0.66 ? '#9fe86b' : eff > 0.42 ? '#e8c98a' : '#e59a86';
@@ -2338,7 +2381,8 @@ function villageStats() {
   let working = 0;
   for (const p of placed) if (B(p.key).jobs) working += workersAt(p.id);
   const idle = Math.max(0, villagers.length - working);
-  const effs = prod.map(p => efficiencyOf(p)).filter(e => e !== null);
+  // measured against what each would give in a good spot -- see reachOf
+  const effs = prod.map(p => reachOf(p)).filter(e => e !== null);
   const avg = effs.length ? effs.reduce((a, b) => a + b, 0) / effs.length : null;
   const slots = placed.reduce((n, p) => n + (p.t >= 1 ? jobsOf(p) : 0), 0);
   return { villagers: villagers.length, working, idle, avg, slots, workplaces: prod.length };
@@ -2390,19 +2434,26 @@ function drawPanel() {
     else if (!n) line += '   — no villagers';
     /* Skipped for a building that is its OWN store -- a market delivers to
        itself, so the figure is always 100% and the row is better spent. */
-    const eff = b.caps ? null : efficiencyOf(p);
-    if (eff !== null) {
-      /* The round trip in seconds rather than a distance in tiles. Tiles read
-         as a fair comparison and were not one -- two stores both "2.0 tiles"
-         away are a 128px walk and a 256px walk depending on which way they lie,
-         and the tile count was the figure the player was trusting when deciding
-         where to build. Seconds is what the villager actually spends. */
+    /* Skipped for a building that is its OWN store; otherwise the placement
+       gets a line of its own, stated as the counterfactual rather than as a
+       score. "Efficiency 39%" is a number the player has to interpret, and
+       interpreting it wrongly is easy because it falls as a building improves.
+       What it would deliver in a good spot, against what it delivers here,
+       needs no interpretation at all -- and the round trip in seconds says
+       where the difference goes.
+
+       Distances used to be given in tiles, which read as a fair comparison and
+       were not one: two stores both "2.0 tiles" away are a 128px walk and a
+       256px walk depending on which way they lie. */
+    const reach = b.caps ? null : reachOf(p);
+    if (reach !== null) {
       const walk = travelSecondsOf(p);
+      const here = n * deliveredOf(p), snug = n * bestDeliveredOf(p);
       g.font = `${Math.round(20 * u)}px Segoe UI, sans-serif`;
-      g.fillStyle = eff > 0.66 ? '#8fd06a' : eff > 0.42 ? '#e8c98a' : '#e59a86';
-      g.fillText('Efficiency ' + Math.round(eff * 100) + '%   ·   ' + walk.toFixed(1)
-        + 's round trip to the nearest store'
-        + (eff < 0.55 ? '   — build one closer, or lay a path' : ''),
+      g.fillStyle = reach > 0.7 ? '#8fd06a' : reach > 0.45 ? '#e8c98a' : '#e59a86';
+      g.fillText(walk.toFixed(1) + 's round trip to the nearest store'
+        + (reach > 0.85 || !n ? '   —   well placed'
+          : '   —   beside one it would deliver ' + snug.toFixed(2) + '/s'),
         lx, R.y - R.h / 2 + 148 * u);
     }
   } else if (b.caps) {
@@ -2456,9 +2507,9 @@ function drawPanel() {
     const st = villageStats();
     let s2 = st.villagers + ' villagers';
     s2 += st.idle ? '   ·   ' + st.idle + ' with nothing to do' : '   ·   all at work';
-    if (st.avg !== null) s2 += '   ·   workplaces average ' + Math.round(st.avg * 100) + '%';
+    if (st.avg !== null) s2 += '   ·   workplaces at ' + Math.round(st.avg * 100) + '% of their best';
     g.font = `${Math.round(20 * u)}px Segoe UI, sans-serif`;
-    g.fillStyle = st.idle ? '#f0c88a' : (st.avg !== null && st.avg < 0.5 ? '#f0c88a' : '#a9bd9c');
+    g.fillStyle = st.idle ? '#f0c88a' : (st.avg !== null && st.avg < 0.6 ? '#f0c88a' : '#a9bd9c');
     g.fillText(s2, lx, R.y - R.h / 2 + 150 * u);
   }
 
@@ -2729,6 +2780,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   HALL, hallOf, hallLevel, allowedOf, countOf, atLimit, unlocked, buildable,
   canUpgrade, upgradeBuilding, upInfo, upCostOf, lvlOf, popOf, capsOf, rateOf, outMul, LVL_MAX,
   shortfall, shortText, villageStats, wellGain, charmDelivered, deliveredOf, deliveredWith, travelSecondsOf, handsFor,
+  bestDeliveredOf, reachOf, SNUG_WALK,
   panelRects, get panel() { return panel; }, set panel(v) { panel = v; },
   get villagers() { return villagers; }, workersAt, boostAt, producers, stores,
   assignJobs, buildingAt, ensureHall, jobsOf, VILLAGER_MAX,
