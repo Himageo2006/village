@@ -1023,6 +1023,14 @@ const TUT = [
     when: () => placed.some(p => B(p.key).jobs && p.key !== 'hall' && p.t >= 1) },
   { id: 'hall',  text: 'Your town hall can grow — tap it to raise what you are allowed to build',
     when: () => canUpgrade(hallOf()) },
+  /* The one state whose cost is completely invisible. Full stores do not slow
+     the village down, they throw its work away: villagers keep walking loads to
+     a barn that cannot take them. The bar says "storage full" but not what that
+     means, and a player who leaves the game overnight comes back to a village
+     that earned nothing and no explanation of why. */
+  { id: 'full',  text: 'Your stores are full — what villagers bring in now is thrown away. Build a storehouse, or spend it',
+    when: () => placed.some(p => p.key !== 'hall' && B(p.key).jobs && p.t >= 1)
+                && (res.wood >= caps.wood || res.food >= caps.food) },
 ];
 function currentHint() {
   for (const h of TUT) if (!tutSeen.includes(h.id) && h.when()) return h;
@@ -2163,13 +2171,15 @@ function drawGoal() {
       : 'stores already full';
     g.save();
     g.globalAlpha = Math.min(1, (1 - t) * 3);
-    g.font = `bold ${Math.round(24 * u)}px Segoe UI, sans-serif`;
     const txt = 'Goal complete!   ' + parts;
-    const tw = g.measureText(txt).width, w = Math.min(W - 40 * u, tw + 60 * u), hh = 62 * u;
+    const fit = fitLines(txt, W - 108 * u, 24 * u, 14 * u, 2);
+    const tw = Math.max(...fit.lines.map(l => g.measureText(l).width));
+    const w = Math.min(W - 40 * u, tw + 60 * u);
+    const hh = Math.max(62 * u, fit.lines.length * fit.px * 1.22 + 30 * u);
     g.fillStyle = 'rgba(30,50,22,.95)'; g.strokeStyle = '#9fe86b'; g.lineWidth = 3;
-    g.beginPath(); g.roundRect(W / 2 - w / 2, y - hh / 2, w, hh, hh / 2); g.fill(); g.stroke();
+    g.beginPath(); g.roundRect(W / 2 - w / 2, y - hh / 2, w, hh, Math.min(hh, 62 * u) / 2); g.fill(); g.stroke();
     g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#eaffd6';
-    g.fillText(txt, W / 2, y);
+    pillLines(fit, W / 2, y);
     g.restore();
     return;
   }
@@ -2183,29 +2193,62 @@ function drawGoal() {
     g.fillText('Every goal done — the village is yours', W / 2, y);
     g.restore(); return;
   }
-  g.font = `bold ${Math.round(22 * u)}px Segoe UI, sans-serif`;
   const reward = Object.entries(gl.give).map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join(' ');
   const txt = gl.text + '   ·   ' + reward;
-  const tw = g.measureText(txt).width, w = Math.min(W - 40 * u, tw + 56 * u), hh = 52 * u;
+  const fit = fitLines(txt, W - 108 * u, 22 * u, 13 * u, 2);
+  const tw = Math.max(...fit.lines.map(l => g.measureText(l).width));
+  const w = Math.min(W - 40 * u, tw + 56 * u);
+  const hh = Math.max(52 * u, fit.lines.length * fit.px * 1.22 + 28 * u);
   g.fillStyle = 'rgba(16,26,14,.80)'; g.strokeStyle = 'rgba(255,255,255,.16)'; g.lineWidth = 2;
-  g.beginPath(); g.roundRect(W / 2 - w / 2, y - hh / 2, w, hh, hh / 2); g.fill(); g.stroke();
+  g.beginPath(); g.roundRect(W / 2 - w / 2, y - hh / 2, w, hh, Math.min(hh, 52 * u) / 2); g.fill(); g.stroke();
   g.fillStyle = '#c8d9b8';
-  g.fillText(txt, W / 2, y);
+  pillLines(fit, W / 2, y);
   g.restore();
 }
 
+/* Text that fits inside a pill: shrink, then wrap, then shrink again.
+
+   The pills clamped their own WIDTH to the screen and then drew the text at
+   full size regardless, so a long line ran off both edges -- the storage hint
+   lost its first and last words. It is the failure a narrow phone shows and a
+   wide desktop never does, which is the worst kind to leave in.
+
+   Leaves the fitted font selected, so the caller can measure the lines it gets
+   back without setting it again. */
+function fitLines(text, maxW, px, minPx, maxLines) {
+  const words = text.split(' ');
+  for (let size = px; ; size--) {
+    g.font = `bold ${Math.round(size)}px Segoe UI, sans-serif`;
+    const lines = [];
+    let cur = '';
+    for (const w of words) {
+      const t = cur ? cur + ' ' + w : w;
+      if (cur && g.measureText(t).width > maxW) { lines.push(cur); cur = w; } else cur = t;
+    }
+    lines.push(cur);
+    if (size <= minPx || (lines.length <= maxLines
+      && lines.every(l => g.measureText(l).width <= maxW))) return { lines, px: size };
+  }
+}
+function pillLines(fit, cx, cy) {
+  const lh = fit.px * 1.22;
+  const top = cy - (fit.lines.length - 1) * lh / 2;
+  fit.lines.forEach((l, i) => g.fillText(l, cx, top + i * lh));
+}
 function drawHint() {
   if (away || goalDone) return;       // one thing at a time
   const h = currentHint(); if (!h) return;
   const u = US(), y = hudTop() + 132 * u;
   g.save();
-  g.font = `bold ${Math.round(23 * u)}px Segoe UI, sans-serif`;
-  const tw = g.measureText(h.text).width, w = Math.min(W - 40 * u, tw + 56 * u), hh = 58 * u;
+  const fit = fitLines(h.text, W - 108 * u, 23 * u, 13 * u, 2);
+  const tw = Math.max(...fit.lines.map(l => g.measureText(l).width));
+  const w = Math.min(W - 40 * u, tw + 56 * u);
+  const hh = Math.max(58 * u, fit.lines.length * fit.px * 1.22 + 30 * u);
   g.globalAlpha = Math.min(1, tutT * 3);           // fades in rather than snapping
   g.fillStyle = 'rgba(20,32,18,.92)'; g.strokeStyle = 'rgba(159,232,107,.55)'; g.lineWidth = 2.5;
-  g.beginPath(); g.roundRect(W / 2 - w / 2, y - hh / 2, w, hh, hh / 2); g.fill(); g.stroke();
+  g.beginPath(); g.roundRect(W / 2 - w / 2, y - hh / 2, w, hh, Math.min(hh, 58 * u) / 2); g.fill(); g.stroke();
   g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#dff0c8';
-  g.fillText(h.text, W / 2, y);
+  pillLines(fit, W / 2, y);
   g.restore();
 }
 
@@ -2800,6 +2843,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   get saveFailed() { return saveFailed; }, set saveFailed(v) { saveFailed = v; },
   get loadedFromBackup() { return loadedFromBackup; }, set loadedFromBackup(v) { loadedFromBackup = v; },
   sky, dayPhase, DAY_MS, camFit, landFitZoom, landWorldBounds,
+  fitLines, TUT, GOALS,
   efficiencyOf, hasStore, onPath, PATH_SPEED, rebuildPaths,
   LAND, LAND_MAX, inLand, landNext, canClaim, claimLand, landBounds, coverPlaced,
   get landTier() { return landTier; }, set landTier(v) { landTier = v; },
