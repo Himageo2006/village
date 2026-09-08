@@ -1053,6 +1053,10 @@ function fillOrder(o) {
    order. */
 let goalIdx = 0, goalDone = null;     // goalDone: {g, age} while the banner shows
 const GOAL_SHOW = 4.5;
+/* A shorter hold when the goal behind this one is ALREADY done. A player coming
+   back to a village that has quietly satisfied several at once should see each
+   of them, but not sit through four and a half seconds nine times over. */
+const GOAL_SHOW_QUEUED = 1.8;
 
 const anyAtLevel = n => placed.some(p => p.key !== 'hall' && lvlOf(p) >= n && p.t >= 1);
 const GOALS = [
@@ -1081,17 +1085,32 @@ const GOALS = [
 const currentGoal = () => GOALS[goalIdx] || null;
 
 function stepGoals(dt) {
-  if (goalDone) { goalDone.age += dt; if (goalDone.age > GOAL_SHOW) goalDone = null; }
-  const g2 = currentGoal();
+  /* One at a time. The goals are a queue, and finishing one often reveals
+     another that is ALREADY done -- fill three orders, and the land you claimed
+     an hour ago and the building you upgraded last week both come due at once.
+     Each then overwrote the last one's banner on the next frame, so the player
+     saw a single announcement and silently collected three rewards. Now the
+     next one waits for the banner in front of it. */
+  const next = currentGoal();
+  if (goalDone) {
+    goalDone.age += dt;
+    const hold = (next && next.done()) ? GOAL_SHOW_QUEUED : GOAL_SHOW;
+    if (goalDone.age <= hold) return;
+    goalDone = null;
+  }
+  const g2 = next;
   if (!g2 || !g2.done()) return;
   /* Bank what will actually fit and report THAT. Announcing the offered amount
      when storage swallowed half of it is the same lie the order rewards used to
-     tell, and it is worse here because the banner is the only record. */
+     tell, and it is worse here because the banner is the only record.
+
+     Through grant(), like every other way the village receives anything, so
+     the reward lands on the hall as visible numbers rather than appearing only
+     in a counter. */
+  const h = hallOf(), c = h ? centreOf(h) : { x: 0, y: 0 };
   const got = {};
   for (const [k, val] of Object.entries(g2.give)) {
-    const before = res[k];
-    res[k] = Math.min(caps[k], res[k] + val);
-    const gained = Math.round(res[k] - before);
+    const gained = Math.round(grant(k, val, c.x, c.y));
     if (gained > 0) got[k] = gained;
   }
   goalDone = { g: g2, got, age: 0 };
