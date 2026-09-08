@@ -1131,6 +1131,18 @@ const DECOR_MAX = 60;
 const decorCount = () => placed.reduce((n, p) => n + (isDecor(p.key) ? 1 : 0), 0);
 const unlocked = key => key === 'hall' || isDecor(key) || allowedOf(key) > 0;
 const atLimit = key => isDecor(key) ? decorCount() >= DECOR_MAX : countOf(key) >= allowedOf(key);
+/* Villagers with no post. A workplace built with none of these standing about
+   produces NOTHING -- nobody moves house to staff it -- and the village is short
+   of people at every hall level: eleven posts go begging at hall five with
+   everything at level one. The hall unlocks a second farm, the tray sells it,
+   and the wood buys an empty shed. It comes right as houses are upgraded, so
+   the building is not wasted for ever, just useless for now -- which the player
+   has no way to know at the moment they are deciding. */
+const sparePeople = () => villagers.reduce((n, v) => n + (v.job == null ? 1 : 0), 0);
+const wouldStandEmpty = key => {
+  const b = B(key);
+  return !!(b && b.jobs && !b.caps && key !== 'hall') && sparePeople() === 0;
+};
 
 /* Charm: what decorations are actually for. A pleasant village works a little
    harder, capped so it stays a bonus rather than the main economy. */
@@ -1996,14 +2008,16 @@ function drawWorld() {
         g.translate(cx, cy - 96 * sc); g.scale(sc, sc);
         g.textAlign = 'center'; g.textBaseline = 'middle';
         g.font = 'bold 22px Segoe UI, sans-serif';
-        const txt = deliveredOf(probe).toFixed(2) + '/s here'
-          + (eff > 0.85 ? '' : '   ·   best ' + bestDeliveredOf(probe).toFixed(2));
+        const empty = wouldStandEmpty(selKey);
+        const txt = empty ? 'nobody free to work it — build a house'
+          : deliveredOf(probe).toFixed(2) + '/s here'
+            + (eff > 0.85 ? '' : '   ·   best ' + bestDeliveredOf(probe).toFixed(2));
         const w2 = g.measureText(txt).width + 26;
         g.fillStyle = 'rgba(14,22,12,.9)';
-        g.strokeStyle = eff > 0.66 ? '#9fe86b' : eff > 0.42 ? '#e8c98a' : '#e59a86';
+        g.strokeStyle = empty ? '#e59a86' : eff > 0.66 ? '#9fe86b' : eff > 0.42 ? '#e8c98a' : '#e59a86';
         g.lineWidth = 2.5;
         g.beginPath(); g.roundRect(-w2 / 2, -17, w2, 34, 17); g.fill(); g.stroke();
-        g.fillStyle = eff > 0.66 ? '#b6f58a' : eff > 0.42 ? '#f0d89a' : '#f0a583';
+        g.fillStyle = empty ? '#f0a583' : eff > 0.66 ? '#b6f58a' : eff > 0.42 ? '#f0d89a' : '#f0a583';
         g.fillText(txt, 0, 1);
         g.restore();
       }
@@ -2132,7 +2146,11 @@ function drawHUD() {
       g.fillText(isDecor(r.b.key) ? decorCount() + '/' + DECOR_MAX + ' placed'
         : countOf(r.b.key) + '/' + allowedOf(r.b.key) + ' · upgrade hall', r.x, r.y + r.h * 0.32);
     } else {
-      if (can) {
+      if (can && wouldStandEmpty(r.b.key)) {
+        // affordable, allowed, and there is nobody to work it
+        g.fillStyle = '#e5b28a';
+        g.fillText('no one free', r.x, r.y + r.h * 0.32);
+      } else if (can) {
         g.fillStyle = '#e8c98a';
         g.fillText(Object.entries(r.b.cost).map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join('  '), r.x, r.y + r.h * 0.32);
       } else {
@@ -2307,10 +2325,11 @@ function drawGoal() {
 
    Leaves the fitted font selected, so the caller can measure the lines it gets
    back without setting it again. */
-function fitLines(text, maxW, px, minPx, maxLines) {
+function fitLines(text, maxW, px, minPx, maxLines, weight) {
   const words = text.split(' ');
+  const w = weight === undefined ? 'bold ' : weight ? weight + ' ' : '';
   for (let size = px; ; size--) {
-    g.font = `bold ${Math.round(size)}px Segoe UI, sans-serif`;
+    g.font = `${w}${Math.round(size)}px Segoe UI, sans-serif`;
     const lines = [];
     let cur = '';
     for (const w of words) {
@@ -2523,6 +2542,19 @@ function villageStats() {
   return { villagers: villagers.length, working, idle, avg, slots, workplaces: prod.length };
 }
 
+/* A single row of panel text, shrunk until it fits the card.
+
+   The panel sets a size and draws, and the strings on it carry counts, costs,
+   rates and advice whose length is not knowable when the layout is written --
+   the same way the banners did before they started running off the screen. The
+   village summary is the worst of them: "18 villagers - 8 posts with nobody in
+   them - build or improve a house - workplaces at 74% of their best" is half
+   again as wide as the card it sits on. */
+function panelRow(text, x, y, maxW, px, colour, weight) {
+  const fit = fitLines(text, maxW, px, px * 0.62, 1, weight);
+  g.fillStyle = colour;
+  g.fillText(fit.lines[0], x, y);
+}
 function drawPanel() {
   if (panel == null) return;
   const p = byId(panel); if (!p) { panel = null; return; }
@@ -2535,8 +2567,7 @@ function drawPanel() {
   g.font = `bold ${Math.round(30 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#fff';
   g.fillText(b.icon + '  ' + b.name + (B(p.key).decor ? '' : '  ·  Level ' + lvlOf(p)),
     lx, R.y - R.h / 2 + 38 * u);
-  g.font = `${Math.round(21 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#bccfae';
-  g.fillText(b.blurb, lx, R.y - R.h / 2 + 78 * u);
+  panelRow(b.blurb, lx, R.y - R.h / 2 + 78 * u, R.w - 56 * u, 22 * u, '#bccfae', '');
 
   /* What this building does at its CURRENT level, and what the next one would
      make it -- the number is the whole reason to spend, so it is spelled out
@@ -2567,9 +2598,7 @@ function drawPanel() {
     const boost = boostAt(p);
     if (boost > 1) line += '   ·   +' + Math.round((boost - 1) * 100) + '% from wells';
     else if (!n) line += '   — no villagers';
-    /* Skipped for a building that is its OWN store -- a market delivers to
-       itself, so the figure is always 100% and the row is better spent. */
-    /* Skipped for a building that is its OWN store; otherwise the placement
+    /* Skipped for a building that is its own store; otherwise the placement
        gets a line of its own, stated as the counterfactual rather than as a
        score. "Efficiency 39%" is a number the player has to interpret, and
        interpreting it wrongly is easy because it falls as a building improves.
@@ -2580,16 +2609,21 @@ function drawPanel() {
        Distances used to be given in tiles, which read as a fair comparison and
        were not one: two stores both "2.0 tiles" away are a 128px walk and a
        256px walk depending on which way they lie. */
-    const reach = b.caps ? null : reachOf(p);
+    /* A market delivers to itself, so its figure is always 100% and the row is
+       better spent. So does the HALL, which counts as a store -- that is why a
+       village works at all before the first storehouse is built -- and it was
+       printing "0.0s round trip to the nearest store" straight through the
+       village summary that shares this row. Two lines of text on top of each
+       other, for as long as the panel has existed. */
+    const reach = (b.caps || p.key === 'hall') ? null : reachOf(p);
     if (reach !== null) {
       const walk = travelSecondsOf(p);
       const here = n * deliveredOf(p), snug = n * bestDeliveredOf(p);
-      g.font = `${Math.round(20 * u)}px Segoe UI, sans-serif`;
-      g.fillStyle = reach > 0.7 ? '#8fd06a' : reach > 0.45 ? '#e8c98a' : '#e59a86';
-      g.fillText(walk.toFixed(1) + 's round trip to the nearest store'
+      panelRow(walk.toFixed(1) + 's round trip to the nearest store'
         + (reach > 0.85 || !n ? '   —   well placed'
           : '   —   beside one it would deliver ' + snug.toFixed(2) + '/s'),
-        lx, R.y - R.h / 2 + 148 * u);
+        lx, R.y - R.h / 2 + 148 * u, R.w - 56 * u, 20 * u,
+        reach > 0.7 ? '#8fd06a' : reach > 0.45 ? '#e8c98a' : '#e59a86', '');
     }
   } else if (b.caps) {
     line = 'Holds 🪵' + capsOf(p, 'wood') + '  🌾' + capsOf(p, 'food');
@@ -2603,10 +2637,9 @@ function drawPanel() {
     const spoil = ['wood', 'food'].map(k => [k, Math.max(0, Math.floor(res[k] - room[k]))])
       .filter(([, v]) => v > 0);
     if (spoil.length) {
-      g.font = `${Math.round(20 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#e59a86';
-      g.fillText('Selling it drops storage to 🪵' + room.wood + '  🌾' + room.food
+      panelRow('Selling it drops storage to 🪵' + room.wood + '  🌾' + room.food
         + '   —   ' + spoil.map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join(' ')
-        + ' would spoil', lx, R.y - R.h / 2 + 148 * u);
+        + ' would spoil', lx, R.y - R.h / 2 + 148 * u, R.w - 56 * u, 20 * u, '#e59a86', '');
     }
   } else if (b.pop) {
     line = 'Houses ' + popOf(p) + ' villagers';
@@ -2628,24 +2661,30 @@ function drawPanel() {
     const a = HALL[hallLevel()].allow;
     line = Object.keys(a).map(k => B(k).icon + a[k]).join('   ');
   }
-  g.font = `${Math.round(21 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#e8c98a';
-  g.fillText(line, lx, R.y - R.h / 2 + 116 * u);
+  panelRow(line, lx, R.y - R.h / 2 + 116 * u, R.w - 56 * u, 22 * u, '#e8c98a', '');
 
   if (p.key === 'market') {
     // its real worth is the trade it unlocks, which no number on this panel
     // would otherwise show
-    g.font = `${Math.round(20 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#cbb6f0';
-    g.fillText(orderSlots() + ' trading stalls   ·   a new offer every '
-      + Math.round(orderEvery()) + 's', lx, R.y - R.h / 2 + 148 * u);
+    panelRow(orderSlots() + ' trading stalls   ·   a new offer every '
+      + Math.round(orderEvery()) + 's', lx, R.y - R.h / 2 + 148 * u, R.w - 56 * u, 20 * u, '#cbb6f0', '');
   }
   if (p.key === 'hall') {
     const st = villageStats();
+    const empty = Math.max(0, st.slots - st.working);
+    /* Which way the village is short, and what to do about it. "All at work"
+       was the message whenever nobody was idle, and it reads as good news while
+       usually meaning the opposite: every villager is employed, posts are
+       standing empty, and another farm would do nothing. Idle villagers and
+       empty posts are the two bottlenecks and they want opposite answers. */
     let s2 = st.villagers + ' villagers';
-    s2 += st.idle ? '   ·   ' + st.idle + ' with nothing to do' : '   ·   all at work';
+    if (st.idle) s2 += '   ·   ' + st.idle + ' with nothing to do — build a workplace';
+    else if (empty) s2 += '   ·   ' + empty + (empty === 1 ? ' post' : ' posts')
+      + ' with nobody in them — build or improve a house';
+    else s2 += '   ·   every post filled';
     if (st.avg !== null) s2 += '   ·   workplaces at ' + Math.round(st.avg * 100) + '% of their best';
-    g.font = `${Math.round(20 * u)}px Segoe UI, sans-serif`;
-    g.fillStyle = st.idle ? '#f0c88a' : (st.avg !== null && st.avg < 0.6 ? '#f0c88a' : '#a9bd9c');
-    g.fillText(s2, lx, R.y - R.h / 2 + 150 * u);
+    panelRow(s2, lx, R.y - R.h / 2 + 150 * u, R.w - 56 * u, 20 * u,
+      (st.idle || empty) ? '#f0c88a' : (st.avg !== null && st.avg < 0.6 ? '#f0c88a' : '#a9bd9c'), '');
   }
 
   // close
@@ -2920,6 +2959,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   get villagers() { return villagers; }, workersAt, boostAt, producers, stores,
   assignJobs, buildingAt, ensureHall, jobsOf, VILLAGER_MAX, rebuildStores, nearestStore,
   isDecor, decorCount, DECOR_MAX, charmTotal, charmMul, tabRects, drawDecor, grant,
+  sparePeople, wouldStandEmpty,
   sellBuilding, canSell, sellValue, investedIn, capsWithout, get moving() { return moving; }, set moving(v) { moving = v; },
   get armed() { return armed; }, set armed(v) { armed = v; },
   get sellArm() { return sellArm; }, set sellArm(v) { sellArm = v; }, SELL_ARM,
