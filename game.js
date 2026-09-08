@@ -2176,8 +2176,18 @@ function drawPanel() {
   if (b.jobs && b.makes) {
     const k = Object.keys(b.makes)[0], icon = k === 'wood' ? '🪵' : '🌾';
     const n = workersAt(p.id);
-    line = icon + ' ' + at(lvlOf(p), q => rateOf(q, k)).toFixed(2) + '/s';
-    if (nl > lvlOf(p)) line += '  →  ' + at(nl, q => rateOf(q, k)).toFixed(2) + '/s';
+    /* What ARRIVES, not what the building is rated for.
+
+       A villager fills a load and then walks it to a store, so the throughput
+       is CARRY / (fill time + travel), and that flattens hard once the rate is
+       high and the walk is long. A farm seven tiles out goes from 1.40 to 6.72
+       rated across its upgrades -- and from 0.22 to 0.25 delivered. Advertising
+       the rated figure sold the player a fivefold improvement for two thousand
+       wood and handed them fourteen percent. */
+    const deliv = lvl => { const q = { ...p, lvl }, e = efficiencyOf(q);
+      return rateOf(q, k) * boostAt(q) * charmMul() * (e === null ? 1 : e); };
+    line = icon + ' ' + deliv(lvlOf(p)).toFixed(2) + '/s delivered';
+    if (nl > lvlOf(p)) line += '  →  ' + deliv(nl).toFixed(2) + '/s';
     line += '   ·   workers ' + n + ' / ' + jobsOf(p);
     const boost = boostAt(p);
     if (boost > 1) line += '   ·   +' + Math.round((boost - 1) * 100) + '% from wells';
