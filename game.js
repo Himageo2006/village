@@ -857,6 +857,17 @@ function canPlace(key, c, r, occ) {
   return true;
 }
 const canAfford = cost => Object.entries(cost).every(([k, v]) => res[k] >= v);
+/* Exactly how far short you are. "Cannot afford" was signalled by a red tint
+   and nothing else, which says the same thing whether you are two wood away or
+   two thousand -- and says nothing at all to the one man in twelve who cannot
+   separate the red from the green. */
+function shortfall(cost) {
+  const out = {};
+  for (const [k, v] of Object.entries(cost)) if (res[k] < v) out[k] = Math.ceil(v - res[k]);
+  return out;
+}
+const shortText = cost => Object.entries(shortfall(cost))
+  .map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join('  ');
 const affordable = key => canAfford(B(key).cost);
 const buildable = key => unlocked(key) && !atLimit(key) && affordable(key);
 
@@ -1695,8 +1706,13 @@ function drawHUD() {
       g.fillText(isDecor(r.b.key) ? decorCount() + '/' + DECOR_MAX + ' placed'
         : countOf(r.b.key) + '/' + allowedOf(r.b.key) + ' · upgrade hall', r.x, r.y + r.h * 0.32);
     } else {
-      g.fillStyle = can ? '#e8c98a' : '#e59a86';
-      g.fillText(Object.entries(r.b.cost).map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join('  '), r.x, r.y + r.h * 0.32);
+      if (can) {
+        g.fillStyle = '#e8c98a';
+        g.fillText(Object.entries(r.b.cost).map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join('  '), r.x, r.y + r.h * 0.32);
+      } else {
+        g.fillStyle = '#e59a86';
+        g.fillText('need ' + shortText(r.b.cost), r.x, r.y + r.h * 0.32);
+      }
     }
     g.restore();
   }
@@ -1855,7 +1871,7 @@ function drawClaim() {
     g.fill(); g.stroke();
     g.fillStyle = ok ? '#eaffd6' : '#9aa693';
     g.font = `bold ${Math.round(26 * u)}px Segoe UI, sans-serif`;
-    g.fillText(ok ? 'Claim it' : 'Not enough', R.yes.x, R.yes.y);
+    g.fillText(ok ? 'Claim it' : 'Need ' + shortText(cost) + ' more', R.yes.x, R.yes.y);
   }
   g.fillStyle = 'rgba(255,255,255,.12)';
   g.beginPath(); g.arc(R.no.x, R.no.y, R.no.r, 0, 7); g.fill();
@@ -1917,7 +1933,9 @@ function panelRects() {
   const u = US(), tabs = tabRects();
   const p = panel == null ? null : byId(panel);
   const btn = !!p;                             // every building has an upgrade button
-  const w = Math.min(W - 48 * u, 720 * u), h = (btn ? 232 : 152) * u;
+  // 268 not 232: the efficiency line and the hall's village summary sit between
+  // the blurb and the buttons, and at the old height they touched the buttons
+  const w = Math.min(W - 48 * u, 720 * u), h = (btn ? 268 : 152) * u;
   const y = tabs[0].y - tabs[0].h / 2 - 14 * u - h / 2;
   const dec = !!(p && isDecor(p.key)), by = y + h / 2 - 44 * u, bh = 60 * u, gap = 10 * u;
   // a decoration has no upgrade, so its two buttons share the width differently
@@ -1930,6 +1948,24 @@ function panelRects() {
   return { u, x: W / 2, y, w, h, btn, dec, move, sell, up,
     close: { x: W / 2 + w / 2 - 34 * u, y: y - h / 2 + 34 * u, r: 27 * u } };
 }
+/* How the village is doing as a whole, shown on the hall.
+
+   Everything the player needs to improve a village has been per-building until
+   now, so nothing ever said "you have three villagers standing about" or "your
+   workplaces average 48%" -- which are the two facts that actually tell you
+   what to do next. Idle villagers mean build a workplace; a low average means
+   move a storehouse or lay a road. */
+function villageStats() {
+  const prod = placed.filter(p => p.t >= 1 && B(p.key).jobs && B(p.key).makes && p.key !== 'hall');
+  let working = 0;
+  for (const p of placed) if (B(p.key).jobs) working += workersAt(p.id);
+  const idle = Math.max(0, villagers.length - working);
+  const effs = prod.map(p => efficiencyOf(p)).filter(e => e !== null);
+  const avg = effs.length ? effs.reduce((a, b) => a + b, 0) / effs.length : null;
+  const slots = placed.reduce((n, p) => n + (p.t >= 1 && B(p.key).jobs ? B(p.key).jobs : 0), 0);
+  return { villagers: villagers.length, working, idle, avg, slots, workplaces: prod.length };
+}
+
 function drawPanel() {
   if (panel == null) return;
   const p = byId(panel); if (!p) { panel = null; return; }
@@ -1990,6 +2026,16 @@ function drawPanel() {
   g.font = `${Math.round(21 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#e8c98a';
   g.fillText(line, lx, R.y - R.h / 2 + 116 * u);
 
+  if (p.key === 'hall') {
+    const st = villageStats();
+    let s2 = st.villagers + ' villagers';
+    s2 += st.idle ? '   ·   ' + st.idle + ' with nothing to do' : '   ·   all at work';
+    if (st.avg !== null) s2 += '   ·   workplaces average ' + Math.round(st.avg * 100) + '%';
+    g.font = `${Math.round(20 * u)}px Segoe UI, sans-serif`;
+    g.fillStyle = st.idle ? '#f0c88a' : (st.avg !== null && st.avg < 0.5 ? '#f0c88a' : '#a9bd9c');
+    g.fillText(s2, lx, R.y - R.h / 2 + 150 * u);
+  }
+
   // close
   g.fillStyle = 'rgba(255,255,255,.12)';
   g.beginPath(); g.arc(R.close.x, R.close.y, R.close.r, 0, 7); g.fill();
@@ -2028,6 +2074,7 @@ function drawPanel() {
     : i.max ? 'Highest level'
     : i.gate ? 'Needs town hall level ' + i.gate
     : overCap ? 'Needs a bigger storehouse'
+    : !canAfford(i.cost) ? 'Need ' + shortText(i.cost) + ' more'
     : 'Upgrade to ' + (lvlOf(p) + 1) + '   ' + Object.entries(i.cost).map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join('  ');
   g.fillStyle = ok ? 'rgba(62,104,44,.98)' : 'rgba(40,44,36,.9)';
   g.strokeStyle = ok ? '#9fe86b' : 'rgba(255,255,255,.16)'; g.lineWidth = 3;
@@ -2221,6 +2268,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   tap, CAM, save, load, get caps() { return caps; },
   HALL, hallOf, hallLevel, allowedOf, countOf, atLimit, unlocked, buildable,
   canUpgrade, upgradeBuilding, upInfo, upCostOf, lvlOf, popOf, capsOf, rateOf, outMul, LVL_MAX,
+  shortfall, shortText, villageStats,
   panelRects, get panel() { return panel; }, set panel(v) { panel = v; },
   get villagers() { return villagers; }, workersAt, boostAt, producers, stores,
   assignJobs, buildingAt, ensureHall,
