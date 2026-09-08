@@ -956,6 +956,14 @@ const ORDER_TIERS = [
   { size: 0.14, rate: 0.94 },
   { size: 0.23, rate: 0.99 },
 ];
+/* Which size an order of this many units is, for an order that predates the
+   tiers or whose cap has since changed. */
+function nearestTier(n, kind) {
+  const share = n / Math.max(1, caps[kind]);
+  let best = 0, bd = Infinity;
+  ORDER_TIERS.forEach((T, i) => { const d = Math.abs(T.size - share); if (d < bd) { bd = d; best = i; } });
+  return best;
+}
 function makeOrder(tier) {
   // ask for whichever resource the village is currently richer in
   const richWood = (res.wood / Math.max(1, caps.wood)) > (res.food / Math.max(1, caps.food));
@@ -1336,7 +1344,14 @@ function load() {
     orders = s.orders.filter(o => o && ['wood', 'food'].includes(o.giveK) && ['wood', 'food'].includes(o.getK)
       && Number.isFinite(o.giveN) && Number.isFinite(o.getN))
       .slice(0, 5)
+      /* The tier has to survive the trip. Without it every stall came back
+         looking like the smallest one, so the board stopped marking its best
+         rate and stopped keeping the three sizes distinct when it refilled --
+         and both of those are invisible failures that only start after a
+         reload. An order saved before tiers existed is placed by its size. */
       .map(o => ({ id: orderSeq++, giveK: o.giveK, getK: o.getK,
+        tier: Number.isFinite(o.tier) ? Math.max(0, Math.min(ORDER_TIERS.length - 1, o.tier | 0))
+          : nearestTier(o.giveN, o.giveK),
         giveN: Math.max(1, o.giveN | 0), getN: Math.max(1, o.getN | 0) }));
   }
   if (s.res && typeof s.res === 'object') for (const k of ['wood', 'food'])

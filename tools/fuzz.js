@@ -13,7 +13,10 @@
      s.src = 'tools/fuzz.js'; document.head.appendChild(s);
      await window.fuzz(15000);
 
-   It works on a throwaway village in memory and never touches the save. */
+   It plays on a throwaway village, and it puts the real save back when it is
+   done -- place(), sell() and the rest all call save(), so a run WILL overwrite
+   whatever was in local storage while it is going. Do not kill it halfway
+   through on a device whose village you care about. */
 (function () {
   const V = window.__v;
   if (!V) { console.error('fuzz: load this on a page with the game running'); return; }
@@ -129,7 +132,34 @@
     for (let i = 0; i < 90 * 30; i++) V.step(1 / 30);   // let it build and staff up
   }
 
+  /* A signature of everything the save is supposed to carry, so a round trip
+     can be compared field by field. Written the day a new field on trade orders
+     was added to makeOrder and quietly dropped by load(), which stopped the
+     board marking its best stall -- an invisible failure that only began after
+     a reload, which is the hardest kind to notice by playing. */
+  function signature() {
+    return JSON.stringify({
+      placed: V.placed.map(p => [p.key, p.c, p.r, p.lvl | 0, Math.round((p.t || 0) * 100)]).sort(),
+      res: { wood: Math.round(V.res.wood), food: Math.round(V.res.food) },
+      land: V.landTier, goal: V.goalIdx, done: V.ordersDone, mute: V.muted,
+      orders: V.orders.map(o => [o.tier, o.giveK, o.giveN, o.getK, o.getN]),
+    });
+  }
+  function roundTrip() {
+    const was = signature();
+    V.save();
+    const keep = V.placed.slice(), kv = V.villagers.slice();
+    V.placed.length = 0; V.villagers.length = 0; V.orders = [];
+    V.load();
+    const now = signature();
+    if (now === was) return null;
+    V.placed.length = 0; for (const p of keep) V.placed.push(p);
+    V.villagers.length = 0; for (const g of kv) V.villagers.push(g);
+    return 'a save/load round trip changed the village';
+  }
+
   window.fuzz = function (rounds = 5000, populated = true) {
+    const realSave = (() => { try { return localStorage.getItem(V.KEY); } catch (e) { return null; } })();
     // a throwaway village: never the player's own
     V.placed.length = 0; V.villagers.length = 0;
     V.res.wood = 120; V.res.food = 60; V.landTier = 0;
@@ -149,7 +179,7 @@
          island. These deliberately grow and wreck the place as well. */
       const act = pick(['tap', 'tap', 'tap', 'step', 'step', 'step', 'pickBuild', 'tab',
                         'grant', 'claim', 'panelOpen', 'camFit', 'build', 'build',
-                        'sell', 'upgrade', 'upgrade', 'move']);
+                        'sell', 'upgrade', 'upgrade', 'move', 'reload']);
       counts[act] = (counts[act] || 0) + 1;
       try {
         if (act === 'tap') V.tap(R(W), R(H()));
@@ -160,6 +190,7 @@
         else if (act === 'claim') V.claimLand();
         else if (act === 'panelOpen') V.panel = V.placed.length ? pick(V.placed).id : null;
         else if (act === 'camFit') V.camFit(Math.random() < 0.5);
+        else if (act === 'reload') { const bad = roundTrip(); if (bad) fails.push(bad + ' (after ' + act + ')'); }
         else if (act === 'build') {
           // afford it, then let place() decide whether it is legal
           const b2 = pick(V.BUILDINGS.filter(x => x.key !== 'hall'));
@@ -199,6 +230,7 @@
          so "let the page breathe" turned a five-thousand-round run into a
          five-thousand-second one. Run it in batches instead. */
     }
+    try { if (realSave !== null) localStorage.setItem(V.KEY, realSave); } catch (e) {}
     return { rounds, populated, fails, counts, ended: { placed: V.placed.length,
       villagers: V.villagers.length, wood: Math.round(V.res.wood), food: Math.round(V.res.food),
       landTier: V.landTier, hall: V.hallLevel() } };
