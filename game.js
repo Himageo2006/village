@@ -978,6 +978,12 @@ function load() {
   // ids must not collide with anything placed later in the session
   nextId = Math.max(nextId, ...placed.map(p => p.id + 1), 1);
   recomputeCaps();
+  /* A stored amount was only checked for being a finite number, so a save
+     holding -999 wood loaded as -999 wood: every cost then fails its
+     affordability check for ever and the village can never build again.
+     Clamped here, after recomputeCaps, because the ceiling depends on what was
+     just loaded. */
+  for (const k of ['wood', 'food']) res[k] = Math.max(0, Math.min(caps[k], res[k]));
 }
 /* What the village earned while the game was closed.
 
