@@ -60,6 +60,9 @@ const ready=im=>im&&im.complete&&im.naturalWidth>0;
    meets the ground -- see art/ASSETS.md for the specs these must be drawn to. */
 const ART = {};
 function artFor(key) {
+  // a missing key would request art/undefined.webp and 404 -- harmless but it
+  // hides the real fault, which is whatever handed us nothing to draw
+  if (!key) return null;
   if (!(key in ART)) {
     const im = new Image();
     im.onerror = () => { ART[key] = null; };      // no file: stay procedural, silently
@@ -394,10 +397,18 @@ function wanderTarget(){
 const postNear = p => { const c=centreOf(p);
   return { x:c.x+(Math.random()*2-1)*34, y:c.y+(Math.random()*2-1)*18 }; };
 
+/* The most villagers a village will ever hold.
+
+   This was 24, chosen as a performance guard, and it quietly broke the late
+   game: a maxed village WANTS 72 villagers and has 67 jobs, so eight of the
+   twelve houses the hall allows did nothing at all -- still costing wood, still
+   gated behind hall levels, still asked for by a goal. The ceiling now sits
+   above what a full village asks for, so a house is never wasted. */
+const VILLAGER_MAX = 72;
 function syncVillagers(){
   let want=0;
   for(const p of placed) if(p.key==='house'&&p.t>=1) want+=popOf(p);
-  want=Math.min(want,24);
+  want=Math.min(want,VILLAGER_MAX);
   while(villagers.length<want){
     const h=hallOf(), t=h?centreOf(h):tileToWorld(GW/2,GH/2);
     villagers.push({x:t.x,y:t.y,tx:t.x,ty:t.y,ph:Math.random()*7,wait:Math.random()*2,face:1,
@@ -408,23 +419,32 @@ function syncVillagers(){
 
 /* Hand out posts. A villager keeps its workplace until that workplace is gone,
    so the village does not reshuffle every time something new is built. */
+/* Runs every tick for every villager, so it counts the workforce ONCE into a
+   map instead of rescanning every villager for every villager. The old version
+   called producers() and workersAt() inside the per-villager loop, which is
+   quadratic in population and fine at a dozen villagers and not at seventy. */
 function assignJobs(){
+  const count = new Map();
   for(const v of villagers){
     if(v.job==null) continue;
     const p=byId(v.job);
-    if(!p || p.t<1 || !B(p.key).jobs){ v.job=null; v.st='idle'; v.carry=null; }
+    if(!p || p.t<1 || !B(p.key).jobs){ v.job=null; v.st='idle'; v.carry=null; continue; }
+    count.set(v.job, (count.get(v.job)||0)+1);
   }
+  // vacancies, emptiest first; the hall's woodpile always last, or the very
+  // first villager would mind it at 0.15/s instead of cutting wood at 0.6/s
+  const open = producers()
+    .filter(p=>(count.get(p.id)||0) < jobsOf(p))
+    .sort((a,b)=>(a.key==='hall')-(b.key==='hall')
+      || (count.get(a.id)||0)/jobsOf(a) - (count.get(b.id)||0)/jobsOf(b));
+  if(!open.length) return;
+  let i=0;
   for(const v of villagers){
     if(v.job!=null) continue;
-    /* The emptiest workplace first, so two villagers staff two buildings rather
-       than filling one and leaving the other asleep -- but the hall's woodpile
-       is always last, or the very first villager would mind it at 0.15/s
-       instead of cutting wood at 0.6/s. */
-    const free=producers()
-      .filter(p=>workersAt(p.id) < B(p.key).jobs)
-      .sort((a,b)=>(a.key==='hall')-(b.key==='hall')
-        || workersAt(a.id)/B(a.key).jobs - workersAt(b.id)/B(b.key).jobs)[0];
-    if(!free) break;                        // no vacancies, so none for anyone
+    while(i<open.length && (count.get(open[i].id)||0) >= jobsOf(open[i])) i++;
+    if(i>=open.length) break;               // no vacancies, so none for anyone
+    const free=open[i];
+    count.set(free.id, (count.get(free.id)||0)+1);
     v.job=free.id; v.st='toWork';
     const t=postNear(free); v.tx=t.x; v.ty=t.y;
   }
@@ -620,6 +640,11 @@ const lvlOf = p => Math.min(LVL_MAX, Math.max(1, p.lvl | 0));
 // what a level is worth: level 5 is 2.4x level 1
 const outMul = l => 1 + 0.35 * (l - 1);
 const popOf  = p => B(p.key).pop ? B(p.key).pop + (lvlOf(p) - 1) : 0;
+/* A bigger workplace employs more people. Without this the village runs out of
+   jobs long before it runs out of houses, and every house past the fourth is
+   wood spent on villagers who stand about. */
+const jobsOf = p => { const b = B(p.key); if (!b.jobs) return 0;
+  const l = lvlOf(p); return b.jobs + (l >= 3 ? 1 : 0) + (l >= 5 ? 1 : 0); };
 const capsOf = (p, k) => B(p.key).caps ? Math.round(B(p.key).caps[k] * outMul(lvlOf(p))) : 0;
 const rateOf = (p, k) => (B(p.key).makes ? B(p.key).makes[k] || 0 : 0) * outMul(lvlOf(p));
 
@@ -1962,7 +1987,7 @@ function villageStats() {
   const idle = Math.max(0, villagers.length - working);
   const effs = prod.map(p => efficiencyOf(p)).filter(e => e !== null);
   const avg = effs.length ? effs.reduce((a, b) => a + b, 0) / effs.length : null;
-  const slots = placed.reduce((n, p) => n + (p.t >= 1 && B(p.key).jobs ? B(p.key).jobs : 0), 0);
+  const slots = placed.reduce((n, p) => n + (p.t >= 1 ? jobsOf(p) : 0), 0);
   return { villagers: villagers.length, working, idle, avg, slots, workplaces: prod.length };
 }
 
@@ -1992,7 +2017,7 @@ function drawPanel() {
     const n = workersAt(p.id);
     line = icon + ' ' + at(lvlOf(p), q => rateOf(q, k)).toFixed(2) + '/s';
     if (nl > lvlOf(p)) line += '  →  ' + at(nl, q => rateOf(q, k)).toFixed(2) + '/s';
-    line += '   ·   workers ' + n + ' / ' + b.jobs;
+    line += '   ·   workers ' + n + ' / ' + jobsOf(p);
     const boost = boostAt(p);
     if (boost > 1) line += '   ·   +' + Math.round((boost - 1) * 100) + '% from wells';
     else if (!n) line += '   — no villagers';
@@ -2271,7 +2296,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   shortfall, shortText, villageStats,
   panelRects, get panel() { return panel; }, set panel(v) { panel = v; },
   get villagers() { return villagers; }, workersAt, boostAt, producers, stores,
-  assignJobs, buildingAt, ensureHall,
+  assignJobs, buildingAt, ensureHall, jobsOf, VILLAGER_MAX,
   isDecor, decorCount, DECOR_MAX, charmTotal, charmMul, removeDecor, tabRects, drawDecor,
   sellBuilding, canSell, sellValue, investedIn, get moving() { return moving; }, set moving(v) { moving = v; },
   get armed() { return armed; }, set armed(v) { armed = v; },
