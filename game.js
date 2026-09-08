@@ -2139,24 +2139,31 @@ function drawHUD() {
     g.font = `bold ${Math.round(18 * u)}px Segoe UI, sans-serif`;
     g.fillStyle = '#fff'; g.fillText(r.b.name, r.x, r.y + r.h * 0.08);
     g.globalAlpha = 1;
-    g.font = `${Math.round(17 * u)}px Segoe UI, sans-serif`;
+    /* Shrunk to fit the button. Two costs and a charm value at the largest HUD
+       scale is wider than the tile it sits in, and a price that runs into its
+       neighbour is worse than a small one. */
+    const trayRow = (text, colour) => {
+      const fit = fitLines(text, r.w - 14 * u, 17 * u, 11 * u, 1, '');
+      g.fillStyle = colour;
+      g.fillText(fit.lines[0], r.x, r.y + r.h * 0.32);
+    };
+    const price = Object.entries(r.b.cost)
+      .map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join('  ')
+      /* What a decoration is FOR. The tray showed a statue at 150 wood beside a
+         flowerbed at 10 and said nothing about the charm either one buys, which
+         is the whole reason to want them -- the number only appeared on the
+         panel of one you had already paid for. */
+      + (r.b.charm ? '  ✨' + r.b.charm : '');
     if (full) {
       // the cost is irrelevant when the hall will not allow another one
-      g.fillStyle = '#e5b28a';
-      g.fillText(isDecor(r.b.key) ? decorCount() + '/' + DECOR_MAX + ' placed'
-        : countOf(r.b.key) + '/' + allowedOf(r.b.key) + ' · upgrade hall', r.x, r.y + r.h * 0.32);
+      trayRow(isDecor(r.b.key) ? decorCount() + '/' + DECOR_MAX + ' placed'
+        : countOf(r.b.key) + '/' + allowedOf(r.b.key) + ' · upgrade hall', '#e5b28a');
+    } else if (can && wouldStandEmpty(r.b.key)) {
+      trayRow('no one free', '#e5b28a');   // allowed, affordable, nobody to work it
+    } else if (can) {
+      trayRow(price, '#e8c98a');
     } else {
-      if (can && wouldStandEmpty(r.b.key)) {
-        // affordable, allowed, and there is nobody to work it
-        g.fillStyle = '#e5b28a';
-        g.fillText('no one free', r.x, r.y + r.h * 0.32);
-      } else if (can) {
-        g.fillStyle = '#e8c98a';
-        g.fillText(Object.entries(r.b.cost).map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join('  '), r.x, r.y + r.h * 0.32);
-      } else {
-        g.fillStyle = '#e59a86';
-        g.fillText('need ' + shortText(r.b.cost), r.x, r.y + r.h * 0.32);
-      }
+      trayRow('need ' + shortText(r.b.cost), '#e59a86');
     }
     g.restore();
   }
@@ -2946,6 +2953,20 @@ setInterval(() => {
   try { step(dt); draw(); } catch (e) { console.error(e); }
 }, 1000 / 30);
 
+/* Ask for every sprite at once, rather than the first time each is drawn.
+
+   artFor() starts the download on first use and draws the procedural stand-in
+   until it arrives, which is the right behaviour for a missing file and the
+   wrong one for a file that is simply not needed yet: on a cold start the
+   village appeared as flat coloured boxes and swapped to painted art a moment
+   later, and the same flash came back whenever a kind of building was drawn for
+   the first time -- the first mill, the first statue, the first pan to a corner
+   with a rock in it. They all ship inside the app; there is nothing to save by
+   waiting. The stand-in stays for a file that genuinely will not load. */
+for (const b of BUILDINGS) artFor(b.key);
+for (const v of VILLAGERS) artFor(v);
+for (const k of ['ground', 'water', 'tree_pine', 'tree_oak', 'rock', 'bush']) artFor(k);
+
 /* test hooks */
 window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, worldToTile,
   camProject, camUnproject, canPlace, occupied, place, step, draw, barRects, barList, tileAt,
@@ -2974,7 +2995,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   KEY, KEY_BAK, BACKUP_EVERY,
   get saveFailed() { return saveFailed; }, set saveFailed(v) { saveFailed = v; },
   get loadedFromBackup() { return loadedFromBackup; }, set loadedFromBackup(v) { loadedFromBackup = v; },
-  sky, dayPhase, DAY_MS, camFit, landFitZoom, landWorldBounds,
+  sky, dayPhase, DAY_MS, camFit, landFitZoom, landWorldBounds, artFor, ART,
   fitLines, TUT, GOALS,
   efficiencyOf, hasStore, onPath, PATH_SPEED, rebuildPaths,
   LAND, LAND_MAX, inLand, landNext, canClaim, claimLand, landBounds, coverPlaced,
