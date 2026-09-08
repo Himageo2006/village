@@ -80,6 +80,24 @@
       Number.isFinite(V.CAM.x) && Number.isFinite(V.CAM.y) && V.CAM.z > 0.01],
     ['stock never goes negative or runs away', () => V.placed.every(p =>
       p.stock === undefined || (p.stock >= -1e-6 && p.stock < 1e4))],
+    /* The two caches. Both are rebuilt by hand at the points where the village
+       changes, which is the kind of arrangement that works until someone adds a
+       twelfth of those points -- so the soak test recomputes them from scratch
+       after every action and insists they agree. */
+    ['the cached store list is not stale', () => {
+      const want = V.placed.filter(p => p.t >= 1 && (V.B(p.key).caps || p.key === 'hall'));
+      const have = V.stores();
+      return have.length === want.length && want.every(p => have.includes(p));
+    }],
+    ['the cached charm total is not stale', () =>
+      V.charmTotal() === V.placed.reduce((n, p) =>
+        n + (V.isDecor(p.key) ? V.B(p.key).charm : 0), 0)],
+    /* And a store the cache still believes in must be where it says it is:
+       moving one changes no membership at all, only a position. */
+    ['a cached store is where it stands', () => V.stores().every(p => {
+      const b = V.B(p.key), c = V.tileToWorld(p.c + (b.w - 1) / 2, p.r + (b.h - 1) / 2);
+      return V.nearestStore(c.x, c.y) !== null;
+    })],
   ];
 
   let prev = { wood: 0, food: 0 };
@@ -158,8 +176,17 @@
           if (q) { V.grant('wood', 400, 0, 0); V.grant('food', 400, 0, 0); V.upgradeBuilding(q); }
         }
         else if (act === 'move') {
+          /* A move takes two taps on the SAME tile -- arm, then commit. Tapping
+             two random points only ever armed it, so the branch that actually
+             relocates a building (and rebuilds the store cache) was never run. */
           const q = pick(V.placed.filter(x => V.canSell(x)));
-          if (q) { V.moving = q.id; V.tap(R(W), R(H())); V.moving = null; }
+          if (!q) continue;
+          const L = V.landBounds();
+          const w = V.tileToWorld(L.lo + R(L.hi - L.lo + 1), L.lo + R(L.hi - L.lo + 1));
+          const t2 = V.camProject(w.x, w.y);
+          V.moving = q.id; V.armed = null;
+          V.tap(t2.x, t2.y); V.tap(t2.x, t2.y);
+          V.moving = null; V.armed = null;
         }
       } catch (e) {
         fails.push('threw during ' + act + ': ' + e.message);

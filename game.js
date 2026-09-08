@@ -462,7 +462,27 @@ const centreOf = p => { const b=B(p.key); return tileToWorld(p.c+(b.w-1)/2, p.r+
 const producers = () => placed.filter(p=>p.t>=1 && B(p.key).jobs);
 // the hall always accepts a delivery, so a village can never deadlock for want
 // of somewhere to put things
-const stores = () => placed.filter(p=>p.t>=1 && (B(p.key).caps || p.key==='hall'));
+/* The stores, with their centres, kept ready.
+
+   nearestStore() is asked for a distance by every building on every frame -- the
+   placement badge needs one -- and by every villager that finishes a load, and
+   it was rebuilding this list with a filter and an allocation every single time.
+   On a full village that came to 4.5ms of a 10ms frame here, which is a third
+   of the budget gone on a phone before anything is drawn.
+
+   The set changes only when something is built, finishes building, is sold,
+   moved or loaded, so it is rebuilt at those points and nowhere else. */
+let storeAt = [];                     // [{ p, x, y }]
+function rebuildStores() {
+  rebuildCharm();                     // the same events change both
+  storeAt.length = 0;
+  for (const p of placed)
+    if (p.t >= 1 && (B(p.key).caps || p.key === 'hall')) {
+      const c = centreOf(p);
+      storeAt.push({ p, x: c.x, y: c.y });
+    }
+}
+const stores = () => storeAt.map(s => s.p);
 const workersAt = id => villagers.reduce((n,v)=>n+(v.job===id?1:0),0);
 
 /* Output multiplier from wells in reach. Distance is measured centre to centre
@@ -482,8 +502,8 @@ function boostAt(p, exceptWell){
 }
 function nearestStore(x,y){
   let best=null,bd=Infinity;
-  for(const s of stores()){ const c=centreOf(s), d=Math.hypot(c.x-x,c.y-y); if(d<bd){bd=d;best=s;} }
-  return best;
+  for(const s of storeAt){ const dx=s.x-x, dy=s.y-y, d=dx*dx+dy*dy; if(d<bd){bd=d;best=s.p;} }
+  return best;                        // squared distances: the nearest is the same one
 }
 function wanderTarget(){
   const done=placed.filter(p=>p.t>=1);
@@ -726,7 +746,13 @@ const BUILDINGS = [
   { key: 'statue',  name: 'Statue',    w: 1, h: 1, cost: { wood: 150, food: 80 }, decor: true, charm: 45, icon: '🗿',
     blurb: 'A stone figure on a plinth. The pride of the village.' },
 ];
-const B = k => BUILDINGS.find(b => b.key === k);
+/* The hottest primitive in the file by a distance -- centreOf, isDecor, jobsOf,
+   every draw and every hit-test starts by looking a building up by key. It was
+   a linear scan of the table, which is nothing on its own and everything at the
+   rate this is called. A Map returns the same object, and undefined for an
+   unknown key exactly as find did. */
+const BY_KEY = new Map(BUILDINGS.map(b => [b.key, b]));
+const B = k => BY_KEY.get(k);
 
 /* ---------- land ----------
    The island used to be handed over whole, and a 14x14 field with four
@@ -1062,8 +1088,17 @@ const atLimit = key => isDecor(key) ? decorCount() >= DECOR_MAX : countOf(key) >
 /* Charm: what decorations are actually for. A pleasant village works a little
    harder, capped so it stays a bonus rather than the main economy. */
 const CHARM_FULL = 600, CHARM_CAP = 0.20;
-const charmTotal = () => placed.reduce((n, p) => n + (isDecor(p.key) ? B(p.key).charm : 0), 0);
-const charmMul = () => 1 + Math.min(CHARM_CAP, charmTotal() / CHARM_FULL * CHARM_CAP);
+/* Cached for the same reason as the stores: every rate the interface quotes
+   multiplies by charm, so this whole-village scan ran twice per producer per
+   frame. Decorations only appear and disappear through the paths that already
+   rebuild, so it is rebuilt alongside them. */
+let charmSum = 0;
+function rebuildCharm() {
+  charmSum = 0;
+  for (const p of placed) if (isDecor(p.key)) charmSum += B(p.key).charm;
+}
+const charmTotal = () => charmSum;
+const charmMul = () => 1 + Math.min(CHARM_CAP, charmSum / CHARM_FULL * CHARM_CAP);
 
 const occupied = (exceptId) => {
   const set = new Set();
@@ -1129,10 +1164,11 @@ function capsWithout(p) {
   const now = caps;
   recomputeCaps();
   const out = caps;
-  placed = keep; caps = now;
+  placed = keep; caps = now; rebuildStores();
   return out;
 }
 function recomputeCaps() {
+  rebuildStores();                    // the same events change both
   // the hall itself holds more as it grows, so an upgrade is worth something
   // even before you have spent the room it unlocks
   const base = 200 + 100 * hallLevel();
@@ -1192,19 +1228,12 @@ function sellBuilding(p) {
   return true;
 }
 
-/* Decorations can be taken away again -- half the price back, which is enough
-   that rearranging is not punished but not so much that they are free to try.
-   Buildings deliberately cannot: moving the economy around is a different
-   feature with different rules. */
-function removeDecor(p) {
-  if (!p || !isDecor(p.key)) return false;
-  const c = centreOf(p);
-  for (const [k, v] of Object.entries(B(p.key).cost)) grant(k, Math.floor(v / 2), c.x, c.y);
-  placed = placed.filter(q => q !== p);
-  if (panel === p.id) panel = null;
-  save();
-  return true;
-}
+/* Decorations are taken away through sellBuilding like everything else -- half
+   the price back, clamped to storage, the workers released, the caps and the
+   charm total rebuilt. There used to be a second removeDecor() beside it doing
+   the same job by hand, and doing it slightly wrong: it never recomputed, so
+   with a cached charm total it would have left the village claiming a bonus for
+   an ornament that was no longer there. Nothing called it. */
 
 /* ---------- save ---------- */
 const KEY = 'vil_save';
@@ -2785,7 +2814,7 @@ function tap(sx, sy) {
     }
     if (moving != null) {
       const p = byId(moving);
-      if (p) { p.c = ghost.c; p.r = ghost.r; save(); SFX.place(); }
+      if (p) { p.c = ghost.c; p.r = ghost.r; rebuildStores(); save(); SFX.place(); }
       moving = null;
     } else {
       place(selBuild, ghost.c, ghost.r);
@@ -2826,8 +2855,8 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   bestDeliveredOf, reachOf, SNUG_WALK,
   panelRects, get panel() { return panel; }, set panel(v) { panel = v; },
   get villagers() { return villagers; }, workersAt, boostAt, producers, stores,
-  assignJobs, buildingAt, ensureHall, jobsOf, VILLAGER_MAX,
-  isDecor, decorCount, DECOR_MAX, charmTotal, charmMul, removeDecor, tabRects, drawDecor, grant,
+  assignJobs, buildingAt, ensureHall, jobsOf, VILLAGER_MAX, rebuildStores, nearestStore,
+  isDecor, decorCount, DECOR_MAX, charmTotal, charmMul, tabRects, drawDecor, grant,
   sellBuilding, canSell, sellValue, investedIn, capsWithout, get moving() { return moving; }, set moving(v) { moving = v; },
   get armed() { return armed; }, set armed(v) { armed = v; },
   get sellArm() { return sellArm; }, set sellArm(v) { sellArm = v; }, SELL_ARM,
