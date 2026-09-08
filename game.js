@@ -1114,15 +1114,47 @@ const AWAY_MIN = 60, AWAY_MAX = 12 * 3600;
 let savedAt = 0;
 let away = null;                      // {secs, got:{wood,food}} until dismissed
 
+/* What the village is CAPABLE of producing per second, worked out from its
+   buildings rather than from what was recently delivered.
+
+   Offline earnings used the measured delivery rate, and that rate is zero
+   whenever the storehouses are full -- because nothing can be delivered. So the
+   player who filled their stores and went to bed, the one playing well, earned
+   nothing while away, and the player who left with empty stores earned the lot.
+   Exactly backwards.
+
+   Villagers do not exist yet when this runs at boot, so the workforce is worked
+   out the way assignJobs would fill it: the houses' population spread across
+   the job slots, real workplaces before the hall's woodpile. Efficiency is
+   folded in, so walking time is still paid for. */
+function potentialRate() {
+  let pop = 0;
+  for (const p of placed) if (p.key === 'house' && p.t >= 1) pop += popOf(p);
+  pop = Math.min(pop, VILLAGER_MAX);
+  const posts = placed.filter(p => p.t >= 1 && B(p.key).jobs && B(p.key).makes)
+    .sort((a, b) => (a.key === 'hall') - (b.key === 'hall'));
+  const out = { wood: 0, food: 0 };
+  for (const p of posts) {
+    if (pop <= 0) break;
+    const hands = Math.min(pop, jobsOf(p));
+    pop -= hands;
+    const kind = Object.keys(B(p.key).makes)[0];
+    const eff = efficiencyOf(p);
+    out[kind] += rateOf(p, kind) * boostAt(p) * charmMul() * hands * (eff === null ? 1 : eff);
+  }
+  return out;
+}
+
 function collectAway() {
   if (!savedAt) return;
   const secs = Math.min(AWAY_MAX, (Date.now() - savedAt) / 1000);
   if (secs < AWAY_MIN) return;
   const got = {};
   let any = false;
+  const rate = potentialRate();
   for (const k of ['wood', 'food']) {
     const room = caps[k] - res[k];
-    const earned = Math.max(0, Math.min(room, rateNow[k] * secs));
+    const earned = Math.max(0, Math.min(room, rate[k] * secs));
     if (earned >= 1) { res[k] += earned; got[k] = Math.floor(earned); any = true; }
   }
   if (any) away = { secs, got };
@@ -2451,7 +2483,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   isDecor, decorCount, DECOR_MAX, charmTotal, charmMul, removeDecor, tabRects, drawDecor, grant,
   sellBuilding, canSell, sellValue, investedIn, get moving() { return moving; }, set moving(v) { moving = v; },
   get armed() { return armed; }, set armed(v) { armed = v; },
-  collectAway, currentHint, get away() { return away; }, set away(v) { away = v; },
+  collectAway, potentialRate, currentHint, get away() { return away; }, set away(v) { away = v; },
   GOALS, currentGoal, get goalIdx() { return goalIdx; }, set goalIdx(v) { goalIdx = v; },
   get orders() { return orders; }, set orders(v) { orders = v; },
   makeOrder, fillOrder, canFill, orderRects, ORDER_EVERY, ORDER_SLOTS, orderSlots, orderEvery, marketCount,
