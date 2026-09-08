@@ -2576,6 +2576,26 @@ function drawPanel() {
     lx, R.y - R.h / 2 + 38 * u);
   panelRow(b.blurb, lx, R.y - R.h / 2 + 78 * u, R.w - 56 * u, 22 * u, '#bccfae', '');
 
+  /* What this sale would destroy, worked out before any row is drawn.
+
+     A storehouse gets a row of its own for this, because its whole purpose is
+     capacity. A MARKET holds just as much and its row is taken by the trading
+     stalls, and a hall or a farm can be over the line too. So once the sell
+     button is armed -- the moment the player is actually about to do it -- the
+     warning takes that row whatever the building is. It does not take it before
+     then, or a market would permanently stop saying what a market is for. */
+  const sellRoom = canSell(p) ? capsWithout(p) : null;
+  const spoiling = sellRoom
+    ? ['wood', 'food'].map(k => [k, Math.max(0, Math.floor(res[k] - sellRoom[k]))]).filter(([, v]) => v > 0)
+    : [];
+  const armedHere = sellArm && sellArm.id === p.id;
+  const spoilRow = (armedHere && spoiling.length)
+    ? 'Selling it drops storage to 🪵' + sellRoom.wood + '  🌾' + sellRoom.food
+      + '   —   ' + spoiling.map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join(' ')
+      + ' would spoil'
+    : null;
+
+
   /* What this building does at its CURRENT level, and what the next one would
      make it -- the number is the whole reason to spend, so it is spelled out
      rather than left to the player to infer from a rising counter. */
@@ -2623,7 +2643,8 @@ function drawPanel() {
        village summary that shares this row. Two lines of text on top of each
        other, for as long as the panel has existed. */
     const reach = (b.caps || p.key === 'hall') ? null : reachOf(p);
-    if (reach !== null) {
+    if (spoilRow) panelRow(spoilRow, lx, R.y - R.h / 2 + 148 * u, R.w - 56 * u, 20 * u, '#e59a86', '');
+    else if (reach !== null) {
       const walk = travelSecondsOf(p);
       const here = n * deliveredOf(p), snug = n * bestDeliveredOf(p);
       panelRow(walk.toFixed(1) + 's round trip to the nearest store'
@@ -2640,12 +2661,9 @@ function drawPanel() {
        the goods sat there looking fine until the next delivery clamped them
        away. A storehouse has no efficiency line, so the row it would have used
        says what the sale would actually cost. */
-    const room = capsWithout(p);
-    const spoil = ['wood', 'food'].map(k => [k, Math.max(0, Math.floor(res[k] - room[k]))])
-      .filter(([, v]) => v > 0);
-    if (spoil.length) {
-      panelRow('Selling it drops storage to 🪵' + room.wood + '  🌾' + room.food
-        + '   —   ' + spoil.map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join(' ')
+    if (sellRoom && spoiling.length) {
+      panelRow('Selling it drops storage to 🪵' + sellRoom.wood + '  🌾' + sellRoom.food
+        + '   —   ' + spoiling.map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join(' ')
         + ' would spoil', lx, R.y - R.h / 2 + 148 * u, R.w - 56 * u, 20 * u, '#e59a86', '');
     }
   } else if (b.pop) {
@@ -2673,7 +2691,8 @@ function drawPanel() {
   if (p.key === 'market') {
     // its real worth is the trade it unlocks, which no number on this panel
     // would otherwise show
-    panelRow(orderSlots() + ' trading stalls   ·   a new offer every '
+    if (spoilRow) panelRow(spoilRow, lx, R.y - R.h / 2 + 148 * u, R.w - 56 * u, 20 * u, '#e59a86', '');
+    else panelRow(orderSlots() + ' trading stalls   ·   a new offer every '
       + Math.round(orderEvery()) + 's', lx, R.y - R.h / 2 + 148 * u, R.w - 56 * u, 20 * u, '#cbb6f0', '');
   }
   if (p.key === 'hall') {
@@ -2733,7 +2752,6 @@ function drawPanel() {
   const room = capsWithout(p);
   const netSell = sv && Object.fromEntries(
     Object.entries(sv).map(([k, v]) => [k, Math.max(0, Math.min(v, Math.floor(room[k] - res[k])))]));
-  const armedHere = sellArm && sellArm.id === p.id;
   const backTotal = netSell ? Object.values(netSell).reduce((a, b) => a + b, 0) : 0;
   btnFace(R.sell, !!sv, !sv ? 'Cannot sell'
     /* Armed, the button stops quoting the refund and states the consequence.
