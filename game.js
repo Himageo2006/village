@@ -469,7 +469,14 @@ function stepVillagers(dt){
     const step1=()=>{ const dx=v.tx-v.x, dy=v.ty-v.y, d=Math.hypot(dx,dy);
       if(d<6) return true;
       const spd = VIL_SPD * (onPath(v.x, v.y) ? PATH_SPEED : 1);
-      v.x+=dx/d*spd*dt; v.y+=dy/d*spd*dt; v.face=dx<0?-1:1; v.ph+=dt*7; return false; };
+      /* Never step PAST the target. A frame is up to 0.1s, and on a road that
+         is a 12.8px stride against a 6px arrival window -- so a villager
+         standing 6.4px away jumped over the target, landed 6.4px on the far
+         side, and did that for ever. It never worked and never delivered
+         again. Only slow frames are big enough to do it, which means it would
+         have happened on a struggling phone and nowhere else. */
+      const m = Math.min(spd * dt, d);
+      v.x+=dx/d*m; v.y+=dy/d*m; v.face=dx<0?-1:1; v.ph+=dt*7; return false; };
 
     if(v.st==='toWork'){ if(step1()) v.st='work'; continue; }
 
