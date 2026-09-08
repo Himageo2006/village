@@ -797,7 +797,9 @@ const GOALS = [
   { text: 'House four villagers',          done: () => villagers.length >= 4,  give: { wood: 30, food: 20 } },
   { text: 'Raise the town hall to level 2', done: () => hallLevel() >= 2,      give: { wood: 60, food: 40 } },
   { text: 'Build a storehouse',            done: () => countOf('store') >= 1,  give: { wood: 70 } },
-  { text: 'Fill three orders at the market', done: () => ordersDone >= 3,       give: { wood: 100, food: 60 } },
+  // not "at the market": trading needs no market, and naming one sends the
+  // player looking for a building the hall will not allow for another two levels
+  { text: 'Fill three trade orders',        done: () => ordersDone >= 3,        give: { wood: 100, food: 60 } },
   { text: 'Claim land beyond your border', done: () => landTier >= 1,          give: { wood: 120, food: 70 } },
   { text: 'Upgrade any building to level 2', done: () => anyAtLevel(2),        give: { wood: 90, food: 50 } },
   { text: 'Dig a well',                    done: () => countOf('well') >= 1,   give: { wood: 110 } },
@@ -817,8 +819,17 @@ function stepGoals(dt) {
   if (goalDone) { goalDone.age += dt; if (goalDone.age > GOAL_SHOW) goalDone = null; }
   const g2 = currentGoal();
   if (!g2 || !g2.done()) return;
-  for (const [k, v] of Object.entries(g2.give)) res[k] = Math.min(caps[k], res[k] + v);
-  goalDone = { g: g2, age: 0 };
+  /* Bank what will actually fit and report THAT. Announcing the offered amount
+     when storage swallowed half of it is the same lie the order rewards used to
+     tell, and it is worse here because the banner is the only record. */
+  const got = {};
+  for (const [k, val] of Object.entries(g2.give)) {
+    const before = res[k];
+    res[k] = Math.min(caps[k], res[k] + val);
+    const gained = Math.round(res[k] - before);
+    if (gained > 0) got[k] = gained;
+  }
+  goalDone = { g: g2, got, age: 0 };
   goalIdx++;
   SFX.goal();
   save();
@@ -1836,8 +1847,10 @@ function drawGoal() {
   const u = US(), y = hudTop() + 132 * u;
   if (goalDone) {
     const t = goalDone.age / GOAL_SHOW;
-    const parts = Object.entries(goalDone.g.give)
-      .map(([k, v]) => (k === 'wood' ? '🪵 +' : '🌾 +') + v).join('   ');
+    const banked = goalDone.got || goalDone.g.give;
+    const parts = Object.keys(banked).length
+      ? Object.entries(banked).map(([k, v]) => (k === 'wood' ? '🪵 +' : '🌾 +') + v).join('   ')
+      : 'stores already full';
     g.save();
     g.globalAlpha = Math.min(1, (1 - t) * 3);
     g.font = `bold ${Math.round(24 * u)}px Segoe UI, sans-serif`;
