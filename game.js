@@ -1012,6 +1012,17 @@ function removeDecor(p) {
 
 /* ---------- save ---------- */
 const KEY = 'vil_save';
+/* A second, older copy of the save.
+
+   A village is hours of work held in one string. If that string is truncated by
+   a browser killed mid-write, or the storage is cleared under us, load() finds
+   nothing usable and the player is handed a brand new island with no
+   explanation and no way back. The backup lags by roughly a minute and was
+   itself a primary that loaded cleanly, so falling back to it costs a minute
+   rather than everything. */
+const KEY_BAK = 'vil_save_bak';
+const BACKUP_EVERY = 12;              // saves between backups; saves are ~5s apart
+let saveN = 0, saveFailed = false, loadedFromBackup = false;
 const SAVE_V = 4;      // 2: house 2x1. 3: hall and jobs. 4: every building levels
 /* The measured delivery rate is saved along with the time, so a village can
    carry on working while the game is shut. Saving the RATE rather than
@@ -1020,14 +1031,34 @@ const SAVE_V = 4;      // 2: house 2x1. 3: hall and jobs. 4: every building leve
    their time walking, and paying out the rated figure would make being away
    better than playing. */
 function save() {
+  try {
+    // promote the last known-good primary before overwriting it
+    if (saveN++ % BACKUP_EVERY === 0) {
+      const prev = localStorage.getItem(KEY);
+      if (prev) localStorage.setItem(KEY_BAK, prev);
+    }
+  } catch (e) {}
   try { localStorage.setItem(KEY, JSON.stringify({
     v: SAVE_V, res, placed, t: Date.now(), rate: rateNow, seen: tutSeen, mute: muted,
-    goal: goalIdx, land: landTier, orders, ordersDone })); } catch (e) {}
+    goal: goalIdx, land: landTier, orders, ordersDone }));
+    saveFailed = false;
+  } catch (e) {
+    /* Storage can be full, or blocked outright in a private window. Swallowing
+       this means the player keeps playing a village that is not being written
+       down, and finds out when they come back to nothing. */
+    saveFailed = true;
+  }
 }
 function load() {
-  let s = null; try { s = JSON.parse(localStorage.getItem(KEY)); } catch (e) {}
+  const parse = k => { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } };
+  const usable = x => x && typeof x === 'object' && x.v === SAVE_V && Array.isArray(x.placed);
+  let s = parse(KEY);
   // same defensive shape as Gatestorm's loadProg: never trust what comes back
-  if (!s || typeof s !== 'object' || s.v !== SAVE_V) return;
+  if (!usable(s)) {
+    const bak = parse(KEY_BAK);
+    if (usable(bak)) { s = bak; loadedFromBackup = true; }
+  }
+  if (!usable(s)) return;
   if (s.rate && typeof s.rate === 'object') for (const k of ['wood', 'food'])
     if (typeof s.rate[k] === 'number' && isFinite(s.rate[k]) && s.rate[k] >= 0)
       rateNow[k] = Math.min(20, s.rate[k]);
@@ -1856,6 +1887,7 @@ function drawHUD() {
   drawMute();
   drawPanel();
   drawGoal();
+  drawSaveState();
   drawHint();
   drawClaim();
   drawAway();
@@ -1864,6 +1896,28 @@ function drawHUD() {
 /* The standing goal, and the flash when one is finished. Both live in the same
    strip under the resource pills, and a first-time hint outranks them: a hint
    is only ever shown once, a goal is always there. */
+/* Two things the player must be told, because neither is visible otherwise:
+   that the village could not be written down, and that it was restored from the
+   older copy so the last minute is missing. */
+function drawSaveState() {
+  if (!saveFailed && !loadedFromBackup) return;
+  const u = US(), y = hudTop() + 190 * u;
+  const txt = saveFailed
+    ? 'The village cannot be saved — storage is full or blocked'
+    : 'Restored from a backup — the last minute of play was lost';
+  g.save();
+  g.font = `bold ${Math.round(21 * u)}px Segoe UI, sans-serif`;
+  const w = Math.min(W - 40 * u, g.measureText(txt).width + 52 * u), h = 50 * u;
+  g.fillStyle = saveFailed ? 'rgba(58,20,16,.94)' : 'rgba(46,38,14,.94)';
+  g.strokeStyle = saveFailed ? 'rgba(240,140,110,.9)' : 'rgba(230,200,110,.85)';
+  g.lineWidth = 2.5;
+  g.beginPath(); g.roundRect(W / 2 - w / 2, y - h / 2, w, h, h / 2); g.fill(); g.stroke();
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillStyle = saveFailed ? '#ffb9a0' : '#f0d89a';
+  g.fillText(txt, W / 2, y);
+  g.restore();
+}
+
 function drawGoal() {
   if (away) return;
   const u = US(), y = hudTop() + 132 * u;
@@ -2398,6 +2452,9 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   get orderT() { return orderT; }, set orderT(v) { orderT = v; },
   get goalDone() { return goalDone; }, set goalDone(v) { goalDone = v; },
   SFX, muteRect, audioOn, get muted() { return muted; }, set muted(v) { muted = v; },
+  KEY, KEY_BAK, BACKUP_EVERY,
+  get saveFailed() { return saveFailed; }, set saveFailed(v) { saveFailed = v; },
+  get loadedFromBackup() { return loadedFromBackup; }, set loadedFromBackup(v) { loadedFromBackup = v; },
   sky, dayPhase, DAY_MS,
   efficiencyOf, distTilesToStore, onPath, PATH_SPEED, rebuildPaths,
   LAND, LAND_MAX, inLand, landNext, canClaim, claimLand, landBounds, coverPlaced,
