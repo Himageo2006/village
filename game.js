@@ -487,6 +487,50 @@ const BUILDINGS = [
 ];
 const B = k => BUILDINGS.find(b => b.key === k);
 
+/* ---------- land ----------
+   The island used to be handed over whole, and a 14x14 field with four
+   buildings on it never feels like it is growing. Now you start on a 6x6 core
+   around the hall and buy your way outwards a ring at a time.
+
+   This gives the village a second axis: the hall says WHAT you may build, the
+   land says WHERE, and space becomes something you weigh rather than something
+   you have too much of. It is also the largest sink in the game. */
+const LAND = [
+  { lo: 4, hi: 9,  cost: null },                          // the founding claim
+  { lo: 3, hi: 10, cost: { wood: 200,  food: 120 } },
+  { lo: 2, hi: 11, cost: { wood: 700,  food: 450 } },
+  { lo: 1, hi: 12, cost: { wood: 2000, food: 1300 } },
+  { lo: 0, hi: 13, cost: { wood: 5000, food: 3200 } },
+];
+const LAND_MAX = LAND.length - 1;
+let landTier = 0;
+let claimAsk = false;                 // the claim prompt is open
+
+const landBounds = () => LAND[Math.min(LAND_MAX, Math.max(0, landTier))];
+function inLand(c, r) { const L = landBounds(); return c >= L.lo && c <= L.hi && r >= L.lo && r <= L.hi; }
+const landNext = () => (landTier >= LAND_MAX ? null : LAND[landTier + 1].cost);
+const canClaim = () => !!landNext() && canAfford(landNext());
+function claimLand() {
+  if (!canClaim()) return false;
+  for (const [k, v] of Object.entries(landNext())) res[k] -= v;
+  landTier++;
+  claimAsk = false;
+  save();
+  SFX.upgrade();
+  return true;
+}
+/* A save made before land existed, or edited, can hold buildings outside the
+   current claim. Rather than strand them somewhere unreachable, the claim is
+   widened to include what is already there. */
+function coverPlaced() {
+  for (const p of placed) {
+    const b = B(p.key);
+    while (landTier < LAND_MAX &&
+      (p.c < landBounds().lo || p.r < landBounds().lo ||
+       p.c + b.w - 1 > landBounds().hi || p.r + b.h - 1 > landBounds().hi)) landTier++;
+  }
+}
+
 /* ---------- town hall levels ----------
    The hall is the spine of the game: every level raises the cap on what you may
    build, and introduces the next kind. `allow` is the TOTAL permitted at that
@@ -593,15 +637,18 @@ const GOALS = [
   { text: 'House four villagers',          done: () => villagers.length >= 4,  give: { wood: 30, food: 20 } },
   { text: 'Raise the town hall to level 2', done: () => hallLevel() >= 2,      give: { wood: 60, food: 40 } },
   { text: 'Build a storehouse',            done: () => countOf('store') >= 1,  give: { wood: 70 } },
+  { text: 'Claim land beyond your border', done: () => landTier >= 1,          give: { wood: 120, food: 70 } },
   { text: 'Upgrade any building to level 2', done: () => anyAtLevel(2),        give: { wood: 90, food: 50 } },
   { text: 'Dig a well',                    done: () => countOf('well') >= 1,   give: { wood: 110 } },
   { text: 'Raise the town hall to level 3', done: () => hallLevel() >= 3,      give: { wood: 180, food: 120 } },
+  { text: 'Claim a third ring of land',    done: () => landTier >= 2,          give: { wood: 350, food: 220 } },
   { text: 'Place five decorations',        done: () => decorCount() >= 5,      give: { wood: 150, food: 90 } },
   { text: 'Upgrade any building to level 3', done: () => anyAtLevel(3),        give: { wood: 250, food: 160 } },
   { text: 'Build a mill',                  done: () => countOf('mill') >= 1,   give: { wood: 350, food: 220 } },
   { text: 'Raise the town hall to level 4', done: () => hallLevel() >= 4,      give: { wood: 550, food: 360 } },
   { text: 'Open a market',                 done: () => countOf('market') >= 1, give: { wood: 800, food: 500 } },
   { text: 'Raise the town hall to level 5', done: () => hallLevel() >= 5,      give: { wood: 1400, food: 900 } },
+  { text: 'Claim the whole island',        done: () => landTier >= LAND_MAX,   give: { wood: 2500, food: 1600 } },
 ];
 const currentGoal = () => GOALS[goalIdx] || null;
 
@@ -679,6 +726,9 @@ const occupied = (exceptId) => {
 function canPlace(key, c, r, occ) {
   const b = B(key);
   if (c < 0 || r < 0 || c + b.w > GW || r + b.h > GH) return false;
+  // every tile of the footprint has to be on land you actually own
+  for (let dc = 0; dc < b.w; dc++) for (let dr = 0; dr < b.h; dr++)
+    if (!inLand(c + dc, r + dr)) return false;
   for (let dc = 0; dc < b.w; dc++) for (let dr = 0; dr < b.h; dr++) if (occ.has((c + dc) + ',' + (r + dr))) return false;
   return true;
 }
@@ -688,9 +738,13 @@ const buildable = key => unlocked(key) && !atLimit(key) && affordable(key);
 
 function place(key, c, r) {
   const b = B(key);
-  // the UI already gates this, but place() is also the API a test or a future
-  // caller reaches for, and unguarded it will happily spend into the negative
+  /* The UI already gates both of these, but place() is also the API a test or a
+     future caller reaches for. Unguarded it will spend into the negative, and
+     it will happily drop a building on unclaimed land or on top of another
+     one -- the position check is not optional just because the ghost normally
+     does it. */
   if (!canAfford(b.cost)) return false;
+  if (!canPlace(key, c, r, occupied())) return false;
   for (const [k, v] of Object.entries(b.cost)) res[k] -= v;
   placed.push({ id: nextId++, key, c, r, t: b.decor ? 1 : 0, lvl: 1, stock: 0, build: BUILD_TIME });
   recomputeCaps();
@@ -763,7 +817,7 @@ const SAVE_V = 4;      // 2: house 2x1. 3: hall and jobs. 4: every building leve
 function save() {
   try { localStorage.setItem(KEY, JSON.stringify({
     v: SAVE_V, res, placed, t: Date.now(), rate: rateNow, seen: tutSeen, mute: muted,
-    goal: goalIdx })); } catch (e) {}
+    goal: goalIdx, land: landTier })); } catch (e) {}
 }
 function load() {
   let s = null; try { s = JSON.parse(localStorage.getItem(KEY)); } catch (e) {}
@@ -776,6 +830,7 @@ function load() {
   if (Array.isArray(s.seen)) tutSeen = s.seen.filter(x => typeof x === 'string');
   if (typeof s.mute === 'boolean') muted = s.mute;
   if (Number.isFinite(s.goal)) goalIdx = Math.max(0, Math.min(GOALS.length, s.goal | 0));
+  if (Number.isFinite(s.land)) landTier = Math.max(0, Math.min(LAND_MAX, s.land | 0));
   if (s.res && typeof s.res === 'object') for (const k of ['wood', 'food'])
     if (typeof s.res[k] === 'number' && isFinite(s.res[k])) res[k] = s.res[k];
   if (Array.isArray(s.placed)) placed = s.placed.filter(p =>
@@ -1303,6 +1358,34 @@ function drawDecor(p, alpha) {
 }
 const drawPlaced = (p, alpha, tint) => isDecor(p.key) ? drawDecor(p, alpha) : drawBuilding(p, alpha, tint);
 
+/* Land you do not own yet: one dark wash over every unclaimed tile, built as a
+   single path so it is one fill rather than a hundred and sixty. A rope line
+   marks the frontier, which reads as a boundary rather than as a rendering
+   fault. */
+function drawFrontier() {
+  if (landTier >= LAND_MAX) return;
+  const L = landBounds();
+  g.save();
+  g.beginPath();
+  for (let r = 0; r < GH; r++) for (let c = 0; c < GW; c++) {
+    if (c >= L.lo && c <= L.hi && r >= L.lo && r <= L.hi) continue;
+    const p2 = tileToWorld(c, r);
+    g.moveTo(p2.x, p2.y - TH / 2); g.lineTo(p2.x + TW / 2, p2.y);
+    g.lineTo(p2.x, p2.y + TH / 2); g.lineTo(p2.x - TW / 2, p2.y);
+    g.closePath();
+  }
+  g.fillStyle = 'rgba(9,16,26,.52)'; g.fill();
+  // the owned edge, traced round the four corners of the claim
+  const a = tileToWorld(L.lo, L.lo), b = tileToWorld(L.hi, L.lo);
+  const c2 = tileToWorld(L.hi, L.hi), d = tileToWorld(L.lo, L.hi);
+  g.beginPath();
+  g.moveTo(a.x, a.y - TH / 2); g.lineTo(b.x + TW / 2, b.y);
+  g.lineTo(c2.x, c2.y + TH / 2); g.lineTo(d.x - TW / 2, d.y); g.closePath();
+  g.strokeStyle = 'rgba(240,214,140,.60)'; g.lineWidth = 3; g.setLineDash([16, 12]);
+  g.stroke(); g.setLineDash([]);
+  g.restore();
+}
+
 function drawWorld() {
   const occSet = occupied();          // scenery hides under buildings
   drawGround();
@@ -1329,6 +1412,9 @@ function drawWorld() {
   for (const v of villagers) ents.push({ y: v.y, d: () => drawVillager(v) });
   ents.sort((a, b2) => a.y - b2.y);
   for (const e of ents) e.d();
+  // after the entities, so the trees out in the wild are dimmed with the ground
+  // they stand on rather than glowing against it
+  drawFrontier();
   drawPops();
 }
 
@@ -1451,6 +1537,7 @@ function drawHUD() {
   drawPanel();
   drawGoal();
   drawHint();
+  drawClaim();
   drawAway();
 }
 
@@ -1509,6 +1596,51 @@ function drawHint() {
   g.beginPath(); g.roundRect(W / 2 - w / 2, y - hh / 2, w, hh, hh / 2); g.fill(); g.stroke();
   g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#dff0c8';
   g.fillText(h.text, W / 2, y);
+  g.restore();
+}
+
+/* Tapping the dark ground offers it to you. Discovering the expansion by
+   poking at the thing you want is better than a button in a menu, and it means
+   the frontier itself is the affordance. */
+function claimRects() {
+  const u = US(), w = Math.min(W - 80 * u, 640 * u), h = 292 * u;
+  const y = hudTop() + (hudBot() - hudTop()) / 2;
+  return { u, x: W / 2, y, w, h,
+    yes: { x: W / 2, y: y + h / 2 - 52 * u, w: w * 0.66, h: 66 * u },
+    no:  { x: W / 2 + w / 2 - 34 * u, y: y - h / 2 + 34 * u, r: 27 * u } };
+}
+function drawClaim() {
+  if (!claimAsk) return;
+  const R = claimRects(), u = R.u, cost = landNext();
+  g.save();
+  g.fillStyle = 'rgba(6,10,6,.66)'; g.fillRect(0, hudTop(), W, hudBot() - hudTop());
+  g.fillStyle = 'rgba(16,26,15,.98)'; g.strokeStyle = 'rgba(240,214,140,.55)'; g.lineWidth = 3;
+  g.beginPath(); g.roundRect(R.x - R.w / 2, R.y - R.h / 2, R.w, R.h, 24 * u); g.fill(); g.stroke();
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.font = `bold ${Math.round(32 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#fff';
+  g.fillText(cost ? 'Claim more land' : 'The whole island is yours', R.x, R.y - R.h / 2 + 54 * u);
+  const L = LAND[Math.min(LAND_MAX, landTier + 1)], side = L.hi - L.lo + 1;
+  g.font = `${Math.round(22 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#a9bd9c';
+  g.fillText(cost ? 'your village would grow to ' + side + ' x ' + side + ' tiles'
+                  : 'there is nothing left to claim', R.x, R.y - R.h / 2 + 96 * u);
+  if (cost) {
+    const ok = canClaim();
+    g.font = `bold ${Math.round(30 * u)}px Segoe UI, sans-serif`;
+    g.fillStyle = ok ? '#e8c98a' : '#e59a86';
+    g.fillText(Object.entries(cost).map(([k, v]) => (k === 'wood' ? '🪵 ' : '🌾 ') + v).join('     '),
+      R.x, R.y + 2 * u);
+    g.fillStyle = ok ? 'rgba(62,104,44,.98)' : 'rgba(40,44,36,.9)';
+    g.strokeStyle = ok ? '#9fe86b' : 'rgba(255,255,255,.16)'; g.lineWidth = 3;
+    g.beginPath(); g.roundRect(R.yes.x - R.yes.w / 2, R.yes.y - R.yes.h / 2, R.yes.w, R.yes.h, 16 * u);
+    g.fill(); g.stroke();
+    g.fillStyle = ok ? '#eaffd6' : '#9aa693';
+    g.font = `bold ${Math.round(26 * u)}px Segoe UI, sans-serif`;
+    g.fillText(ok ? 'Claim it' : 'Not enough', R.yes.x, R.yes.y);
+  }
+  g.fillStyle = 'rgba(255,255,255,.12)';
+  g.beginPath(); g.arc(R.no.x, R.no.y, R.no.r, 0, 7); g.fill();
+  g.fillStyle = '#fff'; g.font = `bold ${Math.round(26 * u)}px Segoe UI, sans-serif`;
+  g.fillText('×', R.no.x, R.no.y);
   g.restore();
 }
 
@@ -1757,6 +1889,16 @@ function buildingAt(sx, sy) {
 }
 function tap(sx, sy) {
   if (away) { away = null; return; }
+  if (claimAsk) {
+    const R = claimRects();
+    if (Math.hypot(sx - R.no.x, sy - R.no.y) < R.no.r * 1.3) { claimAsk = false; return; }
+    if (landNext() && Math.abs(sx - R.yes.x) < R.yes.w / 2 && Math.abs(sy - R.yes.y) < R.yes.h / 2) {
+      if (!claimLand()) SFX.deny();
+      return;
+    }
+    if (Math.abs(sx - R.x) < R.w / 2 && Math.abs(sy - R.y) < R.h / 2) return;
+    claimAsk = false; return;         // a tap outside the card closes it
+  }
   {
     const M = muteRect();
     if (Math.hypot(sx - M.x, sy - M.y) < M.r * 1.15) {
@@ -1808,13 +1950,17 @@ function tap(sx, sy) {
     return;
   }
   const hit = buildingAt(sx, sy);
-  if (hit) SFX.tap();
-  panel = hit ? hit.id : null;
+  if (hit) { SFX.tap(); panel = hit.id; return; }
+  panel = null;
+  const w = camUnproject(sx, sy), t = worldToTile(w.x, w.y);
+  const tc = Math.floor(t.c), tr = Math.floor(t.r);
+  if (tc >= 0 && tr >= 0 && tc < GW && tr < GH && !inLand(tc, tr)) { claimAsk = true; SFX.tap(); }
 }
 
 /* ---------- boot ---------- */
 load();
 ensureHall();
+coverPlaced();
 collectAway();
 fitCanvas();
 CAM.x = W / 2; CAM.y = tileToWorld(GW / 2, GH / 2).y; camClamp();
@@ -1841,6 +1987,9 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   get goalDone() { return goalDone; }, set goalDone(v) { goalDone = v; },
   SFX, muteRect, audioOn, get muted() { return muted; }, set muted(v) { muted = v; },
   sky, dayPhase, DAY_MS,
+  LAND, LAND_MAX, inLand, landNext, canClaim, claimLand, landBounds, coverPlaced,
+  get landTier() { return landTier; }, set landTier(v) { landTier = v; },
+  get claimAsk() { return claimAsk; }, set claimAsk(v) { claimAsk = v; }, claimRects,
   get tutSeen() { return tutSeen; }, set tutSeen(v) { tutSeen = v; },
   get savedAt() { return savedAt; }, set savedAt(v) { savedAt = v; },
   get pops() { return pops; }, get rateNow() { return rateNow; },
