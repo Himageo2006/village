@@ -17,6 +17,11 @@
 </style>
 </head>
 <body>
+<!-- The only way to read env(safe-area-inset-*) is to let CSS resolve it onto
+     something and ask for the computed value. This element exists for that. -->
+<div id="safe" style="position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;
+  pointer-events:none;padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px)"></div>
 <div id="wrap"><canvas id="c" width="1024" height="1536"></canvas></div>
 <script src="game.js"></script>
 </body>

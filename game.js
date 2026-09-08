@@ -307,11 +307,11 @@ function drawSky() {
   g.save();
   if (warm > 0) {                      // low sun spills orange across everything
     g.fillStyle = 'rgba(255,146,58,' + (0.20 * warm).toFixed(3) + ')';
-    g.fillRect(0, hudTop(), W, hudBot() - hudTop());
+    g.fillRect(0, screenTop(), W, screenBot() - screenTop());
   }
   if (night > 0) {
     g.fillStyle = 'rgba(16,30,74,' + (NIGHT_MAX * night).toFixed(3) + ')';
-    g.fillRect(0, hudTop(), W, hudBot() - hudTop());
+    g.fillRect(0, screenTop(), W, screenBot() - screenTop());
   }
   g.restore();
 }
@@ -694,8 +694,30 @@ function camProject(wx, wy) { const s = camScale(); return { x: (wx - CAM.x) * s
 
 /* ---------- HUD scale (same approach as Gatestorm) ---------- */
 const US = () => Math.max(1, Math.min(1.34, VH / H));
-const hudTop = () => -OY;
-const hudBot = () => H + OY;
+/* The whole canvas, cutout and all. The night wash and the dimming behind a
+   card use this: they should cover the screen, notch included, or the tint
+   stops in a line across the top of the phone. */
+const screenTop = () => -OY;
+const screenBot = () => H + OY;
+/* Where the interface may actually put things. A phone with a camera cutout
+   eats the top of its own screen and the gesture bar eats the bottom, and the
+   page asks for viewport-fit=cover -- which is what lets the sea reach the
+   edges, and also what puts the resource chips under the camera unless somebody
+   subtracts the insets again. Nothing did. */
+let SAFE = { top: 0, bottom: 0 };
+function readSafeArea() {
+  const el = document.getElementById('safe');
+  if (!el) return;
+  const cs = getComputedStyle(el);
+  const t = parseFloat(cs.paddingTop) || 0, b = parseFloat(cs.paddingBottom) || 0;
+  // CSS pixels into the canvas's own units, which is what everything is drawn in
+  const rect = cv.getBoundingClientRect();
+  if (!(rect.height > 0)) return;                    // laid out yet? try again later
+  const k = VH / rect.height;
+  SAFE = { top: t * k, bottom: b * k };
+}
+const hudTop = () => -OY + SAFE.top;
+const hudBot = () => H + OY - SAFE.bottom;
 const mS = v => v * US();
 
 /* ---------- buildings ----------
@@ -1459,6 +1481,7 @@ const SAVE_EVERY = 5;                 // seconds
 let saveT = 0;
 function step(dt) {
   stepCam(dt);
+  if (backOpen()) armBack();          // so the back button can close it again
   if (sellArm) { sellArm.t -= dt; if (sellArm.t <= 0 || panel !== sellArm.id) sellArm = null; }
   rebuildPaths();
   syncVillagers();
@@ -1487,7 +1510,11 @@ function step(dt) {
 function fitCanvas() {
   const sw = window.innerWidth || W, sh = window.innerHeight || H;
   const want = Math.max(H, Math.min(H * 2, Math.round(W * sh / sw)));
-  if (cv.height !== want) cv.height = want;
+  /* The insets only move when the window does, and reading them means a
+     getComputedStyle and a layout read -- cheap here, a forced synchronous
+     layout in the middle of a frame on a phone. fitCanvas runs every frame, so
+     it asks only when something actually changed. */
+  if (cv.height !== want) { cv.height = want; VH = cv.height; readSafeArea(); }
   VH = cv.height; OY = Math.round((VH - H) / 2);
   CAM.base = VH / H;
 }
@@ -2384,7 +2411,7 @@ function drawClaim() {
   if (!claimAsk) return;
   const R = claimRects(), u = R.u, cost = landNext();
   g.save();
-  g.fillStyle = 'rgba(6,10,6,.66)'; g.fillRect(0, hudTop(), W, hudBot() - hudTop());
+  g.fillStyle = 'rgba(6,10,6,.66)'; g.fillRect(0, screenTop(), W, screenBot() - screenTop());
   g.fillStyle = 'rgba(16,26,15,.98)'; g.strokeStyle = 'rgba(240,214,140,.55)'; g.lineWidth = 3;
   g.beginPath(); g.roundRect(R.x - R.w / 2, R.y - R.h / 2, R.w, R.h, 24 * u); g.fill(); g.stroke();
   g.textAlign = 'center'; g.textBaseline = 'middle';
@@ -2431,7 +2458,7 @@ function drawAway() {
   if (!away) return;
   const R = awayRect(), u = R.u;
   g.save();
-  g.fillStyle = 'rgba(6,10,6,.66)'; g.fillRect(0, hudTop(), W, hudBot() - hudTop());
+  g.fillStyle = 'rgba(6,10,6,.66)'; g.fillRect(0, screenTop(), W, screenBot() - screenTop());
   g.fillStyle = 'rgba(16,26,15,.98)'; g.strokeStyle = 'rgba(159,232,107,.5)'; g.lineWidth = 3;
   g.beginPath(); g.roundRect(R.x - R.w / 2, R.y - R.h / 2, R.w, R.h, 24 * u); g.fill(); g.stroke();
   g.textAlign = 'center'; g.textBaseline = 'middle';
@@ -2845,7 +2872,45 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) { PTRS.clear(); save(); }
 });
 window.addEventListener('pagehide', save);
-window.addEventListener('resize', fitCanvas);
+window.addEventListener('resize', () => { fitCanvas(); readSafeArea(); });
+// rotating a phone changes which edge the cutout is on, and may not resize
+window.addEventListener('orientationchange', () => setTimeout(() => { fitCanvas(); readSafeArea(); }, 60));
+
+/* ---------- the Android back button ----------
+
+   With nothing listening, back leaves the app. On a phone that means a player
+   who opens a building, reads it, and presses back the way they would in any
+   other Android app is thrown out of the game instead of back to the village.
+
+   Done without a plugin, because the back button reaches a WebView as ordinary
+   history: an entry is pushed while something is open, and popping it closes
+   that thing instead of the app. Nothing is pushed while the village is just
+   sitting there, so back still leaves -- it takes the press that closed the
+   last panel plus one, which is the Android convention anyway.
+
+   Deliberately NOT a stack. Back closes the top-most thing and the next press
+   closes the next one down, in the order they overlap on screen. */
+let backArmed = false;
+function backOpen() {
+  return !!(away || claimAsk || panel != null || moving != null || selBuild || barMode !== 'build');
+}
+function backClose() {
+  if (away) { away = null; return true; }
+  if (claimAsk) { claimAsk = false; return true; }
+  if (panel != null) { panel = null; sellArm = null; return true; }
+  if (moving != null) { moving = null; ghost = null; armed = null; return true; }
+  if (selBuild) { selBuild = null; ghost = null; armed = null; return true; }
+  if (barMode !== 'build') { barMode = 'build'; return true; }
+  return false;
+}
+function armBack() {
+  if (backArmed) return;
+  try { history.pushState({ v: 1 }, ''); backArmed = true; } catch (e) {}
+}
+window.addEventListener('popstate', () => {
+  backArmed = false;
+  if (backClose()) { SFX.tap(); armBack(); }
+});
 
 function ghostKey() {
   if (moving != null) { const p = byId(moving); return p ? p.key : null; }
@@ -3014,6 +3079,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   get saveFailed() { return saveFailed; }, set saveFailed(v) { saveFailed = v; },
   get loadedFromBackup() { return loadedFromBackup; }, set loadedFromBackup(v) { loadedFromBackup = v; },
   sky, dayPhase, DAY_MS, camFit, landFitZoom, landWorldBounds, artFor, ART,
+  hudTop, hudBot, screenTop, screenBot, readSafeArea, get SAFE() { return SAFE; }, set SAFE(v) { SAFE = v; },
   fitLines, TUT, GOALS,
   efficiencyOf, hasStore, onPath, PATH_SPEED, rebuildPaths,
   LAND, LAND_MAX, inLand, landNext, canClaim, claimLand, landBounds, coverPlaced,
@@ -3022,4 +3088,5 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   get tutSeen() { return tutSeen; }, set tutSeen(v) { tutSeen = v; },
   get savedAt() { return savedAt; }, set savedAt(v) { savedAt = v; },
   get pops() { return pops; }, get rateNow() { return rateNow; },
-  get barMode() { return barMode; }, set barMode(v) { barMode = v; } };
+  get barMode() { return barMode; }, set barMode(v) { barMode = v; },
+  backOpen, backClose, armBack, get backArmed() { return backArmed; } };
