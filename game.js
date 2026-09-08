@@ -581,6 +581,61 @@ function worldBounds() {
   return { x0: Math.min(a.x, b.x, c2.x, d.x), x1: Math.max(a.x, b.x, c2.x, d.x),
            y0: Math.min(a.y, b.y, c2.y, d.y), y1: Math.max(a.y, b.y, c2.y, d.y) };
 }
+/* Frame the land the player OWNS, not the whole sea.
+
+   The camera opened at zoom 1 on the middle of a 14x14 grid whatever the
+   village looked like, so a new player -- who owns a six-tile core and one
+   building -- met a hall the size of a thumbnail with half the screen given
+   over to open water. The land is the subject; the sea is the frame. */
+function landWorldBounds() {
+  const L = landBounds();
+  const cs = [tileToWorld(L.lo - .5, L.lo - .5), tileToWorld(L.hi + .5, L.lo - .5),
+              tileToWorld(L.lo - .5, L.hi + .5), tileToWorld(L.hi + .5, L.hi + .5)];
+  const xs = cs.map(p => p.x), ys = cs.map(p => p.y);
+  return { x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) };
+}
+/* The zoom that just contains it. The vertical margin is the larger one because
+   the resource bars sit over the top of the world and the build tray over the
+   bottom -- fitting to the raw canvas would tuck the near corner of the island
+   behind the tray. */
+function landFitZoom() {
+  const b = landWorldBounds();
+  const padTop = 130 * US(), padBot = 300 * US();
+  /* The land is a diamond twice as wide as it is tall, and the screen is taller
+     than it is wide, so a strict fit is always limited by the width and leaves a
+     third of the height as open water. The extreme east and west points of the
+     diamond are its emptiest ground, so a little of them is allowed off the
+     edges -- worth about fifteen percent more zoom on everything the player
+     actually looks at, and they are one pan away. */
+  const zx = W / ((b.x1 - b.x0) * 0.86);
+  const zy = (VH - padTop - padBot) / (b.y1 - b.y0);
+  return Math.max(ZMIN, Math.min(ZMAX, Math.min(zx, zy) / CAM.base));
+}
+/* Centred on the land, nudged down so the free space lands under the tray
+   rather than being split evenly above and below. */
+function camFitTarget() {
+  const b = landWorldBounds(), z = landFitZoom();
+  const s = CAM.base * z;
+  return { z, x: (b.x0 + b.x1) / 2, y: (b.y0 + b.y1) / 2 + (300 * US() - 130 * US()) / (2 * s) };
+}
+function camFit(instant) {
+  const t = camFitTarget();
+  if (instant) { CAM.z = t.z; CAM.x = t.x; CAM.y = t.y; camGlide = null; camClamp(); }
+  else camGlide = t;
+}
+/* An eased move rather than a jump. A cut makes the player re-find their own
+   village; a glide of about half a second carries the eye with it. */
+let camGlide = null;
+function stepCam(dt) {
+  if (!camGlide) return;
+  const k = 1 - Math.pow(0.004, dt);            // ~half a second to settle
+  CAM.z += (camGlide.z - CAM.z) * k;
+  CAM.x += (camGlide.x - CAM.x) * k;
+  CAM.y += (camGlide.y - CAM.y) * k;
+  camClamp();
+  if (Math.abs(camGlide.z - CAM.z) < 0.002
+    && Math.hypot(camGlide.x - CAM.x, camGlide.y - CAM.y) < 2) camGlide = null;
+}
 function camApply() { const s = camScale(); g.translate(W / 2, H / 2); g.scale(s, s); g.translate(-CAM.x, -CAM.y); }
 function camUnproject(sx, sy) { const s = camScale(); return { x: (sx - W / 2) / s + CAM.x, y: (sy - H / 2) / s + CAM.y }; }
 function camProject(wx, wy) { const s = camScale(); return { x: (wx - CAM.x) * s + W / 2, y: (wy - CAM.y) * s + H / 2 }; }
@@ -668,6 +723,7 @@ function claimLand() {
   if (!canClaim()) return false;
   for (const [k, v] of Object.entries(landNext())) res[k] -= v;
   landTier++;
+  camFit();                              // show what was just bought
   claimAsk = false;
   save();
   SFX.upgrade();
@@ -1230,6 +1286,7 @@ const BUILD_TIME = 3.0;
 const SAVE_EVERY = 5;                 // seconds
 let saveT = 0;
 function step(dt) {
+  stepCam(dt);
   rebuildPaths();
   syncVillagers();
   assignJobs();
@@ -2441,6 +2498,7 @@ cv.addEventListener('pointerdown', ev => {
   audioOn();                          // must happen inside a gesture
   ptrSweep();
   const p = evPos(ev);
+  camGlide = null;                       // the player's hand outranks the camera
   PTRS.set(ev.pointerId, { x: p.x, y: p.y, x0: p.x, y0: p.y, moved: 0, drag: false, pinch: false, tLast: Date.now() });
   try { cv.setPointerCapture(ev.pointerId); } catch (e) {}
   if (PTRS.size === 2) { const m = ptrMid(); pinchD0 = m.d; pinchZ0 = CAM.z; }
@@ -2584,7 +2642,7 @@ ensureHall();
 coverPlaced();
 collectAway();
 fitCanvas();
-CAM.x = W / 2; CAM.y = tileToWorld(GW / 2, GH / 2).y; camClamp();
+CAM.x = W / 2; CAM.y = tileToWorld(GW / 2, GH / 2).y; camFit(true); camClamp();
 let last = performance.now();
 setInterval(() => {
   const now = performance.now(), dt = Math.min(0.1, Math.max(0, (now - last) / 1000)); last = now;
@@ -2616,7 +2674,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   KEY, KEY_BAK, BACKUP_EVERY,
   get saveFailed() { return saveFailed; }, set saveFailed(v) { saveFailed = v; },
   get loadedFromBackup() { return loadedFromBackup; }, set loadedFromBackup(v) { loadedFromBackup = v; },
-  sky, dayPhase, DAY_MS,
+  sky, dayPhase, DAY_MS, camFit, landFitZoom, landWorldBounds,
   efficiencyOf, hasStore, onPath, PATH_SPEED, rebuildPaths,
   LAND, LAND_MAX, inLand, landNext, canClaim, claimLand, landBounds, coverPlaced,
   get landTier() { return landTier; }, set landTier(v) { landTier = v; },
