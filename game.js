@@ -837,6 +837,14 @@ let moving = null;                    // id of the building being relocated
    to read. Choosing a spot you were shown beats discovering it afterwards, and
    a mis-tap now costs nothing. */
 let armed = null;                     // {c,r} the ghost is waiting to confirm
+/* Selling is the only move in the game that cannot be undone, and it was the
+   one thing that happened on a single tap -- while PLACING a building, which
+   costs nothing you cannot get back, asked for confirmation. A level five mill
+   is two thousand wood and one mis-tap from gone. It now arms first, and
+   disarms itself after a few seconds so the panel is never left sitting there
+   with a live demolish button on it. */
+let sellArm = null;                   // {id, t} the sell button awaiting its second tap
+const SELL_ARM = 4;                   // seconds before it goes back to sleep
 
 /* ---------- orders ----------
    Two problems, one system.
@@ -1287,6 +1295,7 @@ const SAVE_EVERY = 5;                 // seconds
 let saveT = 0;
 function step(dt) {
   stepCam(dt);
+  if (sellArm) { sellArm.t -= dt; if (sellArm.t <= 0 || panel !== sellArm.id) sellArm = null; }
   rebuildPaths();
   syncVillagers();
   assignJobs();
@@ -2421,11 +2430,11 @@ function drawPanel() {
   const ok = dec ? true : canUpgrade(p);
   const busy = p.t < 1;
 
-  const btnFace = (r2, on, text, small) => {
-    g.fillStyle = on ? 'rgba(62,104,44,.98)' : 'rgba(40,44,36,.9)';
-    g.strokeStyle = on ? '#9fe86b' : 'rgba(255,255,255,.16)'; g.lineWidth = 3;
+  const btnFace = (r2, on, text, small, warn) => {
+    g.fillStyle = warn ? 'rgba(122,58,38,.98)' : on ? 'rgba(62,104,44,.98)' : 'rgba(40,44,36,.9)';
+    g.strokeStyle = warn ? '#f0a07a' : on ? '#9fe86b' : 'rgba(255,255,255,.16)'; g.lineWidth = 3;
     g.beginPath(); g.roundRect(r2.x - r2.w / 2, r2.y - r2.h / 2, r2.w, r2.h, 16 * u); g.fill(); g.stroke();
-    g.fillStyle = on ? '#eaffd6' : '#9aa693';
+    g.fillStyle = warn ? '#ffe4d6' : on ? '#eaffd6' : '#9aa693';
     g.textAlign = 'center';
     /* Shrink to fit rather than spill into the neighbouring button. These
        labels carry costs, shortfalls and warnings whose length is not knowable
@@ -2445,9 +2454,19 @@ function drawPanel() {
      more plainly than a warning tacked onto the end, and fits the button. */
   const netSell = sv && Object.fromEntries(
     Object.entries(sv).map(([k, v]) => [k, Math.max(0, Math.min(v, Math.floor(caps[k] - res[k])))]));
-  btnFace(R.sell, !!sv, sv
-    ? (dec ? 'Remove  ' : 'Sell  ') + Object.entries(netSell).map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join(' ')
-    : 'Cannot sell', true);
+  const armedHere = sellArm && sellArm.id === p.id;
+  const backTotal = netSell ? Object.values(netSell).reduce((a, b) => a + b, 0) : 0;
+  btnFace(R.sell, !!sv, !sv ? 'Cannot sell'
+    /* Armed, the button stops quoting the refund and states the consequence.
+       The refund is what you decide on; the second tap is what you confirm. */
+    : armedHere ? (dec ? 'Tap again to remove' : 'Tap again to sell')
+    /* A refund is clamped to storage like every other grant, so on full stores
+       the honest figure is nothing -- and saying so plainly beats a row of
+       zeroes, which reads like the label failed to fill itself in. */
+    : backTotal === 0 ? (dec ? 'Remove  · nothing back' : 'Sell  · nothing back')
+    : (dec ? 'Remove  ' : 'Sell  ') + Object.entries(netSell)
+        .filter(([, v]) => v > 0).map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join(' '),
+    true, armedHere);
   if (!R.up) { g.restore(); return; }
   /* A late upgrade can cost more than the village can physically hold, and then
      the button would sit grey for ever with no hint why. Storage being a real
@@ -2574,11 +2593,17 @@ function tap(sx, sy) {
   // HUD first, exactly as in Gatestorm: the bar must always win over the world
   if (panel != null) {
     const R = panelRects(), p = byId(panel);
-    if (Math.hypot(sx - R.close.x, sy - R.close.y) < R.close.r * 1.3) { panel = null; return; }
+    if (Math.hypot(sx - R.close.x, sy - R.close.y) < R.close.r * 1.3) { panel = null; sellArm = null; return; }
     const hit = r2 => r2 && Math.abs(sx - r2.x) < r2.w / 2 && Math.abs(sy - r2.y) < r2.h / 2;
-    if (p && hit(R.move)) { moving = p.id; panel = null; selBuild = null; ghost = null; armed = null; SFX.tap(); return; }
-    if (p && hit(R.sell)) { if (!sellBuilding(p)) SFX.deny(); return; }
-    if (p && hit(R.up))   { if (!upgradeBuilding(p)) SFX.deny(); return; }
+    if (p && hit(R.move)) { moving = p.id; panel = null; selBuild = null; ghost = null; armed = null; sellArm = null; SFX.tap(); return; }
+    if (p && hit(R.sell)) {
+      if (!canSell(p)) { SFX.deny(); return; }
+      if (!sellArm || sellArm.id !== p.id) { sellArm = { id: p.id, t: SELL_ARM }; SFX.tap(); return; }
+      sellArm = null;
+      if (!sellBuilding(p)) SFX.deny();
+      return;
+    }
+    if (p && hit(R.up))   { sellArm = null; if (!upgradeBuilding(p)) SFX.deny(); return; }
     // anywhere else inside the panel is swallowed, so a stray tap on it does
     // not fall through and place a building underneath
     if (Math.abs(sx - R.x) < R.w / 2 && Math.abs(sy - R.y) < R.h / 2) return;
@@ -2663,6 +2688,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   isDecor, decorCount, DECOR_MAX, charmTotal, charmMul, removeDecor, tabRects, drawDecor, grant,
   sellBuilding, canSell, sellValue, investedIn, get moving() { return moving; }, set moving(v) { moving = v; },
   get armed() { return armed; }, set armed(v) { armed = v; },
+  get sellArm() { return sellArm; }, set sellArm(v) { sellArm = v; }, SELL_ARM,
   collectAway, potentialRate, currentHint, get away() { return away; }, set away(v) { away = v; },
   GOALS, currentGoal, get goalIdx() { return goalIdx; }, set goalIdx(v) { goalIdx = v; },
   get orders() { return orders; }, set orders(v) { orders = v; },
