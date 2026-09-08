@@ -383,10 +383,11 @@ const workersAt = id => villagers.reduce((n,v)=>n+(v.job===id?1:0),0);
 /* Output multiplier from wells in reach. Distance is measured centre to centre
    in TILES, not world pixels, so a well's reach is a circle on the grid rather
    than the squashed ellipse the iso projection would give. */
-function boostAt(p){
+function boostAt(p, exceptWell){
   const bp=B(p.key); let m=1;
   for(const w of placed){
     if(w.key!=='well' || w.t<1) continue;
+    if(exceptWell !== undefined && w.id === exceptWell) continue;   // "what if this well were not here"
     const bw=B('well');
     const dx=(w.c+(bw.w-1)/2)-(p.c+(bp.w-1)/2);
     const dy=(w.r+(bw.h-1)/2)-(p.r+(bp.h-1)/2);
@@ -559,7 +560,9 @@ const BUILDINGS = [
   { key: 'store',  name: 'Storehouse',w: 2, h: 2, cost: { wood: 60, food: 20 },  caps: { wood: 400, food: 400 }, wallH: 74, icon: '📦',
     blurb: 'Raises how much you can hold. Villagers deliver here.' },
   { key: 'well',   name: 'Well',      w: 1, h: 1, cost: { wood: 40 },            boost: 0.35, boostR: 2.6, wallH: 30, icon: '⛲',
-    blurb: 'Producers within a couple of tiles work 35% faster.' },
+    // no percentage here on purpose: it would be a rate figure, and the line
+    // below the blurb reports what the well is really adding where it stands
+    blurb: 'Speeds up the workplaces around it. Keep it close to them.' },
   { key: 'mill',   name: 'Mill',      w: 2, h: 2, cost: { wood: 120, food: 60 }, makes: { food: 1.8 },  jobs: 2, wallH: 96, icon: '🌬️',
     blurb: 'Grinds grain. Far more food than a farm, for two workers.' },
   { key: 'market', name: 'Market',    w: 2, h: 2, cost: { wood: 200, food: 120 }, caps: { wood: 800, food: 800 }, makes: { wood: 0.55 }, jobs: 1, wallH: 62, icon: '🏪',
@@ -2134,6 +2137,28 @@ function panelRects() {
   return { u, x: W / 2, y, w, h, btn, dec, move, sell, up,
     close: { x: W / 2 + w / 2 - 34 * u, y: y - h / 2 + 34 * u, r: 27 * u } };
 }
+/* What a well is really worth where it stands.
+
+   It advertises "+35% faster", which is true of the RATE and not of what
+   arrives: a villager still has to walk the same distance, so a well beside a
+   good producer returned 20% and beside a distant one 9%. Same fault as the
+   upgrade panel quoting rated output. This counts the delivered difference the
+   well actually makes to everything in reach, which also says plainly when one
+   has been put somewhere it helps nothing. */
+function wellGain(w) {
+  let n = 0, gain = 0;
+  for (const p of placed) {
+    if (p.t < 1 || !B(p.key).makes || !B(p.key).jobs) continue;
+    const withIt = boostAt(p), without = boostAt(p, w.id);
+    if (withIt === without) continue;
+    n++;
+    const k = Object.keys(B(p.key).makes)[0], e = efficiencyOf(p);
+    const eff = e === null ? 1 : e;
+    gain += rateOf(p, k) * charmMul() * eff * (withIt - without);
+  }
+  return { n, gain };
+}
+
 /* How the village is doing as a whole, shown on the hall.
 
    Everything the player needs to improve a village has been per-building until
@@ -2210,9 +2235,11 @@ function drawPanel() {
     line = 'Houses ' + popOf(p) + ' villagers';
     if (nl > lvlOf(p)) line += '  →  ' + at(nl, popOf);
   } else if (b.boost) {
-    const pc = l => Math.round(b.boost * outMul(l) * 100);
-    line = 'Producers within ' + b.boostR + ' tiles work +' + pc(lvlOf(p)) + '% faster';
-    if (nl > lvlOf(p)) line += '  →  +' + pc(nl) + '%';
+    const wg = wellGain(p);
+    line = wg.n
+      ? 'Lifting ' + wg.n + (wg.n === 1 ? ' workplace' : ' workplaces') + '   ·   +'
+        + wg.gain.toFixed(2) + '/s delivered'
+      : 'Reaching no workplace — move it beside one';
   } else if (b.charm) {
     line = '✨ ' + b.charm + ' charm   ·   village total ' + charmTotal()
       + '  (+' + Math.round((charmMul() - 1) * 100) + '% to everything made)';
@@ -2486,7 +2513,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   tap, CAM, save, load, get caps() { return caps; },
   HALL, hallOf, hallLevel, allowedOf, countOf, atLimit, unlocked, buildable,
   canUpgrade, upgradeBuilding, upInfo, upCostOf, lvlOf, popOf, capsOf, rateOf, outMul, LVL_MAX,
-  shortfall, shortText, villageStats,
+  shortfall, shortText, villageStats, wellGain,
   panelRects, get panel() { return panel; }, set panel(v) { panel = v; },
   get villagers() { return villagers; }, workersAt, boostAt, producers, stores,
   assignJobs, buildingAt, ensureHall, jobsOf, VILLAGER_MAX,
