@@ -29,6 +29,19 @@ function worldToTile(x, y) {
   const dx = x - ORIGIN.x, dy = y - ORIGIN.y;
   return { c: (dy / TH + dx / TW), r: (dy / TH - dx / TW) };
 }
+/* Which tile a world point is IN.
+
+   tileToWorld returns tile CENTRES -- tilePath draws its diamond centred on
+   one -- so worldToTile gives coordinates centred on the tile too, and tile
+   (5,7) spans 4.5..5.5. Rounding is therefore correct and flooring is off by
+   half a tile: a point at 4.72 is inside tile 5, and floor called it 4.
+
+   Everything that hit-tests the grid used floor, so every tap landed a tile
+   up-left of where it looked whenever you touched the left half of a tile.
+   This is the exact drift the project's own convention exists to prevent, so
+   it now lives in one function that both sides call. */
+const tileAt = (x, y) => { const t = worldToTile(x, y);
+  return { c: Math.round(t.c), r: Math.round(t.r) }; };
 
 /* ---------- sprites ---------- */
 /* Villagers are three STANDING figures, not a walk cycle. Four frames that
@@ -128,6 +141,52 @@ const villagers=[];
    the game in transit rather than working -- the first delivery landed a minute
    in. Fast enough to look purposeful, slow enough to watch. */
 const VIL_SPD=58;
+/* Paths are not decoration any more. A villager on one moves half again as
+   fast, which means laying a road from a farm to the storehouse is a real
+   economic act with a real cost -- and it gives the cheapest decoration in the
+   game a reason to exist beyond looking tidy. */
+const PATH_SPEED = 2.2;
+let pathSet = new Set();
+const rebuildPaths = () => {
+  pathSet = new Set();
+  for (const p of placed) if (p.key === 'path') pathSet.add(p.c + ',' + p.r);
+};
+function onPath(x, y) {
+  if (!pathSet.size) return false;
+  const t = tileAt(x, y);
+  return pathSet.has(t.c + ',' + t.r);
+}
+
+/* ---------- how well a workplace is doing ----------
+   Half the economy is decided by how far a villager has to carry a load, and
+   until now that was invisible: a farm across the island produced half what an
+   identical farm beside the storehouse did, and nothing said so. Surfacing it
+   is what turns "drop buildings anywhere" into laying out a village.
+
+   A villager's cycle is: fill up at the workplace, walk to a store, walk back.
+   Efficiency is the share of that cycle actually spent producing. */
+function distTilesToStore(p) {
+  const c = centreOf(p), s2 = nearestStore(c.x, c.y);
+  if (!s2) return null;
+  const d = centreOf(s2);
+  return Math.hypot(d.x - c.x, (d.y - c.y) * (TW / TH)) / TW;   // in tiles, un-squashing iso
+}
+function efficiencyOf(p, atC, atR) {
+  const b = B(p.key);
+  if (!b.makes || !b.jobs) return null;
+  const probe = (atC === undefined) ? p : { ...p, c: atC, r: atR };
+  const tiles = distTilesToStore(probe);
+  if (tiles === null) return 1;
+  const kind = Object.keys(b.makes)[0];
+  const rate = rateOf(probe, kind) * boostAt(probe) * charmMul();
+  if (rate <= 0) return 1;
+  const prod = CARRY / rate;                       // seconds spent filling a load
+  /* Walking is costed at the plain pace, not at some guess about how much of
+     the route is paved. The figure is then a floor the player can trust: laying
+     a road makes the building better than the number promised, never worse. */
+  const walk = 2 * (tiles * TW) / VIL_SPD;
+  return Math.max(0.05, Math.min(1, prod / (prod + walk)));
+}
 /* Small loads on purpose. A big load means the resource counter sits still for
    half a minute and then jumps, which reads as a broken game; small ones keep
    something arriving every few seconds. */
@@ -378,7 +437,8 @@ function stepVillagers(dt){
   for(const v of villagers){
     const step1=()=>{ const dx=v.tx-v.x, dy=v.ty-v.y, d=Math.hypot(dx,dy);
       if(d<6) return true;
-      v.x+=dx/d*VIL_SPD*dt; v.y+=dy/d*VIL_SPD*dt; v.face=dx<0?-1:1; v.ph+=dt*7; return false; };
+      const spd = VIL_SPD * (onPath(v.x, v.y) ? PATH_SPEED : 1);
+      v.x+=dx/d*spd*dt; v.y+=dy/d*spd*dt; v.face=dx<0?-1:1; v.ph+=dt*7; return false; };
 
     if(v.st==='toWork'){ if(step1()) v.st='work'; continue; }
 
@@ -473,7 +533,7 @@ const BUILDINGS = [
      people want to look at works a little harder. `flat` marks the ones painted
      ONTO the ground rather than standing on it. */
   { key: 'path',    name: 'Path',      w: 1, h: 1, cost: { wood: 5 },             decor: true, flat: true, charm: 1,  icon: '🟫',
-    blurb: 'A worn dirt track. Lay them end to end.' },
+    blurb: 'Villagers walk half again as fast on a road. Lay them end to end.' },
   { key: 'fence',   name: 'Fence',     w: 1, h: 1, cost: { wood: 8 },             decor: true, charm: 2,  icon: '🚧',
     blurb: 'Split rails. Good for edging a farm.' },
   { key: 'flowers', name: 'Flowerbed', w: 1, h: 1, cost: { wood: 10, food: 10 },  decor: true, charm: 5,  icon: '🌷',
@@ -614,6 +674,14 @@ let selBuild = null;                  // key being placed
 let ghost = null;                     // {c,r,ok}
 let panel = null;                     // id of the building whose panel is open
 let moving = null;                    // id of the building being relocated
+/* Placement takes two taps: the first puts the ghost down, the second commits.
+
+   One tap was not enough. The ghost only updates while a pointer is DOWN, so on
+   a phone a single tap placed the building instantly and the preview -- which is
+   where the efficiency of the spot is shown -- was never on screen long enough
+   to read. Choosing a spot you were shown beats discovering it afterwards, and
+   a mis-tap now costs nothing. */
+let armed = null;                     // {c,r} the ghost is waiting to confirm
 
 /* ---------- goals ----------
    Levels alone give a village somewhere to spend, but nothing to aim at. These
@@ -885,6 +953,7 @@ const BUILD_TIME = 3.0;
 const SAVE_EVERY = 5;                 // seconds
 let saveT = 0;
 function step(dt) {
+  rebuildPaths();
   syncVillagers();
   assignJobs();
   stepVillagers(dt);
@@ -1217,8 +1286,10 @@ function drawStatus(p) {
   const b = B(p.key);
   const hall = p.key === 'hall';
   const idle = b.jobs && !hall && workersAt(p.id) === 0;
-  const up = !idle && canUpgrade(p);
-  if (!hall && !idle && !up) return;
+  const eff = (!hall && b.makes && b.jobs && !idle) ? efficiencyOf(p) : null;
+  const far = eff !== null && eff < 0.45;
+  const up = !idle && !far && canUpgrade(p);
+  if (!hall && !idle && !far && !up) return;
   const t = topOf(p), s = badgeScale();
   g.save();
   g.translate(t.x, t.y - 14 * s); g.scale(s, s);
@@ -1231,6 +1302,13 @@ function drawStatus(p) {
     g.beginPath(); g.roundRect(-17, -16, 34, 32, 16); g.fill(); g.stroke();
     g.font = 'bold 20px Segoe UI, sans-serif'; g.fillStyle = '#b6f58a';
     g.fillText('▲', 0, 1);
+  } else if (far) {
+    /* Most of this building's day is spent walking. Amber rather than red: it
+       is working, just badly, and the fix is a storehouse or a road. */
+    g.fillStyle = 'rgba(52,38,12,.9)'; g.strokeStyle = 'rgba(240,200,110,.95)'; g.lineWidth = 2.5;
+    g.beginPath(); g.roundRect(-26, -16, 52, 32, 16); g.fill(); g.stroke();
+    g.font = 'bold 19px Segoe UI, sans-serif'; g.fillStyle = '#ffd98a';
+    g.fillText(Math.round(eff * 100) + '%', 0, 1);
   } else if (hall) {
     const label = 'Lv ' + hallLevel();
     g.font = 'bold 20px Segoe UI, sans-serif';
@@ -1398,7 +1476,31 @@ function drawWorld() {
       g.fillStyle = ghost.ok ? 'rgba(120,230,120,.40)' : 'rgba(235,90,70,.40)';
       g.fill();
     }
-    if (ghost.ok) drawPlaced({ id: -1, key: selKey, c: ghost.c, r: ghost.r, t: 1, lvl: 1 }, 0.55);
+    if (ghost.ok) {
+      drawPlaced({ id: -1, key: selKey, c: ghost.c, r: ghost.r, t: 1, lvl: 1 }, 0.55);
+      /* What this spot would actually be worth. Shown DURING placement, because
+         telling the player afterwards is telling them too late. */
+      const probe = { id: -1, key: selKey, c: ghost.c, r: ghost.r, t: 1, lvl: 1 };
+      const eff = efficiencyOf(probe);
+      if (eff !== null) {
+        const a = tileToWorld(ghost.c, ghost.r), d2 = tileToWorld(ghost.c + b.w - 1, ghost.r + b.h - 1);
+        const cx = (a.x + d2.x) / 2, cy = (a.y + d2.y) / 2;
+        const sc = badgeScale();
+        g.save();
+        g.translate(cx, cy - 96 * sc); g.scale(sc, sc);
+        g.textAlign = 'center'; g.textBaseline = 'middle';
+        g.font = 'bold 22px Segoe UI, sans-serif';
+        const txt = Math.round(eff * 100) + '% efficient here';
+        const w2 = g.measureText(txt).width + 26;
+        g.fillStyle = 'rgba(14,22,12,.9)';
+        g.strokeStyle = eff > 0.66 ? '#9fe86b' : eff > 0.42 ? '#e8c98a' : '#e59a86';
+        g.lineWidth = 2.5;
+        g.beginPath(); g.roundRect(-w2 / 2, -17, w2, 34, 17); g.fill(); g.stroke();
+        g.fillStyle = eff > 0.66 ? '#b6f58a' : eff > 0.42 ? '#f0d89a' : '#f0a583';
+        g.fillText(txt, 0, 1);
+        g.restore();
+      }
+    }
   }
   /* One depth-sorted pass over everything that stands on the ground, so a
      villager can walk behind a house and in front of the next one. */
@@ -1527,9 +1629,10 @@ function drawHUD() {
   if (selBuild || moving != null) {
     g.save(); g.textAlign = 'center'; g.fillStyle = '#cfe0a8';
     g.font = `bold ${Math.round(24 * u)}px Segoe UI, sans-serif`;
-    g.fillText(moving != null
+    g.fillText(armed ? 'Tap the same spot again to confirm'
+      : moving != null
         ? 'Tap where it should go  ·  tap a tab to cancel'
-        : 'Tap a green tile to place  ·  tap the icon again to cancel',
+        : 'Tap a tile to try it  ·  tap the icon again to cancel',
       W / 2, tabRects()[0].y - tabRects()[0].h / 2 - 16 * u);
     g.restore();
   }
@@ -1740,6 +1843,15 @@ function drawPanel() {
     const boost = boostAt(p);
     if (boost > 1) line += '   ·   +' + Math.round((boost - 1) * 100) + '% from wells';
     else if (!n) line += '   — no villagers';
+    const eff = efficiencyOf(p), tiles = distTilesToStore(p);
+    if (eff !== null && tiles !== null) {
+      g.font = `${Math.round(20 * u)}px Segoe UI, sans-serif`;
+      g.fillStyle = eff > 0.66 ? '#8fd06a' : eff > 0.42 ? '#e8c98a' : '#e59a86';
+      g.fillText('Efficiency ' + Math.round(eff * 100) + '%   ·   ' + tiles.toFixed(1)
+        + ' tiles to the nearest store'
+        + (eff < 0.55 ? '   — build one closer, or lay a path' : ''),
+        lx, R.y - R.h / 2 + 148 * u);
+    }
   } else if (b.caps) {
     line = 'Holds 🪵' + capsOf(p, 'wood') + '  🌾' + capsOf(p, 'food');
     if (nl > lvlOf(p)) line += '  →  🪵' + at(nl, q => capsOf(q, 'wood')) + '  🌾' + at(nl, q => capsOf(q, 'food'));
@@ -1873,17 +1985,17 @@ function ghostKey() {
 }
 function updateGhost(sx, sy) {
   const key = ghostKey();
-  if (!key) { ghost = null; return; }
-  const w = camUnproject(sx, sy), t = worldToTile(w.x, w.y);
-  const c = Math.floor(t.c), r = Math.floor(t.r);
+  if (!key) { ghost = null; armed = null; return; }
+  const w = camUnproject(sx, sy), t = tileAt(w.x, w.y);
+  const c = t.c, r = t.r;
   // a building being moved must not be blocked by the ground it is standing on
   const occ = occupied(moving == null ? undefined : moving);
   ghost = { c, r, ok: canPlace(key, c, r, occ) && (moving != null || buildable(key)) };
 }
 /* Which placed building covers a screen point, if any. */
 function buildingAt(sx, sy) {
-  const w = camUnproject(sx, sy), t = worldToTile(w.x, w.y);
-  const c = Math.floor(t.c), r = Math.floor(t.r);
+  const w = camUnproject(sx, sy), t = tileAt(w.x, w.y);
+  const c = t.c, r = t.r;
   return placed.find(p => { const b = B(p.key);
     return c >= p.c && c < p.c + b.w && r >= p.r && r < p.r + b.h; }) || null;
 }
@@ -1912,7 +2024,7 @@ function tap(sx, sy) {
     const R = panelRects(), p = byId(panel);
     if (Math.hypot(sx - R.close.x, sy - R.close.y) < R.close.r * 1.3) { panel = null; return; }
     const hit = r2 => r2 && Math.abs(sx - r2.x) < r2.w / 2 && Math.abs(sy - r2.y) < r2.h / 2;
-    if (p && hit(R.move)) { moving = p.id; panel = null; selBuild = null; ghost = null; SFX.tap(); return; }
+    if (p && hit(R.move)) { moving = p.id; panel = null; selBuild = null; ghost = null; armed = null; SFX.tap(); return; }
     if (p && hit(R.sell)) { if (!sellBuilding(p)) SFX.deny(); return; }
     if (p && hit(R.up))   { if (!upgradeBuilding(p)) SFX.deny(); return; }
     // anywhere else inside the panel is swallowed, so a stray tap on it does
@@ -1921,12 +2033,12 @@ function tap(sx, sy) {
   }
   for (const t of tabRects()) {
     if (Math.abs(sx - t.x) < t.w / 2 && Math.abs(sy - t.y) < t.h / 2) {
-      barMode = t.mode; selBuild = null; moving = null; ghost = null; SFX.tap(); return;
+      barMode = t.mode; selBuild = null; moving = null; ghost = null; armed = null; SFX.tap(); return;
     }
   }
   for (const r of barRects()) {
     if (Math.abs(sx - r.x) < r.w / 2 && Math.abs(sy - r.y) < r.h / 2) {
-      moving = null;                       // picking something new abandons a move
+      moving = null; armed = null;         // picking something new abandons a move
       if (atLimit(r.b.key)) {
         SFX.deny();
         if (!isDecor(r.b.key)) panel = (hallOf() || {}).id ?? null;
@@ -1934,26 +2046,33 @@ function tap(sx, sy) {
       }
       SFX.tap();
       selBuild = (selBuild === r.b.key) ? null : r.b.key;
-      panel = null; ghost = null;
+      panel = null; ghost = null; armed = null;
       return;
     }
   }
-  if (moving != null) {
+  if (moving != null || selBuild) {
     updateGhost(sx, sy);
-    const p = byId(moving);
-    if (p && ghost && ghost.ok) { p.c = ghost.c; p.r = ghost.r; moving = null; ghost = null; save(); }
-    return;
-  }
-  if (selBuild) {
-    updateGhost(sx, sy);
-    if (ghost && ghost.ok) { place(selBuild, ghost.c, ghost.r); selBuild = null; ghost = null; }
+    if (!ghost || !ghost.ok) { SFX.deny(); return; }
+    // first tap arms the spot, second tap on the SAME spot commits it
+    if (!armed || armed.c !== ghost.c || armed.r !== ghost.r) {
+      armed = { c: ghost.c, r: ghost.r }; SFX.tap(); return;
+    }
+    if (moving != null) {
+      const p = byId(moving);
+      if (p) { p.c = ghost.c; p.r = ghost.r; save(); SFX.place(); }
+      moving = null;
+    } else {
+      place(selBuild, ghost.c, ghost.r);
+      selBuild = null;
+    }
+    ghost = null; armed = null;
     return;
   }
   const hit = buildingAt(sx, sy);
   if (hit) { SFX.tap(); panel = hit.id; return; }
   panel = null;
-  const w = camUnproject(sx, sy), t = worldToTile(w.x, w.y);
-  const tc = Math.floor(t.c), tr = Math.floor(t.r);
+  const w = camUnproject(sx, sy), t = tileAt(w.x, w.y);
+  const tc = t.c, tr = t.r;
   if (tc >= 0 && tr >= 0 && tc < GW && tr < GH && !inLand(tc, tr)) { claimAsk = true; SFX.tap(); }
 }
 
@@ -1972,7 +2091,7 @@ setInterval(() => {
 
 /* test hooks */
 window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, worldToTile,
-  camProject, camUnproject, canPlace, occupied, place, step, draw, barRects, barList,
+  camProject, camUnproject, canPlace, occupied, place, step, draw, barRects, barList, tileAt,
   get sel() { return selBuild; }, set sel(v) { selBuild = v; },
   tap, CAM, save, load, get caps() { return caps; },
   HALL, hallOf, hallLevel, allowedOf, countOf, atLimit, unlocked, buildable,
@@ -1982,11 +2101,13 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   assignJobs, buildingAt, ensureHall,
   isDecor, decorCount, DECOR_MAX, charmTotal, charmMul, removeDecor, tabRects, drawDecor,
   sellBuilding, canSell, sellValue, investedIn, get moving() { return moving; }, set moving(v) { moving = v; },
+  get armed() { return armed; }, set armed(v) { armed = v; },
   collectAway, currentHint, get away() { return away; }, set away(v) { away = v; },
   GOALS, currentGoal, get goalIdx() { return goalIdx; }, set goalIdx(v) { goalIdx = v; },
   get goalDone() { return goalDone; }, set goalDone(v) { goalDone = v; },
   SFX, muteRect, audioOn, get muted() { return muted; }, set muted(v) { muted = v; },
   sky, dayPhase, DAY_MS,
+  efficiencyOf, distTilesToStore, onPath, PATH_SPEED, rebuildPaths,
   LAND, LAND_MAX, inLand, landNext, canClaim, claimLand, landBounds, coverPlaced,
   get landTier() { return landTier; }, set landTier(v) { landTier = v; },
   get claimAsk() { return claimAsk; }, set claimAsk(v) { claimAsk = v; }, claimRects,
