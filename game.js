@@ -545,7 +545,7 @@ const BUILDINGS = [
   { key: 'mill',   name: 'Mill',      w: 2, h: 2, cost: { wood: 120, food: 60 }, makes: { food: 1.8 },  jobs: 2, wallH: 96, icon: '🌬️',
     blurb: 'Grinds grain. Far more food than a farm, for two workers.' },
   { key: 'market', name: 'Market',    w: 2, h: 2, cost: { wood: 200, food: 120 }, caps: { wood: 800, food: 800 }, makes: { wood: 0.55 }, jobs: 1, wallH: 62, icon: '🏪',
-    blurb: 'Trades for wood, and holds a great deal of both.' },
+    blurb: 'Each market adds a trading stall and brings the traders round sooner.' },
 
   /* ---------- decorations ----------
      Bought and placed like buildings, but they take no time to put up, have no
@@ -720,9 +720,21 @@ let armed = null;                     // {c,r} the ghost is waiting to confirm
    the one you need. They are deliberately SMALL and slow to arrive, because an
    order that beats a lumber camp would replace the game rather than season it.
    Sized against the storage cap so they stay meaningful as the village grows. */
-const ORDER_SLOTS = 3;
-const ORDER_EVERY = 75;               // seconds between new offers
+const ORDER_SLOTS = 3;                // with no market
+const ORDER_EVERY = 75;               // seconds between new offers, likewise
 let orders = [], orderT = 0, orderSeq = 1, ordersDone = 0;
+
+/* The market runs the market.
+
+   As a producer it was dominated ten to twenty times over by every other
+   workplace, and as storage it was half a storehouse per wood -- so a player
+   who did the arithmetic would never build one. The problem was not its
+   numbers: it was that the trade BUILDING had nothing to do with the trade
+   SYSTEM. Now each one adds a stall and brings the traders round faster, which
+   at a full village is where a third of all wood comes from. */
+const marketCount = () => placed.reduce((n, p) => n + (p.key === 'market' && p.t >= 1 ? 1 : 0), 0);
+const orderSlots = () => Math.min(5, ORDER_SLOTS + marketCount());
+const orderEvery = () => ORDER_EVERY / (1 + 0.30 * marketCount());
 
 function makeOrder() {
   // ask for whichever resource the village is currently richer in
@@ -742,9 +754,9 @@ function makeOrder() {
 }
 function stepOrders(dt) {
   orderT += dt;
-  if (orderT >= ORDER_EVERY) {
+  if (orderT >= orderEvery()) {
     orderT = 0;
-    if (orders.length < ORDER_SLOTS) { orders.push(makeOrder()); save(); }
+    if (orders.length < orderSlots()) { orders.push(makeOrder()); save(); }
   }
 }
 /* Room for the reward is part of the price. Without this an order filled while
@@ -995,7 +1007,7 @@ function load() {
   if (Array.isArray(s.orders)) {
     orders = s.orders.filter(o => o && ['wood', 'food'].includes(o.giveK) && ['wood', 'food'].includes(o.getK)
       && Number.isFinite(o.giveN) && Number.isFinite(o.getN))
-      .slice(0, ORDER_SLOTS)
+      .slice(0, 5)
       .map(o => ({ id: orderSeq++, giveK: o.giveK, getK: o.getK,
         giveN: Math.max(1, o.giveN | 0), getN: Math.max(1, o.getN | 0) }));
   }
@@ -1639,7 +1651,7 @@ const barList = () => barMode === 'decor'
 /* Order cards occupy the same strip as the build bar, laid out on the same
    geometry so the two cannot drift apart. */
 function orderRects() {
-  const u = US(), n = ORDER_SLOTS;
+  const u = US(), n = Math.max(1, orderSlots());
   const h = 118 * u, pad = 8 * u;
   const w = Math.min(250 * u, (W - pad * (n + 1)) / n);
   const y = hudBot() - h / 2 - 22 * u;
@@ -2042,7 +2054,9 @@ function drawPanel() {
     const boost = boostAt(p);
     if (boost > 1) line += '   ·   +' + Math.round((boost - 1) * 100) + '% from wells';
     else if (!n) line += '   — no villagers';
-    const eff = efficiencyOf(p), tiles = distTilesToStore(p);
+    /* Skipped for a building that is its OWN store -- a market delivers to
+       itself, so the figure is always 100% and the row is better spent. */
+    const eff = b.caps ? null : efficiencyOf(p), tiles = b.caps ? null : distTilesToStore(p);
     if (eff !== null && tiles !== null) {
       g.font = `${Math.round(20 * u)}px Segoe UI, sans-serif`;
       g.fillStyle = eff > 0.66 ? '#8fd06a' : eff > 0.42 ? '#e8c98a' : '#e59a86';
@@ -2072,6 +2086,13 @@ function drawPanel() {
   g.font = `${Math.round(21 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#e8c98a';
   g.fillText(line, lx, R.y - R.h / 2 + 116 * u);
 
+  if (p.key === 'market') {
+    // its real worth is the trade it unlocks, which no number on this panel
+    // would otherwise show
+    g.font = `${Math.round(20 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#cbb6f0';
+    g.fillText(orderSlots() + ' trading stalls   ·   a new offer every '
+      + Math.round(orderEvery()) + 's', lx, R.y - R.h / 2 + 148 * u);
+  }
   if (p.key === 'hall') {
     const st = villageStats();
     let s2 = st.villagers + ' villagers';
@@ -2324,7 +2345,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   collectAway, currentHint, get away() { return away; }, set away(v) { away = v; },
   GOALS, currentGoal, get goalIdx() { return goalIdx; }, set goalIdx(v) { goalIdx = v; },
   get orders() { return orders; }, set orders(v) { orders = v; },
-  makeOrder, fillOrder, canFill, orderRects, ORDER_EVERY, ORDER_SLOTS,
+  makeOrder, fillOrder, canFill, orderRects, ORDER_EVERY, ORDER_SLOTS, orderSlots, orderEvery, marketCount,
   get ordersDone() { return ordersDone; }, set ordersDone(v) { ordersDone = v; },
   get orderT() { return orderT; }, set orderT(v) { orderT = v; },
   get goalDone() { return goalDone; }, set goalDone(v) { goalDone = v; },
