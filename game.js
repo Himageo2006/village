@@ -1451,9 +1451,12 @@ function potentialRate() {
   return out;
 }
 
-function collectAway() {
-  if (!savedAt) return;
-  const secs = Math.min(AWAY_MAX, (Date.now() - savedAt) / 1000);
+/* Credit a stretch of time the village worked through unwatched, and put up the
+   card. Split out from collectAway because a cold start is not the only way to
+   be away: on Android, closing the app usually leaves the page alive, so coming
+   back an hour later resumes rather than reloads. */
+function grantAway(secs) {
+  secs = Math.min(AWAY_MAX, secs);
   if (secs < AWAY_MIN) return;
   const got = {};
   let any = false;
@@ -1464,6 +1467,11 @@ function collectAway() {
     if (earned >= 1) { res[k] += earned; got[k] = Math.floor(earned); any = true; }
   }
   if (any) away = { secs, got };
+}
+// a cold start: measured from the save, which is where the last session ended
+function collectAway() {
+  if (!savedAt) return;
+  grantAway((Date.now() - savedAt) / 1000);
 }
 
 /* A village with no hall has no rules and no centre, so one is founded for free
@@ -1480,6 +1488,7 @@ const BUILD_TIME = 3.0;
 const SAVE_EVERY = 5;                 // seconds
 let saveT = 0;
 function step(dt) {
+  if (hiddenAt) hiddenSim += dt;      // what the throttled tick managed while away
   stepCam(dt);
   if (backOpen()) armBack();          // so the back button can close it again
   if (sellArm) { sellArm.t -= dt; if (sellArm.t <= 0 || panel !== sellArm.id) sellArm = null; }
@@ -2867,9 +2876,28 @@ cv.addEventListener('pointerup', ptrEnd);
 cv.addEventListener('pointercancel', ptrEnd);
 cv.addEventListener('lostpointercapture', ev => PTRS.delete(ev.pointerId));
 window.addEventListener('blur', () => PTRS.clear());
+/* Coming back to a page that was never unloaded.
+
+   This is the ordinary case on a phone: the player swipes the game away, does
+   something else for an hour, and taps the icon again -- and the WebView is
+   still there, so nothing reloads and collectAway never runs. The village
+   produced nothing for that hour and was told nothing about it. An hour of a
+   village's work, gone, on the most common way there is to play an idle game.
+
+   The tick is not stopped while hidden, only throttled, and its dt is capped at
+   a tenth of a second -- so a backgrounded hour still simulates a few minutes.
+   Those are counted and taken off, or the same minutes would be paid twice. */
+let hiddenAt = 0, hiddenSim = 0;
 document.addEventListener('visibilitychange', () => {
-  // a backgrounded tab may never come back, so bank the progress now
-  if (document.hidden) { PTRS.clear(); save(); }
+  if (document.hidden) {
+    // a backgrounded tab may never come back, so bank the progress now
+    PTRS.clear(); save();
+    hiddenAt = Date.now(); hiddenSim = 0;
+  } else if (hiddenAt) {
+    grantAway((Date.now() - hiddenAt) / 1000 - hiddenSim);
+    hiddenAt = 0; hiddenSim = 0;
+    save();
+  }
 });
 window.addEventListener('pagehide', save);
 window.addEventListener('resize', () => { fitCanvas(); readSafeArea(); });
@@ -3067,7 +3095,9 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   sellBuilding, canSell, sellValue, investedIn, capsWithout, get moving() { return moving; }, set moving(v) { moving = v; },
   get armed() { return armed; }, set armed(v) { armed = v; },
   get sellArm() { return sellArm; }, set sellArm(v) { sellArm = v; }, SELL_ARM,
-  collectAway, potentialRate, currentHint, get away() { return away; }, set away(v) { away = v; },
+  collectAway, grantAway, potentialRate, currentHint, get away() { return away; }, set away(v) { away = v; },
+  get hiddenAt() { return hiddenAt; }, set hiddenAt(v) { hiddenAt = v; },
+  get hiddenSim() { return hiddenSim; }, set hiddenSim(v) { hiddenSim = v; }, AWAY_MIN, AWAY_MAX,
   GOALS, currentGoal, get goalIdx() { return goalIdx; }, set goalIdx(v) { goalIdx = v; },
   get orders() { return orders; }, set orders(v) { orders = v; },
   makeOrder, fillOrder, canFill, orderRects, ORDER_EVERY, ORDER_SLOTS, orderSlots, orderEvery, marketCount,
