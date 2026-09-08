@@ -932,21 +932,60 @@ const marketCount = () => placed.reduce((n, p) => n + (p.key === 'market' && p.t
 const orderSlots = () => Math.min(5, ORDER_SLOTS + marketCount());
 const orderEvery = () => ORDER_EVERY / (1 + 0.30 * marketCount());
 
-function makeOrder() {
+/* Three sizes, and the big one trades better.
+
+   Every offer used to be a random 10-14% of the cap paying back a random
+   10-13%, and the direction is fixed by whichever resource the village is
+   richer in -- so the three stalls showed three copies of the same trade at
+   three barely different prices, and which one to take was luck rather than a
+   decision. Now they are a quick one, a middling one and a big one, and the
+   rate improves with the size, so holding out for the big stall is a real
+   choice and saving up for it is rewarded.
+
+   Every rate is still BELOW even, and that is deliberate. Direction follows the
+   surplus, so an order that paid more than it cost could be looped -- give
+   food, take wood, now wood is the rich one, give it back -- and it would print
+   resources for ever. (My first numbers asked 14% and returned 8%, which is the
+   same mistake pointing the other way: auto-filling every order stalled the run
+   completely.) Trade is not meant to be profitable in units. Its value is that
+   a full barn is throwing away everything the villagers carry into it, so
+   converting that surplus at 94% into the thing you are short of is a bargain
+   against the nothing it was worth. */
+const ORDER_TIERS = [
+  { size: 0.07, rate: 0.88 },
+  { size: 0.14, rate: 0.94 },
+  { size: 0.23, rate: 0.99 },
+];
+function makeOrder(tier) {
   // ask for whichever resource the village is currently richer in
   const richWood = (res.wood / Math.max(1, caps.wood)) > (res.food / Math.max(1, caps.food));
   const giveK = richWood ? 'wood' : 'food', getK = richWood ? 'food' : 'wood';
-  /* Both sides are sized as a share of the SAME storage cap, so the trade is
-     close to even in absolute terms with a small tilt in the player's favour.
-     It has to be near even: an order that pays out more than it costs can be
-     looped -- give food, take wood, now wood is the rich one, give it back --
-     and one that pays less drains the village doing exactly the same thing. My
-     first numbers gave 14% and returned 8%, and auto-filling every order stalled
-     the run completely. The VALUE here is turning a capped resource you cannot
-     use into the one you are short of, not the arithmetic. */
-  const giveN = Math.max(10, Math.round(caps[giveK] * (0.10 + Math.random() * 0.04) / 5) * 5);
-  const getN  = Math.max(10, Math.round(caps[getK]  * (0.10 + Math.random() * 0.03) / 5) * 5);
-  return { id: orderSeq++, giveK, giveN, getK, getN };
+  /* Prefer a size that is not already on the board, so the stalls stay
+     distinct even though they are filled one at a time. */
+  if (tier === undefined) {
+    const taken = new Set(orders.map(o => o.tier));
+    const free = ORDER_TIERS.map((_, i) => i).filter(i => !taken.has(i));
+    const from = free.length ? free : ORDER_TIERS.map((_, i) => i);
+    tier = from[(Math.random() * from.length) | 0];
+  }
+  const T = ORDER_TIERS[tier];
+  /* Round to fives once the numbers are big enough to look untidy otherwise --
+     at an early cap of 300 the small stall is asking for twenty, and rounding
+     THAT to a five turns a 12% spread into a 25% one. */
+  const snap = n => n >= 100 ? Math.max(5, Math.round(n / 5) * 5) : Math.max(1, Math.round(n));
+  const giveN = snap(caps[giveK] * T.size);
+  /* Both sides as a share of the SAME cap, so the rate means what it says even
+     when the two ceilings differ. */
+  let getN = snap(caps[getK] * T.size * T.rate);
+  /* And rounding must never pull an order up to exactly even. It did: at a cap
+     of 1000 the big stall asked 230 and paid 230, which is a free converter,
+     and a free converter makes wood and food the same resource for anyone who
+     opens the tab -- no reason to balance farms against lumber camps, and every
+     smaller stall pointless. Compared as shares, because the two ceilings can
+     differ. */
+  const step = getN >= 100 ? 5 : 1;
+  while (getN > step && getN / caps[getK] >= giveN / caps[giveK]) getN -= step;
+  return { id: orderSeq++, tier, giveK, giveN, getK, getN };
 }
 function stepOrders(dt) {
   orderT += dt;
@@ -2097,11 +2136,19 @@ function drawHUD() {
         W / 2, hudBot() - 80 * u);
       g.restore();
     }
+    /* Which stall on the board trades best. The rate rises with the size, and
+       nothing on the card would otherwise say so -- comparing 105-for-99
+       against 345-for-341 in your head is not a decision anyone should be asked
+       to make while the numbers are already there to be compared for them. */
+    const bestTier = rs.reduce((n, r) => Math.max(n, r.o.tier || 0), 0);
     for (const r of rs) {
       const ok = canFill(r.o);
+      const best = ok && rs.length > 1 && (r.o.tier || 0) === bestTier
+        && rs.some(q => (q.o.tier || 0) !== bestTier);
       g.save();
       g.fillStyle = ok ? 'rgba(22,32,20,.92)' : 'rgba(40,22,20,.92)';
-      g.strokeStyle = ok ? 'rgba(159,232,107,.75)' : 'rgba(200,110,90,.5)';
+      g.strokeStyle = best ? 'rgba(240,216,148,.9)'
+        : ok ? 'rgba(159,232,107,.75)' : 'rgba(200,110,90,.5)';
       g.lineWidth = ok ? 3 : 2.5;
       g.beginPath(); g.roundRect(r.x - r.w / 2, r.y - r.h / 2, r.w, r.h, 16); g.fill(); g.stroke();
       g.textAlign = 'center'; g.textBaseline = 'middle';
@@ -2110,8 +2157,9 @@ function drawHUD() {
       g.fillText((r.o.giveK === 'wood' ? '🪵' : '🌾') + ' ' + r.o.giveN, r.x, r.y - r.h * 0.26);
       g.font = `${Math.round(20 * u)}px Segoe UI, sans-serif`;
       // say WHY a card cannot be taken, rather than just greying it
-      const why = res[r.o.giveK] < r.o.giveN ? 'not enough' : !hasRoom(r.o) ? 'no room' : 'for';
-      g.fillStyle = why === 'for' ? '#8d9a85' : '#e59a86';
+      const why = res[r.o.giveK] < r.o.giveN ? 'not enough' : !hasRoom(r.o) ? 'no room'
+        : best ? 'best rate' : 'for';
+      g.fillStyle = why === 'for' ? '#8d9a85' : best ? '#f0d894' : '#e59a86';
       g.fillText(why, r.x, r.y);
       g.font = `bold ${Math.round(26 * u)}px Segoe UI, sans-serif`;
       g.fillStyle = ok ? '#9fe86b' : '#a2907f';
