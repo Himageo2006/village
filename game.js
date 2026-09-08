@@ -1066,12 +1066,31 @@ function place(key, c, r) {
      does it. */
   if (!canAfford(b.cost)) return false;
   if (!canPlace(key, c, r, occupied())) return false;
+  /* And the hall's allowance, which was the one gate left to the interface.
+     The tray does refuse it and the selection clears after each placement, so
+     no sequence of taps got past it -- but place() promises to be safe on its
+     own, and a soak test calling it directly built ten houses under a hall that
+     permits two. A guard that only exists in the button is a guard that leaves
+     with the next redesign of the button. */
+  if (atLimit(key)) return false;
   for (const [k, v] of Object.entries(b.cost)) res[k] -= v;
   placed.push({ id: nextId++, key, c, r, t: b.decor ? 1 : 0, lvl: 1, stock: 0, build: BUILD_TIME });
   recomputeCaps();
   save();
   SFX.place();
   return true;
+}
+/* The ceilings the village would have if this building were gone -- what the
+   sell button has to quote, because selling storage takes its own capacity
+   with it. */
+function capsWithout(p) {
+  const keep = placed;
+  placed = placed.filter(q => q !== p);
+  const now = caps;
+  recomputeCaps();
+  const out = caps;
+  placed = keep; caps = now;
+  return out;
 }
 function recomputeCaps() {
   // the hall itself holds more as it grows, so an upgrade is worth something
@@ -1113,11 +1132,21 @@ const canSell = p => !!p && p.key !== 'hall';      // the hall is the village
 function sellBuilding(p) {
   if (!canSell(p)) return false;
   const c = centreOf(p);
-  for (const [k, v] of Object.entries(sellValue(p))) grant(k, v, c.x, c.y);
+  /* Take the building down BEFORE paying for it. Paid first, a storehouse
+     refunded into the capacity it was about to take away with it, and the
+     village was left holding more than it could store -- which then leaked
+     back out on the next delivery. Selling storage cannot be a way to exceed
+     storage. The panel quotes the refund against the same after-the-sale
+     ceiling, so the figure on the button is still the figure received. */
   placed = placed.filter(q => q !== p);
   if (panel === p.id) panel = null;
   if (moving === p.id) moving = null;
   recomputeCaps();
+  for (const [k, v] of Object.entries(sellValue(p))) grant(k, v, c.x, c.y);
+  /* Anyone who worked here is out of a job this instant, not on the next tick.
+     assignJobs does clear it, but until it ran the village held villagers
+     posted to a building that no longer existed. */
+  for (const g of villagers) if (g.job === p.id) { g.job = null; g.st = 'idle'; }
   save();
   SFX.sell();
   return true;
@@ -2379,6 +2408,20 @@ function drawPanel() {
   } else if (b.caps) {
     line = 'Holds 🪵' + capsOf(p, 'wood') + '  🌾' + capsOf(p, 'food');
     if (nl > lvlOf(p)) line += '  →  🪵' + at(nl, q => capsOf(q, 'wood')) + '  🌾' + at(nl, q => capsOf(q, 'food'));
+    /* Selling storage takes its capacity with it, and anything the village is
+       holding above the new ceiling is gone. That used to happen in silence --
+       the goods sat there looking fine until the next delivery clamped them
+       away. A storehouse has no efficiency line, so the row it would have used
+       says what the sale would actually cost. */
+    const room = capsWithout(p);
+    const spoil = ['wood', 'food'].map(k => [k, Math.max(0, Math.floor(res[k] - room[k]))])
+      .filter(([, v]) => v > 0);
+    if (spoil.length) {
+      g.font = `${Math.round(20 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#e59a86';
+      g.fillText('Selling it drops storage to 🪵' + room.wood + '  🌾' + room.food
+        + '   —   ' + spoil.map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join(' ')
+        + ' would spoil', lx, R.y - R.h / 2 + 148 * u);
+    }
   } else if (b.pop) {
     line = 'Houses ' + popOf(p) + ' villagers';
     if (nl > lvlOf(p)) line += '  →  ' + at(nl, popOf);
@@ -2452,8 +2495,12 @@ function drawPanel() {
      clamped to the storage cap like every other grant, and on full stores the
      honest figure is zero -- which says "you would get nothing for this" far
      more plainly than a warning tacked onto the end, and fits the button. */
+  /* Against the capacity that will exist AFTER the sale, which for a storehouse
+     is lower than the one on screen right now. Quoting the current ceiling
+     promised a refund the village would have nowhere to put. */
+  const room = capsWithout(p);
   const netSell = sv && Object.fromEntries(
-    Object.entries(sv).map(([k, v]) => [k, Math.max(0, Math.min(v, Math.floor(caps[k] - res[k])))]));
+    Object.entries(sv).map(([k, v]) => [k, Math.max(0, Math.min(v, Math.floor(room[k] - res[k])))]));
   const armedHere = sellArm && sellArm.id === p.id;
   const backTotal = netSell ? Object.values(netSell).reduce((a, b) => a + b, 0) : 0;
   btnFace(R.sell, !!sv, !sv ? 'Cannot sell'
@@ -2686,7 +2733,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   get villagers() { return villagers; }, workersAt, boostAt, producers, stores,
   assignJobs, buildingAt, ensureHall, jobsOf, VILLAGER_MAX,
   isDecor, decorCount, DECOR_MAX, charmTotal, charmMul, removeDecor, tabRects, drawDecor, grant,
-  sellBuilding, canSell, sellValue, investedIn, get moving() { return moving; }, set moving(v) { moving = v; },
+  sellBuilding, canSell, sellValue, investedIn, capsWithout, get moving() { return moving; }, set moving(v) { moving = v; },
   get armed() { return armed; }, set armed(v) { armed = v; },
   get sellArm() { return sellArm; }, set sellArm(v) { sellArm = v; }, SELL_ARM,
   collectAway, potentialRate, currentHint, get away() { return away; }, set away(v) { away = v; },
