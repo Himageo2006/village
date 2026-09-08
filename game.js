@@ -323,12 +323,23 @@ let rateNow = { wood: 0, food: 0 };          // smoothed, shown in the HUD
 let rateAcc = { wood: 0, food: 0 }, rateT = 0;
 const RATE_WINDOW = 5;                       // long enough that a sparse village does not flicker
 
-function deliver(k, n, x, y) {
+/* Hand the player a resource and SHOW what actually arrived.
+
+   Every grant in this game clamps to the storage cap, and three separate times
+   I wrote the clamp in one place and the announcement in another, so the game
+   congratulated the player on goods it had just thrown away. Everything that
+   grants now goes through here. */
+function grant(k, n, x, y) {
   const before = res[k];
   res[k] = Math.min(caps[k], res[k] + n);
   const got = res[k] - before;
-  rateAcc[k] += got;
-  if (got > 0.01 && pops.length < POP_MAX) { pops.push({ x, y, k, n: got, age: 0 }); SFX.deliver(); }
+  if (got > 0.01 && pops.length < POP_MAX) pops.push({ x, y, k, n: got, age: 0 });
+  return got;
+}
+function deliver(k, n, x, y) {
+  const got = grant(k, n, x, y);
+  rateAcc[k] += got;                  // a sale is not production, so only here
+  if (got > 0.01) SFX.deliver();
   return got;
 }
 function stepFeedback(dt) {
@@ -965,7 +976,8 @@ const sellValue = p => {
 const canSell = p => !!p && p.key !== 'hall';      // the hall is the village
 function sellBuilding(p) {
   if (!canSell(p)) return false;
-  for (const [k, v] of Object.entries(sellValue(p))) res[k] = Math.min(caps[k], res[k] + v);
+  const c = centreOf(p);
+  for (const [k, v] of Object.entries(sellValue(p))) grant(k, v, c.x, c.y);
   placed = placed.filter(q => q !== p);
   if (panel === p.id) panel = null;
   if (moving === p.id) moving = null;
@@ -981,7 +993,8 @@ function sellBuilding(p) {
    feature with different rules. */
 function removeDecor(p) {
   if (!p || !isDecor(p.key)) return false;
-  for (const [k, v] of Object.entries(B(p.key).cost)) res[k] = Math.min(caps[k], res[k] + Math.floor(v / 2));
+  const c = centreOf(p);
+  for (const [k, v] of Object.entries(B(p.key).cost)) grant(k, Math.floor(v / 2), c.x, c.y);
   placed = placed.filter(q => q !== p);
   if (panel === p.id) panel = null;
   save();
@@ -2133,13 +2146,26 @@ function drawPanel() {
     g.beginPath(); g.roundRect(r2.x - r2.w / 2, r2.y - r2.h / 2, r2.w, r2.h, 16 * u); g.fill(); g.stroke();
     g.fillStyle = on ? '#eaffd6' : '#9aa693';
     g.textAlign = 'center';
-    g.font = `bold ${Math.round((small ? 21 : 24) * u)}px Segoe UI, sans-serif`;
+    /* Shrink to fit rather than spill into the neighbouring button. These
+       labels carry costs, shortfalls and warnings whose length is not knowable
+       up front -- "Sell 77 60 (stores full)" ran clean across the Upgrade
+       button next to it. */
+    let px = (small ? 21 : 24) * u;
+    const room = r2.w - 16 * u;
+    do { g.font = `bold ${Math.round(px)}px Segoe UI, sans-serif`; px -= 1; }
+    while (px > 11 * u && g.measureText(text).width > room);
     g.fillText(text, r2.x, r2.y);
   };
   btnFace(R.move, true, 'Move', true);
   const sv = canSell(p) ? sellValue(p) : null;
+  /* Show what you would ACTUALLY receive, not the nominal refund. A refund is
+     clamped to the storage cap like every other grant, and on full stores the
+     honest figure is zero -- which says "you would get nothing for this" far
+     more plainly than a warning tacked onto the end, and fits the button. */
+  const netSell = sv && Object.fromEntries(
+    Object.entries(sv).map(([k, v]) => [k, Math.max(0, Math.min(v, Math.floor(caps[k] - res[k])))]));
   btnFace(R.sell, !!sv, sv
-    ? (dec ? 'Remove  ' : 'Sell  ') + Object.entries(sv).map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join(' ')
+    ? (dec ? 'Remove  ' : 'Sell  ') + Object.entries(netSell).map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join(' ')
     : 'Cannot sell', true);
   if (!R.up) { g.restore(); return; }
   /* A late upgrade can cost more than the village can physically hold, and then
@@ -2352,7 +2378,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   panelRects, get panel() { return panel; }, set panel(v) { panel = v; },
   get villagers() { return villagers; }, workersAt, boostAt, producers, stores,
   assignJobs, buildingAt, ensureHall, jobsOf, VILLAGER_MAX,
-  isDecor, decorCount, DECOR_MAX, charmTotal, charmMul, removeDecor, tabRects, drawDecor,
+  isDecor, decorCount, DECOR_MAX, charmTotal, charmMul, removeDecor, tabRects, drawDecor, grant,
   sellBuilding, canSell, sellValue, investedIn, get moving() { return moving; }, set moving(v) { moving = v; },
   get armed() { return armed; }, set armed(v) { armed = v; },
   collectAway, currentHint, get away() { return away; }, set away(v) { away = v; },
