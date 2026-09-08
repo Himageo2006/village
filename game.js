@@ -1782,6 +1782,20 @@ function drawHUD() {
     g.font = `bold ${Math.round(22 * u)}px Segoe UI, sans-serif`;
     g.fillStyle = on ? '#eaffd6' : '#9fb094';
     g.fillText(t.label, t.x, t.y);
+    /* Trading is where surplus food turns back into wood -- at a full village
+       it is 30% of wood income -- but only if you go and look. A count on the
+       tab means you never have to. */
+    if (t.mode === 'orders') {
+      const n = orders.filter(canFill).length;
+      if (n) {
+        const bx = t.x + t.w / 2 - 6 * u, by = t.y - t.h / 2 + 4 * u, r2 = 15 * u;
+        g.fillStyle = '#e8b44a'; g.strokeStyle = 'rgba(20,30,16,.9)'; g.lineWidth = 3;
+        g.beginPath(); g.arc(bx, by, r2, 0, 7); g.fill(); g.stroke();
+        g.fillStyle = '#2a1f08';
+        g.font = `bold ${Math.round(19 * u)}px Segoe UI, sans-serif`;
+        g.fillText(String(n), bx, by + 1 * u);
+      }
+    }
     g.restore();
   }
   if (selBuild || moving != null) {
@@ -1896,7 +1910,14 @@ function drawClaim() {
     g.fill(); g.stroke();
     g.fillStyle = ok ? '#eaffd6' : '#9aa693';
     g.font = `bold ${Math.round(26 * u)}px Segoe UI, sans-serif`;
-    g.fillText(ok ? 'Claim it' : 'Need ' + shortText(cost) + ' more', R.yes.x, R.yes.y);
+    /* A later ring can cost more than the village is able to HOLD, and then
+       "need 140 more" is a lie -- you can never accumulate it. The way out is a
+       bigger hall or another storehouse, so say that instead. */
+    const overCap = Object.entries(cost).some(([k, val]) => val > caps[k]);
+    g.font = `bold ${Math.round((overCap ? 22 : 26) * u)}px Segoe UI, sans-serif`;
+    g.fillText(ok ? 'Claim it'
+      : overCap ? 'Your stores cannot hold this much yet'
+      : 'Need ' + shortText(cost) + ' more', R.yes.x, R.yes.y);
   }
   g.fillStyle = 'rgba(255,255,255,.12)';
   g.beginPath(); g.arc(R.no.x, R.no.y, R.no.r, 0, 7); g.fill();
