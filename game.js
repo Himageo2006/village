@@ -168,27 +168,80 @@ function onPath(x, y) {
 
    A villager's cycle is: fill up at the workplace, walk to a store, walk back.
    Efficiency is the share of that cycle actually spent producing. */
-function distTilesToStore(p) {
-  const c = centreOf(p), s2 = nearestStore(c.x, c.y);
-  if (!s2) return null;
-  const d = centreOf(s2);
-  return Math.hypot(d.x - c.x, (d.y - c.y) * (TW / TH)) / TW;   // in tiles, un-squashing iso
+/* Is there a store to walk to at all? Returns null when there is none, which
+   is what tells a building that cannot deliver anything apart from one that is
+   merely inefficient. (This replaced a distance-in-grid-tiles helper: nothing
+   should be priced in tiles, because the same tile count is a different walk
+   depending on which way it runs.) */
+function hasStore(p) {
+  const c = centreOf(p);
+  return nearestStore(c.x, c.y) ? true : null;
 }
+/* Seconds a villager spends walking a load from here to the nearest store and
+   back.
+
+   Measured in the pixels a villager ACTUALLY covers. It used to un-squash the
+   distance back into grid tiles and then price every tile at a full tile-width
+   of walking -- which double-counts movement up and down the screen, because
+   un-squashing stretches the vertical axis and the villager does not walk the
+   stretched version. A store two tiles away up the screen was charged 256px for
+   a 128px walk, while one two tiles away across the screen was charged
+   correctly, so the penalty was up to two-fold and depended on which way the
+   store happened to lie. Every efficiency, upgrade quote, well figure and
+   offline total came off that number.
+
+   Still costed at the plain pace rather than at a guess about how much of the
+   route is paved, so the figures stay a floor the player can trust: laying a
+   road makes a building better than promised, never worse. */
+function travelSecondsOf(p) {
+  const c = centreOf(p), s = nearestStore(c.x, c.y);
+  if (!s) return 0;
+  const d = centreOf(s);
+  return 2 * Math.hypot(d.x - c.x, d.y - c.y) / VIL_SPD;
+}
+/* What a workplace running at `rate` actually DELIVERS.
+
+   The cycle is fill-then-carry, so throughput is the load divided by the fill
+   time plus the walk. Everything the interface says about the worth of a level,
+   a well or a decoration is measured with this, because a multiplier applies to
+   the rate and the walk does not care. */
+function deliveredWith(p, rate) {
+  if (rate <= 0) return 0;
+  return CARRY / (CARRY / rate + travelSecondsOf(p));
+}
+const ratedOf = (p, kind, mul) =>
+  rateOf(p, kind) * boostAt(p) * (mul === undefined ? charmMul() : mul);
+
 function efficiencyOf(p, atC, atR) {
   const b = B(p.key);
   if (!b.makes || !b.jobs) return null;
   const probe = (atC === undefined) ? p : { ...p, c: atC, r: atR };
-  const tiles = distTilesToStore(probe);
-  if (tiles === null) return 1;
+  if (hasStore(probe) === null) return 1;
   const kind = Object.keys(b.makes)[0];
-  const rate = rateOf(probe, kind) * boostAt(probe) * charmMul();
+  const rate = ratedOf(probe, kind);
   if (rate <= 0) return 1;
-  const prod = CARRY / rate;                       // seconds spent filling a load
-  /* Walking is costed at the plain pace, not at some guess about how much of
-     the route is paved. The figure is then a floor the player can trust: laying
-     a road makes the building better than the number promised, never worse. */
-  const walk = 2 * (tiles * TW) / VIL_SPD;
-  return Math.max(0.05, Math.min(1, prod / (prod + walk)));
+  return Math.max(0.05, Math.min(1, deliveredWith(probe, rate) / rate));
+}
+/* What this workplace hands over per second -- for ONE pair of hands.
+
+   Throughput scales exactly with the workforce: whatever the staff, a worker
+   waits L/rate for a load to be ready and then walks it, so each of them runs
+   the same cycle and the building delivers n times this. (That the wait does
+   not shorten as the staff grows is not obvious, but it falls out of the
+   steady state: the stock fills faster with more hands, and is drawn down
+   faster in exactly the same proportion.) */
+function deliveredOf(p, lvl) {
+  const b = B(p.key);
+  if (!b.makes || !b.jobs) return 0;
+  const q = lvl === undefined ? p : { ...p, lvl };
+  return deliveredWith(q, ratedOf(q, Object.keys(b.makes)[0]));
+}
+// how many pairs of hands a level would really get: the staff it has, plus
+// whoever is loitering, and never more posts than the level opens
+function handsFor(p, lvl) {
+  const have = workersAt(p.id);
+  const spare = villagers.reduce((n, v) => n + (v.job == null ? 1 : 0), 0);
+  return Math.max(have, Math.min(jobsOf({ ...p, lvl }), have + spare));
 }
 /* Small loads on purpose. A big load means the resource counter sits still for
    half a minute and then jumps, which reads as a broken game; small ones keep
@@ -1820,10 +1873,11 @@ function drawHUD() {
     g.beginPath(); g.roundRect(x, ry - hh / 2, wch, hh, hh / 2); g.fill(); g.stroke();
     g.textAlign = 'left'; g.font = `${Math.round(28 * u)}px Segoe UI, sans-serif`;
     g.fillStyle = '#fff'; g.fillText('✨', x + 16 * u, ry - 1 * u);
+    const cd = charmDelivered();
     g.font = `bold ${Math.round(27 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#cbb6f0';
-    g.fillText('+' + Math.round((charmMul() - 1) * 100) + '%', x + 58 * u, ry - 12 * u);
+    g.fillText(cd > 0.005 ? '+' + cd.toFixed(2) + '/s' : 'charm ' + ch, x + 58 * u, ry - 12 * u);
     g.font = `bold ${Math.round(19 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#8d84a8';
-    g.fillText('charm ' + ch, x + 58 * u, ry + 18 * u);
+    g.fillText(cd > 0.005 ? 'charm ' + ch : 'no workplaces yet', x + 58 * u, ry + 18 * u);
   }
   g.restore();
 
@@ -2152,11 +2206,29 @@ function wellGain(w) {
     const withIt = boostAt(p), without = boostAt(p, w.id);
     if (withIt === without) continue;
     n++;
-    const k = Object.keys(B(p.key).makes)[0], e = efficiencyOf(p);
-    const eff = e === null ? 1 : e;
-    gain += rateOf(p, k) * charmMul() * eff * (withIt - without);
+    const hands = workersAt(p.id);
+    if (!hands) continue;                  // boosting an unstaffed shed adds nothing
+    const k = Object.keys(B(p.key).makes)[0], r = rateOf(p, k) * charmMul();
+    gain += hands * (deliveredWith(p, r * withIt) - deliveredWith(p, r * without));
   }
   return { n, gain };
+}
+
+/* What charm is really adding, in goods per second rather than as a percentage
+   of a rate nobody receives. Same treatment as the well: with minus without. */
+function charmDelivered() {
+  const m = charmMul();
+  if (m <= 1) return 0;
+  let gain = 0;
+  for (const p of placed) {
+    const b = B(p.key);
+    if (p.t < 1 || !b.makes || !b.jobs) continue;
+    const hands = workersAt(p.id);
+    if (!hands) continue;
+    const base = rateOf(p, Object.keys(b.makes)[0]) * boostAt(p);
+    gain += hands * (deliveredWith(p, base * m) - deliveredWith(p, base));
+  }
+  return gain;
 }
 
 /* How the village is doing as a whole, shown on the hall.
@@ -2209,22 +2281,32 @@ function drawPanel() {
        rated across its upgrades -- and from 0.22 to 0.25 delivered. Advertising
        the rated figure sold the player a fivefold improvement for two thousand
        wood and handed them fourteen percent. */
-    const deliv = lvl => { const q = { ...p, lvl }, e = efficiencyOf(q);
-      return rateOf(q, k) * boostAt(q) * charmMul() * (e === null ? 1 : e); };
-    line = icon + ' ' + deliv(lvlOf(p)).toFixed(2) + '/s delivered';
-    if (nl > lvlOf(p)) line += '  →  ' + deliv(nl).toFixed(2) + '/s';
+    /* Times the staff, because the panel is about the building, not about one
+       villager. It quoted a single pair of hands while a two-worker farm was
+       delivering nearly three times the figure. The next level is quoted with
+       the hands it would REALLY get -- the ones it has plus whoever is idle --
+       so a new post is never priced in before anyone can fill it. */
+    line = icon + ' ' + (n * deliveredOf(p)).toFixed(2) + '/s delivered';
+    if (nl > lvlOf(p))
+      line += '  →  ' + (handsFor(p, nl) * deliveredOf(p, nl)).toFixed(2) + '/s';
     line += '   ·   workers ' + n + ' / ' + jobsOf(p);
     const boost = boostAt(p);
     if (boost > 1) line += '   ·   +' + Math.round((boost - 1) * 100) + '% from wells';
     else if (!n) line += '   — no villagers';
     /* Skipped for a building that is its OWN store -- a market delivers to
        itself, so the figure is always 100% and the row is better spent. */
-    const eff = b.caps ? null : efficiencyOf(p), tiles = b.caps ? null : distTilesToStore(p);
-    if (eff !== null && tiles !== null) {
+    const eff = b.caps ? null : efficiencyOf(p);
+    if (eff !== null) {
+      /* The round trip in seconds rather than a distance in tiles. Tiles read
+         as a fair comparison and were not one -- two stores both "2.0 tiles"
+         away are a 128px walk and a 256px walk depending on which way they lie,
+         and the tile count was the figure the player was trusting when deciding
+         where to build. Seconds is what the villager actually spends. */
+      const walk = travelSecondsOf(p);
       g.font = `${Math.round(20 * u)}px Segoe UI, sans-serif`;
       g.fillStyle = eff > 0.66 ? '#8fd06a' : eff > 0.42 ? '#e8c98a' : '#e59a86';
-      g.fillText('Efficiency ' + Math.round(eff * 100) + '%   ·   ' + tiles.toFixed(1)
-        + ' tiles to the nearest store'
+      g.fillText('Efficiency ' + Math.round(eff * 100) + '%   ·   ' + walk.toFixed(1)
+        + 's round trip to the nearest store'
         + (eff < 0.55 ? '   — build one closer, or lay a path' : ''),
         lx, R.y - R.h / 2 + 148 * u);
     }
@@ -2241,8 +2323,11 @@ function drawPanel() {
         + wg.gain.toFixed(2) + '/s delivered'
       : 'Reaching no workplace — move it beside one';
   } else if (b.charm) {
+    /* The percentage was a rate figure, and the walk does not speed up with it.
+       This is the goods per second the village's decorations are really adding. */
+    const cd = charmDelivered();
     line = '✨ ' + b.charm + ' charm   ·   village total ' + charmTotal()
-      + '  (+' + Math.round((charmMul() - 1) * 100) + '% to everything made)';
+      + (cd > 0.005 ? '   ·   adding +' + cd.toFixed(2) + '/s delivered' : '');
   }
   if (p.key === 'hall') {
     const a = HALL[hallLevel()].allow;
@@ -2513,7 +2598,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   tap, CAM, save, load, get caps() { return caps; },
   HALL, hallOf, hallLevel, allowedOf, countOf, atLimit, unlocked, buildable,
   canUpgrade, upgradeBuilding, upInfo, upCostOf, lvlOf, popOf, capsOf, rateOf, outMul, LVL_MAX,
-  shortfall, shortText, villageStats, wellGain,
+  shortfall, shortText, villageStats, wellGain, charmDelivered, deliveredOf, deliveredWith, travelSecondsOf, handsFor,
   panelRects, get panel() { return panel; }, set panel(v) { panel = v; },
   get villagers() { return villagers; }, workersAt, boostAt, producers, stores,
   assignJobs, buildingAt, ensureHall, jobsOf, VILLAGER_MAX,
@@ -2532,7 +2617,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   get saveFailed() { return saveFailed; }, set saveFailed(v) { saveFailed = v; },
   get loadedFromBackup() { return loadedFromBackup; }, set loadedFromBackup(v) { loadedFromBackup = v; },
   sky, dayPhase, DAY_MS,
-  efficiencyOf, distTilesToStore, onPath, PATH_SPEED, rebuildPaths,
+  efficiencyOf, hasStore, onPath, PATH_SPEED, rebuildPaths,
   LAND, LAND_MAX, inLand, landNext, canClaim, claimLand, landBounds, coverPlaced,
   get landTier() { return landTier; }, set landTier(v) { landTier = v; },
   get claimAsk() { return claimAsk; }, set claimAsk(v) { claimAsk = v; }, claimRects,
