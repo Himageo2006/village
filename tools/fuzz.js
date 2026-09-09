@@ -95,6 +95,16 @@
     ['the cached charm total is not stale', () =>
       V.charmTotal() === V.placed.reduce((n, p) =>
         n + (V.isDecor(p.key) ? V.B(p.key).charm : 0), 0)],
+    /* And the job plan, which is cached off the same events plus the
+       population. A stale one puts villagers at the wrong posts quietly -- the
+       village still works, it just earns less, which is precisely the kind of
+       fault that goes unnoticed for months. */
+    ['the cached job plan is not stale', () => {
+      const cached = V.desiredJobs(), fresh = V.computeJobs();
+      if (cached.want.size !== fresh.want.size) return false;
+      for (const [id, n] of fresh.want) if (cached.want.get(id) !== n) return false;
+      return true;
+    }],
     /* And a store the cache still believes in must be where it says it is:
        moving one changes no membership at all, only a position. */
     ['a cached store is where it stands', () => V.stores().every(p => {

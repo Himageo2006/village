@@ -475,6 +475,7 @@ const producers = () => placed.filter(p=>p.t>=1 && B(p.key).jobs);
 let storeAt = [];                     // [{ p, x, y }]
 function rebuildStores() {
   rebuildCharm();                     // the same events change both
+  invalidateJobs();                   // and they all move the delivery figures
   storeAt.length = 0;
   for (const p of placed)
     if (p.t >= 1 && (B(p.key).caps || p.key === 'hall')) {
@@ -526,6 +527,7 @@ function syncVillagers(){
   let want=0;
   for(const p of placed) want += livedIn(p);
   want=Math.min(want,VILLAGER_MAX);
+  if(villagers.length!==want) invalidateJobs();
   while(villagers.length<want){
     const h=hallOf(), t=h?centreOf(h):tileToWorld(GW/2,GH/2);
     villagers.push({x:t.x,y:t.y,tx:t.x,ty:t.y,ph:Math.random()*7,wait:Math.random()*2,face:1,
@@ -553,7 +555,20 @@ function syncVillagers(){
    that, hands go where they deliver most. The hall's woodpile sorts last
    throughout: it is where spare hands go when there is nothing better, not a
    career. */
+/* Cached, like the store list and the charm total, and dirtied by the same
+   events plus a change in the population. Working it out means a sort and a
+   delivery figure for every workplace, and it ran on every tick: 0.24ms of a
+   0.30ms tick on a full village, to answer a question whose answer only changes
+   when a building or a villager appears. */
+let jobPlan = null;
+function invalidateJobs() { jobPlan = null; }
 function desiredJobs(handsIn) {
+  if (handsIn === undefined && jobPlan) return jobPlan;
+  const plan = computeJobs(handsIn);
+  if (handsIn === undefined) jobPlan = plan;
+  return plan;
+}
+function computeJobs(handsIn) {
   const posts = producers().filter(p => p.t >= 1 && jobsOf(p) > 0);
   posts.sort((a, b) => (a.key === 'hall') - (b.key === 'hall') || deliveredOf(b) - deliveredOf(a));
   const want = new Map(posts.map(p => [p.id, 0]));
@@ -3197,7 +3212,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   bestDeliveredOf, reachOf, SNUG_WALK,
   panelRects, get panel() { return panel; }, set panel(v) { panel = v; },
   get villagers() { return villagers; }, workersAt, boostAt, producers, stores,
-  assignJobs, desiredJobs, buildingAt, ensureHall, jobsOf, VILLAGER_MAX, rebuildStores, nearestStore,
+  assignJobs, desiredJobs, computeJobs, invalidateJobs, buildingAt, ensureHall, jobsOf, VILLAGER_MAX, rebuildStores, nearestStore,
   isDecor, decorCount, DECOR_MAX, charmTotal, charmMul, tabRects, drawDecor, grant,
   sparePeople, wouldStandEmpty, peopleComing, livedIn,
   sellBuilding, canSell, sellValue, investedIn, capsWithout, get moving() { return moving; }, set moving(v) { moving = v; },
