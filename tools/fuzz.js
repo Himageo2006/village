@@ -237,3 +237,92 @@
   };
   console.log('fuzz ready: await window.fuzz(15000)');
 })();
+
+/* ---------------------------------------------------------------------------
+   Does any text run off the edge of the screen?
+
+   The canvas is a fixed 1024 wide whatever the phone is, but the HUD scale
+   grows with the screen's HEIGHT -- so on a tall handset every label gets
+   bigger inside boxes that did not. That is why every overflow found so far
+   (the storage hint, the village summary, the tray labels) was invisible on a
+   desktop and would have been obvious on the device.
+
+   Wraps fillText for one frame, measures what each call actually drew, and
+   reports anything crossing an edge. Run it over the states below:
+
+     await window.textSweep();
+--------------------------------------------------------------------------- */
+(function () {
+  const V = window.__v;
+  if (!V) return;
+  const W = 1024;
+
+  function scan(label) {
+    const cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
+    const bad = [];
+    const orig = ctx.fillText.bind(ctx);
+    ctx.fillText = function (t, x, y, ...rest) {
+      const w = ctx.measureText(t).width;
+      const a = ctx.textAlign;
+      const x0 = a === 'center' ? x - w / 2 : a === 'right' ? x - w : x;
+      /* Only text laid out in HUD coordinates. Badges over buildings live in
+         the world, are drawn under a translate, and are SUPPOSED to be able to
+         run off the side of the screen -- checking those reported a thousand
+         false failures before the transform was looked at properly. The HUD is
+         the one that has boxes to overflow, and it is drawn with nothing but
+         the letterbox offset: no scale, no x translation. */
+      const m = ctx.getTransform();
+      const isHud = Math.abs(m.a - 1) < 1e-6 && Math.abs(m.d - 1) < 1e-6
+        && Math.abs(m.b) < 1e-6 && Math.abs(m.c) < 1e-6 && Math.abs(m.e) < 1e-6;
+      if (isHud && (x0 < -1 || x0 + w > W + 1) && String(t).trim())
+        bad.push({ state: label, text: String(t).slice(0, 48), left: Math.round(x0), width: Math.round(w) });
+      return orig(t, x, y, ...rest);
+    };
+    try { V.draw(); } finally { ctx.fillText = orig; }
+    return bad;
+  }
+
+  window.textSweep = function () {
+    const cv = document.querySelector('canvas');
+    const keep = cv.height;
+    const found = [];
+    // build a village with something of everything to talk about
+    V.placed.length = 0; V.villagers.length = 0; V.landTier = 2;
+    V.ensureHall(); V.placed[0].lvl = 4;
+    const L = V.landBounds();
+    for (const k of ['store', 'farm', 'lumber', 'house', 'house', 'well', 'mill', 'market',
+                     'path', 'flowers', 'statue']) {
+      V.grant('wood', 9999, 0, 0); V.grant('food', 9999, 0, 0);
+      let ok = false;
+      for (let c = L.lo; c <= L.hi && !ok; c++) for (let r = L.lo; r <= L.hi && !ok; r++) if (V.place(k, c, r)) ok = true;
+    }
+    for (let i = 0; i < 200 * 30; i++) V.step(1 / 30);
+    V.tutSeen.length = 0;
+
+    // every shape of screen the HUD scale can take
+    for (const h of [1536, 1800, 2048, 2304]) {
+      cv.height = h; V.step(0.001); V.camFit(true);
+      const states = {
+        build: () => { V.barMode = 'build'; V.panel = null; V.sel = null; V.away = null; V.claimAsk = false; },
+        decorate: () => { V.barMode = 'decor'; },
+        orders: () => { V.barMode = 'orders'; V.orders = [V.makeOrder(0), V.makeOrder(1), V.makeOrder(2)]; },
+        placing: () => { V.barMode = 'build'; V.sel = 'mill'; },
+        claim: () => { V.sel = null; V.claimAsk = true; },
+        away: () => { V.claimAsk = false; V.away = { secs: 7200, got: { wood: 1234, food: 5678 } }; },
+        hint: () => { V.away = null; V.tutSeen.length = 0; V.res.wood = V.caps.wood; V.res.food = V.caps.food; },
+        goalBanner: () => { V.goalDone = { g: V.GOALS[V.GOALS.length - 1], got: { wood: 2500, food: 1600 }, age: 0 }; },
+      };
+      for (const [name, set] of Object.entries(states)) { set(); found.push(...scan(name + ' @' + h)); }
+      V.goalDone = null;
+      // and every panel, armed and not
+      for (const p of V.placed) for (const arm of [false, true]) {
+        V.panel = p.id; V.sellArm = arm ? { id: p.id, t: 4 } : null;
+        found.push(...scan('panel:' + p.key + (arm ? ' armed' : '') + ' @' + h));
+      }
+      V.panel = null; V.sellArm = null;
+    }
+    cv.height = keep; V.step(0.001);
+    return { overflowing: found.length, worst: found.slice(0, 10) };
+  };
+  console.log('textSweep ready: window.textSweep()');
+})();

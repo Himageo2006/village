@@ -2191,8 +2191,13 @@ function drawHUD() {
     g.globalAlpha = full ? 0.55 : 1;
     g.font = `${Math.round(38 * u)}px Segoe UI, sans-serif`;
     g.fillText(r.b.icon, r.x, r.y - r.h * 0.24);
-    g.font = `bold ${Math.round(18 * u)}px Segoe UI, sans-serif`;
-    g.fillStyle = '#fff'; g.fillText(r.b.name, r.x, r.y + r.h * 0.08);
+    /* Shrunk like the price beneath it. The buttons divide a fixed 1024 across
+       however many kinds there are, while the font grows with the HUD scale --
+       so on a tall phone "Lumber Camp" came out 158 wide in a 134 button and ran
+       into its neighbours. Another failure that only appears on the shape of
+       screen the game is actually for. */
+    const nameFit = fitLines(r.b.name, r.w - 12 * u, 18 * u, 11 * u, 1);
+    g.fillStyle = '#fff'; g.fillText(nameFit.lines[0], r.x, r.y + r.h * 0.08);
     g.globalAlpha = 1;
     /* Shrunk to fit the button. Two costs and a charm value at the largest HUD
        scale is wider than the tile it sits in, and a price that runs into its
