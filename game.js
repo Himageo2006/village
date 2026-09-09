@@ -524,7 +524,7 @@ const postNear = p => { const c=centreOf(p);
 const VILLAGER_MAX = 72;
 function syncVillagers(){
   let want=0;
-  for(const p of placed) if(p.key==='house'&&p.t>=1) want+=popOf(p);
+  for(const p of placed) want += livedIn(p);
   want=Math.min(want,VILLAGER_MAX);
   while(villagers.length<want){
     const h=hallOf(), t=h?centreOf(h):tileToWorld(GW/2,GH/2);
@@ -548,8 +548,27 @@ function assignJobs(){
     if(!p || p.t<1 || !B(p.key).jobs){ v.job=null; v.st='idle'; v.carry=null; continue; }
     count.set(v.job, (count.get(v.job)||0)+1);
   }
-  // vacancies, emptiest first; the hall's woodpile always last, or the very
-  // first villager would mind it at 0.15/s instead of cutting wood at 0.6/s
+  /* The woodpile is where spare hands go when there is nothing better. It was
+     not being treated as a fallback but as a career: the first house gives two
+     villagers, both take the woodpile because it is the only workplace there
+     is, and the lumber camp built next stood empty for ever while two people
+     poked at a pile at a quarter of the rate. Nobody ever moved, because
+     vacancies were only ever filled from villagers who had no job at all.
+
+     So a hall worker steps out the moment a real workplace has room. Anything
+     they are carrying is left alone -- they finish the delivery and take the
+     new post afterwards. */
+  if (producers().some(p => p.key !== 'hall' && (count.get(p.id) || 0) < jobsOf(p))) {
+    for (const v of villagers) {
+      if (v.job == null) continue;
+      const p = byId(v.job);
+      if (!p || p.key !== 'hall') continue;
+      v.job = null;
+      count.set(p.id, Math.max(0, (count.get(p.id) || 1) - 1));
+    }
+  }
+  // vacancies, emptiest first; the hall's woodpile always last, so spare hands
+  // only end up there when every real workplace is full
   const open = producers()
     .filter(p=>(count.get(p.id)||0) < jobsOf(p))
     .sort((a,b)=>(a.key==='hall')-(b.key==='hall')
@@ -850,6 +869,21 @@ const lvlOf = p => Math.min(LVL_MAX, Math.max(1, p.lvl | 0));
 // what a level is worth: level 5 is 2.4x level 1
 const outMul = l => 1 + 0.35 * (l - 1);
 const popOf  = p => B(p.key).pop ? B(p.key).pop + (lvlOf(p) - 1) : 0;
+/* How many people actually live here right now.
+
+   A house being UPGRADED keeps the people it already had, for exactly the
+   reason a storehouse keeps its capacity while it is being improved: counting
+   only finished buildings threw the residents out for the duration, so the
+   workplaces they staffed stopped, and improving a house punished you for
+   improving it. A house that has never finished houses nobody. */
+function livedIn(p) {
+  if (!B(p.key).pop) return 0;
+  const lvl = p.t >= 1 ? lvlOf(p) : lvlOf(p) - 1;
+  return lvl >= 1 ? B(p.key).pop + (lvl - 1) : 0;
+}
+// and how many are on their way, once what is being built finishes
+const peopleComing = () => placed.reduce((n, p) =>
+  n + (p.t < 1 && B(p.key).pop ? popOf(p) - livedIn(p) : 0), 0);
 /* A bigger workplace employs more people. Without this the village runs out of
    jobs long before it runs out of houses, and every house past the fourth is
    wood spent on villagers who stand about. */
@@ -1062,8 +1096,14 @@ const anyAtLevel = n => placed.some(p => p.key !== 'hall' && lvlOf(p) >= n && p.
 const GOALS = [
   { text: 'Build your first house',        done: () => countOf('house') >= 1,  give: { wood: 15 } },
   { text: 'Build a lumber camp',           done: () => countOf('lumber') >= 1, give: { food: 15 } },
-  { text: 'Build a farm',                  done: () => countOf('farm') >= 1,   give: { wood: 25 } },
-  { text: 'House four villagers',          done: () => villagers.length >= 4,  give: { wood: 30, food: 20 } },
+  /* The second house comes BEFORE the farm, and the order matters more than it
+     looks. One house is two villagers and the lumber camp takes both, so a farm
+     built at this point has nobody to work it -- the goal strip said "build a
+     farm" while the button for it said "no one free", which is a straight
+     contradiction inside the first two minutes. Housed first, the farm is
+     staffed the moment it is finished. */
+  { text: 'House four villagers',          done: () => villagers.length >= 4,  give: { wood: 25 } },
+  { text: 'Build a farm',                  done: () => countOf('farm') >= 1,   give: { wood: 30, food: 20 } },
   { text: 'Raise the town hall to level 2', done: () => hallLevel() >= 2,      give: { wood: 60, food: 40 } },
   { text: 'Build a storehouse',            done: () => countOf('store') >= 1,  give: { wood: 70 } },
   // not "at the market": trading needs no market, and naming one sends the
@@ -1182,7 +1222,12 @@ const atLimit = key => isDecor(key) ? decorCount() >= DECOR_MAX : countOf(key) >
 const sparePeople = () => villagers.reduce((n, v) => n + (v.job == null ? 1 : 0), 0);
 const wouldStandEmpty = key => {
   const b = B(key);
-  return !!(b && b.jobs && !b.caps && key !== 'hall') && sparePeople() === 0;
+  /* Counting the people still walking out of a house that is being built, or
+     it warned about the lumber camp the goal had just asked for -- the first
+     house was three seconds from finishing and its two villagers were already
+     spoken for. */
+  return !!(b && b.jobs && !b.caps && key !== 'hall')
+    && sparePeople() + peopleComing() === 0;
 };
 
 /* Charm: what decorations are actually for. A pleasant village works a little
@@ -1454,7 +1499,7 @@ let away = null;                      // {secs, got:{wood,food}} until dismissed
    folded in, so walking time is still paid for. */
 function potentialRate() {
   let pop = 0;
-  for (const p of placed) if (p.key === 'house' && p.t >= 1) pop += popOf(p);
+  for (const p of placed) pop += livedIn(p);
   pop = Math.min(pop, VILLAGER_MAX);
   const posts = placed.filter(p => p.t >= 1 && B(p.key).jobs && B(p.key).makes)
     .sort((a, b) => (a.key === 'hall') - (b.key === 'hall'));
@@ -3115,7 +3160,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   get villagers() { return villagers; }, workersAt, boostAt, producers, stores,
   assignJobs, buildingAt, ensureHall, jobsOf, VILLAGER_MAX, rebuildStores, nearestStore,
   isDecor, decorCount, DECOR_MAX, charmTotal, charmMul, tabRects, drawDecor, grant,
-  sparePeople, wouldStandEmpty,
+  sparePeople, wouldStandEmpty, peopleComing, livedIn,
   sellBuilding, canSell, sellValue, investedIn, capsWithout, get moving() { return moving; }, set moving(v) { moving = v; },
   get armed() { return armed; }, set armed(v) { armed = v; },
   get sellArm() { return sellArm; }, set sellArm(v) { sellArm = v; }, SELL_ARM,
