@@ -553,11 +553,13 @@ function syncVillagers(){
    that, hands go where they deliver most. The hall's woodpile sorts last
    throughout: it is where spare hands go when there is nothing better, not a
    career. */
-function desiredJobs() {
+function desiredJobs(handsIn) {
   const posts = producers().filter(p => p.t >= 1 && jobsOf(p) > 0);
   posts.sort((a, b) => (a.key === 'hall') - (b.key === 'hall') || deliveredOf(b) - deliveredOf(a));
   const want = new Map(posts.map(p => [p.id, 0]));
-  let hands = villagers.length;
+  /* Callable with a population that does not exist yet: offline earnings are
+     worked out before the first tick has spawned anybody. */
+  let hands = handsIn === undefined ? villagers.length : handsIn;
   /* One each, but not the woodpile: it is the fallback, so it only earns hands
      once every real workplace is full. Guaranteeing it one put a villager on
      the least productive job in the village ahead of a second pair of hands at
@@ -1532,19 +1534,22 @@ let away = null;                      // {secs, got:{wood,food}} until dismissed
    the job slots, real workplaces before the hall's woodpile. Efficiency is
    folded in, so walking time is still paid for. */
 function potentialRate() {
+  /* The workforce assembled exactly the way assignJobs assembles it. It used to
+     fill posts in the order they were built, which matched the game until hands
+     started going where they deliver most -- and then the offline figure sat a
+     quarter BELOW what the village was really producing, which is the same kind
+     of lie as the ones it was written to avoid, just pointing the other way.
+
+     Counted from the houses rather than from the villagers, because this runs
+     at load, before the first tick has spawned any of them. */
   let pop = 0;
   for (const p of placed) pop += livedIn(p);
-  pop = Math.min(pop, VILLAGER_MAX);
-  const posts = placed.filter(p => p.t >= 1 && B(p.key).jobs && B(p.key).makes)
-    .sort((a, b) => (a.key === 'hall') - (b.key === 'hall'));
+  const { want, posts } = desiredJobs(Math.min(pop, VILLAGER_MAX));
   const out = { wood: 0, food: 0 };
   for (const p of posts) {
-    if (pop <= 0) break;
-    const hands = Math.min(pop, jobsOf(p));
-    pop -= hands;
-    const kind = Object.keys(B(p.key).makes)[0];
-    const eff = efficiencyOf(p);
-    out[kind] += rateOf(p, kind) * boostAt(p) * charmMul() * hands * (eff === null ? 1 : eff);
+    const hands = want.get(p.id) || 0;
+    if (!hands) continue;
+    out[Object.keys(B(p.key).makes)[0]] += hands * deliveredOf(p);
   }
   return out;
 }
