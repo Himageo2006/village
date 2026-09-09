@@ -540,6 +540,40 @@ function syncVillagers(){
    map instead of rescanning every villager for every villager. The old version
    called producers() and workersAt() inside the per-villager loop, which is
    quadratic in population and fine at a dozen villagers and not at seventy. */
+/* Where the workforce SHOULD be.
+
+   Villagers never reconsidered a job once they had one, so posts filled in
+   whatever order they happened to be built. In a village with a mill worth 0.97
+   a head and a stranded farm worth 0.45, the farm had three people and the mill
+   had none -- a quarter of the village's labour going to waste, and every
+   placement decision the player made counting for nothing.
+
+   Every workplace gets one pair of hands before any gets a second, so a new
+   building is never simply ignored and the player can see what it does. After
+   that, hands go where they deliver most. The hall's woodpile sorts last
+   throughout: it is where spare hands go when there is nothing better, not a
+   career. */
+function desiredJobs() {
+  const posts = producers().filter(p => p.t >= 1 && jobsOf(p) > 0);
+  posts.sort((a, b) => (a.key === 'hall') - (b.key === 'hall') || deliveredOf(b) - deliveredOf(a));
+  const want = new Map(posts.map(p => [p.id, 0]));
+  let hands = villagers.length;
+  /* One each, but not the woodpile: it is the fallback, so it only earns hands
+     once every real workplace is full. Guaranteeing it one put a villager on
+     the least productive job in the village ahead of a second pair of hands at
+     the best one. With no real workplace yet -- the first minute of a new
+     village -- the second pass gives it everybody, which is the point of it. */
+  for (const p of posts) {
+    if (hands <= 0) break;
+    if (p.key === 'hall') continue;
+    want.set(p.id, 1); hands--;
+  }
+  for (const p of posts) {
+    const cap = jobsOf(p);
+    while (hands > 0 && want.get(p.id) < cap) { want.set(p.id, want.get(p.id) + 1); hands--; }
+  }
+  return { want, posts };
+}
 function assignJobs(){
   const count = new Map();
   for(const v of villagers){
@@ -548,41 +582,41 @@ function assignJobs(){
     if(!p || p.t<1 || !B(p.key).jobs){ v.job=null; v.st='idle'; v.carry=null; continue; }
     count.set(v.job, (count.get(v.job)||0)+1);
   }
-  /* The woodpile is where spare hands go when there is nothing better. It was
-     not being treated as a fallback but as a career: the first house gives two
-     villagers, both take the woodpile because it is the only workplace there
-     is, and the lumber camp built next stood empty for ever while two people
-     poked at a pile at a quarter of the rate. Nobody ever moved, because
-     vacancies were only ever filled from villagers who had no job at all.
+  const { want, posts } = desiredJobs();
+  const under = () => posts.filter(p => (count.get(p.id) || 0) < (want.get(p.id) || 0));
 
-     So a hall worker steps out the moment a real workplace has room. Anything
-     they are carrying is left alone -- they finish the delivery and take the
-     new post afterwards. */
-  if (producers().some(p => p.key !== 'hall' && (count.get(p.id) || 0) < jobsOf(p))) {
-    for (const v of villagers) {
-      if (v.job == null) continue;
-      const p = byId(v.job);
-      if (!p || p.key !== 'hall') continue;
-      v.job = null;
-      count.set(p.id, Math.max(0, (count.get(p.id) || 1) - 1));
-    }
+  // first, anyone with no job at all
+  let open = under();
+  let i = 0;
+  for (const v of villagers) {
+    if (v.job != null) continue;
+    while (i < open.length && (count.get(open[i].id) || 0) >= (want.get(open[i].id) || 0)) i++;
+    if (i >= open.length) break;
+    const free = open[i];
+    count.set(free.id, (count.get(free.id) || 0) + 1);
+    v.job = free.id; v.st = 'toWork';
+    const t = postNear(free); v.tx = t.x; v.ty = t.y;
   }
-  // vacancies, emptiest first; the hall's woodpile always last, so spare hands
-  // only end up there when every real workplace is full
-  const open = producers()
-    .filter(p=>(count.get(p.id)||0) < jobsOf(p))
-    .sort((a,b)=>(a.key==='hall')-(b.key==='hall')
-      || (count.get(a.id)||0)/jobsOf(a) - (count.get(b.id)||0)/jobsOf(b));
-  if(!open.length) return;
-  let i=0;
-  for(const v of villagers){
-    if(v.job!=null) continue;
-    while(i<open.length && (count.get(open[i].id)||0) >= jobsOf(open[i])) i++;
-    if(i>=open.length) break;               // no vacancies, so none for anyone
-    const free=open[i];
-    count.set(free.id, (count.get(free.id)||0)+1);
-    v.job=free.id; v.st='toWork';
-    const t=postNear(free); v.tx=t.x; v.ty=t.y;
+
+  /* Then ONE person changes job per pass, from a post that has more hands than
+     it deserves to one that has fewer. One at a time because this runs every
+     tick: it converges in under a second either way, and it reads as people
+     walking to a different job rather than the whole village teleporting.
+
+     Anything they are carrying is left alone -- they finish the delivery and
+     take the new post afterwards. */
+  const shortOf = under()[0];
+  if (!shortOf) return;
+  const spare = posts.find(p => (count.get(p.id) || 0) > (want.get(p.id) || 0));
+  if (!spare) return;
+  const mover = villagers.find(v => v.job === spare.id);
+  if (!mover) return;
+  count.set(spare.id, (count.get(spare.id) || 1) - 1);
+  count.set(shortOf.id, (count.get(shortOf.id) || 0) + 1);
+  mover.job = shortOf.id;
+  if (mover.st === 'work' || mover.st === 'idle') {
+    mover.st = 'toWork';
+    const t = postNear(shortOf); mover.tx = t.x; mover.ty = t.y;
   }
 }
 
@@ -3158,7 +3192,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   bestDeliveredOf, reachOf, SNUG_WALK,
   panelRects, get panel() { return panel; }, set panel(v) { panel = v; },
   get villagers() { return villagers; }, workersAt, boostAt, producers, stores,
-  assignJobs, buildingAt, ensureHall, jobsOf, VILLAGER_MAX, rebuildStores, nearestStore,
+  assignJobs, desiredJobs, buildingAt, ensureHall, jobsOf, VILLAGER_MAX, rebuildStores, nearestStore,
   isDecor, decorCount, DECOR_MAX, charmTotal, charmMul, tabRects, drawDecor, grant,
   sparePeople, wouldStandEmpty, peopleComing, livedIn,
   sellBuilding, canSell, sellValue, investedIn, capsWithout, get moving() { return moving; }, set moving(v) { moving = v; },
