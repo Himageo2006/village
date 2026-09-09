@@ -1354,23 +1354,15 @@ function place(key, c, r) {
 /* The ceilings the village would have if this building were gone -- what the
    sell button has to quote, because selling storage takes its own capacity
    with it. */
-function capsWithout(p) {
-  const keep = placed;
-  placed = placed.filter(q => q !== p);
-  const now = caps;
-  recomputeCaps();
-  const out = caps;
-  placed = keep; caps = now; rebuildStores();
-  return out;
-}
-function recomputeCaps() {
-  rebuildStores();                    // the same events change both
+/* What the village could hold, optionally pretending one building is not
+   there. Both callers want the same sum; only one of them wants to keep it. */
+function capsSum(skip) {
   // the hall itself holds more as it grows, so an upgrade is worth something
   // even before you have spent the room it unlocks
   const base = 200 + 100 * hallLevel();
-  caps = { wood: base, food: base };
+  const out = { wood: base, food: base };
   for (const p of placed) {
-    if (!B(p.key).caps) continue;
+    if (p === skip || !B(p.key).caps) continue;
     /* A storehouse being UPGRADED keeps the capacity it already had. Counting
        only finished buildings meant starting an upgrade collapsed the ceiling,
        put the village instantly over it, and stopped every delivery until the
@@ -1378,8 +1370,24 @@ function recomputeCaps() {
        your storage. It earns the new capacity when it is done, not before. */
     const lvl = p.t >= 1 ? lvlOf(p) : lvlOf(p) - 1;
     if (lvl < 1) continue;                        // still being built the first time
-    for (const k of ['wood', 'food']) caps[k] += capsOf({ key: p.key, lvl }, k);
+    for (const k of ['wood', 'food']) out[k] += capsOf({ key: p.key, lvl }, k);
   }
+  return out;
+}
+/* The ceilings the village would have if this building were gone -- what the
+   sell button has to quote, because selling storage takes its own capacity with
+   it.
+
+   It used to get there by taking the building out of the world, calling
+   recomputeCaps, and putting it back. That was merely ugly until the rebuilds
+   hanging off recomputeCaps grew: the panel calls this every frame it is open,
+   so an open panel rebuilt the store list four times a tick and threw away the
+   workforce plan thirty times a second, which is the one thing the plan is
+   cached to avoid. It just adds up the numbers now. */
+function capsWithout(p) { return capsSum(p); }
+function recomputeCaps() {
+  rebuildStores();                    // the same events change both
+  caps = capsSum();
 }
 
 /* Everything ever paid into a building, so selling can return a fair half
@@ -2492,8 +2500,13 @@ function drawGoal() {
    Leaves the fitted font selected, so the caller can measure the lines it gets
    back without setting it again. */
 function fitLines(text, maxW, px, minPx, maxLines, weight) {
-  const words = text.split(' ');
   const w = weight === undefined ? 'bold ' : weight ? weight + ' ' : '';
+  /* Almost every string already fits: one measurement to find that out, rather
+     than splitting it into words and measuring them one at a time. The tray
+     alone runs this fourteen times a frame. */
+  g.font = `${w}${Math.round(px)}px Segoe UI, sans-serif`;
+  if (g.measureText(text).width <= maxW) return { lines: [text], px };
+  const words = text.split(' ');
   for (let size = px; ; size--) {
     g.font = `${w}${Math.round(size)}px Segoe UI, sans-serif`;
     const lines = [];
