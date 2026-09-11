@@ -2560,7 +2560,13 @@ function drawHUD() {
     };
     if (full) sub(lost > 0.05 ? 'wasting ' + lost.toFixed(1) + '/s' : 'storage full', '#f0a583');
     else sub(rate > 0.02 ? '+' + rate.toFixed(1) + ' / s' : 'idle',
-      rate > 0.02 ? '#8fd06a' : '#7d8a76');
+      /* The muted greys on these pills are the only text in the game that fails
+         a contrast check. The pills are 80% opaque and sit over the world, so
+         the background is not the pill's colour -- over bright water this one
+         came out at 3.1 against the 4.5 small text wants, and it is small text.
+         Lifted about a quarter of the way to white, which is the least that
+         clears it and still reads as "nothing is happening here". */
+      rate > 0.02 ? '#8fd06a' : '#9ca697');
   };
   chip(24 * u, '🪵', res.wood, caps.wood, '#e8c98a', rateNow.wood, wasting && wasting.wood);
   chip(24 * u + 226 * u, '🌾', res.food, caps.food, '#bfe08a', rateNow.food, wasting && wasting.food);
@@ -2574,7 +2580,8 @@ function drawHUD() {
     const cd = charmDelivered();
     g.font = `bold ${Math.round(27 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#cbb6f0';
     g.fillText(cd > 0.005 ? '+' + cd.toFixed(2) + '/s' : 'charm ' + ch, x + 58 * u, ry - 12 * u);
-    g.font = `bold ${Math.round(19 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#8d84a8';
+    // 3.25 over bright water before; see the note on the idle colour above
+    g.font = `bold ${Math.round(19 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#a69fbb';
     /* "No workplaces yet" was shown for any gain too small to print, which
        covers a village full of working farms whose three charm is worth a
        thousandth of a load a second. Two different things, and only one of them
