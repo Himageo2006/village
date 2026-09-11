@@ -3132,6 +3132,20 @@ function drawPanel() {
   if (p.key === 'hall') {
     const a = HALL[hallLevel()].allow;
     line = Object.keys(a).map(k => B(k).icon + a[k]).join('   ');
+    /* And what the next level adds, which is the entire reason to buy it. The
+       hall is the most expensive thing in the game -- two thousand wood for the
+       last step -- and its panel showed only what the village is allowed NOW,
+       so the player was asked to spend that on a promise nothing stated. The
+       mill and the market are not even visible in the build tray until the hall
+       unlocks them, which makes it worse: the best part of the upgrade is the
+       part you cannot see coming. */
+    const nx = nl > lvlOf(p) && HALL[nl] ? HALL[nl].allow : null;
+    if (nx) {
+      const add = Object.keys(nx)
+        .filter(k => (nx[k] || 0) > (a[k] || 0))
+        .map(k => B(k).icon + '+' + ((nx[k] || 0) - (a[k] || 0)));
+      if (add.length) line += '   →   ' + add.join(' ');
+    }
   }
   panelRow(line, lx, R.y - R.h / 2 + 116 * u, R.w - 56 * u, 22 * u, '#e8c98a', '');
 
