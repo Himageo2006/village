@@ -769,6 +769,10 @@ function stepVillagers(dt){
 }
 /* ---------- camera (pan + pinch) ---------- */
 const CAM = { z: 1, base: 1, x: W / 2, y: 520 };
+/* A village built out to BOTH far points of a full island cannot be shown at
+   once on a tall phone at any readable size -- it would need 0.39, and at that
+   zoom the buildings are thumbnails. The floor stays where it is and the player
+   pans; the opening fit frames what they built, which is the common case. */
 const ZMIN = 0.55, ZMAX = 2.2;
 const camScale = () => CAM.base * CAM.z;
 function camClamp() {
@@ -800,8 +804,37 @@ function landWorldBounds() {
    the resource bars sit over the top of the world and the build tray over the
    bottom -- fitting to the raw canvas would tuck the near corner of the island
    behind the tray. */
-function landFitZoom() {
+/* What the opening view should contain: the village, not the island.
+
+   Framing the claimed land sounds right and is not, once there is anything on
+   it. At full size the island is fourteen tiles across and simply does not fit
+   a phone at a readable size, so the fit cropped the east and west points --
+   and on a tall handset, where width is what limits everything, that crop came
+   off whatever the player had built out there. Framing what they built instead
+   gives a close view of a compact village, the same view as before of a spread
+   one, and never cuts a building in half to show more water.
+
+   The floor keeps an empty island from opening on one lonely hall. */
+function builtBounds() {
+  const L = landBounds();
+  const core = { x0: Infinity, x1: -Infinity, y0: Infinity, y1: -Infinity };
+  for (const p of placed) {
+    const c = centreOf(p);
+    core.x0 = Math.min(core.x0, c.x - TW); core.x1 = Math.max(core.x1, c.x + TW);
+    core.y0 = Math.min(core.y0, c.y - TH); core.y1 = Math.max(core.y1, c.y + TH);
+  }
+  if (!isFinite(core.x0)) return landWorldBounds();
+  // never tighter than the starting plot, never wider than the island
+  const mid = tileToWorld((L.lo + L.hi) / 2, (L.lo + L.hi) / 2);
+  const minHalfW = 3.2 * TW, minHalfH = 3.2 * TH;
+  core.x0 = Math.min(core.x0, mid.x - minHalfW); core.x1 = Math.max(core.x1, mid.x + minHalfW);
+  core.y0 = Math.min(core.y0, mid.y - minHalfH); core.y1 = Math.max(core.y1, mid.y + minHalfH);
   const b = landWorldBounds();
+  return { x0: Math.max(core.x0, b.x0), x1: Math.min(core.x1, b.x1),
+           y0: Math.max(core.y0, b.y0), y1: Math.min(core.y1, b.y1) };
+}
+function landFitZoom(wide) {
+  const b = wide ? landWorldBounds() : builtBounds();
   const padTop = 130 * US(), padBot = 300 * US();
   /* The land is a diamond twice as wide as it is tall, and the screen is taller
      than it is wide, so a strict fit is always limited by the width and leaves a
@@ -809,19 +842,23 @@ function landFitZoom() {
      diamond are its emptiest ground, so a little of them is allowed off the
      edges -- worth about fifteen percent more zoom on everything the player
      actually looks at, and they are one pan away. */
-  const zx = W / ((b.x1 - b.x0) * 0.86);
+  /* Showing the whole island is what the "wide" fit is for -- the moment a ring
+     is bought, so the player sees what their money went on. Its east and west
+     points are its emptiest ground, so a little of them is allowed past the
+     edges there; the village fit is exact, because everything in it matters. */
+  const zx = W / ((b.x1 - b.x0) * (wide ? 0.86 : 1));
   const zy = (VH - padTop - padBot) / (b.y1 - b.y0);
   return Math.max(ZMIN, Math.min(ZMAX, Math.min(zx, zy) / CAM.base));
 }
 /* Centred on the land, nudged down so the free space lands under the tray
    rather than being split evenly above and below. */
-function camFitTarget() {
-  const b = landWorldBounds(), z = landFitZoom();
+function camFitTarget(wide) {
+  const b = wide ? landWorldBounds() : builtBounds(), z = landFitZoom(wide);
   const s = CAM.base * z;
   return { z, x: (b.x0 + b.x1) / 2, y: (b.y0 + b.y1) / 2 + (300 * US() - 130 * US()) / (2 * s) };
 }
-function camFit(instant) {
-  const t = camFitTarget();
+function camFit(instant, wide) {
+  const t = camFitTarget(wide);
   if (instant) { CAM.z = t.z; CAM.x = t.x; CAM.y = t.y; camGlide = null; camClamp(); }
   else camGlide = t;
 }
@@ -961,7 +998,7 @@ function claimLand() {
   if (!canClaim()) return false;
   for (const [k, v] of Object.entries(landNext())) res[k] -= v;
   landTier++;
-  camFit();                              // show what was just bought
+  camFit(false, true);                   // the whole island, to show what was bought
   claimAsk = false;
   save();
   SFX.upgrade();
@@ -3582,7 +3619,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   KEY, KEY_BAK, BACKUP_EVERY,
   get saveFailed() { return saveFailed; }, set saveFailed(v) { saveFailed = v; },
   get loadedFromBackup() { return loadedFromBackup; }, set loadedFromBackup(v) { loadedFromBackup = v; },
-  sky, dayPhase, DAY_MS, camFit, landFitZoom, landWorldBounds, artFor, ART, villagerArt,
+  sky, dayPhase, DAY_MS, camFit, landFitZoom, landWorldBounds, builtBounds, artFor, ART, villagerArt,
   hudTop, hudBot, screenTop, screenBot, readSafeArea, get SAFE() { return SAFE; }, set SAFE(v) { SAFE = v; },
   fitLines, TUT, GOALS,
   efficiencyOf, hasStore, onPath, PATH_SPEED, rebuildPaths, routeOf, get pathSet() { return pathSet; },
