@@ -2174,11 +2174,20 @@ function drawFrontier() {
   g.restore();
 }
 
+let pendingGhost = null;              // the placement label, drawn last
 function drawWorld() {
+  pendingGhost = null;
   const occSet = occupied();          // scenery hides under buildings
   drawGround();
   // paths are painted ON the ground, so they go down before anything stands up
   for (const p of placed) if (B(p.key).flat) drawDecor(p, 1);
+  /* Tap a well and you can see how far it reaches. The panel already says how
+     many workplaces it lifts; this says WHICH, which is the part that tells you
+     where to move it. */
+  if (panel != null) {
+    const wp = byId(panel);
+    if (wp && B(wp.key).boost && wp.t >= 1) drawWellReach(wp.c, wp.r, 0.8);
+  }
   if (ghost && ghostKey()) {                            // placement preview
     const selKey = ghostKey(), b = B(selKey);
     for (let dc = 0; dc < b.w; dc++) for (let dr = 0; dr < b.h; dr++) {
@@ -2187,6 +2196,8 @@ function drawWorld() {
       g.fill();
     }
     if (ghost.ok) {
+      // a well's reach, under the ghost, before it is paid for
+      if (selKey === 'well') drawWellReach(ghost.c, ghost.r, 1);
       drawPlaced({ id: -1, key: selKey, c: ghost.c, r: ghost.r, t: 1, lvl: 1 }, 0.55);
       /* What this spot would actually be worth. Shown DURING placement, because
          telling the player afterwards is telling them too late. */
@@ -2195,27 +2206,46 @@ function drawWorld() {
          and "0.31/s here, 0.58 beside a store" answers that directly, where a
          percentage has to be decoded first -- and decoded wrongly, since the
          same percentage means different things at different levels. */
-      const eff = B(selKey).caps ? null : reachOf(probe);
-      if (eff !== null) {
+      const isWell = !!B(selKey).boost;
+      const eff = (B(selKey).caps || isWell) ? null : reachOf(probe);
+      if (eff !== null || isWell) {
         const a = tileToWorld(ghost.c, ghost.r), d2 = tileToWorld(ghost.c + b.w - 1, ghost.r + b.h - 1);
         const cx = (a.x + d2.x) / 2, cy = (a.y + d2.y) / 2;
         const sc = badgeScale();
+        /* Kept for AFTER the buildings are drawn. This label is the whole
+           point of the placement preview, and it was being painted before the
+           depth pass -- so choosing a spot behind the hall hid the one number
+           the player was choosing by. */
+        pendingGhost = () => {
         g.save();
         g.translate(cx, cy - 96 * sc); g.scale(sc, sc);
         g.textAlign = 'center'; g.textBaseline = 'middle';
         g.font = 'bold 22px Segoe UI, sans-serif';
         const empty = wouldStandEmpty(selKey);
-        const txt = empty ? 'nobody free to work it — build a house'
+        let txt;
+        if (isWell) {
+          const wg = wellGainAt(ghost.c, ghost.r, 1);
+          /* In reach of three sheds that nobody is working is not the same as
+             in reach of nothing, and "+0.00/s" beside "lifts 3 workplaces"
+             reads as broken rather than as the truth it is. */
+          txt = !wg.n ? 'reaches no workplace'
+            : 'lifts ' + wg.n + (wg.n === 1 ? ' workplace' : ' workplaces') + '   ·   '
+              + (wg.gain > 0.005 ? '+' + wg.gain.toFixed(2) + '/s' : 'none of them worked yet');
+        } else txt = empty ? 'nobody free to work it — build a house'
           : deliveredOf(probe).toFixed(2) + '/s here'
             + (eff > 0.85 ? '' : '   ·   best ' + bestDeliveredOf(probe).toFixed(2));
         const w2 = g.measureText(txt).width + 26;
         g.fillStyle = 'rgba(14,22,12,.9)';
-        g.strokeStyle = empty ? '#e59a86' : eff > 0.66 ? '#9fe86b' : eff > 0.42 ? '#e8c98a' : '#e59a86';
+        const good = isWell ? wellGainAt(ghost.c, ghost.r, 1).n > 0 : !empty && eff > 0.66;
+        g.strokeStyle = isWell ? (good ? '#9fe86b' : '#e59a86')
+          : empty ? '#e59a86' : eff > 0.66 ? '#9fe86b' : eff > 0.42 ? '#e8c98a' : '#e59a86';
         g.lineWidth = 2.5;
         g.beginPath(); g.roundRect(-w2 / 2, -17, w2, 34, 17); g.fill(); g.stroke();
-        g.fillStyle = empty ? '#f0a583' : eff > 0.66 ? '#b6f58a' : eff > 0.42 ? '#f0d89a' : '#f0a583';
+        g.fillStyle = isWell ? (good ? '#b6f58a' : '#f0a583')
+          : empty ? '#f0a583' : eff > 0.66 ? '#b6f58a' : eff > 0.42 ? '#f0d89a' : '#f0a583';
         g.fillText(txt, 0, 1);
         g.restore();
+        };
       }
     }
   }
@@ -2231,6 +2261,26 @@ function drawWorld() {
   for (const v of villagers) ents.push({ y: v.y, d: () => drawVillager(v) });
   ents.sort((a, b2) => a.y - b2.y);
   for (const e of ents) e.d();
+  /* The well's reach again, outline only, so the far side of the circle is not
+     lost behind whatever is standing in it. */
+  const ringOf = p => p && B(p.key).boost ? p : null;
+  const ring = ringOf(panel != null ? byId(panel) : null)
+    || (ghost && ghost.ok && ghostKey() === 'well' ? { c: ghost.c, r: ghost.r } : null);
+  if (ring) {
+    const bw = B('well'), w = tileToWorld(ring.c + (bw.w - 1) / 2, ring.r + (bw.h - 1) / 2);
+    const rx = bw.boostR * TW / Math.SQRT2, ry = bw.boostR * TH / Math.SQRT2;
+    g.save();
+    g.setLineDash([14, 10]);
+    /* Dark underneath, light on top. Half of this circle crosses roofs and the
+       other half crosses grass, and a single colour disappears into one of
+       them whichever one you pick. */
+    g.strokeStyle = 'rgba(10,24,34,.55)'; g.lineWidth = 6;
+    g.beginPath(); g.ellipse(w.x, w.y, rx, ry, 0, 0, 7); g.stroke();
+    g.strokeStyle = 'rgba(196,238,255,.95)'; g.lineWidth = 2.5;
+    g.beginPath(); g.ellipse(w.x, w.y, rx, ry, 0, 0, 7); g.stroke();
+    g.restore();
+  }
+  if (pendingGhost) pendingGhost();
   // after the entities, so the trees out in the wild are dimmed with the ground
   // they stand on rather than glowing against it
   drawFrontier();
@@ -2725,6 +2775,45 @@ function wellGain(w) {
   return { n, gain };
 }
 
+/* What a well put HERE would add. wellGain answers the same question for one
+   that already exists, by taking it away again; this one has nothing to take
+   away, so it adds the boost on instead.
+
+   Placing a well was the last blind decision left in the game: forty wood on a
+   building whose entire worth is which workplaces happen to fall inside a
+   radius the player cannot see. */
+function wellGainAt(c, r, lvl) {
+  const bw = B('well');
+  let n = 0, gain = 0;
+  for (const p of placed) {
+    const b = B(p.key);
+    if (p.t < 1 || !b.makes || !b.jobs) continue;
+    const dx = (c + (bw.w - 1) / 2) - (p.c + (b.w - 1) / 2);
+    const dy = (r + (bw.h - 1) / 2) - (p.r + (b.h - 1) / 2);
+    if (Math.hypot(dx, dy) > bw.boostR) continue;
+    n++;
+    const hands = workersAt(p.id);
+    if (!hands) continue;              // in reach, but nobody there to speed up
+    const without = boostAt(p), withIt = without + bw.boost * outMul(lvl);
+    const base = rateOf(p, Object.keys(b.makes)[0]) * charmMul();
+    gain += hands * (deliveredWith(p, base * withIt) - deliveredWith(p, base * without));
+  }
+  return { n, gain };
+}
+/* The reach, drawn on the ground. A circle in GRID space, which is an ellipse
+   on screen -- the same two-to-one squash everything else lives in. */
+function drawWellReach(c, r, alpha) {
+  const bw = B('well'), w = tileToWorld(c + (bw.w - 1) / 2, r + (bw.h - 1) / 2);
+  const rx = bw.boostR * TW / Math.SQRT2, ry = bw.boostR * TH / Math.SQRT2;
+  g.save();
+  g.globalAlpha = alpha;
+  g.fillStyle = 'rgba(120,190,240,.16)';
+  g.strokeStyle = 'rgba(150,215,255,.85)'; g.lineWidth = 3;
+  g.setLineDash([14, 10]);
+  g.beginPath(); g.ellipse(w.x, w.y, rx, ry, 0, 0, 7); g.fill(); g.stroke();
+  g.restore();
+}
+
 /* What charm is really adding, in goods per second rather than as a percentage
    of a rate nobody receives. Same treatment as the well: with minus without. */
 function charmDelivered() {
@@ -2888,10 +2977,10 @@ function drawPanel() {
     if (nl > lvlOf(p)) line += '  →  ' + at(nl, popOf);
   } else if (b.boost) {
     const wg = wellGain(p);
-    line = wg.n
-      ? 'Lifting ' + wg.n + (wg.n === 1 ? ' workplace' : ' workplaces') + '   ·   +'
-        + wg.gain.toFixed(2) + '/s delivered'
-      : 'Reaching no workplace — move it beside one';
+    line = !wg.n ? 'Reaching no workplace — move it beside one'
+      : 'Lifting ' + wg.n + (wg.n === 1 ? ' workplace' : ' workplaces') + '   ·   '
+        + (wg.gain > 0.005 ? '+' + wg.gain.toFixed(2) + '/s delivered'
+          : 'none of them worked yet');
   } else if (b.charm) {
     /* The percentage was a rate figure, and the walk does not speed up with it.
        This is the goods per second the village's decorations are really adding. */
@@ -3266,7 +3355,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   tap, CAM, save, load, get caps() { return caps; },
   HALL, hallOf, hallLevel, allowedOf, countOf, atLimit, unlocked, buildable,
   canUpgrade, upgradeBuilding, upInfo, upCostOf, lvlOf, popOf, capsOf, rateOf, outMul, LVL_MAX,
-  shortfall, shortText, villageStats, wellGain, charmDelivered, deliveredOf, deliveredWith, travelSecondsOf, handsFor,
+  shortfall, shortText, villageStats, wellGain, wellGainAt, charmDelivered, deliveredOf, deliveredWith, travelSecondsOf, handsFor,
   bestDeliveredOf, reachOf, SNUG_WALK,
   panelRects, get panel() { return panel; }, set panel(v) { panel = v; },
   get villagers() { return villagers; }, workersAt, boostAt, producers, stores,
