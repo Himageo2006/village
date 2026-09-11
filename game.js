@@ -490,7 +490,12 @@ function drawPops() {
 
 const byId = id => placed.find(p=>p.id===id);
 const centreOf = p => { const b=B(p.key); return tileToWorld(p.c+(b.w-1)/2, p.r+(b.h-1)/2); };
-const producers = () => placed.filter(p=>p.t>=1 && B(p.key).jobs);
+/* A building that has finished at least once. An UPGRADE puts the scaffolding
+   back up, and a building under scaffolding for the second time is not the same
+   as one being built for the first: the first has nobody working it yet, the
+   second has people who should still have their jobs when it comes back. */
+const established = p => p.t >= 1 || lvlOf(p) > 1;
+const producers = () => placed.filter(p => established(p) && B(p.key).jobs);
 // the hall always accepts a delivery, so a village can never deadlock for want
 // of somewhere to put things
 /* The stores, with their centres, kept ready.
@@ -602,7 +607,7 @@ function desiredJobs(handsIn) {
   return plan;
 }
 function computeJobs(handsIn) {
-  const posts = producers().filter(p => p.t >= 1 && jobsOf(p) > 0);
+  const posts = producers().filter(p => jobsOf(p) > 0);
   posts.sort((a, b) => (a.key === 'hall') - (b.key === 'hall') || deliveredOf(b) - deliveredOf(a));
   const want = new Map(posts.map(p => [p.id, 0]));
   /* Callable with a population that does not exist yet: offline earnings are
@@ -629,8 +634,14 @@ function assignJobs(){
   for(const v of villagers){
     if(v.job==null) continue;
     const p=byId(v.job);
-    if(!p || p.t<1 || !B(p.key).jobs){ v.job=null; v.st='idle'; v.carry=null; continue; }
-    count.set(v.job, (count.get(v.job)||0)+1);
+    if(p && established(p) && B(p.key).jobs){ count.set(v.job, (count.get(v.job)||0)+1); continue; }
+    /* The post is gone. A load already in hand is NOT: it was on its way to a
+       store and it still can be. Throwing it away destroyed eight goods every
+       time a player upgraded a staffed building -- the upgrade began, every
+       worker was unassigned on the next tick, and whatever they were carrying
+       went with the job. */
+    v.job = null;
+    if (!v.carry) v.st = 'idle';
   }
   const { want, posts } = desiredJobs();
   const under = () => posts.filter(p => (count.get(p.id) || 0) < (want.get(p.id) || 0));
@@ -708,7 +719,9 @@ function stepVillagers(dt){
     if(v.st==='work'){
       const p=byId(v.job); if(!p){ v.st='idle'; continue; }
       const b=B(p.key);
-      if(b.makes && p.stock<STOCK_MAX){
+      // nothing comes out of a building with the scaffolding up; the people
+      // posted there wait for it rather than losing the job
+      if(b.makes && p.t>=1 && p.stock<STOCK_MAX){
         const kind=Object.keys(b.makes)[0];
         p.stock=Math.min(STOCK_MAX, p.stock+rateOf(p,kind)*boostAt(p)*charmMul()*dt);
       }
@@ -3425,7 +3438,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   bestDeliveredOf, reachOf, SNUG_WALK,
   panelRects, get panel() { return panel; }, set panel(v) { panel = v; },
   get villagers() { return villagers; }, workersAt, boostAt, producers, stores,
-  assignJobs, desiredJobs, computeJobs, invalidateJobs, buildingAt, ensureHall, jobsOf, VILLAGER_MAX, rebuildStores, nearestStore,
+  assignJobs, desiredJobs, computeJobs, invalidateJobs, established, buildingAt, ensureHall, jobsOf, VILLAGER_MAX, rebuildStores, nearestStore,
   isDecor, decorCount, DECOR_MAX, charmTotal, charmMul, tabRects, drawDecor, grant,
   sparePeople, wouldStandEmpty, peopleComing, livedIn,
   sellBuilding, canSell, sellValue, investedIn, capsWithout, get moving() { return moving; }, set moving(v) { moving = v; },
