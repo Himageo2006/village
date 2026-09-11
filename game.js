@@ -687,6 +687,22 @@ function stepVillagers(dt){
       const m = Math.min(spd * dt, d);
       v.x+=dx/d*m; v.y+=dy/d*m; v.face=dx<0?-1:1; v.ph+=dt*7; return false; };
 
+    /* A workplace can move out from under somebody: the Move button picks the
+       whole building up and sets it down across the island, and nothing told the
+       people working there. They carried on standing in the empty field it used
+       to occupy, filling its stock from there -- and then walked their load to
+       the store from the OLD spot, so the first cycle after a move was timed for
+       a building that was no longer there. Whoever is carrying something is left
+       alone; they finish the delivery and take the new post on the way back,
+       which is what already happened. */
+    if((v.st==='toWork' || v.st==='work') && v.job != null){
+      const p=byId(v.job);
+      if(p){ const c=centreOf(p);
+        const ref = v.st==='toWork' ? { x:v.tx, y:v.ty } : { x:v.x, y:v.y };
+        if(Math.hypot(ref.x-c.x, ref.y-c.y) > 110){
+          const t=postNear(p); v.tx=t.x; v.ty=t.y; v.st='toWork';
+        } }
+    }
     if(v.st==='toWork'){ if(step1()) v.st='work'; continue; }
 
     if(v.st==='work'){
