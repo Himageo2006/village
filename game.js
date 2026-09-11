@@ -948,7 +948,9 @@ const BUILDINGS = [
      The panel, which has the room, still says Lumber Camp. */
   { key: 'lumber', name: 'Lumber Camp', short: 'Lumber', w: 2, h: 1, cost: { wood: 20, food: 15 }, makes: { wood: 0.6 },  jobs: 2, icon: '🪵',
     blurb: 'Cuts wood. Needs villagers to work it.' },
-  { key: 'store',  name: 'Storehouse',w: 2, h: 2, cost: { wood: 60, food: 20 },  caps: { wood: 400, food: 400 }, wallH: 74, icon: '📦',
+  // short: see the note on the lumber camp -- "Storehouse" is 137 logical
+  // pixels wide in a 115 pixel tray button
+  { key: 'store',  name: 'Storehouse', short: 'Store', w: 2, h: 2, cost: { wood: 60, food: 20 },  caps: { wood: 400, food: 400 }, wallH: 74, icon: '📦',
     /* The second sentence is the one that matters and it was doing no work.
        Carrying is half this economy: a storehouse near a distant farm shortens
        every trip that farm ever makes, which is usually worth more than the
@@ -2609,40 +2611,54 @@ function drawHUD() {
        so on a tall phone "Lumber Camp" came out 158 wide in a 134 button and ran
        into its neighbours. Another failure that only appears on the shape of
        screen the game is actually for. */
-    const label = (r.b.short || r.b.name)
-      + (r.b.charm ? (charmRoom() > 0 ? '  ✨' + usefulCharm(r.b.key) : '  ✨full') : '');
-    const nameFit = fitLines(label, r.w - 12 * u, 20 * u, 11 * u, 1);
+    const nameFit = fitLines(r.b.short || r.b.name, r.w - 12 * u, 20 * u, 11 * u, 1);
     g.fillStyle = '#fff'; g.fillText(nameFit.lines[0], r.x, r.y + r.h * 0.08);
     g.globalAlpha = 1;
     /* Shrunk to fit the button. Two costs and a charm value at the largest HUD
        scale is wider than the tile it sits in, and a price that runs into its
        neighbour is worse than a small one. */
-    const trayRow = (text, colour) => {
+    /* One line, or two when there are two resources to name.
+
+       An emoji is about twice as wide as a digit at the same size, so "60 wood
+       and 20 food" wants 135 logical pixels in a button 115 wide -- and every
+       two-resource cost in the game was quietly spilling over its button onto
+       the sea and its neighbours. The old fitter hid that by shrinking it until
+       it fitted, which is how it ended up at five CSS pixels on a phone; giving
+       the text a floor made the overflow visible, and this is the fix for it.
+
+       Stacked, each line carries one icon and one number and fits with room. */
+    const trayRow = (text, colour, at) => {
       const fit = fitLines(text, r.w - 14 * u, 20 * u, 11 * u, 1, '');
       g.fillStyle = colour;
-      g.fillText(fit.lines[0], r.x, r.y + r.h * 0.32);
+      g.fillText(fit.lines[0], r.x, r.y + r.h * at);
     };
-    /* Single spaces, and the charm moved up beside the name. Cost plus charm on
-       one row came to 190 logical pixels in a 158 pixel button, and the fitter
-       was answering that by shrinking it to five CSS pixels on a phone. */
-    const price = Object.entries(r.b.cost)
-      .map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join(' ')
-      /* What a decoration is FOR. The tray showed a statue at 150 wood beside a
-         flowerbed at 10 and said nothing about the charm either one buys, which
-         is the whole reason to want them -- the number only appeared on the
-         panel of one you had already paid for. */
-;
+    /* Charm goes on the LAST cost line. It was beside the name for a while and
+       "Flowerbed ✨5" is 193 logical pixels in a 139 pixel button -- one
+       overflow traded for another. The cost lines have the room. */
+    const costRows = (entries, colour, tail) => {
+      const parts = entries.map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v);
+      if (tail) parts[parts.length - 1] += ' ' + tail;   // one space: two put it 3px over
+      if (parts.length < 2) { trayRow(parts.join(''), colour, 0.32); return; }
+      // 0.42 put the lower row's descenders on the button's own border
+      trayRow(parts[0], colour, 0.20);
+      trayRow(parts[1], colour, 0.38);
+    };
     if (full) {
-      // the cost is irrelevant when the hall will not allow another one
+      // the cost is irrelevant when the hall will not allow another one, and
       // "1/1 · upgrade hall" needed five CSS pixels to fit; the lock says it
       trayRow(isDecor(r.b.key) ? decorCount() + '/' + DECOR_MAX
-        : countOf(r.b.key) + '/' + allowedOf(r.b.key) + ' 🔒', '#e5b28a');
+        : countOf(r.b.key) + '/' + allowedOf(r.b.key) + ' 🔒', '#e5b28a', 0.32);
     } else if (can && wouldStandEmpty(r.b.key)) {
-      trayRow('no one free', '#e5b28a');   // allowed, affordable, nobody to work it
+      // "no one free" is 137 logical wide in a 115 button; "none free" is 114
+      trayRow('none free', '#e5b28a', 0.32);   // allowed, affordable, nobody to work it
     } else if (can) {
-      trayRow(price, '#e8c98a');
+      costRows(Object.entries(r.b.cost), '#e8c98a',
+        r.b.charm ? (charmRoom() > 0 ? '✨' + usefulCharm(r.b.key) : '✨full') : '');
     } else {
-      trayRow('need ' + shortText(r.b.cost), '#e59a86');
+      // what is still missing, not what it costs
+      const short = Object.entries(r.b.cost)
+        .map(([k, v]) => [k, Math.max(0, Math.ceil(v - res[k]))]).filter(([, v]) => v > 0);
+      costRows(short, '#e59a86', '');
     }
     g.restore();
   }

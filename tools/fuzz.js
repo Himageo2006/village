@@ -423,6 +423,83 @@
     return { controls: drawn.length, conflicts: bad.length, worst: bad.slice(0, 6) };
   };
 
+  /* ---------------------------------------------------------------------------
+     Can the text be read against what is actually behind it?
+
+     Not against the colour the pill is painted, which is what reading the source
+     tells you. The pills are 80 to 95 per cent opaque and sit over the world, so
+     the background is part sea -- and a grey that looks fine on the dark ground
+     of a screenshot can fall to 3.1 against bright water. Two did.
+
+     This measures ONE frame, whatever the caller has set up. An earlier version
+     drove its own sequence of states and reported sea-coloured pixels behind the
+     build tray, which was a fault in the driving rather than in the sampling;
+     the sampling is the same and checks out at both screen shapes. Keeping it
+     dumb makes it verifiable.
+
+       contrastFrame()   -> { failing, worst } for the current state
+  --------------------------------------------------------------------------- */
+  function luminance(r, g, b) {
+    const f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+    return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+  }
+  function parseColour(c) {
+    const m = /^#?([0-9a-f]{6})$/i.exec(String(c));
+    if (m) { const n = parseInt(m[1], 16); return [n >> 16, (n >> 8) & 255, n & 255]; }
+    const r = /rgba?\(([^)]+)\)/.exec(String(c));
+    if (!r) return null;
+    const q = r[1].split(',').map(Number);
+    return [q[0], q[1], q[2]];
+  }
+  window.contrastFrame = function () {
+    const V2 = window.__v;
+    const cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
+    const found = [], orig = ctx.fillText.bind(ctx);
+    const toCss = cv.getBoundingClientRect().width / 1024 || 0.366;
+    ctx.fillText = function (t, x, y, ...rest) {
+      const m = ctx.getTransform();
+      const isHud = Math.abs(m.a - 1) < 1e-6 && Math.abs(m.d - 1) < 1e-6 && Math.abs(m.e) < 1e-6;
+      const str = String(t).trim();
+      /* Emoji ignore fillStyle and paint in their own colours, so measuring one
+         against the fill in force compares a pill with itself and reports 1.1.
+         Anything without a letter or a digit in it is an icon, not text. */
+      const isText = /[A-Za-z0-9]/.test(str);
+      const fg = isHud && isText && str.length > 1 ? parseColour(ctx.fillStyle) : null;
+      if (!fg) return orig(t, x, y, ...rest);
+      const w = ctx.measureText(t).width, a = ctx.textAlign;
+      const x0 = a === 'center' ? x - w / 2 : a === 'right' ? x - w : x;
+      /* Sampled ABOVE and BELOW the line of text, never on it. Sampling along
+         the baseline picks up the glyphs already drawn in the same label -- the
+         wood and wheat icons sit right there -- and then the checker compares a
+         label against its own emoji and reports nonsense. A pill is always
+         taller than the text inside it, so half a line clear of the baseline is
+         still the pill. */
+      const sizeEarly = /([0-9.]+)px/.exec(ctx.font);
+      const lineH = sizeEarly ? parseFloat(sizeEarly[1]) : 16;
+      let lightest = -1, bg = null;
+      for (let i = 0; i <= 4; i++) {
+        const sx = Math.round(Math.max(0, Math.min(cv.width - 1, x0 + (w * i) / 4)));
+        for (const off of [-lineH * 0.62, lineH * 0.62]) {
+          const sy = Math.round(Math.max(0, Math.min(cv.height - 1, y + m.f + off)));
+          const d = ctx.getImageData(sx, sy, 1, 1).data;
+          const L = luminance(d[0], d[1], d[2]);
+          if (L > lightest) { lightest = L; bg = [d[0], d[1], d[2]]; }
+        }
+      }
+      const l1 = luminance(fg[0], fg[1], fg[2]);
+      const ratio = (Math.max(l1, lightest) + 0.05) / (Math.min(l1, lightest) + 0.05);
+      const sizeM = /([0-9.]+)px/.exec(ctx.font);
+      const css = (sizeM ? parseFloat(sizeM[1]) : 16) * toCss;
+      const large = css >= (/bold/.test(ctx.font) ? 18.66 : 24);
+      const need = large ? 3 : 4.5;
+      if (ratio < need) found.push({ text: str.slice(0, 32), colour: String(ctx.fillStyle),
+        behind: 'rgb(' + bg.join(',') + ')', ratio: +ratio.toFixed(2), needs: need, cssPx: +css.toFixed(1) });
+      return orig(t, x, y, ...rest);
+    };
+    try { V2.draw(); } finally { ctx.fillText = orig; }
+    return { failing: found.length, worst: found.sort((a, b) => a.ratio - b.ratio).slice(0, 6) };
+  };
+
   window.textSweep = function () {
     const cv = document.querySelector('canvas');
     const keep = cv.height;
