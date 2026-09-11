@@ -1637,7 +1637,24 @@ function collectAway() {
 
 /* A village with no hall has no rules and no centre, so one is founded for free
    at the middle of the map. Also repairs a save that predates the hall. */
+/* Exactly one hall, always.
+
+   load() is careful about every other kind of nonsense a save file can carry
+   and did not check this one, because nothing in the game can build a second
+   hall. A file that has somehow acquired two -- a merge, a half-written save,
+   an edit -- loaded them both, and the village was then stuck with an
+   unsellable duplicate woodpile that also counted as a storehouse and pulled
+   every delivery distance towards itself. hallLevel() read whichever came
+   first, so the allowances could come from the wrong one too.
+
+   The best one wins: it is the one the player most likely paid for. */
 function ensureHall() {
+  const halls = placed.filter(p => p.key === 'hall');
+  if (halls.length > 1) {
+    halls.sort((a, b) => lvlOf(b) - lvlOf(a));
+    placed = placed.filter(p => p.key !== 'hall' || p === halls[0]);
+    recomputeCaps();
+  }
   if (hallOf()) return;
   const b = B('hall'), c = Math.floor((GW - b.w) / 2), r = Math.floor((GH - b.h) / 2);
   placed.push({ id: nextId++, key: 'hall', c, r, t: 1, lvl: 1, stock: 0, build: BUILD_TIME });
@@ -2338,7 +2355,14 @@ function drawHUD() {
      really achieving. The second number is measured from actual deliveries, not
      summed from the buildings' rated output -- the gap between the two is
      walking time, and it is easily half. */
-  const chip = (x, icon, val, cap, col, rate) => {
+  /* What the village WOULD deliver, for the chips to quote when a barn is full.
+     The measured rate reads zero then -- every load is being thrown away, which
+     is the one moment the player most needs a number and the only moment the
+     interface stopped giving them one. Worked out once for both chips, off the
+     cached workforce plan. */
+  const wasting = (res.wood >= caps.wood - 0.5 || res.food >= caps.food - 0.5)
+    ? potentialRate() : null;
+  const chip = (x, icon, val, cap, col, rate, lost) => {
     const wch = 210 * u, h = 76 * u, full = val >= cap - 0.5;
     g.fillStyle = 'rgba(16,26,14,.80)';
     g.strokeStyle = full ? 'rgba(235,150,110,.75)' : 'rgba(255,255,255,.14)';
@@ -2348,13 +2372,21 @@ function drawHUD() {
     g.fillStyle = '#fff'; g.fillText(icon, x + 16 * u, ry - 1 * u);
     g.font = `bold ${Math.round(27 * u)}px Segoe UI, sans-serif`; g.fillStyle = col;
     g.fillText(Math.floor(val) + ' / ' + cap, x + 58 * u, ry - 12 * u);
-    g.font = `bold ${Math.round(19 * u)}px Segoe UI, sans-serif`;
-    if (full) { g.fillStyle = '#f0a583'; g.fillText('storage full', x + 58 * u, ry + 18 * u); }
-    else { g.fillStyle = rate > 0.02 ? '#8fd06a' : '#7d8a76';
-      g.fillText(rate > 0.02 ? '+' + rate.toFixed(1) + ' / s' : 'idle', x + 58 * u, ry + 18 * u); }
+    /* Fitted to the pill, like everything else. The first version of the
+       wasting line ran straight out of the chip and into the one beside it --
+       and the screen-edge sweep could not see it, because a chip is not the
+       edge of the screen. */
+    const sub = (text, colour) => {
+      const fit = fitLines(text, wch - 72 * u, 19 * u, 12 * u, 1);
+      g.fillStyle = colour;
+      g.fillText(fit.lines[0], x + 58 * u, ry + 18 * u);
+    };
+    if (full) sub(lost > 0.05 ? 'wasting ' + lost.toFixed(1) + '/s' : 'storage full', '#f0a583');
+    else sub(rate > 0.02 ? '+' + rate.toFixed(1) + ' / s' : 'idle',
+      rate > 0.02 ? '#8fd06a' : '#7d8a76');
   };
-  chip(24 * u, '🪵', res.wood, caps.wood, '#e8c98a', rateNow.wood);
-  chip(24 * u + 226 * u, '🌾', res.food, caps.food, '#bfe08a', rateNow.food);
+  chip(24 * u, '🪵', res.wood, caps.wood, '#e8c98a', rateNow.wood, wasting && wasting.wood);
+  chip(24 * u + 226 * u, '🌾', res.food, caps.food, '#bfe08a', rateNow.food, wasting && wasting.food);
   const ch = charmTotal();
   if (ch > 0) {
     const x = 24 * u + 452 * u, wch = 190 * u, hh = 76 * u;
@@ -2944,7 +2976,11 @@ function drawPanel() {
        village summary that shares this row. Two lines of text on top of each
        other, for as long as the panel has existed. */
     const reach = (b.caps || p.key === 'hall') ? null : reachOf(p);
-    if (spoilRow) panelRow(spoilRow, lx, R.y - R.h / 2 + 148 * u, R.w - 56 * u, 20 * u, '#e59a86', '');
+    /* Not for a market: it makes something AND holds something, so it comes
+       through here and through the market block below, and both wanted this
+       row. It was drawing the same warning twice in the same place. */
+    if (spoilRow && p.key !== 'market')
+      panelRow(spoilRow, lx, R.y - R.h / 2 + 148 * u, R.w - 56 * u, 20 * u, '#e59a86', '');
     else if (reach !== null) {
       const walk = travelSecondsOf(p);
       const here = n * deliveredOf(p), snug = n * bestDeliveredOf(p);

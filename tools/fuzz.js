@@ -44,6 +44,9 @@
       }
       return true;
     }],
+    // nothing in the game can build a second one, which is exactly why the
+    // save loader never checked
+    ['exactly one town hall', () => V.placed.filter(p => p.key === 'hall').length === 1],
     ['no two buildings share a tile', () => {
       const seen = new Set();
       for (const p of V.placed) {
@@ -283,7 +286,7 @@
 
   function scan(label) {
     const cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
-    const bad = [];
+    const bad = [], boxes = [];
     const orig = ctx.fillText.bind(ctx);
     ctx.fillText = function (t, x, y, ...rest) {
       const w = ctx.measureText(t).width;
@@ -298,11 +301,28 @@
       const m = ctx.getTransform();
       const isHud = Math.abs(m.a - 1) < 1e-6 && Math.abs(m.d - 1) < 1e-6
         && Math.abs(m.b) < 1e-6 && Math.abs(m.c) < 1e-6 && Math.abs(m.e) < 1e-6;
-      if (isHud && (x0 < -1 || x0 + w > W + 1) && String(t).trim())
-        bad.push({ state: label, text: String(t).slice(0, 48), left: Math.round(x0), width: Math.round(w) });
+      if (isHud && String(t).trim()) {
+        if (x0 < -1 || x0 + w > W + 1)
+          bad.push({ state: label, text: String(t).slice(0, 48), left: Math.round(x0), width: Math.round(w) });
+        /* Running off the SCREEN is only the loudest version of this. The tray
+           label overflowed its button into the next one, and the wasting line
+           ran out of its chip into the chip beside it -- neither goes near a
+           screen edge. Two pieces of HUD text sitting on top of each other is
+           the symptom either way, so that is what gets checked. */
+        const size = parseFloat(ctx.font) || 16;
+        boxes.push({ t: String(t).slice(0, 40), x0, x1: x0 + w, y0: y - size * 0.5, y1: y + size * 0.5 });
+      }
       return orig(t, x, y, ...rest);
     };
     try { V.draw(); } finally { ctx.fillText = orig; }
+    for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
+      const a = boxes[i], b = boxes[j];
+      const ox = Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0);
+      const oy = Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0);
+      // a few pixels of kerning overlap is not a collision; a quarter of a line is
+      if (ox > 4 && oy > (a.y1 - a.y0) * 0.25)
+        bad.push({ state: label, collide: [a.t, b.t], overlapPx: Math.round(ox) });
+    }
     return bad;
   }
 
