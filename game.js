@@ -884,13 +884,19 @@ const BUILDINGS = [
     makes: { wood: 0.15 }, jobs: 1,
     blurb: 'The heart of the village. Spare villagers keep its woodpile.' },
   { key: 'house',  name: 'House',     w: 2, h: 1, cost: { wood: 30 },            pop: 2,   icon: '🏠',
-    blurb: 'Two more villagers move in.' },
+    // said "two more villagers" flat, while the panel beneath it counts up to
+    // six -- a level five house takes three times what the description claims
+    blurb: 'Villagers live here. Every level makes room for one more.' },
   { key: 'farm',   name: 'Farm',      w: 2, h: 2, cost: { wood: 45 },            makes: { food: 0.7 },  jobs: 2, wallH: 26, icon: '🌾',
     blurb: 'Grows food. Needs villagers to work it.' },
   { key: 'lumber', name: 'Lumber Camp', w: 2, h: 1, cost: { wood: 20, food: 15 }, makes: { wood: 0.6 },  jobs: 2, icon: '🪵',
     blurb: 'Cuts wood. Needs villagers to work it.' },
   { key: 'store',  name: 'Storehouse',w: 2, h: 2, cost: { wood: 60, food: 20 },  caps: { wood: 400, food: 400 }, wallH: 74, icon: '📦',
-    blurb: 'Raises how much you can hold. Villagers deliver here.' },
+    /* The second sentence is the one that matters and it was doing no work.
+       Carrying is half this economy: a storehouse near a distant farm shortens
+       every trip that farm ever makes, which is usually worth more than the
+       ceiling it raises. */
+    blurb: 'Villagers carry to the nearest one, so it shortens their walk. Raises what you can hold.' },
   { key: 'well',   name: 'Well',      w: 1, h: 1, cost: { wood: 40 },            boost: 0.35, boostR: 2.6, wallH: 30, icon: '⛲',
     // no percentage here on purpose: it would be a rate figure, and the line
     // below the blurb reports what the well is really adding where it stands
@@ -3075,6 +3081,12 @@ function drawPanel() {
     const boost = boostAt(p);
     if (boost > 1) line += '   ·   +' + Math.round((boost - 1) * 100) + '% from wells';
     else if (!n) line += '   — no villagers';
+    /* A market makes something AND holds something, so it came through the
+       producer branch and the storehouse branch never ran -- and it holds eight
+       hundred of each, twice what a storehouse does, which is most of what the
+       three hundred and twenty it costs is buying. Nothing on the panel said
+       so. */
+    if (b.caps) line += '   ·   holds 🪵' + capsOf(p, 'wood') + ' 🌾' + capsOf(p, 'food');
     /* Skipped for a building that is its own store; otherwise the placement
        gets a line of its own, stated as the counterfactual rather than as a
        score. "Efficiency 39%" is a number the player has to interpret, and
