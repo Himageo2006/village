@@ -1617,17 +1617,25 @@ function potentialRate() {
    be away: on Android, closing the app usually leaves the page alive, so coming
    back an hour later resumes rather than reloads. */
 function grantAway(secs) {
+  const capped = secs > AWAY_MAX;              // away longer than the village can bank
   secs = Math.min(AWAY_MAX, secs);
   if (secs < AWAY_MIN) return;
   const got = {};
-  let any = false;
+  let any = false, spilled = false;
   const rate = potentialRate();
   for (const k of ['wood', 'food']) {
     const room = caps[k] - res[k];
-    const earned = Math.max(0, Math.min(room, rate[k] * secs));
+    const want = rate[k] * secs;
+    const earned = Math.max(0, Math.min(room, want));
+    /* Two different ceilings can eat this haul, and the card used to show the
+       survivor of both with no account of either: twelve hours away could hand
+       back three wood because the barn was already nearly full, and twelve
+       hours was itself all you got for a week. Both are worth saying; neither
+       was said. */
+    if (want - earned > 1) spilled = true;
     if (earned >= 1) { res[k] += earned; got[k] = Math.floor(earned); any = true; }
   }
-  if (any) away = { secs, got };
+  if (any || spilled) away = { secs, got, capped, spilled };
 }
 // a cold start: measured from the save, which is where the last session ended
 function collectAway() {
@@ -2734,10 +2742,16 @@ function drawAway() {
   const mins = away.secs / 60;
   const span = mins < 60 ? Math.round(mins) + ' minutes' : (mins / 60).toFixed(1) + ' hours';
   g.font = `${Math.round(22 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#a9bd9c';
-  g.fillText('your villagers kept working for ' + span, R.x, R.y - R.h / 2 + 92 * u);
+  g.fillText('your villagers kept working for ' + span
+    + (away.capped ? ', as long as a village can keep' : ''),
+    R.x, R.y - R.h / 2 + 92 * u);
   const parts = Object.entries(away.got).map(([k, v]) => (k === 'wood' ? '🪵 +' : '🌾 +') + v);
   g.font = `bold ${Math.round(40 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#e8c98a';
-  g.fillText(parts.join('     '), R.x, R.y + 6 * u);
+  g.fillText(parts.length ? parts.join('     ') : 'nothing would fit', R.x, R.y + 6 * u);
+  if (away.spilled) {
+    g.font = `${Math.round(20 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#f0a583';
+    g.fillText('the rest spilled — your stores were full', R.x, R.y + 46 * u);
+  }
   g.font = `bold ${Math.round(24 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#9fe86b';
   g.fillText('tap to continue', R.x, R.y + R.h / 2 - 40 * u);
   g.restore();
