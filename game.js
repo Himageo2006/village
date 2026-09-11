@@ -3019,7 +3019,14 @@ function drawPanel() {
     line = icon + ' ' + (n * deliveredOf(p)).toFixed(2) + '/s delivered';
     if (nl > lvlOf(p))
       line += '  →  ' + (handsFor(p, nl) * deliveredOf(p, nl)).toFixed(2) + '/s';
-    line += '   ·   workers ' + n + ' / ' + jobsOf(p);
+    /* And whether the next level opens another post, because that is where the
+       jump comes from. Measured across a farm's whole ladder, the steps that add
+       a pair of hands are worth three to eight times the steps that only raise
+       the rate -- so "workers 3 / 3" alone makes the good upgrades and the dull
+       ones look alike. */
+    const nextPosts = nl > lvlOf(p) ? jobsOf({ ...p, lvl: nl }) : jobsOf(p);
+    line += '   ·   workers ' + n + ' / ' + jobsOf(p)
+      + (nextPosts > jobsOf(p) ? '  →  ' + nextPosts : '');
     const boost = boostAt(p);
     if (boost > 1) line += '   ·   +' + Math.round((boost - 1) * 100) + '% from wells';
     else if (!n) line += '   — no villagers';
