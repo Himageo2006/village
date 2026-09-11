@@ -650,7 +650,13 @@ function assignJobs(){
   let open = under();
   let i = 0;
   for (const v of villagers) {
-    if (v.job != null) continue;
+    /* Not while they are carrying something. A villager whose workplace was
+       sold keeps the load and keeps walking to the store -- and then this loop
+       saw someone with no job, handed them one, and pointed them at it, which
+       threw the delivery away: the load rides along to the new post and is
+       overwritten by the next one. They take a job on the pass after they have
+       put it down. */
+    if (v.job != null || v.carry) continue;
     while (i < open.length && (count.get(open[i].id) || 0) >= (want.get(open[i].id) || 0)) i++;
     if (i >= open.length) break;
     const free = open[i];
@@ -670,7 +676,7 @@ function assignJobs(){
   if (!shortOf) return;
   const spare = posts.find(p => (count.get(p.id) || 0) > (want.get(p.id) || 0));
   if (!spare) return;
-  const mover = villagers.find(v => v.job === spare.id);
+  const mover = villagers.find(v => v.job === spare.id && !v.carry);
   if (!mover) return;
   count.set(spare.id, (count.get(spare.id) || 1) - 1);
   count.set(shortOf.id, (count.get(shortOf.id) || 0) + 1);
@@ -1489,8 +1495,13 @@ function sellBuilding(p) {
   for (const [k, v] of Object.entries(sellValue(p))) grant(k, v, c.x, c.y);
   /* Anyone who worked here is out of a job this instant, not on the next tick.
      assignJobs does clear it, but until it ran the village held villagers
-     posted to a building that no longer existed. */
-  for (const g of villagers) if (g.job === p.id) { g.job = null; g.st = 'idle'; }
+     posted to a building that no longer existed.
+
+     Not anyone carrying, though. Sending them idle stopped them walking and
+     they kept the load for ever -- a villager wandering the village holding
+     eight food that would never be delivered, because the idle state has no way
+     to put anything down. They finish the trip and go idle on arrival. */
+  for (const g of villagers) if (g.job === p.id) { g.job = null; if (!g.carry) g.st = 'idle'; }
   save();
   SFX.sell();
   return true;

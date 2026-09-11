@@ -77,6 +77,12 @@
       && Math.abs(g.x) < 1e5 && Math.abs(g.y) < 1e5)],
     ['no villager holds a job that is gone', () => V.villagers.every(g =>
       g.job == null || V.placed.some(p => p.id === g.job))],
+    /* A load exists only while it is being carried to a store. Anyone holding
+       one in any other state is holding it for ever -- there is no way to put
+       it down again -- and the goods are gone from the village without ever
+       arriving. Both the sell path and the upgrade path did this. */
+    ['a carried load is always on its way somewhere', () =>
+      V.villagers.every(g => !g.carry || g.st === 'toStore')],
     ['a post is never over-staffed', () => {
       for (const p of V.placed) if (V.B(p.key).jobs)
         if (V.workersAt(p.id) > V.jobsOf(p)) return false;
