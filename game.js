@@ -2776,9 +2776,22 @@ function drawClaim() {
   g.font = `bold ${Math.round(32 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#fff';
   g.fillText(cost ? 'Claim more land' : 'The whole island is yours', R.x, R.y - R.h / 2 + 54 * u);
   const L = LAND[Math.min(LAND_MAX, landTier + 1)], side = L.hi - L.lo + 1;
+  /* How much room the village has RIGHT NOW, beside how much it would gain.
+     Land is the second most expensive thing a player buys and the card said
+     only what it would grow to -- so there was no way to tell a claim you need
+     from one that buys forty tiles of grass you already had. */
+  const here = landBounds(), now = (here.hi - here.lo + 1) ** 2;
+  let used = 0;
+  for (const p of placed) { const b = B(p.key); used += (b.w || 1) * (b.h || 1); }
+  const spare = Math.max(0, now - used);
   g.font = `${Math.round(22 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#a9bd9c';
-  g.fillText(cost ? 'your village would grow to ' + side + ' x ' + side + ' tiles'
-                  : 'there is nothing left to claim', R.x, R.y - R.h / 2 + 96 * u);
+  g.fillText(cost ? side + ' x ' + side + ' tiles, from ' + Math.sqrt(now) + ' x ' + Math.sqrt(now)
+                  : 'there is nothing left to claim', R.x, R.y - R.h / 2 + 92 * u);
+  if (cost) {
+    g.font = `${Math.round(19 * u)}px Segoe UI, sans-serif`;
+    g.fillStyle = spare > 24 ? '#e5b28a' : '#8d9a85';
+    g.fillText(spare + ' of your ' + now + ' tiles are still empty', R.x, R.y - R.h / 2 + 124 * u);
+  }
   if (cost) {
     const ok = canClaim();
     g.font = `bold ${Math.round(30 * u)}px Segoe UI, sans-serif`;
