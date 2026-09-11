@@ -942,7 +942,11 @@ const BUILDINGS = [
     blurb: 'Villagers live here. Every level makes room for one more.' },
   { key: 'farm',   name: 'Farm',      w: 2, h: 2, cost: { wood: 45 },            makes: { food: 0.7 },  jobs: 2, wallH: 26, icon: '🌾',
     blurb: 'Grows food. Needs villagers to work it.' },
-  { key: 'lumber', name: 'Lumber Camp', w: 2, h: 1, cost: { wood: 20, food: 15 }, makes: { wood: 0.6 },  jobs: 2, icon: '🪵',
+  /* short: what the tray calls it. The full name is two words and the tray
+     divides a fixed 1024 between however many kinds are unlocked, so at a size
+     anyone can read on a phone "Lumber Camp" runs into "Storehouse" beside it.
+     The panel, which has the room, still says Lumber Camp. */
+  { key: 'lumber', name: 'Lumber Camp', short: 'Lumber', w: 2, h: 1, cost: { wood: 20, food: 15 }, makes: { wood: 0.6 },  jobs: 2, icon: '🪵',
     blurb: 'Cuts wood. Needs villagers to work it.' },
   { key: 'store',  name: 'Storehouse',w: 2, h: 2, cost: { wood: 60, food: 20 },  caps: { wood: 400, food: 400 }, wallH: 74, icon: '📦',
     /* The second sentence is the one that matters and it was doing no work.
@@ -2550,7 +2554,7 @@ function drawHUD() {
        and the screen-edge sweep could not see it, because a chip is not the
        edge of the screen. */
     const sub = (text, colour) => {
-      const fit = fitLines(text, wch - 72 * u, 19 * u, 12 * u, 1);
+      const fit = fitLines(text, wch - 72 * u, 21 * u, 12 * u, 1);
       g.fillStyle = colour;
       g.fillText(fit.lines[0], x + 58 * u, ry + 18 * u);
     };
@@ -2598,28 +2602,34 @@ function drawHUD() {
        so on a tall phone "Lumber Camp" came out 158 wide in a 134 button and ran
        into its neighbours. Another failure that only appears on the shape of
        screen the game is actually for. */
-    const nameFit = fitLines(r.b.name, r.w - 12 * u, 18 * u, 11 * u, 1);
+    const label = (r.b.short || r.b.name)
+      + (r.b.charm ? (charmRoom() > 0 ? '  ✨' + usefulCharm(r.b.key) : '  ✨full') : '');
+    const nameFit = fitLines(label, r.w - 12 * u, 20 * u, 11 * u, 1);
     g.fillStyle = '#fff'; g.fillText(nameFit.lines[0], r.x, r.y + r.h * 0.08);
     g.globalAlpha = 1;
     /* Shrunk to fit the button. Two costs and a charm value at the largest HUD
        scale is wider than the tile it sits in, and a price that runs into its
        neighbour is worse than a small one. */
     const trayRow = (text, colour) => {
-      const fit = fitLines(text, r.w - 14 * u, 17 * u, 11 * u, 1, '');
+      const fit = fitLines(text, r.w - 14 * u, 20 * u, 11 * u, 1, '');
       g.fillStyle = colour;
       g.fillText(fit.lines[0], r.x, r.y + r.h * 0.32);
     };
+    /* Single spaces, and the charm moved up beside the name. Cost plus charm on
+       one row came to 190 logical pixels in a 158 pixel button, and the fitter
+       was answering that by shrinking it to five CSS pixels on a phone. */
     const price = Object.entries(r.b.cost)
-      .map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join('  ')
+      .map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join(' ')
       /* What a decoration is FOR. The tray showed a statue at 150 wood beside a
          flowerbed at 10 and said nothing about the charm either one buys, which
          is the whole reason to want them -- the number only appeared on the
          panel of one you had already paid for. */
-      + (r.b.charm ? (charmRoom() > 0 ? '  ✨' + usefulCharm(r.b.key) : '  ✨ full') : '');
+;
     if (full) {
       // the cost is irrelevant when the hall will not allow another one
-      trayRow(isDecor(r.b.key) ? decorCount() + '/' + DECOR_MAX + ' placed'
-        : countOf(r.b.key) + '/' + allowedOf(r.b.key) + ' · upgrade hall', '#e5b28a');
+      // "1/1 · upgrade hall" needed five CSS pixels to fit; the lock says it
+      trayRow(isDecor(r.b.key) ? decorCount() + '/' + DECOR_MAX
+        : countOf(r.b.key) + '/' + allowedOf(r.b.key) + ' 🔒', '#e5b28a');
     } else if (can && wouldStandEmpty(r.b.key)) {
       trayRow('no one free', '#e5b28a');   // allowed, affordable, nobody to work it
     } else if (can) {
@@ -2794,8 +2804,33 @@ function drawGoal() {
 
    Leaves the fitted font selected, so the caller can measure the lines it gets
    back without setting it again. */
+/* Below this, text is not small, it is gone.
+
+   The canvas is a fixed 1024 across whatever the phone is, so on a 375-wide
+   handset a logical pixel is 0.366 of a real one. Measured there, the fitter
+   was solving overflow by shrinking labels to five and six CSS pixels -- "1/1 ·
+   upgrade hall" at 5.1, a statue's price at 5.5 -- which is not a label, it is a
+   smudge. Every floor the callers asked for was a fraction of the size they
+   wanted rather than a size anyone can read.
+
+   26 logical pixels is about 9.5 CSS on that phone and 11 on a tablet. Text
+   that cannot fit at that size has to get shorter, and the sweep in
+   tools/fuzz.js is what says which. */
+const TEXT_MIN = 26;
 function fitLines(text, maxW, px, minPx, maxLines, weight) {
+  minPx = Math.max(TEXT_MIN, Math.min(minPx, px));
   const w = weight === undefined ? 'bold ' : weight ? weight + ' ' : '';
+  /* A one-line fit must never come back as two, because every caller of it
+     draws lines[0] and throws the rest away. That turned "20 wood, 15 food"
+     into "20 wood" the moment the floor stopped it shrinking -- a price with
+     half of itself missing, which is worse than a price that is too small.
+     Overflowing is at least visible, and the sweep in tools/fuzz.js finds it. */
+  if (maxLines === 1) {
+    for (let size = px; ; size--) {
+      g.font = `${w}${Math.round(size)}px Segoe UI, sans-serif`;
+      if (size <= minPx || g.measureText(text).width <= maxW) return { lines: [text], px: size };
+    }
+  }
   /* Almost every string already fits: one measurement to find that out, rather
      than splitting it into words and measuring them one at a time. The tray
      alone runs this fourteen times a frame. */
@@ -3099,7 +3134,12 @@ function drawPanel() {
   g.font = `bold ${Math.round(30 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#fff';
   g.fillText(b.icon + '  ' + b.name + (B(p.key).decor ? '' : '  ·  Level ' + lvlOf(p)),
     lx, R.y - R.h / 2 + 38 * u);
-  panelRow(b.blurb, lx, R.y - R.h / 2 + 78 * u, R.w - 56 * u, 22 * u, '#bccfae', '');
+  /* The hall has three things to say -- what it allows, what the next level
+     adds, and how the village is doing -- and two rows to say them in. Its
+     blurb is the least useful line on the panel, so the summary takes that
+     place and the allowance gets a row to itself with the additions beneath. */
+  if (p.key !== 'hall')
+    panelRow(b.blurb, lx, R.y - R.h / 2 + 78 * u, R.w - 56 * u, 22 * u, '#bccfae', '');
 
   /* What this sale would destroy, worked out before any row is drawn.
 
@@ -3193,9 +3233,9 @@ function drawPanel() {
          wood a tile against a whole building moved -- so a badly served
          workplace on bare ground is told about them. */
       const bare = routeOf(p).paved < 0.5;
-      panelRow(walk.toFixed(1) + 's round trip to the nearest store'
-        + (reach > 0.85 || !n ? '   —   well placed'
-          : '   —   beside one it would deliver ' + snug.toFixed(2) + '/s'
+      panelRow(walk.toFixed(1) + 's round trip'
+        + (reach > 0.85 || !n ? '  —  well placed'
+          : '  —  beside a store it would deliver ' + snug.toFixed(2) + '/s'
             + (bare ? ', or pave the route' : '')),
         lx, R.y - R.h / 2 + 148 * u, R.w - 56 * u, 20 * u,
         reach > 0.7 ? '#8fd06a' : reach > 0.45 ? '#e8c98a' : '#e59a86', '');
@@ -3232,7 +3272,7 @@ function drawPanel() {
   }
   if (p.key === 'hall') {
     const a = HALL[hallLevel()].allow;
-    line = Object.keys(a).map(k => B(k).icon + a[k]).join('   ');
+    line = Object.keys(a).map(k => B(k).icon + a[k]).join('  ');
     /* And what the next level adds, which is the entire reason to buy it. The
        hall is the most expensive thing in the game -- two thousand wood for the
        last step -- and its panel showed only what the village is allowed NOW,
@@ -3245,7 +3285,8 @@ function drawPanel() {
       const add = Object.keys(nx)
         .filter(k => (nx[k] || 0) > (a[k] || 0))
         .map(k => B(k).icon + '+' + ((nx[k] || 0) - (a[k] || 0)));
-      if (add.length) line += '   →   ' + add.join(' ');
+      if (add.length) panelRow('level ' + nl + ' adds   ' + add.join(' '),
+        lx, R.y - R.h / 2 + 148 * u, R.w - 56 * u, 20 * u, '#a9bd9c', '');
     }
   }
   panelRow(line, lx, R.y - R.h / 2 + 116 * u, R.w - 56 * u, 22 * u, '#e8c98a', '');
@@ -3266,12 +3307,12 @@ function drawPanel() {
        standing empty, and another farm would do nothing. Idle villagers and
        empty posts are the two bottlenecks and they want opposite answers. */
     let s2 = st.villagers + ' villagers';
-    if (st.idle) s2 += '   ·   ' + st.idle + ' with nothing to do — build a workplace';
-    else if (empty) s2 += '   ·   ' + empty + (empty === 1 ? ' post' : ' posts')
-      + ' with nobody in them — build or improve a house';
-    else s2 += '   ·   every post filled';
-    if (st.avg !== null) s2 += '   ·   workplaces at ' + Math.round(st.avg * 100) + '% of their best';
-    panelRow(s2, lx, R.y - R.h / 2 + 150 * u, R.w - 56 * u, 20 * u,
+    if (st.idle) s2 += '  ·  ' + st.idle + ' idle — build a workplace';
+    else if (empty) s2 += '  ·  ' + empty + (empty === 1 ? ' post' : ' posts')
+      + ' empty — build a house';
+    else s2 += '  ·  every post filled';
+    if (st.avg !== null) s2 += '  ·  workplaces at ' + Math.round(st.avg * 100) + '%';
+    panelRow(s2, lx, R.y - R.h / 2 + 78 * u, R.w - 56 * u, 20 * u,
       (st.idle || empty) ? '#f0c88a' : (st.avg !== null && st.avg < 0.6 ? '#f0c88a' : '#a9bd9c'), '');
   }
 
@@ -3616,7 +3657,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   canUpgrade, upgradeBuilding, upInfo, upCostOf, lvlOf, popOf, capsOf, rateOf, outMul, LVL_MAX,
   shortfall, shortText, villageStats, wellGain, wellGainAt, charmDelivered, deliveredOf, deliveredWith, travelSecondsOf, handsFor,
   bestDeliveredOf, reachOf, SNUG_WALK,
-  panelRects, TOUCH_MIN, padHit, get panel() { return panel; }, set panel(v) { panel = v; },
+  panelRects, TOUCH_MIN, padHit, TEXT_MIN, get panel() { return panel; }, set panel(v) { panel = v; },
   get villagers() { return villagers; }, workersAt, boostAt, producers, stores,
   assignJobs, desiredJobs, computeJobs, invalidateJobs, established, buildingAt, ensureHall, jobsOf, VILLAGER_MAX, rebuildStores, nearestStore,
   isDecor, decorCount, DECOR_MAX, charmTotal, charmMul, charmRoom, usefulCharm, CHARM_FULL,
