@@ -1930,8 +1930,31 @@ function drawScenery(o) {
    started with were much smaller, so 46 read fine then and looks like a mouse
    next to the art. */
 const VILLAGER_H = 60;
+/* Which of the three figures a villager is drawn as.
+
+   They were handed out at random and kept for life, which put axes in the wheat
+   and a woman with a basket of vegetables at the lumber camp. The art is
+   role-specific -- one carries an axe over his shoulder, one a basket of
+   produce -- so a village where the sprite matches the job can be read at a
+   glance: axes at the camps, field hands among the crops.
+
+   Food work draws on two of them rather than one. Mapping each job to a single
+   figure made a food-heavy village -- which is most of them, since it makes
+   food two to three times faster than wood -- into a crowd of identical men,
+   and retired the only woman in the game to the ranks of the unemployed. A
+   basket of vegetables belongs in a field. Off duty they are whoever they
+   happen to be. */
+function villagerArt(v) {
+  const p = v.job == null ? null : byId(v.job);
+  const b = p && B(p.key);
+  if (b && b.makes) {
+    if (b.makes.wood !== undefined) return 'villager_woodcutter';
+    return (v.k % 2) ? 'villager_basket' : 'villager_farmer';
+  }
+  return VILLAGERS[v.k % VILLAGERS.length];
+}
 function drawVillager(v) {
-  const im = artFor(VILLAGERS[v.k % VILLAGERS.length]);
+  const im = artFor(villagerArt(v));
   const moving = Math.hypot(v.tx - v.x, v.ty - v.y) > 6 && v.wait <= 0;
   const HGT = VILLAGER_H;
   /* Standing art walks by leaning: rocked about the feet and lifted on each
@@ -3559,7 +3582,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   KEY, KEY_BAK, BACKUP_EVERY,
   get saveFailed() { return saveFailed; }, set saveFailed(v) { saveFailed = v; },
   get loadedFromBackup() { return loadedFromBackup; }, set loadedFromBackup(v) { loadedFromBackup = v; },
-  sky, dayPhase, DAY_MS, camFit, landFitZoom, landWorldBounds, artFor, ART,
+  sky, dayPhase, DAY_MS, camFit, landFitZoom, landWorldBounds, artFor, ART, villagerArt,
   hudTop, hudBot, screenTop, screenBot, readSafeArea, get SAFE() { return SAFE; }, set SAFE(v) { SAFE = v; },
   fitLines, TUT, GOALS,
   efficiencyOf, hasStore, onPath, PATH_SPEED, rebuildPaths, routeOf, get pathSet() { return pathSet; },
