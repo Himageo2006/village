@@ -47,6 +47,13 @@
     // nothing in the game can build a second one, which is exactly why the
     // save loader never checked
     ['exactly one town hall', () => V.placed.filter(p => p.key === 'hall').length === 1],
+    /* No dead ends. Every scrap of income in this game comes from a villager,
+       so a village with none and an empty barn stays that way for ever -- and
+       the autosave writes it down. The hall keeps one caretaker so there is
+       always a way back; this is the rule that says so. Only after a step,
+       because syncVillagers is what enforces it. */
+    ['the village always has somebody', what =>
+      what !== 'step' || V.villagers.length >= 1],
     ['no two buildings share a tile', () => {
       const seen = new Set();
       for (const p of V.placed) {

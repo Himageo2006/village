@@ -563,7 +563,20 @@ const VILLAGER_MAX = 72;
 function syncVillagers(){
   let want=0;
   for(const p of placed) want += livedIn(p);
-  want=Math.min(want,VILLAGER_MAX);
+  /* The hall keeps one caretaker whatever else happens, and that one is a
+     safety net rather than a flourish.
+
+     Villagers come from houses, every scrap of income comes from villagers, and
+     the cheapest thing in the game costs five wood. So a village with no houses
+     and an empty barn produces nothing, for ever: an hour of simulated time
+     from that state leaves it exactly where it started, with nothing to sell,
+     nothing to trade and nothing affordable. It is reachable by selling down --
+     each sale returns half, so enough of them grind any village to nothing --
+     and the autosave writes the dead end down as it happens.
+
+     One pair of hands on the woodpile is 0.15/s, which rebuilds a house in
+     three and a half minutes. Slow enough to be a punishment, not a wall. */
+  want=Math.max(1, Math.min(want,VILLAGER_MAX));
   if(villagers.length!==want) invalidateJobs();
   while(villagers.length<want){
     const h=hallOf(), t=h?centreOf(h):tileToWorld(GW/2,GH/2);
