@@ -358,6 +358,71 @@
     return bad;
   }
 
+  /* ---------------------------------------------------------------------------
+     Do any two controls want the same tap?
+
+     The hit regions are deliberately larger than the shapes drawn, because on a
+     375-wide phone the drawn ones came out half the size a thumb needs. Padding
+     them is free right up to the moment two of them start arguing, and which
+     one wins is then decided by the order of the ifs in tap() -- which is not a
+     design, it is an accident. So: every control must claim its own middle, and
+     must never claim a point that is drawn as part of another.
+  --------------------------------------------------------------------------- */
+  window.tapSweep = function () {
+    const V2 = window.__v;
+    const cv = document.querySelector('canvas');
+    const us = () => Math.max(1, Math.min(1.34, cv.height / 1536));
+    V2.placed.length = 0; V2.villagers.length = 0; V2.landTier = 2;
+    V2.ensureHall(); V2.placed[0].lvl = 4; V2.step(1 / 30);
+    for (const [k, c, r] of [['store', 4, 4], ['farm', 7, 4], ['house', 4, 7]]) {
+      V2.grant('wood', 9999, 0, 0); V2.grant('food', 9999, 0, 0);
+      if (V2.place(k, c, r)) V2.placed[V2.placed.length - 1].t = 1;
+    }
+    for (let i = 0; i < 120 * 30; i++) V2.step(1 / 30);
+    V2.panel = V2.placed[1].id; V2.barMode = 'build';
+    const R = V2.panelRects(), tabs = V2.tabRects(), bars = V2.barRects(), M = V2.muteRect();
+    const drawn = [
+      { n: 'close', x: R.close.x, y: R.close.y, w: R.close.r * 2, h: R.close.r * 2 },
+      { n: 'move', x: R.move.x, y: R.move.y, w: R.move.w, h: R.move.h },
+      { n: 'sell', x: R.sell.x, y: R.sell.y, w: R.sell.w, h: R.sell.h },
+      { n: 'up', x: R.up.x, y: R.up.y, w: R.up.w, h: R.up.h },
+      { n: 'mute', x: M.x, y: M.y, w: M.r * 2, h: M.r * 2 },
+      ...tabs.map((t, i) => ({ n: 'tab' + i, x: t.x, y: t.y, w: t.w, h: t.h })),
+      ...bars.map((b, i) => ({ n: 'tray' + i, x: b.x, y: b.y, w: b.w, h: b.h })),
+    ];
+    const claim = (sx, sy) => {
+      if (Math.hypot(sx - M.x, sy - M.y) < Math.max(M.r * 1.15, V2.TOUCH_MIN / 2)) return 'mute';
+      if (Math.hypot(sx - R.close.x, sy - R.close.y) < Math.max(R.close.r * 1.3, V2.TOUCH_MIN / 2)) return 'close';
+      const h = r2 => r2 && Math.abs(sx - r2.x) < r2.w / 2 && Math.abs(sy - r2.y) < V2.padHit(r2.h / 2, 20 * R.u);
+      if (h(R.move)) return 'move';
+      if (h(R.sell)) return 'sell';
+      if (h(R.up)) return 'up';
+      if (Math.abs(sx - R.x) < R.w / 2 && Math.abs(sy - R.y) < R.h / 2) return 'panelbody';
+      for (let i = 0; i < tabs.length; i++) {
+        const t = tabs[i];
+        if (Math.abs(sx - t.x) < t.w / 2 && Math.abs(sy - t.y) < V2.padHit(t.h / 2, 12 * us())) return 'tab' + i;
+      }
+      for (let i = 0; i < bars.length; i++) {
+        const b = bars[i];
+        if (Math.abs(sx - b.x) < b.w / 2 && Math.abs(sy - b.y) < b.h / 2) return 'tray' + i;
+      }
+      return 'world';
+    };
+    const bad = [];
+    for (const d of drawn) {
+      if (claim(d.x, d.y) !== d.n) bad.push({ control: d.n, its_middle_went_to: claim(d.x, d.y) });
+      for (const o of drawn) {
+        if (o === d) continue;
+        for (const [fx, fy] of [[0, 0], [-0.4, 0], [0.4, 0], [0, -0.4], [0, 0.4]]) {
+          const px = o.x + fx * o.w, py = o.y + fy * o.h;
+          if (claim(px, py) === d.n) bad.push({ drawn_as: o.n, taken_by: d.n });
+        }
+      }
+    }
+    V2.panel = null;
+    return { controls: drawn.length, conflicts: bad.length, worst: bad.slice(0, 6) };
+  };
+
   window.textSweep = function () {
     const cv = document.querySelector('canvas');
     const keep = cv.height;

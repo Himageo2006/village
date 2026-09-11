@@ -774,6 +774,22 @@ const CAM = { z: 1, base: 1, x: W / 2, y: 520 };
    zoom the buildings are thumbnails. The floor stays where it is and the player
    pans; the opening fit frames what they built, which is the common case. */
 const ZMIN = 0.55, ZMAX = 2.2;
+
+/* ---------- how big a control has to be for a thumb ----------
+
+   The canvas is a fixed 1024 across however wide the phone is, so a control's
+   size in real millimetres depends entirely on that mapping. On a 375-wide
+   handset one logical pixel is 0.366 of a CSS pixel, and measuring the controls
+   that way was unpleasant reading: the panel buttons came out 29 CSS pixels
+   tall, the tabs 23, the close cross 34 -- against the 44 to 48 both platforms
+   ask for. They LOOK fine, because they are wide; they are simply thin.
+
+   The drawn shapes are left alone. What grows is the region that answers a tap,
+   which costs nothing and shows nothing -- hit(), and the circles below, take a
+   minimum and pad outwards from the middle. Where the space to pad into is not
+   there, the control gets as much as fits rather than as much as it wants. */
+const TOUCH_MIN = 128;                // logical px: 47 CSS px on a 375 screen, 45 on a 360
+const padHit = (half, room) => Math.max(half, Math.min(TOUCH_MIN / 2, half + room));
 const camScale = () => CAM.base * CAM.z;
 function camClamp() {
   const s = camScale();
@@ -3474,8 +3490,9 @@ function tap(sx, sy) {
   if (away) { away = null; return; }
   if (claimAsk) {
     const R = claimRects();
-    if (Math.hypot(sx - R.no.x, sy - R.no.y) < R.no.r * 1.3) { claimAsk = false; return; }
-    if (landNext() && Math.abs(sx - R.yes.x) < R.yes.w / 2 && Math.abs(sy - R.yes.y) < R.yes.h / 2) {
+    if (Math.hypot(sx - R.no.x, sy - R.no.y) < Math.max(R.no.r * 1.3, TOUCH_MIN / 2)) { claimAsk = false; return; }
+    if (landNext() && Math.abs(sx - R.yes.x) < R.yes.w / 2
+      && Math.abs(sy - R.yes.y) < Math.max(R.yes.h / 2, TOUCH_MIN / 2)) {
       if (!claimLand()) SFX.deny();
       return;
     }
@@ -3484,7 +3501,7 @@ function tap(sx, sy) {
   }
   {
     const M = muteRect();
-    if (Math.hypot(sx - M.x, sy - M.y) < M.r * 1.15) {
+    if (Math.hypot(sx - M.x, sy - M.y) < Math.max(M.r * 1.15, TOUCH_MIN / 2)) {
       muted = !muted; save();
       if (!muted) SFX.tap();
       return;
@@ -3493,8 +3510,10 @@ function tap(sx, sy) {
   // HUD first, exactly as in Gatestorm: the bar must always win over the world
   if (panel != null) {
     const R = panelRects(), p = byId(panel);
-    if (Math.hypot(sx - R.close.x, sy - R.close.y) < R.close.r * 1.3) { panel = null; sellArm = null; return; }
-    const hit = r2 => r2 && Math.abs(sx - r2.x) < r2.w / 2 && Math.abs(sy - r2.y) < r2.h / 2;
+    if (Math.hypot(sx - R.close.x, sy - R.close.y) < Math.max(R.close.r * 1.3, TOUCH_MIN / 2)) {
+      panel = null; sellArm = null; return; }
+    const hit = r2 => r2 && Math.abs(sx - r2.x) < r2.w / 2
+      && Math.abs(sy - r2.y) < padHit(r2.h / 2, 20 * R.u);
     if (p && hit(R.move)) { moving = p.id; panel = null; selBuild = null; ghost = null; armed = null; sellArm = null; SFX.tap(); return; }
     if (p && hit(R.sell)) {
       if (!canSell(p)) { SFX.deny(); return; }
@@ -3509,7 +3528,7 @@ function tap(sx, sy) {
     if (Math.abs(sx - R.x) < R.w / 2 && Math.abs(sy - R.y) < R.h / 2) return;
   }
   for (const t of tabRects()) {
-    if (Math.abs(sx - t.x) < t.w / 2 && Math.abs(sy - t.y) < t.h / 2) {
+    if (Math.abs(sx - t.x) < t.w / 2 && Math.abs(sy - t.y) < padHit(t.h / 2, 12 * US())) {
       barMode = t.mode; selBuild = null; moving = null; ghost = null; armed = null; SFX.tap(); return;
     }
   }
@@ -3597,7 +3616,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   canUpgrade, upgradeBuilding, upInfo, upCostOf, lvlOf, popOf, capsOf, rateOf, outMul, LVL_MAX,
   shortfall, shortText, villageStats, wellGain, wellGainAt, charmDelivered, deliveredOf, deliveredWith, travelSecondsOf, handsFor,
   bestDeliveredOf, reachOf, SNUG_WALK,
-  panelRects, get panel() { return panel; }, set panel(v) { panel = v; },
+  panelRects, TOUCH_MIN, padHit, get panel() { return panel; }, set panel(v) { panel = v; },
   get villagers() { return villagers; }, workersAt, boostAt, producers, stores,
   assignJobs, desiredJobs, computeJobs, invalidateJobs, established, buildingAt, ensureHall, jobsOf, VILLAGER_MAX, rebuildStores, nearestStore,
   isDecor, decorCount, DECOR_MAX, charmTotal, charmMul, charmRoom, usefulCharm, CHARM_FULL,
