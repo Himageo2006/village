@@ -132,7 +132,6 @@ for(let r=0;r<GH;r++) for(let c=0;c<GW;c++){
     SCENERY.push({c,r,kind,rock:kind==='rock',s:0.78+((n*97)%1)*0.5,f:(n*31)%1});
   }
 }
-const sceneryAt=new Set(SCENERY.map(o=>o.c+','+o.r));
 
 /* ---------- villagers ----------
    One per house-pop, wandering between finished buildings. They are what makes a
@@ -1364,6 +1363,14 @@ function rebuildCharm() {
   for (const p of placed) if (isDecor(p.key)) charmSum += B(p.key).charm;
 }
 const charmTotal = () => charmSum;
+/* How much of a decoration's charm the village can still USE. The bonus stops
+   climbing at CHARM_FULL, which is about fourteen statues -- and the tray went
+   on advertising the next forty-six at forty-five charm each, nearly seven
+   thousand wood of purchases that changed no number in the game. A decoration
+   bought past the line is worth having for the look of it; it is not worth
+   having for the reason the tray was giving. */
+const charmRoom = () => Math.max(0, CHARM_FULL - charmSum);
+const usefulCharm = key => Math.min(B(key).charm || 0, charmRoom());
 const charmMul = () => 1 + Math.min(CHARM_CAP, charmSum / CHARM_FULL * CHARM_CAP);
 
 const occupied = (exceptId) => {
@@ -2494,7 +2501,7 @@ function drawHUD() {
          flowerbed at 10 and said nothing about the charm either one buys, which
          is the whole reason to want them -- the number only appeared on the
          panel of one you had already paid for. */
-      + (r.b.charm ? '  ✨' + r.b.charm : '');
+      + (r.b.charm ? (charmRoom() > 0 ? '  ✨' + usefulCharm(r.b.key) : '  ✨ full') : '');
     if (full) {
       // the cost is irrelevant when the hall will not allow another one
       trayRow(isDecor(r.b.key) ? decorCount() + '/' + DECOR_MAX + ' placed'
@@ -3080,6 +3087,7 @@ function drawPanel() {
        This is the goods per second the village's decorations are really adding. */
     const cd = charmDelivered();
     line = '✨ ' + b.charm + ' charm   ·   village total ' + charmTotal()
+      + (charmRoom() > 0 ? '' : ' (full)')
       + (cd > 0.005 ? '   ·   adding +' + cd.toFixed(2) + '/s delivered' : '');
   }
   if (p.key === 'hall') {
@@ -3454,7 +3462,8 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   panelRects, get panel() { return panel; }, set panel(v) { panel = v; },
   get villagers() { return villagers; }, workersAt, boostAt, producers, stores,
   assignJobs, desiredJobs, computeJobs, invalidateJobs, established, buildingAt, ensureHall, jobsOf, VILLAGER_MAX, rebuildStores, nearestStore,
-  isDecor, decorCount, DECOR_MAX, charmTotal, charmMul, tabRects, drawDecor, grant,
+  isDecor, decorCount, DECOR_MAX, charmTotal, charmMul, charmRoom, usefulCharm, CHARM_FULL,
+  tabRects, drawDecor, grant,
   sparePeople, wouldStandEmpty, peopleComing, livedIn,
   sellBuilding, canSell, sellValue, investedIn, capsWithout, get moving() { return moving; }, set moving(v) { moving = v; },
   get armed() { return armed; }, set armed(v) { armed = v; },
