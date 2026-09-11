@@ -1173,10 +1173,24 @@ function makeOrder(tier) {
 }
 function stepOrders(dt) {
   orderT += dt;
-  if (orderT >= orderEvery()) {
-    orderT = 0;
-    if (orders.length < orderSlots()) { orders.push(makeOrder()); save(); }
-  }
+  if (orderT < orderEvery()) return;
+  orderT = 0;
+  if (orders.length < orderSlots()) { orders.push(makeOrder()); save(); return; }
+  /* A full board never changed again until something on it was filled, and an
+     order asks for whichever resource the village was richer in WHEN IT WAS
+     WRITTEN. Spend that down, or simply tip the other way, and all three point
+     the wrong way at once -- three offers the player cannot take, sitting there
+     for ever. Half an hour of simulated time with the same three ids on the
+     board, and no way to clear them.
+
+     A trader gives up and a new one comes, but only when there is nothing on
+     the board the player could have taken: an offer they can act on is never
+     pulled out from under them, even one they are saving up for. Replaced in
+     place so the cards do not jump around. */
+  if (orders.some(canFill)) return;
+  const oldest = 0;
+  orders.splice(oldest, 1, makeOrder());
+  save();
 }
 /* Room for the reward is part of the price. Without this an order filled while
    the paid resource is capped takes the goods and hands back nothing, silently
