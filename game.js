@@ -1718,14 +1718,11 @@ function step(dt) {
   stepCam(dt);
   if (backOpen()) armBack();          // so the back button can close it again
   if (sellArm) { sellArm.t -= dt; if (sellArm.t <= 0 || panel !== sellArm.id) sellArm = null; }
-  syncVillagers();
-  assignJobs();
-  stepVillagers(dt);
-  stepFeedback(dt);
-  stepHints(dt);
-  stepGoals(dt);
-  stepOrders(dt);
-  // nothing produces here any more -- see stepVillagers
+  /* Scaffolding comes down BEFORE the jobs are handed out. It used to be the
+     last thing in the tick, so a building that finished had to wait a frame for
+     anyone to walk to it -- and the recompute it triggers threw away the
+     workforce plan that had just been acted on, leaving the village a tick out
+     of step with itself. Nothing produces in here any more; see stepVillagers. */
   for (const p of placed) {
     if (p.t < 1) {
       p.t = Math.min(1, p.t + dt / (p.build || BUILD_TIME));
@@ -1734,6 +1731,13 @@ function step(dt) {
       if (p.t >= 1) { recomputeCaps(); save(); }
     }
   }
+  syncVillagers();
+  assignJobs();
+  stepVillagers(dt);
+  stepFeedback(dt);
+  stepHints(dt);
+  stepGoals(dt);
+  stepOrders(dt);
   /* Everything the villagers carry in changes res without going through place(),
      so without this a session's whole harvest is lost on reload. */
   saveT += dt;

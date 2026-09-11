@@ -83,6 +83,25 @@
        arriving. Both the sell path and the upgrade path did this. */
     ['a carried load is always on its way somewhere', () =>
       V.villagers.every(g => !g.carry || g.st === 'toStore')],
+    /* Liveness, not safety: the village should not be standing around with
+       people to spare and posts asking for them. It is the property the hall's
+       woodpile broke for months -- two villagers minding a pile at a quarter of
+       the rate while the lumber camp beside them sat empty, because a job, once
+       taken, was never reconsidered.
+
+       Only judged after a step, because every other action changes the village
+       without running assignJobs: building something makes a vacancy that is
+       filled on the next tick, not on the same one. */
+    ['nobody idle while a post is asking', what => {
+      if (what !== 'step') return true;
+      const { want } = V.desiredJobs();
+      const count = new Map();
+      for (const g of V.villagers) if (g.job != null) count.set(g.job, (count.get(g.job) || 0) + 1);
+      const short = [...want].some(([id, n]) => (count.get(id) || 0) < n);
+      // someone carrying is not free; they take a post after they put it down
+      const free = V.villagers.some(g => g.job == null && !g.carry);
+      return !(short && free);
+    }],
     ['a post is never over-staffed', () => {
       for (const p of V.placed) if (V.B(p.key).jobs)
         if (V.workersAt(p.id) > V.jobsOf(p)) return false;
@@ -140,7 +159,7 @@
   function check(what) {
     for (const [name, f] of INVARIANTS) {
       let ok;
-      try { ok = f(); } catch (e) { return name + ' threw: ' + e.message + ' (after ' + what + ')'; }
+      try { ok = f(what); } catch (e) { return name + ' threw: ' + e.message + ' (after ' + what + ')'; }
       if (!ok) return name + ' (after ' + what + ')';
     }
     prev = { wood: V.res.wood, food: V.res.food };
