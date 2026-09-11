@@ -1329,7 +1329,12 @@ const TUT = [
      a barn that cannot take them. The bar says "storage full" but not what that
      means, and a player who leaves the game overnight comes back to a village
      that earned nothing and no explanation of why. */
-  { id: 'full',  text: 'Your stores are full — what villagers bring in now is thrown away. Build a storehouse, or spend it',
+  /* Trading is named because the surplus is usually structural, not an
+     accident: a village built to its allowance makes food at two to three times
+     the rate it makes wood, while nearly everything it buys costs more wood
+     than food. Converting the one into the other is the answer the game is
+     built around, and "build a storehouse" only postpones it. */
+  { id: 'full',  text: 'Your stores are full — what villagers bring in now is thrown away. Spend it, trade it away, or build a storehouse',
     when: () => placed.some(p => p.key !== 'hall' && B(p.key).jobs && p.t >= 1)
                 && (res.wood >= caps.wood || res.food >= caps.food) },
 ];
