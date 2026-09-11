@@ -144,16 +144,18 @@ const villagers=[];
    the game in transit rather than working -- the first delivery landed a minute
    in. Fast enough to look purposeful, slow enough to watch. */
 const VIL_SPD=58;
-/* Paths are not decoration any more. A villager on one moves half again as
-   fast, which means laying a road from a farm to the storehouse is a real
-   economic act with a real cost -- and it gives the cheapest decoration in the
-   game a reason to exist beyond looking tidy. */
+/* Paths are not decoration any more. A villager on one moves more than twice as
+   fast, which makes laying a road from a farm to the storehouse a real economic
+   act with a real cost -- and gives the cheapest decoration in the game a reason
+   to exist beyond looking tidy. */
 const PATH_SPEED = 2.2;
 let pathSet = new Set();
 const rebuildPaths = () => {
   pathSet = new Set();
   for (const p of placed) if (p.key === 'path') pathSet.add(p.c + ',' + p.r);
 };
+// what each workplace's round trip costs, worked out once per change
+let travelCache = new Map();
 function onPath(x, y) {
   if (!pathSet.size) return false;
   const t = tileAt(x, y);
@@ -178,7 +180,7 @@ function hasStore(p) {
   return nearestStore(c.x, c.y) ? true : null;
 }
 /* Seconds a villager spends walking a load from here to the nearest store and
-   back.
+   back, counting the paved tiles the route crosses.
 
    Measured in the pixels a villager ACTUALLY covers. It used to un-squash the
    distance back into grid tiles and then price every tile at a full tile-width
@@ -190,15 +192,44 @@ function hasStore(p) {
    store happened to lie. Every efficiency, upgrade quote, well figure and
    offline total came off that number.
 
-   Still costed at the plain pace rather than at a guess about how much of the
-   route is paved, so the figures stay a floor the player can trust: laying a
-   road makes a building better than promised, never worse. */
-function travelSecondsOf(p) {
+   It used to cost the walk at the plain pace whatever the ground was, and call
+   that a floor the player could trust. It was a floor 33% below the truth on a
+   paved route -- and worse, it meant the cheapest thing in the game, a five-wood
+   path that speeds a villager up more than twice over, changed no number the
+   player could see. Nothing taught them roads did anything at all. Now laying
+   one makes the delivery figure on the panel go up, which is the whole lesson. */
+function routeOf(p) {
+  const key = p.id;
+  if (key !== undefined && key !== -1) {
+    const hit = travelCache.get(key);
+    if (hit !== undefined) return hit;
+  }
   const c = centreOf(p), s = nearestStore(c.x, c.y);
-  if (!s) return 0;
-  const d = centreOf(s);
-  return 2 * Math.hypot(d.x - c.x, d.y - c.y) / VIL_SPD;
+  let out;
+  if (!s) out = { secs: 0, paved: 0 };
+  else {
+    const d = centreOf(s);
+    const dist = Math.hypot(d.x - c.x, d.y - c.y);
+    let frac = 0;
+    if (pathSet.size) {
+      /* Villagers walk straight at their target, so the route is the straight
+         line between the two. Sample it, and add the time up per stretch -- an
+         average SPEED would be wrong, because the slow stretches take longer
+         and so count for more of the journey. */
+      const n = Math.max(4, Math.min(48, Math.round(dist / 24)));
+      let hits = 0;
+      for (let i = 0; i < n; i++) {
+        const f = (i + 0.5) / n;
+        if (onPath(c.x + (d.x - c.x) * f, c.y + (d.y - c.y) * f)) hits++;
+      }
+      frac = hits / n;
+    }
+    out = { secs: 2 * dist * (frac / (VIL_SPD * PATH_SPEED) + (1 - frac) / VIL_SPD), paved: frac };
+  }
+  if (key !== undefined && key !== -1) travelCache.set(key, out);
+  return out;
 }
+const travelSecondsOf = p => routeOf(p).secs;
 /* What a workplace running at `rate` actually DELIVERS.
 
    The cycle is fill-then-carry, so throughput is the load divided by the fill
@@ -475,6 +506,8 @@ const producers = () => placed.filter(p=>p.t>=1 && B(p.key).jobs);
 let storeAt = [];                     // [{ p, x, y }]
 function rebuildStores() {
   rebuildCharm();                     // the same events change both
+  rebuildPaths();                     // and a new road changes every travel time
+  travelCache = new Map();
   invalidateJobs();                   // and they all move the delivery figures
   storeAt.length = 0;
   for (const p of placed)
@@ -826,7 +859,9 @@ const BUILDINGS = [
      people want to look at works a little harder. `flat` marks the ones painted
      ONTO the ground rather than standing on it. */
   { key: 'path',    name: 'Path',      w: 1, h: 1, cost: { wood: 5 },             decor: true, flat: true, charm: 1,  icon: '🟫',
-    blurb: 'Villagers walk half again as fast on a road. Lay them end to end.' },
+    // said "half again" while the figure above it was 2.2; the number moved once
+    // and the words did not
+    blurb: 'Villagers walk twice as fast on a road. Lay them end to end.' },
   { key: 'fence',   name: 'Fence',     w: 1, h: 1, cost: { wood: 8 },             decor: true, charm: 2,  icon: '🚧',
     blurb: 'Split rails. Good for edging a farm.' },
   { key: 'flowers', name: 'Flowerbed', w: 1, h: 1, cost: { wood: 10, food: 10 },  decor: true, charm: 5,  icon: '🌷',
@@ -1618,7 +1653,6 @@ function step(dt) {
   stepCam(dt);
   if (backOpen()) armBack();          // so the back button can close it again
   if (sellArm) { sellArm.t -= dt; if (sellArm.t <= 0 || panel !== sellArm.id) sellArm = null; }
-  rebuildPaths();
   syncVillagers();
   assignJobs();
   stepVillagers(dt);
@@ -2282,7 +2316,13 @@ function drawHUD() {
     g.font = `bold ${Math.round(27 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#cbb6f0';
     g.fillText(cd > 0.005 ? '+' + cd.toFixed(2) + '/s' : 'charm ' + ch, x + 58 * u, ry - 12 * u);
     g.font = `bold ${Math.round(19 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#8d84a8';
-    g.fillText(cd > 0.005 ? 'charm ' + ch : 'no workplaces yet', x + 58 * u, ry + 18 * u);
+    /* "No workplaces yet" was shown for any gain too small to print, which
+       covers a village full of working farms whose three charm is worth a
+       thousandth of a load a second. Two different things, and only one of them
+       is the player's to fix by building something. */
+    const anyWork = placed.some(q => q.t >= 1 && B(q.key).makes && B(q.key).jobs && workersAt(q.id));
+    g.fillText(cd > 0.005 ? 'charm ' + ch
+      : anyWork ? 'too little to count yet' : 'no workplaces yet', x + 58 * u, ry + 18 * u);
   }
   g.restore();
 
@@ -2819,9 +2859,14 @@ function drawPanel() {
     else if (reach !== null) {
       const walk = travelSecondsOf(p);
       const here = n * deliveredOf(p), snug = n * bestDeliveredOf(p);
+      /* Roads are the other half of the answer and the cheapest one -- five
+         wood a tile against a whole building moved -- so a badly served
+         workplace on bare ground is told about them. */
+      const bare = routeOf(p).paved < 0.5;
       panelRow(walk.toFixed(1) + 's round trip to the nearest store'
         + (reach > 0.85 || !n ? '   —   well placed'
-          : '   —   beside one it would deliver ' + snug.toFixed(2) + '/s'),
+          : '   —   beside one it would deliver ' + snug.toFixed(2) + '/s'
+            + (bare ? ', or pave the route' : '')),
         lx, R.y - R.h / 2 + 148 * u, R.w - 56 * u, 20 * u,
         reach > 0.7 ? '#8fd06a' : reach > 0.45 ? '#e8c98a' : '#e59a86', '');
     }
@@ -3247,7 +3292,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   sky, dayPhase, DAY_MS, camFit, landFitZoom, landWorldBounds, artFor, ART,
   hudTop, hudBot, screenTop, screenBot, readSafeArea, get SAFE() { return SAFE; }, set SAFE(v) { SAFE = v; },
   fitLines, TUT, GOALS,
-  efficiencyOf, hasStore, onPath, PATH_SPEED, rebuildPaths,
+  efficiencyOf, hasStore, onPath, PATH_SPEED, rebuildPaths, routeOf, get pathSet() { return pathSet; },
   LAND, LAND_MAX, inLand, landNext, canClaim, claimLand, landBounds, coverPlaced,
   get landTier() { return landTier; }, set landTier(v) { landTier = v; },
   get claimAsk() { return claimAsk; }, set claimAsk(v) { claimAsk = v; }, claimRects,

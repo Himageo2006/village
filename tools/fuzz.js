@@ -95,6 +95,20 @@
     ['the cached charm total is not stale', () =>
       V.charmTotal() === V.placed.reduce((n, p) =>
         n + (V.isDecor(p.key) ? V.B(p.key).charm : 0), 0)],
+    /* The paved-tile set and the travel times come off the same rebuild. A
+       stale path set makes every delivery figure in the interface wrong the
+       moment a road is laid or pulled up. */
+    ['the cached path set is not stale', () => {
+      const want = V.placed.filter(q => q.key === 'path').map(q => q.c + ',' + q.r);
+      const have = V.pathSet;
+      return have.size === want.length && want.every(k => have.has(k));
+    }],
+    ['cached travel times are not stale', () => V.placed.every(q => {
+      if (!V.B(q.key) || !V.B(q.key).jobs) return true;
+      const cached = V.routeOf(q).secs;
+      const fresh = V.routeOf({ ...q, id: -1 }).secs;
+      return Math.abs(cached - fresh) < 1e-6;
+    })],
     /* And the job plan, which is cached off the same events plus the
        population. A stale one puts villagers at the wrong posts quietly -- the
        village still works, it just earns less, which is precisely the kind of
