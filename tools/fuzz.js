@@ -557,22 +557,46 @@
     window.dispatchEvent(new Event('resize'));
   }
 
+  /* One of everything, and then everything of everything.
+
+     The mid-sized village is the one the player spends most of their time in,
+     but it is not the one with the longest strings in it. Four-digit resources,
+     a market's full clause list, "wasting 24/s", a hall that allows a dozen
+     houses -- all of those only exist near the ceiling, and a sweep that never
+     builds that far cannot see them. A chip label running past its own pill
+     survived every run until a maxed village happened to be on screen for a
+     different reason. */
+  function sweepVillage(maxed) {
+    V.placed.length = 0; V.villagers.length = 0;
+    V.landTier = maxed ? V.LAND_MAX : 2;
+    V.ensureHall(); V.placed[0].lvl = maxed ? 5 : 4;
+    const L = V.landBounds();
+    const put = k => {
+      V.grant('wood', 999999, 0, 0); V.grant('food', 999999, 0, 0);
+      for (let c = L.lo; c <= L.hi; c++) for (let r = L.lo; r <= L.hi; r++)
+        if (V.place(k, c, r)) return V.placed[V.placed.length - 1];
+      return null;
+    };
+    if (maxed) {
+      const allow = V.HALL[V.HALL.length - 1].allow;
+      for (const [k, n] of Object.entries(allow))
+        for (let i = 0; i < n; i++) { const q = put(k); if (q) q.lvl = 5; }
+      for (let i = 0; i < 12; i++) put('statue');
+      V.goalIdx = V.GOALS.length - 1; V.ordersDone = 137;
+    } else {
+      for (const k of ['store', 'farm', 'lumber', 'house', 'house', 'well', 'mill', 'market',
+                       'path', 'flowers', 'statue']) put(k);
+    }
+    for (let i = 0; i < 200 * 30; i++) V.step(1 / 30);
+    if (maxed) { V.res.wood = V.caps.wood; V.res.food = V.caps.food; }
+    V.tutSeen.length = 0;
+  }
   window.textSweep = function () {
     const cv = document.querySelector('canvas');
     const keepW = window.innerWidth, keepH = window.innerHeight;
     const found = [];
-    // build a village with something of everything to talk about
-    V.placed.length = 0; V.villagers.length = 0; V.landTier = 2;
-    V.ensureHall(); V.placed[0].lvl = 4;
-    const L = V.landBounds();
-    for (const k of ['store', 'farm', 'lumber', 'house', 'house', 'well', 'mill', 'market',
-                     'path', 'flowers', 'statue']) {
-      V.grant('wood', 9999, 0, 0); V.grant('food', 9999, 0, 0);
-      let ok = false;
-      for (let c = L.lo; c <= L.hi && !ok; c++) for (let r = L.lo; r <= L.hi && !ok; r++) if (V.place(k, c, r)) ok = true;
-    }
-    for (let i = 0; i < 200 * 30; i++) V.step(1 / 30);
-    V.tutSeen.length = 0;
+    for (const maxed of [false, true]) {
+    sweepVillage(maxed);
 
     /* Every shape of screen the HUD scale can take, named by the device that
        makes it: a wide desktop and a tablet both sit at the bottom of the range
@@ -596,14 +620,16 @@
         finished: () => { V.goalDone = null; V.away = null;
           V.finished = { villagers: 72, buildings: 38, trades: 137, charm: 630 }; },
       };
-      for (const [name, set] of Object.entries(states)) { set(); found.push(...scan(name + ' @' + h)); }
+      const tag = maxed ? ' [maxed]' : ' [mid]';
+      for (const [name, set] of Object.entries(states)) { set(); found.push(...scan(name + ' @' + h + tag)); }
       V.goalDone = null; V.finished = null;
       // and every panel, armed and not
       for (const p of V.placed) for (const arm of [false, true]) {
         V.panel = p.id; V.sellArm = arm ? { id: p.id, t: 4 } : null;
-        found.push(...scan('panel:' + p.key + (arm ? ' armed' : '') + ' @' + h));
+        found.push(...scan('panel:' + p.key + (arm ? ' armed' : '') + ' @' + h + tag));
       }
       V.panel = null; V.sellArm = null;
+    }
     }
     asScreen(keepW, keepH); V.step(0.001);
     return { overflowing: found.length, worst: found.slice(0, 10) };
@@ -758,6 +784,11 @@
                            V.res.wood = 800; V.res.food = 600; }],
       ['full',     () => { V.barMode = 'build'; V.sel = null; V.moving = null; V.panel = null;
                            V.res.wood = V.caps.wood; V.res.food = V.caps.food; }],
+      /* Once every goal is done the strip says one thing for the rest of the
+         game, and that one thing had no pill for as long as it has existed. A
+         state the player ends in is worth a state in the sweep. */
+      ['allGoalsDone', () => { V.res.wood = 800; V.res.food = 600;
+                               V.goalIdx = V.GOALS.length; V.goalDone = null; }],
       ['orders',   () => { V.barMode = 'orders'; }],
       ['placing',  () => { V.barMode = 'build'; V.sel = 'mill'; }],
       ['moving',   () => { V.sel = null; V.moving = V.placed.find(p => p.key === 'farm').id; }],

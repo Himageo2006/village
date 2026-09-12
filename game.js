@@ -3079,9 +3079,23 @@ function drawGoal() {
   g.save();
   g.textAlign = 'center'; g.textBaseline = 'middle';
   if (!gl) {
+    /* On a pill, like the goals it replaces.
+
+       Every goal the strip has ever shown sits on a dark pill. This one -- the
+       only thing it says for the rest of the game, once the village is finished
+       -- was bare text at 55% alpha painted straight onto the world: 0.132 of
+       luminance between open sea and the village, and unreadable over either if
+       the colour behind it happened to be pale. The third string in this game to
+       be drawn without a background, and the last one: the backing sweep now
+       visits the finished state on purpose rather than stumbling into it. */
+    const txt2 = 'Every goal done — the village is yours';
     g.font = `bold ${Math.round(21 * u)}px Segoe UI, sans-serif`;
-    g.fillStyle = 'rgba(210,230,190,.55)';
-    g.fillText('Every goal done — the village is yours', W / 2, y);
+    const w2 = Math.min(W - 40 * u, g.measureText(txt2).width + 56 * u);
+    const h2 = 46 * u;
+    g.fillStyle = 'rgba(16,26,14,.72)'; g.strokeStyle = 'rgba(255,255,255,.12)'; g.lineWidth = 2;
+    g.beginPath(); g.roundRect(W / 2 - w2 / 2, y - h2 / 2, w2, h2, h2 / 2); g.fill(); g.stroke();
+    g.fillStyle = '#b2c4a0';
+    g.fillText(txt2, W / 2, y);
     g.restore(); return;
   }
   const reward = Object.entries(gl.give).map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join(' ');
@@ -3304,7 +3318,19 @@ function drawAway() {
    something to read and dismiss, and a new pattern for a screen seen once would
    have to teach itself. */
 function drawFinished() {
-  if (!finished || goalDone) return;   // the last goal's banner goes first
+  /* One card at a time, and this one waits for all of them.
+
+     Finish the village, leave the card up, put the phone down for an hour and
+     come back: grantAway raises the away card on top of this one and both drew
+     at once -- two dimmed screens, two "tap to continue", and the text of each
+     straight through the other. A tap cleared only the away card, so it was
+     recoverable, but the frame was a mess.
+
+     It yields rather than pre-empts: the goal banner says what was just
+     finished, the away card says what was missed while you were gone, and the
+     claim dialogue is a question waiting for an answer. This is the one that
+     will still be true afterwards. */
+  if (!finished || goalDone || away || claimAsk) return;
   const R = awayRect(), u = R.u;
   g.save();
   g.fillStyle = 'rgba(6,10,6,.66)'; g.fillRect(0, screenTop(), W, screenBot() - screenTop());
