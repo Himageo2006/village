@@ -3545,8 +3545,22 @@ function drawPanel() {
        the hands it would REALLY get -- the ones it has plus whoever is idle --
        so a new post is never priced in before anyone can fill it. */
     line = icon + ' ' + (n * deliveredOf(p)).toFixed(2) + '/s delivered';
-    if (nl > lvlOf(p))
+    /* Why it is zero comes SECOND, not last.
+
+       panelRow drops clauses from the end when the row will not fit, and on a
+       tall phone the row does not fit -- so the reason a building is producing
+       nothing, which is the only thing on the panel worth reading when it is
+       producing nothing, was the first thing thrown away. The player was left
+       with "0.00/s delivered → 0.00/s" and no explanation at either end.
+
+       The next level is not quoted for an idle building either. Nought becomes
+       nought, and the arrow between them is noise dressed as information. */
+    if (!n) {
+      line += '   ·   ' + (!hasRoomFor(k) ? 'stores full, nobody working it'
+        : 'no villagers');
+    } else if (nl > lvlOf(p)) {
       line += '  →  ' + (handsFor(p, nl) * deliveredOf(p, nl)).toFixed(2) + '/s';
+    }
     /* And whether the next level opens another post, because that is where the
        jump comes from. Measured across a farm's whole ladder, the steps that add
        a pair of hands are worth three to eight times the steps that only raise
@@ -3567,8 +3581,7 @@ function drawPanel() {
        well's own panel. */
     if (b.caps) line += '   ·   holds 🪵' + capsOf(p, 'wood') + ' 🌾' + capsOf(p, 'food');
     const boost = boostAt(p);
-    if (boost > 1) line += '   ·   +' + Math.round((boost - 1) * 100) + '% from wells';
-    else if (!n) line += '   — no villagers';
+    if (boost > 1 && n) line += '   ·   +' + Math.round((boost - 1) * 100) + '% from wells';
     /* Skipped for a building that is its own store; otherwise the placement
        gets a line of its own, stated as the counterfactual rather than as a
        score. "Efficiency 39%" is a number the player has to interpret, and
