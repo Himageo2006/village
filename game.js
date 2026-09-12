@@ -2379,6 +2379,16 @@ function drawStatus(p) {
   const b = B(p.key);
   const hall = p.key === 'hall';
   const idle = b.jobs && !hall && workersAt(p.id) === 0;
+  /* Empty for two very different reasons.
+
+     Since the workforce learned to leave a post whose barn is full, a farm can
+     stand empty because the village is short of people OR because the granary
+     is at the ceiling and everyone sensibly went to cut wood. Both wore the same
+     amber "!", so a player whose stores were full saw three alarmed farms and
+     the obvious response -- build a house -- makes it worse.
+
+     Resting is not a fault, so it does not get the alarm. */
+  const resting = idle && !!b.makes && !hasRoomFor(Object.keys(b.makes)[0]);
   /* How much of this building the walk is taking, measured against the same
      building beside a store -- not its raw efficiency, which falls as a
      building improves and so flagged most of a finished village. */
@@ -2421,6 +2431,17 @@ function drawStatus(p) {
       g.font = 'bold 15px Segoe UI, sans-serif'; g.fillStyle = '#b6f58a';
       g.fillText('▲', w / 2 + 15, 1);
     }
+  } else if (resting) {
+    /* Nowhere to put what it makes, so nobody is working it. A calm slate pill
+       and a pause, because nothing is wrong: the village is doing the right
+       thing and the answer is storage, not another house. Two drawn bars rather
+       than a glyph -- the pause character is not in every font, and at this size
+       a missing one is a box. */
+    g.fillStyle = 'rgba(24,32,40,.9)'; g.strokeStyle = 'rgba(150,180,205,.85)'; g.lineWidth = 2.5;
+    g.beginPath(); g.roundRect(-17, -16, 34, 32, 16); g.fill(); g.stroke();
+    g.fillStyle = '#b6ccdd';
+    g.beginPath(); g.roundRect(-7, -8, 5, 16, 2); g.fill();
+    g.beginPath(); g.roundRect(2, -8, 5, 16, 2); g.fill();
   } else {
     /* A producer with nobody at it is the single most confusing state in the
        game, so it says so rather than quietly making nothing. Drawn as a plain
