@@ -1941,8 +1941,22 @@ function load() {
            to prevent: loop it and wood and food become the same resource, which
            makes balancing farms against lumber camps pointless. Rounded and
            held inside the ceiling instead. */
-        giveN: Math.max(1, Math.min(caps[o.giveK], Math.round(o.giveN))),
-        getN: Math.max(1, Math.min(caps[o.getK], Math.round(o.getN))) }))
+        /* Bounded against nonsense, NOT against the current ceiling.
+
+           Clamping to caps looked right and quietly destroyed good orders. Sell
+           storage after a big offer is written and the offer is larger than the
+           barn -- clamping squashed both of its numbers to the same cap, which
+           made it worth exactly what it asks, and the filter below then deleted
+           it as a free converter. A save with five orders came back with four,
+           once every twenty thousand rounds.
+
+           An offer bigger than the barn is not a broken offer, it is one that
+           cannot be filled today: res >= giveN fails, so the board replaces it
+           within the minute of its own accord. The bound here only has to be
+           past anything the game can produce -- the largest possible order is
+           about a quarter of 8380 -- while still catching a wrapped 1e12. */
+        giveN: Math.max(1, Math.min(1e5, Math.round(o.giveN))),
+        getN: Math.max(1, Math.min(1e5, Math.round(o.getN))) }))
       /* And an order must still be worth less than it asks, which is the one
          rule every generated order obeys. Anything that is not is dropped; the
          board writes a new one within the minute. */

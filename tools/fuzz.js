@@ -209,7 +209,19 @@
   function signature() {
     return JSON.stringify({
       placed: V.placed.map(p => [p.key, p.c, p.r, p.lvl | 0, Math.round((p.t || 0) * 100)]).sort(),
-      res: { wood: Math.round(V.res.wood), food: Math.round(V.res.food) },
+      /* Clamped to the ceiling, because a surplus ABOVE the ceiling is not state
+         a reload is supposed to preserve.
+
+         Sell storage while the barn holds more than what is left and the village
+         legitimately carries more than it can store -- that is why the rule
+         above is "nothing RISES above its cap" rather than "nothing exceeds
+         it" -- and the excess drains away on the next delivery. load() clamps it
+         at once instead, which is the same answer sooner. Comparing the raw
+         number made that a round-trip failure: five in 120,000 rounds, every one
+         of them the game doing exactly what it says it does, and a false failure
+         is worse than none because it teaches you to ignore the report. */
+      res: { wood: Math.round(Math.min(V.res.wood, V.caps.wood)),
+             food: Math.round(Math.min(V.res.food, V.caps.food)) },
       land: V.landTier, goal: V.goalIdx, done: V.ordersDone, mute: V.muted,
       orders: V.orders.map(o => [o.tier, o.giveK, o.giveN, o.getK, o.getN]),
     });
@@ -224,6 +236,11 @@
     if (now === was) return null;
     V.placed.length = 0; for (const p of keep) V.placed.push(p);
     V.villagers.length = 0; for (const g of kv) V.villagers.push(g);
+    /* Putting the village back by hand leaves every cache describing the one
+       that was just loaded. Without this the next check reports a stale store
+       list, which is this restore's fault and not the game's -- one failure
+       became two, and the second pointed at the wrong place. */
+    V.rebuildStores();
     return 'a save/load round trip changed the village';
   }
 
@@ -435,7 +452,7 @@
          island. These deliberately grow and wreck the place as well. */
       const act = pick(['tap', 'tap', 'tap', 'step', 'step', 'step', 'pickBuild', 'tab',
                         'grant', 'claim', 'panelOpen', 'camFit', 'build', 'build',
-                        'sell', 'upgrade', 'upgrade', 'move', 'reload', 'away']);
+                        'sell', 'upgrade', 'upgrade', 'move', 'reload', 'away', 'resume']);
       counts[act] = (counts[act] || 0) + 1;
       try {
         if (act === 'tap') V.tap(R(W), R(H()));
@@ -458,6 +475,35 @@
            village can bank, so the clamp at each end is exercised rather than
            assumed. The card it raises is dismissed straight away: this is about
            the grant, and the drawing sweeps cover the card. */
+        /* Backgrounded and brought back, which is how an app on a phone spends
+           most of its life. The tick is not stopped while hidden, only
+           throttled, so the resume handler pays for the gap MINUS what the
+           throttled tick already simulated -- and the rule worth guarding is
+           that it never pays for the same minutes twice. */
+        else if (act === 'resume') {
+          const gone = 60 + R(3600);
+          V.hiddenAt = Date.now() - gone * 1000; V.hiddenSim = 0;
+          const ticks = Math.min(600, gone);
+          for (let n = 0; n < ticks; n++) V.step(0.1);   // a 1 Hz tab, dt clamped
+          const simmed = V.hiddenSim;
+          /* Measured around the GRANT alone. What the throttled ticks earned is
+             ordinary production and not this rule's business -- and the village
+             grows during them, so a rate taken before they ran is already stale
+             by the time the grant happens. Bounding the whole window against
+             that stale rate reported 291 failures on a village doing nothing
+             wrong, which is the checker being wrong rather than the game. */
+          const rate = V.potentialRate();
+          const before = { wood: V.res.wood, food: V.res.food };
+          V.grantAway(gone - simmed);
+          V.away = null; V.hiddenAt = 0; V.hiddenSim = 0;
+          for (const k of ['wood', 'food']) {
+            const got = V.res[k] - before[k];
+            if (got < -1e-6) fails.push('coming back took resources away (' + k + ')');
+            // the grant may only pay for the time the throttled tick did NOT
+            const owed = rate[k] * Math.max(0, gone - simmed) + 2;
+            if (got > owed) fails.push('coming back paid for time twice (' + k + ')');
+          }
+        }
         else if (act === 'away') {
           const before = { wood: V.res.wood, food: V.res.food };
           const room = { wood: V.caps.wood - V.res.wood, food: V.caps.food - V.res.food };
