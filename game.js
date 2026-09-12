@@ -967,13 +967,39 @@ function camFitTarget(wide) {
 }
 function camFit(instant, wide) {
   const t = camFitTarget(wide);
+  camFling = null;                       // a framing move outranks a flick
   if (instant) { CAM.z = t.z; CAM.x = t.x; CAM.y = t.y; camGlide = null; camClamp(); }
   else camGlide = t;
 }
 /* An eased move rather than a jump. A cut makes the player re-find their own
    village; a glide of about half a second carries the eye with it. */
 let camGlide = null;
+/* Where a flick is still going after the finger has gone.
+
+   The camera stopped dead the instant a drag ended, which is the one thing a
+   draggable map never does: on a phone, crossing a full island meant four
+   separate drags with a full stop between each. Momentum in WORLD units per
+   second, so a flick at one zoom carries the same distance across the ground as
+   the same flick at another.
+
+   FLING_DECAY is per second and settles in about a third of a second -- long
+   enough to feel like the map has weight, short enough that it never runs away
+   from the thumb about to touch it again. */
+let camFling = null;
+const FLING_DECAY = 0.002, FLING_MIN = 12;
 function stepCam(dt) {
+  if (camFling) {
+    CAM.x += camFling.x * dt;
+    CAM.y += camFling.y * dt;
+    const k = Math.pow(FLING_DECAY, dt);
+    camFling.x *= k; camFling.y *= k;
+    const before = { x: CAM.x, y: CAM.y };
+    camClamp();
+    /* Clamped means it hit the edge of the world; carrying on would grind
+       against it for another quarter of a second. */
+    if (Math.hypot(camFling.x, camFling.y) < FLING_MIN
+      || before.x !== CAM.x || before.y !== CAM.y) camFling = null;
+  }
   if (!camGlide) return;
   const k = 1 - Math.pow(0.004, dt);            // ~half a second to settle
   CAM.z += (camGlide.z - CAM.z) * k;
@@ -3730,7 +3756,7 @@ cv.addEventListener('pointerdown', ev => {
   audioOn();                          // must happen inside a gesture
   ptrSweep();
   const p = evPos(ev);
-  camGlide = null;                       // the player's hand outranks the camera
+  camGlide = null; camFling = null;      // the player's hand outranks the camera
   PTRS.set(ev.pointerId, { x: p.x, y: p.y, x0: p.x, y0: p.y, moved: 0, drag: false, pinch: false, tLast: Date.now() });
   try { cv.setPointerCapture(ev.pointerId); } catch (e) {}
   if (PTRS.size >= 2) pinchBase();
@@ -3744,7 +3770,19 @@ cv.addEventListener('pointermove', ev => {
     // the world point that was between the fingers goes back between them
     if (pinchD0 > 4 && pinchW) zoomHolding(pinchZ0 * (m.d / pinchD0), m.x, m.y, pinchW);
     return; }
-  if (rec.moved > DRAG_SLOP) { rec.drag = true; CAM.x -= dx / camScale(); CAM.y -= dy / camScale(); camClamp(); }
+  if (rec.moved > DRAG_SLOP) {
+    rec.drag = true;
+    const wx = -dx / camScale(), wy = -dy / camScale();
+    CAM.x += wx; CAM.y += wy; camClamp();
+    /* Smoothed over the last few moves. A single frame's delta is noisy enough
+       that a flick and a stop can look the same, and the last event before a
+       finger lifts is very often a short one. */
+    const now = performance.now(), gap = Math.max(1, now - (rec.tMove || now - 16));
+    rec.tMove = now;
+    const vx = wx * 1000 / gap, vy = wy * 1000 / gap, mix = 0.4;
+    rec.vx = rec.vx === undefined ? vx : rec.vx + (vx - rec.vx) * mix;
+    rec.vy = rec.vy === undefined ? vy : rec.vy + (vy - rec.vy) * mix;
+  }
   if (selBuild || moving != null) updateGhost(p.x, p.y);
 });
 function ptrEnd(ev) {
@@ -3754,6 +3792,17 @@ function ptrEnd(ev) {
   /* Two fingers left after a third lifts is a different pair, and a stale
      baseline moves the camera for nothing. */
   pinchBase();
+  /* A drag that was still moving when it ended keeps going. Only from a
+     one-finger drag: letting go of a pinch should settle, not sail off, and the
+     two fingers rarely lift together anyway. Stale is thrown away -- a finger
+     held still for a moment before lifting is a stop, whatever it was doing
+     before that. */
+  if (rec.drag && !rec.pinch && PTRS.size === 0 && rec.vx !== undefined
+    && performance.now() - (rec.tMove || 0) < 90
+    && Math.hypot(rec.vx, rec.vy) > FLING_MIN * 3) {
+    camGlide = null;
+    camFling = { x: rec.vx, y: rec.vy };
+  }
   if (!rec.drag && !rec.pinch && rec.moved <= DRAG_SLOP) tap(rec.x0, rec.y0);
 }
 /* A mouse had no way to zoom at all.
@@ -3769,7 +3818,7 @@ function ptrEnd(ev) {
    or the page scrolls behind the canvas. */
 cv.addEventListener('wheel', ev => {
   ev.preventDefault();
-  camGlide = null;                     // the player's hand outranks the camera
+  camGlide = null; camFling = null;     // the player's hand outranks the camera
   const step = ev.deltaY * (ev.deltaMode === 1 ? 16 : ev.deltaMode === 2 ? 100 : 1);
   const p = evPos(ev);
   zoomHolding(CAM.z * Math.exp(-step * 0.0015), p.x, p.y, camUnproject(p.x, p.y));
@@ -4017,7 +4066,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   KEY, KEY_BAK, BACKUP_EVERY,
   get saveFailed() { return saveFailed; }, set saveFailed(v) { saveFailed = v; },
   get loadedFromBackup() { return loadedFromBackup; }, set loadedFromBackup(v) { loadedFromBackup = v; },
-  sky, dayPhase, DAY_MS, camFit, landFitZoom, landWorldBounds, builtBounds, artFor, ART, villagerArt,
+  sky, dayPhase, DAY_MS, camFit, get camFling() { return camFling; }, landFitZoom, landWorldBounds, builtBounds, artFor, ART, villagerArt,
   hudTop, hudBot, screenTop, screenBot, readSafeArea, get SAFE() { return SAFE; }, set SAFE(v) { SAFE = v; },
   fitLines, TUT, GOALS, get finished() { return finished; }, set finished(v) { finished = v; },
   efficiencyOf, hasStore, onPath, PATH_SPEED, rebuildPaths, routeOf, get pathSet() { return pathSet; },
