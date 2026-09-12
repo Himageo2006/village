@@ -1593,8 +1593,20 @@ function stepGoals(dt) {
    the village actually looks like, each shown ONCE and then remembered -- a hint
    that keeps coming back is nagging, not teaching. */
 let tutSeen = [];
-let tutT = 0;
-const TUT_SHOW = 11;                  // seconds a hint stays up before it counts as read
+let tutT = 0, tutNow = null;          // which hint is on screen, to notice when it leaves
+/* A hint is finished when the player DOES the thing. The timer is the fallback
+   for a player who does not, which is why it can afford to be generous.
+
+   It used to be the other way round, and the two halves were backwards. Acting
+   on a hint never marked it read -- build the first house within two seconds and
+   the hint vanished with none of its time spent, so selling that house an hour
+   later brought "Build a house first" back to a player who plainly knew. And the
+   player who did NOT act lost it after eleven seconds, for ever: the one who had
+   shown they understood kept being told, and the one who had not never saw it
+   again. Eleven seconds is also simply short for the first thing a new player
+   ever reads, and "tap any building to upgrade, move or sell it" is the only
+   thing in the game that teaches its main interaction. */
+const TUT_SHOW = 20;
 const TUT = [
   { id: 'house', text: 'Build a house first — villagers live there, and villagers do all the work',
     when: () => countOf('house') === 0 },
@@ -1625,9 +1637,17 @@ function currentHint() {
 }
 function stepHints(dt) {
   const h = currentHint();
+  const id = h ? h.id : null;
+  /* It was on screen and now it is not, which can only mean its own condition
+     stopped being true -- currentHint always returns the earliest unseen one, so
+     nothing else can displace it. The player did the thing. */
+  if (tutNow && tutNow !== id && !tutSeen.includes(tutNow)) {
+    tutSeen.push(tutNow); tutT = 0; save();
+  }
+  tutNow = id;
   if (!h) { tutT = 0; return; }
   tutT += dt;
-  if (tutT >= TUT_SHOW) { tutSeen.push(h.id); tutT = 0; save(); }
+  if (tutT >= TUT_SHOW) { tutSeen.push(h.id); tutT = 0; tutNow = null; save(); }
 }
 
 const hallOf = () => placed.find(p => p.key === 'hall');
