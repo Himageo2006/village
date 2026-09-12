@@ -4045,7 +4045,24 @@ function draw() {
 
    24 lands between the two on every phone: 8.4 CSS on a 360, 8.8 on a 375, 9.6
    on a 412. */
-const DRAG_SLOP = 24, PTR_STALE = 4000;
+const DRAG_SLOP = 24;
+/* How long a pointer may go quiet before it is assumed lost.
+
+   This is a last resort, and it was behaving like a first one. Four recovery
+   paths already run ahead of it -- pointerup, pointercancel, lostpointercapture
+   and window blur, which clears every pointer at once -- so the only thing left
+   for the sweep is a touch whose release was genuinely never delivered. That is
+   rare. A hand resting on the glass is not.
+
+   At four seconds it was throwing away real fingers: rest one on the screen
+   while looking at something, bring a second down to pinch, and the pinch does
+   not happen -- the first was swept on the second one's arrival, so two fingers
+   became one and the gesture panned instead of zoomed. Measured: it worked at
+   three seconds of rest and failed at five.
+
+   Thirty gives a hand all the time it wants and still clears a pointer that
+   really is gone, long before it could be mistaken for part of a new gesture. */
+const PTR_STALE = 30000;
 const PTRS = new Map();
 /* The baseline a pinch is measured against: the finger separation and zoom when
    it began, and the WORLD point that was under the midpoint of the fingers.
