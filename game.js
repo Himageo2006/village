@@ -4034,7 +4034,18 @@ function draw() {
 }
 
 /* ---------- input ---------- */
-const DRAG_SLOP = 16, PTR_STALE = 4000;
+/* How far a finger may move and still be a tap.
+
+   Measured in the units a finger actually moves in, the way TOUCH_MIN was: the
+   canvas is a fixed 1024 across, so on a 360-wide handset one logical pixel is
+   0.352 CSS pixels. At 16 this threshold was 5.6 CSS -- and Android gives up on
+   a tap at 8dp, iOS at about 10pt. The game was abandoning taps after LESS
+   finger movement than the platform does, so a tap with a little roll in it
+   panned the camera instead of opening the building under it.
+
+   24 lands between the two on every phone: 8.4 CSS on a 360, 8.8 on a 375, 9.6
+   on a 412. */
+const DRAG_SLOP = 24, PTR_STALE = 4000;
 const PTRS = new Map();
 /* The baseline a pinch is measured against: the finger separation and zoom when
    it began, and the WORLD point that was under the midpoint of the fingers.
