@@ -356,7 +356,7 @@
          island. These deliberately grow and wreck the place as well. */
       const act = pick(['tap', 'tap', 'tap', 'step', 'step', 'step', 'pickBuild', 'tab',
                         'grant', 'claim', 'panelOpen', 'camFit', 'build', 'build',
-                        'sell', 'upgrade', 'upgrade', 'move', 'reload']);
+                        'sell', 'upgrade', 'upgrade', 'move', 'reload', 'away']);
       counts[act] = (counts[act] || 0) + 1;
       try {
         if (act === 'tap') V.tap(R(W), R(H()));
@@ -370,6 +370,26 @@
         else if (act === 'claim') V.claimLand();
         else if (act === 'panelOpen') V.panel = V.placed.length ? pick(V.placed).id : null;
         else if (act === 'camFit') V.camFit(Math.random() < 0.5);
+        /* Coming back after being away, which nothing here had ever done.
+
+           Offline earnings are the one path that hands a player hours of
+           progress without a villager taking a step, and every invariant in
+           this file had only ever seen resources arrive by delivery. A stretch
+           either side of the cap and either side of the ceiling on how long a
+           village can bank, so the clamp at each end is exercised rather than
+           assumed. The card it raises is dismissed straight away: this is about
+           the grant, and the drawing sweeps cover the card. */
+        else if (act === 'away') {
+          const before = { wood: V.res.wood, food: V.res.food };
+          const room = { wood: V.caps.wood - V.res.wood, food: V.caps.food - V.res.food };
+          V.grantAway(Math.random() * V.AWAY_MAX * 1.5);
+          V.away = null;
+          for (const k of ['wood', 'food']) {
+            const got = V.res[k] - before[k];
+            if (got < -1e-6) fails.push('being away took resources away (' + k + ')');
+            if (got > room[k] + 1e-6) fails.push('being away paid past the ceiling (' + k + ')');
+          }
+        }
         else if (act === 'reload') { const bad = roundTrip(); if (bad) fails.push(bad + ' (after ' + act + ')'); }
         else if (act === 'build') {
           // afford it, then let place() decide whether it is legal
