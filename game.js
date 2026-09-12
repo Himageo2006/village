@@ -3687,7 +3687,27 @@ function draw() {
 /* ---------- input ---------- */
 const DRAG_SLOP = 16, PTR_STALE = 4000;
 const PTRS = new Map();
-let pinchD0 = 0, pinchZ0 = 1;
+/* The baseline a pinch is measured against: the finger separation and zoom when
+   it began, and the WORLD point that was under the midpoint of the fingers.
+
+   That last one is the whole gesture. Zoom was applied to CAM.z and nothing
+   else, so the camera scaled about the centre of the screen while the player's
+   fingers were somewhere else entirely -- the thing being pinched slid away
+   from under them. And the two-finger branch returned before the pan, so moving
+   both fingers together did nothing at all.
+
+   Holding the world point under the midpoint fixes both at once: it is what
+   "anchored zoom" means, and a midpoint that has moved is a pan. */
+let pinchD0 = 0, pinchZ0 = 1, pinchW = null;
+/* Re-taken whenever the PAIR changes, not only when the second finger lands. A
+   third finger, or the first of two lifting while a third is down, leaves two
+   pointers that are not the two the baseline was measured from -- and the camera
+   jumped. */
+function pinchBase() {
+  if (PTRS.size < 2) { pinchW = null; return; }
+  const m = ptrMid();
+  pinchD0 = m.d; pinchZ0 = CAM.z; pinchW = camUnproject(m.x, m.y);
+}
 const evPos = ev => { const b = cv.getBoundingClientRect();
   return { x: (ev.clientX - b.left) / b.width * W, y: (ev.clientY - b.top) / b.height * VH - OY }; };
 const ptrMid = () => { const a = [...PTRS.values()];
@@ -3701,7 +3721,7 @@ cv.addEventListener('pointerdown', ev => {
   camGlide = null;                       // the player's hand outranks the camera
   PTRS.set(ev.pointerId, { x: p.x, y: p.y, x0: p.x, y0: p.y, moved: 0, drag: false, pinch: false, tLast: Date.now() });
   try { cv.setPointerCapture(ev.pointerId); } catch (e) {}
-  if (PTRS.size === 2) { const m = ptrMid(); pinchD0 = m.d; pinchZ0 = CAM.z; }
+  if (PTRS.size >= 2) pinchBase();
 });
 cv.addEventListener('pointermove', ev => {
   const rec = PTRS.get(ev.pointerId); if (!rec) return;
@@ -3709,7 +3729,14 @@ cv.addEventListener('pointermove', ev => {
   rec.x = p.x; rec.y = p.y; rec.tLast = Date.now();
   rec.moved = Math.max(rec.moved, Math.hypot(p.x - rec.x0, p.y - rec.y0));
   if (PTRS.size >= 2) { const m = ptrMid(); for (const r of PTRS.values()) r.pinch = true;
-    if (pinchD0 > 4) { CAM.z = Math.max(ZMIN, Math.min(ZMAX, pinchZ0 * (m.d / pinchD0))); camClamp(); }
+    if (pinchD0 > 4 && pinchW) {
+      CAM.z = Math.max(ZMIN, Math.min(ZMAX, pinchZ0 * (m.d / pinchD0)));
+      // put the world point that was under the fingers back under the fingers
+      const sc = camScale();
+      CAM.x = pinchW.x - (m.x - W / 2) / sc;
+      CAM.y = pinchW.y - (m.y - H / 2) / sc;
+      camClamp();
+    }
     return; }
   if (rec.moved > DRAG_SLOP) { rec.drag = true; CAM.x -= dx / camScale(); CAM.y -= dy / camScale(); camClamp(); }
   if (selBuild || moving != null) updateGhost(p.x, p.y);
@@ -3718,6 +3745,9 @@ function ptrEnd(ev) {
   const rec = PTRS.get(ev.pointerId); if (!rec) return;
   PTRS.delete(ev.pointerId);
   try { cv.releasePointerCapture(ev.pointerId); } catch (e) {}
+  /* Two fingers left after a third lifts is a different pair, and a stale
+     baseline moves the camera for nothing. */
+  pinchBase();
   if (!rec.drag && !rec.pinch && rec.moved <= DRAG_SLOP) tap(rec.x0, rec.y0);
 }
 cv.addEventListener('pointerup', ptrEnd);
