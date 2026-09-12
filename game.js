@@ -1927,7 +1927,17 @@ function load() {
       t: typeof p.t === 'number' ? Math.min(1, Math.max(0, p.t)) : 1,
       lvl: Math.min(p.key === 'hall' ? HALL_MAX : LVL_MAX, Math.max(1, p.lvl | 0)),
       stock: typeof p.stock === 'number' && isFinite(p.stock) ? Math.max(0, p.stock) : 0,
-      build: BUILD_TIME,
+      /* How long this one takes, not how long a new building takes.
+
+         t is progress from 0 to 1 and build is what that progress is measured
+         against, so throwing build away and substituting BUILD_TIME rescales
+         whatever was under way. A hall upgrade takes six seconds and a level
+         four building twelve; reload either at the halfway mark and the three
+         seconds still owed became one and a half. Reloading was a way to finish
+         an upgrade four times faster, which is small in seconds and wrong in
+         principle. Clamped, because it comes out of a save like everything
+         else. */
+      build: Number.isFinite(p.build) && p.build > 0 ? Math.min(60, p.build) : BUILD_TIME,
     }));
   /* A save cannot put a building somewhere the game would never have let you
      build it.
