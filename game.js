@@ -878,6 +878,18 @@ function camClamp() {
   CAM.x = Math.max(b.x0 + hw * 0.35, Math.min(b.x1 - hw * 0.35, CAM.x));
   CAM.y = Math.max(b.y0 + hh * 0.35, Math.min(b.y1 - hh * 0.35, CAM.y));
 }
+/* Change the zoom while holding one world point under one screen point.
+
+   This is what "anchored zoom" means, and both ways of zooming need it: a pinch
+   holds the point between the fingers, a wheel holds the point under the
+   cursor. Written once so the two cannot drift apart. */
+function zoomHolding(z, sx, sy, w) {
+  CAM.z = Math.max(ZMIN, Math.min(ZMAX, z));
+  const sc = camScale();
+  CAM.x = w.x - (sx - W / 2) / sc;
+  CAM.y = w.y - (sy - H / 2) / sc;
+  camClamp();
+}
 function worldBounds() {
   const a = tileToWorld(0, 0), b = tileToWorld(GW, 0), c2 = tileToWorld(0, GH), d = tileToWorld(GW, GH);
   return { x0: Math.min(a.x, b.x, c2.x, d.x), x1: Math.max(a.x, b.x, c2.x, d.x),
@@ -3729,14 +3741,8 @@ cv.addEventListener('pointermove', ev => {
   rec.x = p.x; rec.y = p.y; rec.tLast = Date.now();
   rec.moved = Math.max(rec.moved, Math.hypot(p.x - rec.x0, p.y - rec.y0));
   if (PTRS.size >= 2) { const m = ptrMid(); for (const r of PTRS.values()) r.pinch = true;
-    if (pinchD0 > 4 && pinchW) {
-      CAM.z = Math.max(ZMIN, Math.min(ZMAX, pinchZ0 * (m.d / pinchD0)));
-      // put the world point that was under the fingers back under the fingers
-      const sc = camScale();
-      CAM.x = pinchW.x - (m.x - W / 2) / sc;
-      CAM.y = pinchW.y - (m.y - H / 2) / sc;
-      camClamp();
-    }
+    // the world point that was between the fingers goes back between them
+    if (pinchD0 > 4 && pinchW) zoomHolding(pinchZ0 * (m.d / pinchD0), m.x, m.y, pinchW);
     return; }
   if (rec.moved > DRAG_SLOP) { rec.drag = true; CAM.x -= dx / camScale(); CAM.y -= dy / camScale(); camClamp(); }
   if (selBuild || moving != null) updateGhost(p.x, p.y);
@@ -3750,6 +3756,25 @@ function ptrEnd(ev) {
   pinchBase();
   if (!rec.drag && !rec.pinch && rec.moved <= DRAG_SLOP) tap(rec.x0, rec.y0);
 }
+/* A mouse had no way to zoom at all.
+
+   The game is a web page before it is an app, and on a laptop the only camera
+   control was dragging: a player could pan across an island they had no way to
+   pull back from. Anchored at the cursor, like the pinch, so the tile under the
+   pointer is the one that stays put.
+
+   deltaMode is normalised because Firefox reports wheel movement in LINES and
+   everything else in pixels -- unnormalised, one notch there is three pixels
+   and the zoom barely moves. passive:false because this has to preventDefault,
+   or the page scrolls behind the canvas. */
+cv.addEventListener('wheel', ev => {
+  ev.preventDefault();
+  camGlide = null;                     // the player's hand outranks the camera
+  const step = ev.deltaY * (ev.deltaMode === 1 ? 16 : ev.deltaMode === 2 ? 100 : 1);
+  const p = evPos(ev);
+  zoomHolding(CAM.z * Math.exp(-step * 0.0015), p.x, p.y, camUnproject(p.x, p.y));
+  if (selBuild || moving != null) updateGhost(p.x, p.y);
+}, { passive: false });
 cv.addEventListener('pointerup', ptrEnd);
 cv.addEventListener('pointercancel', ptrEnd);
 cv.addEventListener('lostpointercapture', ev => PTRS.delete(ev.pointerId));
