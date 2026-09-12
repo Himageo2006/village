@@ -1467,19 +1467,22 @@ const GOALS = [
      farm" while the button for it said "no one free", which is a straight
      contradiction inside the first two minutes. Housed first, the farm is
      staffed the moment it is finished. */
-  { text: 'House four villagers',          done: () => villagers.length >= 4,  give: { wood: 25 } },
+  { text: 'House four villagers',          done: () => villagers.length >= 4,  give: { wood: 25 },
+    at: () => [villagers.length, 4] },
   { text: 'Build a farm',                  done: () => countOf('farm') >= 1,   give: { wood: 30, food: 20 } },
   { text: 'Raise the town hall to level 2', done: () => hallLevel() >= 2,      give: { wood: 60, food: 40 } },
   { text: 'Build a storehouse',            done: () => countOf('store') >= 1,  give: { wood: 70 } },
   // not "at the market": trading needs no market, and naming one sends the
   // player looking for a building the hall will not allow for another two levels
-  { text: 'Fill three trade orders',        done: () => ordersDone >= 3,        give: { wood: 100, food: 60 } },
+  { text: 'Fill three trade orders',        done: () => ordersDone >= 3,        give: { wood: 100, food: 60 },
+    at: () => [ordersDone, 3] },
   { text: 'Claim land beyond your border', done: () => landTier >= 1,          give: { wood: 120, food: 70 } },
   { text: 'Upgrade any building to level 2', done: () => anyAtLevel(2),        give: { wood: 90, food: 50 } },
   { text: 'Dig a well',                    done: () => countOf('well') >= 1,   give: { wood: 110 } },
   { text: 'Raise the town hall to level 3', done: () => hallLevel() >= 3,      give: { wood: 180, food: 120 } },
   { text: 'Claim a third ring of land',    done: () => landTier >= 2,          give: { wood: 350, food: 220 } },
-  { text: 'Place five decorations',        done: () => decorCount() >= 5,      give: { wood: 150, food: 90 } },
+  { text: 'Place five decorations',        done: () => decorCount() >= 5,      give: { wood: 150, food: 90 },
+    at: () => [decorCount(), 5] },
   { text: 'Upgrade any building to level 3', done: () => anyAtLevel(3),        give: { wood: 250, food: 160 } },
   { text: 'Build a mill',                  done: () => countOf('mill') >= 1,   give: { wood: 350, food: 220 } },
   { text: 'Raise the town hall to level 4', done: () => hallLevel() >= 4,      give: { wood: 550, food: 360 } },
@@ -1522,13 +1525,19 @@ const GOALS = [
      first. */
   { text: 'Build everything your hall allows',
     done: () => Object.keys(HALL[HALL_MAX].allow).every(k => countOf(k) >= HALL[HALL_MAX].allow[k]),
-    give: { wood: 2000, food: 1300 } },
+    give: { wood: 2000, food: 1300 },
+    at: () => { const a = HALL[HALL_MAX].allow; let have = 0, want = 0;
+                for (const k of Object.keys(a)) { have += Math.min(countOf(k), a[k]); want += a[k]; }
+                return [have, want]; } },
   { text: 'Fill the village with charm',   done: () => charmTotal() >= CHARM_FULL,
-    give: { wood: 2600, food: 1700 } },
+    give: { wood: 2600, food: 1700 },
+    at: () => [Math.min(charmTotal(), CHARM_FULL), CHARM_FULL] },
   { text: 'Raise every workplace to level 5',
     done: () => { const w = placed.filter(p => B(p.key).jobs && p.key !== 'hall' && p.t >= 1);
                   return w.length > 0 && w.every(p => lvlOf(p) >= LVL_MAX); },
-    give: { wood: 3400, food: 2200 } },
+    give: { wood: 3400, food: 2200 },
+    at: () => { const w = placed.filter(p => B(p.key).jobs && p.key !== 'hall' && p.t >= 1);
+                return [w.filter(p => lvlOf(p) >= LVL_MAX).length, w.length]; } },
   /* The finale, and the one the completion card names. */
   { text: 'Claim the whole island',        done: () => landTier >= LAND_MAX,
     give: { wood: 5000, food: 3200 } },
@@ -3134,7 +3143,20 @@ function drawGoal() {
     g.restore(); return;
   }
   const reward = Object.entries(gl.give).map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join(' ');
-  const txt = gl.text + '   ·   ' + reward;
+  /* How far along, for the goals that can count.
+
+     "Raise every workplace to level 5" is thirty-one minutes and a hundred and
+     eighty building levels, measured on a full playthrough -- and the strip said
+     exactly the same thing on the first minute of it as on the last. The length
+     is defensible; a long stretch with no sense of progress is not, and this is
+     a game that shows what is happening everywhere else it can.
+
+     Only where a count means something. "Raise the town hall to level 4" is one
+     step, and "2/4" under it would be noise. */
+  const prog = gl.at ? gl.at() : null;
+  const txt = gl.text
+    + (prog && prog[0] < prog[1] ? '   ·   ' + prog[0] + '/' + prog[1] : '')
+    + '   ·   ' + reward;
   const fit = fitLines(txt, W - 108 * u, 22 * u, 13 * u, 2);
   const tw = Math.max(...fit.lines.map(l => g.measureText(l).width));
   const w = Math.min(W - 40 * u, tw + 56 * u);
