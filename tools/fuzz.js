@@ -591,9 +591,13 @@
         away: () => { V.claimAsk = false; V.away = { secs: 7200, got: { wood: 1234, food: 5678 } }; },
         hint: () => { V.away = null; V.tutSeen.length = 0; V.res.wood = V.caps.wood; V.res.food = V.caps.food; },
         goalBanner: () => { V.goalDone = { g: V.GOALS[V.GOALS.length - 1], got: { wood: 2500, food: 1600 }, age: 0 }; },
+        /* Seen once, at the end of a two-hour game, which is exactly the kind of
+           screen that never gets looked at again after it is written. */
+        finished: () => { V.goalDone = null; V.away = null;
+          V.finished = { villagers: 72, buildings: 38, trades: 137, charm: 630 }; },
       };
       for (const [name, set] of Object.entries(states)) { set(); found.push(...scan(name + ' @' + h)); }
-      V.goalDone = null;
+      V.goalDone = null; V.finished = null;
       // and every panel, armed and not
       for (const p of V.placed) for (const arm of [false, true]) {
         V.panel = p.id; V.sellArm = arm ? { id: p.id, t: 4 } : null;

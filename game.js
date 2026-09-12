@@ -1505,6 +1505,14 @@ function stepGoals(dt) {
   goalDone = { g: g2, got, age: 0 };
   goalIdx++;
   SFX.goal();
+  /* The last one is not just another goal. It waits for the banner, so the
+     player reads what they finished before being told they finished. */
+  if (goalIdx >= GOALS.length && !tutSeen.includes(FINISH_ID)) {
+    tutSeen.push(FINISH_ID);
+    finished = { villagers: villagers.length,
+                 buildings: placed.filter(q => !isDecor(q.key)).length,
+                 trades: ordersDone, charm: charmTotal() };
+  }
   save();
 }
 
@@ -1858,6 +1866,16 @@ function load() {
 const AWAY_MIN = 60, AWAY_MAX = 12 * 3600;
 let savedAt = 0;
 let away = null;                      // {secs, got:{wood,food}} until dismissed
+/* The finished village, shown once, the first time the last goal falls.
+
+   Two hours of play ended with the goal strip going grey and saying "Every goal
+   done" in the same voice it uses for "dig a well". Everything else the village
+   achieves is announced where it happens; finishing it was the one thing that
+   was not. Remembered in tutSeen rather than in a new save field, because that
+   is exactly what tutSeen is: the list of things this player has been told
+   once. */
+let finished = null;                  // {villagers, buildings, trades, charm} until dismissed
+const FINISH_ID = 'complete';
 
 /* What the village is CAPABLE of producing per second, worked out from its
    buildings rather than from what was recently delivered.
@@ -2884,6 +2902,7 @@ function drawHUD() {
   drawHint();
   drawClaim();
   drawAway();
+  drawFinished();
 }
 
 /* The standing goal, and the flash when one is finished. Both live in the same
@@ -3036,7 +3055,7 @@ function pillLines(fit, cx, cy) {
   fit.lines.forEach((l, i) => g.fillText(l, cx, top + i * lh));
 }
 function drawHint() {
-  if (away || goalDone) return;       // one thing at a time
+  if (away || finished || goalDone) return;   // one thing at a time
   const h = currentHint(); if (!h) return;
   const u = US(), y = hudTop() + 132 * u;
   g.save();
@@ -3145,6 +3164,45 @@ function drawAway() {
     g.font = `${Math.round(20 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#f0a583';
     g.fillText('the rest spilled — your stores were full', R.x, R.y + 46 * u);
   }
+  g.font = `bold ${Math.round(24 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#9fe86b';
+  g.fillText('tap to continue', R.x, R.y + R.h / 2 - 40 * u);
+  g.restore();
+}
+
+/* The village is finished. Same shape as the away card on purpose: the player
+   already knows a full-width card with "tap to continue" at the bottom is
+   something to read and dismiss, and a new pattern for a screen seen once would
+   have to teach itself. */
+function drawFinished() {
+  if (!finished || goalDone) return;   // the last goal's banner goes first
+  const R = awayRect(), u = R.u;
+  g.save();
+  g.fillStyle = 'rgba(6,10,6,.66)'; g.fillRect(0, screenTop(), W, screenBot() - screenTop());
+  g.fillStyle = 'rgba(16,26,15,.98)'; g.strokeStyle = 'rgba(232,201,138,.65)'; g.lineWidth = 3;
+  g.beginPath(); g.roundRect(R.x - R.w / 2, R.y - R.h / 2, R.w, R.h, 24 * u); g.fill(); g.stroke();
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.font = `bold ${Math.round(34 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#fff';
+  g.fillText('Your village is finished', R.x, R.y - R.h / 2 + 52 * u);
+  g.font = `${Math.round(22 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#a9bd9c';
+  g.fillText('every goal done, the whole island yours', R.x, R.y - R.h / 2 + 92 * u);
+  /* Counts rather than a score: the village IS the score, and these are the
+     four numbers that say how far it came.
+
+     Two lines of two, not one line of four. All four on one line came to 1031
+     logical pixels on a tall phone -- off both edges of a 1024 screen -- and it
+     could not shrink, because the floor I handed fitLines was the size I started
+     it at. The sweep caught it on the first run, which is the whole reason the
+     finished card is one of the states it walks. */
+  const pairs = [finished.villagers + ' villagers   ·   ' + finished.buildings + ' buildings',
+                 finished.trades + ' trades filled   ·   ' + finished.charm + ' charm'];
+  g.fillStyle = '#e8c98a';
+  pairs.forEach((line, i) => {
+    const fit = fitLines(line, R.w - 56 * u, 27 * u, 18 * u, 1, 'bold ');
+    g.font = `bold ${Math.round(fit.px)}px Segoe UI, sans-serif`;
+    g.fillText(fit.lines[0], R.x, R.y - 2 * u + i * 38 * u);
+  });
+  g.font = `${Math.round(20 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#a9bd9c';
+  g.fillText('the villagers will keep at it for as long as you like', R.x, R.y + 74 * u);
   g.font = `bold ${Math.round(24 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#9fe86b';
   g.fillText('tap to continue', R.x, R.y + R.h / 2 - 40 * u);
   g.restore();
@@ -3710,10 +3768,11 @@ window.addEventListener('orientationchange', () => setTimeout(() => { fitCanvas(
    closes the next one down, in the order they overlap on screen. */
 let backArmed = false;
 function backOpen() {
-  return !!(away || claimAsk || panel != null || moving != null || selBuild || barMode !== 'build');
+  return !!(away || finished || claimAsk || panel != null || moving != null || selBuild || barMode !== 'build');
 }
 function backClose() {
   if (away) { away = null; return true; }
+  if (finished) { finished = null; return true; }
   if (claimAsk) { claimAsk = false; return true; }
   if (panel != null) { panel = null; sellArm = null; return true; }
   if (moving != null) { moving = null; ghost = null; armed = null; return true; }
@@ -3752,6 +3811,7 @@ function buildingAt(sx, sy) {
 }
 function tap(sx, sy) {
   if (away) { away = null; return; }
+  if (finished) { finished = null; return; }
   if (claimAsk) {
     const R = claimRects();
     if (Math.hypot(sx - R.no.x, sy - R.no.y) < Math.max(R.no.r * 1.3, TOUCH_MIN / 2)) { claimAsk = false; return; }
@@ -3904,7 +3964,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   get loadedFromBackup() { return loadedFromBackup; }, set loadedFromBackup(v) { loadedFromBackup = v; },
   sky, dayPhase, DAY_MS, camFit, landFitZoom, landWorldBounds, builtBounds, artFor, ART, villagerArt,
   hudTop, hudBot, screenTop, screenBot, readSafeArea, get SAFE() { return SAFE; }, set SAFE(v) { SAFE = v; },
-  fitLines, TUT, GOALS,
+  fitLines, TUT, GOALS, get finished() { return finished; }, set finished(v) { finished = v; },
   efficiencyOf, hasStore, onPath, PATH_SPEED, rebuildPaths, routeOf, get pathSet() { return pathSet; },
   LAND, LAND_MAX, inLand, landNext, canClaim, claimLand, landBounds, coverPlaced,
   get landTier() { return landTier; }, set landTier(v) { landTier = v; },
