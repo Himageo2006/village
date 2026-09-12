@@ -484,7 +484,14 @@
          against the fill in force compares a pill with itself and reports 1.1.
          Anything without a letter or a digit in it is an icon, not text. */
       const isText = /[A-Za-z0-9]/.test(str);
-      const fg = isHud && isText && str.length > 1 ? parseColour(ctx.fillStyle) : null;
+      /* Text that is fading IN is not a contrast failure, it is a frame of an
+         animation. The hint pill fades over a third of a second, and during it
+         both the pill and the letters are part transparent -- so the sampler
+         read sea through the pill and compared it against the fillStyle at full
+         strength, which globalAlpha does not touch. It reported 2.84 on a
+         string that is perfectly legible once it has arrived. */
+      const fg = isHud && isText && str.length > 1 && ctx.globalAlpha > 0.95
+        ? parseColour(ctx.fillStyle) : null;
       if (!fg) return orig(t, x, y, ...rest);
       const w = ctx.measureText(t).width, a = ctx.textAlign;
       const x0 = a === 'center' ? x - w / 2 : a === 'right' ? x - w : x;
@@ -584,5 +591,75 @@
     asScreen(keepW, keepH); V.step(0.001);
     return { overflowing: found.length, worst: found.slice(0, 10) };
   };
-  console.log('textSweep ready: window.textSweep()');
+  /* Contrast, over everything the HUD can be sitting on.
+
+     contrastFrame measures ONE frame, and one frame is not the question. The
+     pills are 80 to 95 per cent opaque, so what is behind the text is part
+     world -- and the world moves. The same label reads 6.1 over the dark side
+     of the island and 4.0 over sunlit water two seconds later, which is how a
+     failing colour passed every check I ran: I always looked at the same frame.
+
+     So the same states the text sweep walks, at four zooms and across the day,
+     keeping the WORST ratio seen for each distinct string and colour. */
+  window.contrastSweep = function () {
+    const cv = document.querySelector('canvas');
+    const keepW = window.innerWidth, keepH = window.innerHeight;
+    const keepZ = V.CAM.z;
+    const worst = new Map();
+    V.placed.length = 0; V.villagers.length = 0; V.landTier = 2;
+    V.ensureHall(); V.placed[0].lvl = 4;
+    const L = V.landBounds();
+    for (const k of ['store', 'farm', 'lumber', 'house', 'house', 'well', 'mill', 'market',
+                     'path', 'flowers', 'statue']) {
+      V.grant('wood', 9999, 0, 0); V.grant('food', 9999, 0, 0);
+      let ok = false;
+      for (let c = L.lo; c <= L.hi && !ok; c++) for (let r = L.lo; r <= L.hi && !ok; r++) if (V.place(k, c, r)) ok = true;
+    }
+    for (let i = 0; i < 200 * 30; i++) V.step(1 / 30);
+    V.tutSeen.length = 0;
+    const take = () => {
+      for (const f of window.contrastFrame().worst.concat([])) {
+        const key = f.colour + '|' + f.text;
+        const had = worst.get(key);
+        if (!had || f.ratio < had.ratio) worst.set(key, f);
+      }
+    };
+    /* The time of day is read straight off the clock, so two runs of this sweep
+       lit the village differently and found different failures -- one run said
+       the HUD was clean and the next found a lilac at 4.09. A checker whose
+       answer depends on when you ran it is not a checker. Date.now is stubbed
+       so each phase is visited on purpose: noon is the brightest ground,
+       sunset lays a warm wash over everything, and midnight is the darkest. */
+    const realNow = Date.now;
+    try {
+      for (const [sw, sh] of [[1280, 720], [400, 750], [375, 812]]) {
+        asScreen(sw, sh); V.step(0.001); V.camFit(true);
+        /* Zoomed out puts open sea behind the top chips, zoomed in puts the
+           island there, and the two are the extremes of what the pills sit on.
+           Panning to a corner is the third: at the far end of the island the HUD
+           is over water on one side and cliff on the other. */
+        for (const z of [0.5, 1.7]) {
+          V.CAM.z = z;
+          for (const pan of [[0, 0], [560, 380]]) {
+            V.CAM.x = pan[0]; V.CAM.y = pan[1];
+            for (const phase of [0.25, 0.45, 0.5, 0.75]) {
+              Date.now = () => phase * V.DAY_MS;
+              V.step(0.001);
+              for (const mode of ['build', 'decor', 'orders']) {
+                V.barMode = mode; V.panel = null; V.sel = null; V.step(0.001); take();
+              }
+              for (const q of [V.placed[0], V.placed[5], V.placed[7]]) {
+                if (!q) continue; V.panel = q.id; V.step(0.001); take();
+              }
+              V.panel = null;
+            }
+          }
+        }
+      }
+    } finally { Date.now = realNow; }
+    V.CAM.z = keepZ; asScreen(keepW, keepH); V.camFit(true); V.step(0.001);
+    const out = [...worst.values()].sort((a, b) => a.ratio - b.ratio);
+    return { failing: out.length, worst: out.slice(0, 12) };
+  };
+  console.log('textSweep ready: window.textSweep(), window.contrastSweep()');
 })();

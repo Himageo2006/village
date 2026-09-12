@@ -2576,13 +2576,7 @@ function drawHUD() {
     };
     if (full) sub(lost > 0.05 ? 'wasting ' + lost.toFixed(1) + '/s' : 'storage full', '#f0a583');
     else sub(rate > 0.02 ? '+' + rate.toFixed(1) + ' / s' : 'idle',
-      /* The muted greys on these pills are the only text in the game that fails
-         a contrast check. The pills are 80% opaque and sit over the world, so
-         the background is not the pill's colour -- over bright water this one
-         came out at 3.1 against the 4.5 small text wants, and it is small text.
-         Lifted about a quarter of the way to white, which is the least that
-         clears it and still reads as "nothing is happening here". */
-      rate > 0.02 ? '#8fd06a' : '#9ca697');
+      rate > 0.02 ? '#8fd06a' : DIM);
   };
   chip(24 * u, '🪵', res.wood, caps.wood, '#e8c98a', rateNow.wood, wasting && wasting.wood);
   chip(24 * u + 226 * u, '🌾', res.food, caps.food, '#bfe08a', rateNow.food, wasting && wasting.food);
@@ -2597,7 +2591,7 @@ function drawHUD() {
     g.font = `bold ${Math.round(27 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#cbb6f0';
     g.fillText(cd > 0.005 ? '+' + cd.toFixed(2) + '/s' : 'charm ' + ch, x + 58 * u, ry - 12 * u);
     // 3.25 over bright water before; see the note on the idle colour above
-    g.font = `bold ${Math.round(19 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#a69fbb';
+    g.font = `bold ${Math.round(19 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#b5aec9';
     /* "No workplaces yet" was shown for any gain too small to print, which
        covers a village full of working farms whose three charm is worth a
        thousandth of a load a second. Two different things, and only one of them
@@ -2680,7 +2674,7 @@ function drawHUD() {
     const rs = orderRects();
     if (!rs.length) {
       g.save(); g.textAlign = 'center'; g.textBaseline = 'middle';
-      g.font = `${Math.round(23 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#8d9a85';
+      g.font = `${Math.round(23 * u)}px Segoe UI, sans-serif`; g.fillStyle = DIM;
       g.fillText('No orders just now — a trader will be along shortly',
         W / 2, hudBot() - 80 * u);
       g.restore();
@@ -2708,7 +2702,7 @@ function drawHUD() {
       // say WHY a card cannot be taken, rather than just greying it
       const why = res[r.o.giveK] < r.o.giveN ? 'not enough' : !hasRoom(r.o) ? 'no room'
         : best ? 'best rate' : 'for';
-      g.fillStyle = why === 'for' ? '#8d9a85' : best ? '#f0d894' : '#e59a86';
+      g.fillStyle = why === 'for' ? DIM : best ? '#f0d894' : '#e59a86';
       g.fillText(why, r.x, r.y);
       g.font = `bold ${Math.round(26 * u)}px Segoe UI, sans-serif`;
       g.fillStyle = ok ? '#9fe86b' : '#a2907f';
@@ -2854,6 +2848,24 @@ function drawGoal() {
    that cannot fit at that size has to get shorter, and the sweep in
    tools/fuzz.js is what says which. */
 const TEXT_MIN = 26;
+
+/* The muted colour. One of them, not three.
+
+   Secondary text was #8d9a85, an idle rate was #9ca697 and a button you cannot
+   afford was #9aa693 -- three colours within three points of each other, each
+   arrived at separately, and all three below the 4.5 that small text needs.
+
+   What they are measured against is the point. The pills are 80 to 95 per cent
+   opaque and sit over a moving world, so the background is not the pill's own
+   colour: sampled over 224 frames spanning every screen shape, four zooms and
+   the whole island, the brightest thing behind one of these labels is
+   rgb(34,66,54), bright water under an afternoon sky. Against that the three
+   came out at 3.73, 4.37 and 4.34.
+
+   This is the least lift that clears 5.0 against that background -- half a
+   point of margin, so a frame slightly brighter than any of the 224 does not
+   reopen it -- and it still reads as muted. */
+const DIM = '#a8b2a2';
 function fitLines(text, maxW, px, minPx, maxLines, weight) {
   minPx = Math.max(TEXT_MIN, Math.min(minPx, px));
   const w = weight === undefined ? 'bold ' : weight ? weight + ' ' : '';
@@ -2943,7 +2955,7 @@ function drawClaim() {
                   : 'there is nothing left to claim', R.x, R.y - R.h / 2 + 92 * u);
   if (cost) {
     g.font = `${Math.round(19 * u)}px Segoe UI, sans-serif`;
-    g.fillStyle = spare > 24 ? '#e5b28a' : '#8d9a85';
+    g.fillStyle = spare > 24 ? '#e5b28a' : DIM;
     g.fillText(spare + ' of your ' + now + ' tiles are still empty', R.x, R.y - R.h / 2 + 124 * u);
   }
   if (cost) {
@@ -2956,7 +2968,7 @@ function drawClaim() {
     g.strokeStyle = ok ? '#9fe86b' : 'rgba(255,255,255,.16)'; g.lineWidth = 3;
     g.beginPath(); g.roundRect(R.yes.x - R.yes.w / 2, R.yes.y - R.yes.h / 2, R.yes.w, R.yes.h, 16 * u);
     g.fill(); g.stroke();
-    g.fillStyle = ok ? '#eaffd6' : '#9aa693';
+    g.fillStyle = ok ? '#eaffd6' : DIM;
     g.font = `bold ${Math.round(26 * u)}px Segoe UI, sans-serif`;
     /* A later ring can cost more than the village is able to HOLD, and then
        "need 140 more" is a lie -- you can never accumulate it. The way out is a
@@ -3400,7 +3412,7 @@ function drawPanel() {
     g.fillStyle = warn ? 'rgba(122,58,38,.98)' : on ? 'rgba(62,104,44,.98)' : 'rgba(40,44,36,.9)';
     g.strokeStyle = warn ? '#f0a07a' : on ? '#9fe86b' : 'rgba(255,255,255,.16)'; g.lineWidth = 3;
     g.beginPath(); g.roundRect(r2.x - r2.w / 2, r2.y - r2.h / 2, r2.w, r2.h, 16 * u); g.fill(); g.stroke();
-    g.fillStyle = warn ? '#ffe4d6' : on ? '#eaffd6' : '#9aa693';
+    g.fillStyle = warn ? '#ffe4d6' : on ? '#eaffd6' : DIM;
     g.textAlign = 'center';
     /* Shrink to fit rather than spill into the neighbouring button. These
        labels carry costs, shortfalls and warnings whose length is not knowable
@@ -3465,7 +3477,7 @@ function drawPanel() {
      at all -- so EVERY upgrade label overflowed its button, by six logical
      pixels on a well and forty-three on a market. Two buttons on the same card,
      drawn two different ways, and only one of them fitted. */
-  g.fillStyle = ok ? '#eaffd6' : '#9aa693';
+  g.fillStyle = ok ? '#eaffd6' : DIM;
   const upFit = fitLines(label, R.up.w - 16 * u, 24 * u, 11 * u, 1);
   g.fillText(upFit.lines[0], R.up.x, R.up.y);
   g.restore();
