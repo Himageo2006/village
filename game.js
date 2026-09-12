@@ -3614,14 +3614,30 @@ function drawPanel() {
        usually meaning the opposite: every villager is employed, posts are
        standing empty, and another farm would do nothing. Idle villagers and
        empty posts are the two bottlenecks and they want opposite answers. */
+    /* A full barn outranks both of them.
+
+       "5 posts empty -- build a house" is sound arithmetic and terrible advice
+       when the granary is already at the ceiling: the villagers that house
+       brings would produce goods that are destroyed on arrival. The village
+       said it anyway, for ever, because the only warning about full stores is a
+       first-time hint the player has long since dismissed.
+
+       So the hall names the BINDING constraint, and nothing binds harder than
+       having nowhere to put anything. What to do about it depends on whether
+       the hall still allows a storehouse; when it does not, the honest answers
+       are spending and trading. */
+    const full = ['wood', 'food'].filter(k => res[k] >= caps[k] - CARRY);
     let s2 = st.villagers + ' villagers';
-    if (st.idle) s2 += '  ·  ' + st.idle + ' idle — build a workplace';
+    if (full.length) s2 += '  ·  ' + (full.length === 2 ? 'stores' : full[0] === 'wood' ? '🪵 store' : '🌾 store')
+      + ' full — ' + (atLimit('store') ? 'spend or trade' : 'build a storehouse');
+    else if (st.idle) s2 += '  ·  ' + st.idle + ' idle — build a workplace';
     else if (empty) s2 += '  ·  ' + empty + (empty === 1 ? ' post' : ' posts')
       + ' empty — build a house';
     else s2 += '  ·  every post filled';
     if (st.avg !== null) s2 += '  ·  workplaces at ' + Math.round(st.avg * 100) + '%';
     panelRow(s2, lx, R.y - R.h / 2 + 78 * u, R.w - 56 * u, 20 * u,
-      (st.idle || empty) ? '#f0c88a' : (st.avg !== null && st.avg < 0.6 ? '#f0c88a' : '#a9bd9c'), '');
+      (full.length || st.idle || empty) ? '#f0c88a'
+        : (st.avg !== null && st.avg < 0.6 ? '#f0c88a' : '#a9bd9c'), '');
   }
 
   // close
