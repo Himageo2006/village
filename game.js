@@ -2817,7 +2817,15 @@ function drawHUD() {
       g.fillStyle = colour;
       g.fillText(fit.lines[0], x + 58 * u, ry + 18 * u);
     };
-    if (full) sub(lost > 0.05 ? 'wasting ' + lost.toFixed(1) + '/s' : 'storage full', '#f0a583');
+    /* A decimal only while it still says something. "wasting 28.3/s" is 143
+       logical pixels wide in the 138 the chip allows, and it cannot shrink: the
+       chip asks fitLines for 21u, which is already under the readable floor, so
+       the fitter returns the line untouched rather than smaller. The string has
+       to be the thing that gives. Dropping the decimal at ten takes it to 126,
+       and three figures -- "wasting 999/s" -- lands exactly on 138. */
+    if (full) sub(lost > 0.05
+      ? 'wasting ' + (lost >= 10 ? Math.round(lost) : lost.toFixed(1)) + '/s'
+      : 'storage full', '#f0a583');
     else sub(rate > 0.02 ? '+' + rate.toFixed(1) + ' / s' : 'idle',
       rate > 0.02 ? '#8fd06a' : DIM);
   };

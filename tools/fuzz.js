@@ -745,8 +745,19 @@
     for (let i = 0; i < 200 * 30; i++) V.step(1 / 30);
     V.res.wood = 800; V.res.food = 600;
     const b = V.landWorldBounds();
+    /* A full barn is its own state, not a variation on the others.
+
+       The chips only grow their second line -- "wasting 28.3/s" -- when a store
+       is at the ceiling, and that line turned out to be 143 logical pixels wide
+       in the 138 its pill allows. This sweep is exactly the thing that catches
+       it, because a string that runs past the end of its own pill has the world
+       behind it just as surely as one with no pill at all. It simply never
+       looked, because the village it builds is never full. */
     const modes = [
-      ['build',    () => { V.barMode = 'build'; V.sel = null; V.moving = null; V.panel = null; }],
+      ['build',    () => { V.barMode = 'build'; V.sel = null; V.moving = null; V.panel = null;
+                           V.res.wood = 800; V.res.food = 600; }],
+      ['full',     () => { V.barMode = 'build'; V.sel = null; V.moving = null; V.panel = null;
+                           V.res.wood = V.caps.wood; V.res.food = V.caps.food; }],
       ['orders',   () => { V.barMode = 'orders'; }],
       ['placing',  () => { V.barMode = 'build'; V.sel = 'mill'; }],
       ['moving',   () => { V.sel = null; V.moving = V.placed.find(p => p.key === 'farm').id; }],
