@@ -1929,6 +1929,35 @@ function load() {
       stock: typeof p.stock === 'number' && isFinite(p.stock) ? Math.max(0, p.stock) : 0,
       build: BUILD_TIME,
     }));
+  /* A save cannot put a building somewhere the game would never have let you
+     build it.
+
+     Every position was taken on trust: a save with its buildings at c=-40 and
+     r=80 loaded them off the map, and one with all of them written to the same
+     tile loaded twelve buildings stacked on a single square. place() refuses
+     both -- "the position check is not optional just because the ghost normally
+     prevents it" -- and the soak test has rules saying neither state may exist.
+     load() was the way in.
+
+     Kept in order, so the hall (always first) wins any tile it shares, and land
+     is clamped before this runs so "on the claimed land" means the land this
+     save actually has. */
+  {
+    const taken = new Set(), keep = [];
+    for (const q of placed) {
+      const b = B(q.key);
+      let ok = true;
+      for (let dc = 0; dc < b.w && ok; dc++) for (let dr = 0; dr < b.h && ok; dr++) {
+        const key = (q.c + dc) + ',' + (q.r + dr);
+        if (taken.has(key) || !inLand(q.c + dc, q.r + dr)) ok = false;
+      }
+      if (!ok) continue;
+      for (let dc = 0; dc < b.w; dc++) for (let dr = 0; dr < b.h; dr++)
+        taken.add((q.c + dc) + ',' + (q.r + dr));
+      keep.push(q);
+    }
+    placed = keep;
+  }
   // ids must not collide with anything placed later in the session
   nextId = Math.max(nextId, ...placed.map(p => p.id + 1), 1);
   recomputeCaps();

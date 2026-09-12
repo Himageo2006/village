@@ -335,6 +335,85 @@
       caps: { ...V.caps }, trades: V.ordersDone, fails };
   };
 
+  /* What a damaged save does.
+
+     An app killed mid-write leaves a truncated one; storage that has been
+     tampered with or half-cleared leaves worse. load() is written defensively
+     and mostly held up -- but it took every building POSITION on trust, so a
+     save with its buildings off the map loaded them off the map, and one with
+     all of them on the same tile loaded twelve stacked on a single square. Both
+     are states place() refuses outright and the rules above say cannot exist.
+
+     Seventeen kinds of damage, each loaded the way a cold start loads: nothing
+     in memory, resources at their opening values, then load, ensureHall and
+     collectAway in that order. The village that comes out has to be playable --
+     one hall, no shared tiles, nothing off the claimed land, resources finite
+     and inside the ceiling, somebody alive.
+
+       corruptSweep()  -> { cases, unplayable, bad, buildingsKept }
+  --------------------------------------------------------------------------- */
+  window.corruptSweep = function () {
+    const real = (() => { try { return localStorage.getItem(V.KEY); } catch (e) { return null; } })();
+    V.placed.length = 0; V.villagers.length = 0; V.landTier = 2;
+    V.ensureHall(); V.placed[0].lvl = 4;
+    const L = V.landBounds();
+    for (const k of ['house', 'farm', 'lumber', 'store', 'well']) {
+      V.grant('wood', 9999, 0, 0); V.grant('food', 9999, 0, 0);
+      let done = false;
+      for (let c = L.lo; c <= L.hi && !done; c++) for (let r = L.lo; r <= L.hi && !done; r++)
+        if (V.canPlace(k, c, r, V.occupied())) { V.place(k, c, r); done = true; }
+    }
+    for (let i = 0; i < 120 * 30; i++) V.step(1 / 30);
+    V.save();
+    const good = localStorage.getItem(V.KEY), o = JSON.parse(good);
+    const cases = {
+      truncated: good.slice(0, Math.floor(good.length * 0.6)),
+      notJson: 'nope', empty: '', nullish: 'null', arrayNotObject: '[1,2,3]',
+      negativeRes: JSON.stringify({ ...o, res: { wood: -500, food: -9e9 } }),
+      hugeRes: JSON.stringify({ ...o, res: { wood: 1e12, food: Number.MAX_VALUE } }),
+      nanRes: JSON.stringify({ ...o, res: { wood: 'lots', food: null } }),
+      placedNotArray: JSON.stringify({ ...o, placed: 'nope' }),
+      placedGarbage: JSON.stringify({ ...o, placed: [{ key: 'dragon', c: 99, r: -5, lvl: 99 }, null, 42] }),
+      badLand: JSON.stringify({ ...o, land: 999 }),
+      badGoal: JSON.stringify({ ...o, goal: -7 }),
+      ordersGarbage: JSON.stringify({ ...o, orders: [{ giveK: 'gold', giveN: NaN }, 'x'] }),
+      versionFromFuture: JSON.stringify({ ...o, v: 999 }),
+      tilesOffTheMap: JSON.stringify({ ...o, placed: o.placed.map(p => ({ ...p, c: -40, r: 80 })) }),
+      everythingOnOneTile: JSON.stringify({ ...o, placed: o.placed.map(p => ({ ...p, c: 7, r: 7 })) }),
+      landShrunkUnderTheVillage: JSON.stringify({ ...o, land: 0 }),
+    };
+    const bad = [], kept = {};
+    for (const [name, raw] of Object.entries(cases)) {
+      try {
+        localStorage.setItem(V.KEY, raw); localStorage.removeItem(V.KEY_BAK);
+        V.placed.length = 0; V.villagers.length = 0; V.orders = [];
+        V.res.wood = 60; V.res.food = 40; V.landTier = 0; V.goalIdx = 0; V.ordersDone = 0;
+        V.load(); V.ensureHall(); V.collectAway();
+        for (let i = 0; i < 5 * 30; i++) V.step(1 / 30);
+        V.draw();
+        const occ = new Set(); let shared = 0, off = 0;
+        for (const q of V.placed) { const b = V.B(q.key);
+          for (let dc = 0; dc < b.w; dc++) for (let dr = 0; dr < b.h; dr++) {
+            const key = (q.c + dc) + ',' + (q.r + dr);
+            if (occ.has(key)) shared++; occ.add(key);
+            if (!V.inLand(q.c + dc, q.r + dr)) off++; } }
+        const why = [];
+        const halls = V.placed.filter(q => q.key === 'hall').length;
+        if (halls !== 1) why.push('halls=' + halls);
+        if (shared) why.push(shared + ' shared tiles');
+        if (off) why.push(off + ' tiles off the claimed land');
+        for (const k of ['wood', 'food'])
+          if (!Number.isFinite(V.res[k]) || V.res[k] < 0 || V.res[k] > V.caps[k] + 1) why.push(k + ' out of range');
+        if (V.villagers.length < 1) why.push('nobody alive');
+        if (!V.placed.every(q => V.B(q.key))) why.push('unknown building key');
+        kept[name] = V.placed.length;
+        if (why.length) bad.push({ name, why });
+      } catch (e) { bad.push({ name, threw: String(e.message || e).slice(0, 70) }); }
+    }
+    try { if (real !== null) localStorage.setItem(V.KEY, real); } catch (e) {}
+    return { cases: Object.keys(cases).length, unplayable: bad.length, bad, buildingsKept: kept };
+  };
+
   window.fuzz = function (rounds = 5000, populated = true) {
     const realSave = (() => { try { return localStorage.getItem(V.KEY); } catch (e) { return null; } })();
     // a throwaway village: never the player's own
