@@ -2674,7 +2674,7 @@ function drawWorld() {
              in reach of nothing, and "+0.00/s" beside "lifts 3 workplaces"
              reads as broken rather than as the truth it is. */
           txt = !wg.n ? 'reaches no workplace'
-            : 'lifts ' + wg.n + (wg.n === 1 ? ' workplace' : ' workplaces') + '   ·   '
+            : 'lifts ' + count(wg.n, 'workplace') + '   ·   '
               + (wg.gain > 0.005 ? '+' + wg.gain.toFixed(2) + '/s' : 'none of them worked yet');
         } else txt = empty ? 'no one spare — build a house first'
           : deliveredOf(probe).toFixed(2) + '/s here'
@@ -2982,13 +2982,30 @@ function drawHUD() {
     g.restore();
   }
   if (selBuild || moving != null) {
-    g.save(); g.textAlign = 'center'; g.fillStyle = '#cfe0a8';
-    g.font = `bold ${Math.round(24 * u)}px Segoe UI, sans-serif`;
-    g.fillText(armed ? 'Tap the same spot again to confirm'
+    /* On a pill, like every other piece of HUD text.
+
+       This one was painted straight onto the world: no background, just pale
+       green letters wherever the camera happened to be pointing. Over water it
+       looked fine, which is why it survived every check I ran -- over a sandy
+       path it came out at 1.33 against the 4.5 it needs, on the single
+       instruction the player reads during every placement they ever make.
+
+       Fitted as well as backed, because the two cancel strings are the longest
+       instructions in the game and the pill has to hold them. */
+    const txt = armed ? 'Tap the same spot again to confirm'
       : moving != null
         ? 'Tap where it should go  ·  tap a tab to cancel'
-        : 'Tap a tile to try it  ·  tap the icon again to cancel',
-      W / 2, tabRects()[0].y - tabRects()[0].h / 2 - 16 * u);
+        : 'Tap a tile to try it  ·  tap the icon again to cancel';
+    const y = tabRects()[0].y - tabRects()[0].h / 2 - 16 * u;
+    g.save(); g.textAlign = 'center'; g.textBaseline = 'middle';
+    const fit = fitLines(txt, W - 80 * u, 24 * u, 14 * u, 1, 'bold ');
+    g.font = `bold ${Math.round(fit.px)}px Segoe UI, sans-serif`;
+    const pw = Math.min(W - 24 * u, g.measureText(fit.lines[0]).width + 44 * u);
+    const ph = fit.px * 1.7;
+    g.fillStyle = 'rgba(16,26,14,.86)'; g.strokeStyle = 'rgba(255,255,255,.16)'; g.lineWidth = 2;
+    g.beginPath(); g.roundRect(W / 2 - pw / 2, y - ph / 2, pw, ph, ph / 2); g.fill(); g.stroke();
+    g.fillStyle = '#cfe0a8';
+    g.fillText(fit.lines[0], W / 2, y);
     g.restore();
   }
   drawMute();
@@ -3094,6 +3111,15 @@ function drawGoal() {
    that cannot fit at that size has to get shorter, and the sweep in
    tools/fuzz.js is what says which. */
 const TEXT_MIN = 26;
+
+/* "1 villagers".
+
+   A fresh village has exactly one caretaker, and the hall's summary opened with
+   that on the first screen anyone ever sees. Counted strings are written by
+   hand all over the interface and most of them do handle it -- "1 post empty",
+   "lifts 1 workplace" -- which is how the two that did not went unnoticed: the
+   pattern looked solved. Written once so the next one cannot be got wrong. */
+const count = (n, one, many) => n + ' ' + (n === 1 ? one : (many || one + 's'));
 
 /* The muted colour. One of them, not three.
 
@@ -3248,7 +3274,7 @@ function drawAway() {
   g.font = `bold ${Math.round(34 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#fff';
   g.fillText('While you were away', R.x, R.y - R.h / 2 + 52 * u);
   const mins = away.secs / 60;
-  const span = mins < 60 ? Math.round(mins) + ' minutes' : (mins / 60).toFixed(1) + ' hours';
+  const span = mins < 60 ? count(Math.round(mins), 'minute') : (mins / 60).toFixed(1) + ' hours';
   g.font = `${Math.round(22 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#a9bd9c';
   g.fillText('your villagers kept working for ' + span
     + (away.capped ? ', as long as a village can keep' : ''),
@@ -3289,8 +3315,8 @@ function drawFinished() {
      could not shrink, because the floor I handed fitLines was the size I started
      it at. The sweep caught it on the first run, which is the whole reason the
      finished card is one of the states it walks. */
-  const pairs = [finished.villagers + ' villagers   ·   ' + finished.buildings + ' buildings',
-                 finished.trades + ' trades filled   ·   ' + finished.charm + ' charm'];
+  const pairs = [count(finished.villagers, 'villager') + '   ·   ' + count(finished.buildings, 'building'),
+                 count(finished.trades, 'trade') + ' filled   ·   ' + finished.charm + ' charm'];
   g.fillStyle = '#e8c98a';
   pairs.forEach((line, i) => {
     const fit = fitLines(line, R.w - 56 * u, 27 * u, 18 * u, 1, 'bold ');
@@ -3633,12 +3659,12 @@ function drawPanel() {
         + ' would spoil', lx, R.y - R.h / 2 + 148 * u, R.w - 56 * u, 20 * u, '#e59a86', '');
     }
   } else if (b.pop) {
-    line = 'Houses ' + popOf(p) + ' villagers';
+    line = 'Houses ' + count(popOf(p), 'villager');
     if (nl > lvlOf(p)) line += '  →  ' + at(nl, popOf);
   } else if (b.boost) {
     const wg = wellGain(p);
     line = !wg.n ? 'Reaching no workplace — move it beside one'
-      : 'Lifting ' + wg.n + (wg.n === 1 ? ' workplace' : ' workplaces') + '   ·   '
+      : 'Lifting ' + count(wg.n, 'workplace') + '   ·   '
         + (wg.gain > 0.005 ? '+' + wg.gain.toFixed(2) + '/s delivered'
           : 'none of them worked yet');
   } else if (b.charm) {
@@ -3674,7 +3700,7 @@ function drawPanel() {
     // its real worth is the trade it unlocks, which no number on this panel
     // would otherwise show
     if (spoilRow) panelRow(spoilRow, lx, R.y - R.h / 2 + 148 * u, R.w - 56 * u, 20 * u, '#e59a86', '');
-    else panelRow(orderSlots() + ' trading stalls   ·   a new offer every '
+    else panelRow(count(orderSlots(), 'trading stall') + '   ·   a new offer every '
       + Math.round(orderEvery()) + 's', lx, R.y - R.h / 2 + 148 * u, R.w - 56 * u, 20 * u, '#cbb6f0', '');
   }
   if (p.key === 'hall') {
@@ -3698,12 +3724,11 @@ function drawPanel() {
        the hall still allows a storehouse; when it does not, the honest answers
        are spending and trading. */
     const full = ['wood', 'food'].filter(k => res[k] >= caps[k] - CARRY);
-    let s2 = st.villagers + ' villagers';
+    let s2 = count(st.villagers, 'villager');
     if (full.length) s2 += '  ·  ' + (full.length === 2 ? 'stores' : full[0] === 'wood' ? '🪵 store' : '🌾 store')
       + ' full — ' + (atLimit('store') ? 'spend or trade' : 'build a storehouse');
     else if (st.idle) s2 += '  ·  ' + st.idle + ' idle — build a workplace';
-    else if (empty) s2 += '  ·  ' + empty + (empty === 1 ? ' post' : ' posts')
-      + ' empty — build a house';
+    else if (empty) s2 += '  ·  ' + count(empty, 'post') + ' empty — build a house';
     else s2 += '  ·  every post filled';
     if (st.avg !== null) s2 += '  ·  workplaces at ' + Math.round(st.avg * 100) + '%';
     panelRow(s2, lx, R.y - R.h / 2 + 78 * u, R.w - 56 * u, 20 * u,
