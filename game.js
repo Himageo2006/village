@@ -300,10 +300,32 @@ function deliveredOf(p, lvl) {
 }
 // how many pairs of hands a level would really get: the staff it has, plus
 // whoever is loitering, and never more posts than the level opens
+/* Hands a post could actually get, which is not the same as hands with no job
+   at all.
+
+   The hall's woodpile is a fallback, not a career: whoever is on it leaves the
+   moment a real workplace has room. Counting only the genuinely jobless made
+   the tray lie in the first ninety seconds of a new village -- the goal says
+   "build a lumber camp", the button under it says "none free", and building it
+   anyway brings the caretaker straight over and takes wood from 0.15/s to
+   0.40/s. The same contradiction the goal ORDER was reshuffled to avoid, still
+   there in the warning itself.
+
+   exceptId leaves out a post's OWN staff, so quoting the hall's next level does
+   not count its woodpile hands as spare hands coming to it. */
+function freeHands(exceptId) {
+  let n = 0;
+  for (const v of villagers) {
+    if (v.job == null) { n++; continue; }
+    if (v.job === exceptId) continue;
+    const q = byId(v.job);
+    if (q && q.key === 'hall') n++;
+  }
+  return n;
+}
 function handsFor(p, lvl) {
   const have = workersAt(p.id);
-  const spare = villagers.reduce((n, v) => n + (v.job == null ? 1 : 0), 0);
-  return Math.max(have, Math.min(jobsOf({ ...p, lvl }), have + spare));
+  return Math.max(have, Math.min(jobsOf({ ...p, lvl }), have + freeHands(p.id)));
 }
 /* Small loads on purpose. A big load means the resource counter sits still for
    half a minute and then jumps, which reads as a broken game; small ones keep
@@ -1517,7 +1539,7 @@ const wouldStandEmpty = key => {
      house was three seconds from finishing and its two villagers were already
      spoken for. */
   return !!(b && b.jobs && !b.caps && key !== 'hall')
-    && sparePeople() + peopleComing() === 0;
+    && freeHands() + peopleComing() === 0;
 };
 
 /* Charm: what decorations are actually for. A pleasant village works a little

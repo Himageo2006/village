@@ -105,8 +105,16 @@
       const count = new Map();
       for (const g of V.villagers) if (g.job != null) count.set(g.job, (count.get(g.job) || 0) + 1);
       const short = [...want].some(([id, n]) => (count.get(id) || 0) < n);
-      // someone carrying is not free; they take a post after they put it down
-      const free = V.villagers.some(g => g.job == null && !g.carry);
+      /* Someone carrying is not free; they take a post after they put it down.
+         Nor is someone who put one down DURING this step.
+
+         assignJobs runs at the top of the tick and skips anyone holding a load,
+         so a villager whose workplace was sold delivers halfway through the
+         same tick and ends it with no job and no load -- idle by the letter of
+         this rule, for exactly one frame, by a design assignJobs states
+         outright. It cost one failure in 240,000 rounds and the game was right
+         both times. carriedBefore is the set from before the step. */
+      const free = V.villagers.some(g => g.job == null && !g.carry && !carriedBefore.has(g));
       return !(short && free);
     }],
     ['a post is never over-staffed', () => {
@@ -163,6 +171,8 @@
   ];
 
   let prev = { wood: 0, food: 0 };
+  /* Filled just before every step, read by the idle rule just after it. */
+  let carriedBefore = new Set();
   function check(what) {
     for (const [name, f] of INVARIANTS) {
       let ok;
@@ -242,7 +252,10 @@
       counts[act] = (counts[act] || 0) + 1;
       try {
         if (act === 'tap') V.tap(R(W), R(H()));
-        else if (act === 'step') V.step(Math.random() * 0.1);
+        else if (act === 'step') {
+          carriedBefore = new Set(V.villagers.filter(g => g.carry));
+          V.step(Math.random() * 0.1);
+        }
         else if (act === 'pickBuild') V.sel = pick(V.BUILDINGS).key;
         else if (act === 'tab') V.barMode = pick(['build', 'decor', 'orders']);
         else if (act === 'grant') V.grant(pick(['wood', 'food']), R(500), 0, 0);
