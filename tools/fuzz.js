@@ -319,6 +319,16 @@
   function scan(label) {
     const cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
     const bad = [], boxes = [];
+    /* The screen edge is not the only edge text can fall off.
+
+       The storehouse blurb ran 168 logical pixels past the side of its own
+       panel at every screen shape there is, and this checker passed it, because
+       at the one shape the checker happened to run the panel was wide enough
+       and centred enough that the spill still landed inside 1024. Text belongs
+       inside the box it was drawn into, so that is what gets checked: while a
+       panel is open, anything drawn at a height inside it must also be drawn
+       within its sides. */
+    const P = V.panel != null ? V.panelRects() : null;
     const orig = ctx.fillText.bind(ctx);
     ctx.fillText = function (t, x, y, ...rest) {
       const w = ctx.measureText(t).width;
@@ -336,6 +346,16 @@
       if (isHud && String(t).trim()) {
         if (x0 < -1 || x0 + w > W + 1)
           bad.push({ state: label, text: String(t).slice(0, 48), left: Math.round(x0), width: Math.round(w) });
+        /* Inset by the same margin the panel lays its own rows out at, so a row
+           that exactly fills the usable width is not reported. */
+        if (P) {
+          const inset = 8 * P.u, lo = P.x - P.w / 2 + inset, hi = P.x + P.w / 2 - inset;
+          const size0 = parseFloat(ctx.font) || 16;
+          const insidePanel = y > P.y - P.h / 2 - size0 && y < P.y + P.h / 2 + size0;
+          if (insidePanel && (x0 < lo - 1 || x0 + w > hi + 1))
+            bad.push({ state: label + ' [out of panel]', text: String(t).slice(0, 48),
+                       left: Math.round(x0), width: Math.round(w), panel: Math.round(hi - lo) });
+        }
         /* Running off the SCREEN is only the loudest version of this. The tray
            label overflowed its button into the next one, and the wasting line
            ran out of its chip into the chip beside it -- neither goes near a
@@ -502,9 +522,24 @@
     return { failing: found.length, worst: found.sort((a, b) => a.ratio - b.ratio).slice(0, 6) };
   };
 
+  /* Pretend to be a screen of a given shape.
+
+     Setting cv.height directly, which is what this used to do, does nothing at
+     all: draw() begins with fitCanvas(), which recomputes the height from the
+     real window and puts it straight back. So the loop that claimed to test
+     "every shape of screen the HUD scale can take" tested exactly one -- the
+     browser window the sweep happened to run in -- and a blurb that overflowed
+     at every shape sailed through. The size a device reports is the honest
+     input, so that is what gets faked. */
+  function asScreen(w, h) {
+    Object.defineProperty(window, 'innerWidth',  { value: w, configurable: true });
+    Object.defineProperty(window, 'innerHeight', { value: h, configurable: true });
+    window.dispatchEvent(new Event('resize'));
+  }
+
   window.textSweep = function () {
     const cv = document.querySelector('canvas');
-    const keep = cv.height;
+    const keepW = window.innerWidth, keepH = window.innerHeight;
     const found = [];
     // build a village with something of everything to talk about
     V.placed.length = 0; V.villagers.length = 0; V.landTier = 2;
@@ -519,9 +554,14 @@
     for (let i = 0; i < 200 * 30; i++) V.step(1 / 30);
     V.tutSeen.length = 0;
 
-    // every shape of screen the HUD scale can take
-    for (const h of [1536, 1800, 2048, 2304]) {
-      cv.height = h; V.step(0.001); V.camFit(true);
+    /* Every shape of screen the HUD scale can take, named by the device that
+       makes it: a wide desktop and a tablet both sit at the bottom of the range
+       (u = 1), a 16:9 phone lands mid-range, and anything taller than about
+       19.5:9 is at the ceiling. The two middle shapes exist because the market
+       blurb only overflowed at u = 1.1, between the two the old list had. */
+    for (const [sw, sh] of [[1280, 720], [768, 1024], [400, 660], [360, 640],
+                            [400, 750], [375, 812], [320, 960]]) {
+      asScreen(sw, sh); const h = (V.step(0.001), cv.height); V.camFit(true);
       const states = {
         build: () => { V.barMode = 'build'; V.panel = null; V.sel = null; V.away = null; V.claimAsk = false; },
         decorate: () => { V.barMode = 'decor'; },
@@ -541,7 +581,7 @@
       }
       V.panel = null; V.sellArm = null;
     }
-    cv.height = keep; V.step(0.001);
+    asScreen(keepW, keepH); V.step(0.001);
     return { overflowing: found.length, worst: found.slice(0, 10) };
   };
   console.log('textSweep ready: window.textSweep()');

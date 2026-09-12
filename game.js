@@ -955,7 +955,13 @@ const BUILDINGS = [
        Carrying is half this economy: a storehouse near a distant farm shortens
        every trip that farm ever makes, which is usually worth more than the
        ceiling it raises. */
-    blurb: 'Villagers carry to the nearest one, so it shortens their walk. Raises what you can hold.' },
+    /* The panel gives a blurb ONE line, and fitLines will not shrink below the
+       readable floor -- so a blurb that does not fit at that floor does not get
+       smaller, it gets drawn past the edge of the panel and, on a 16:9 phone,
+       past the edge of the screen. This one ran 168 logical px over at its
+       worst. A blurb has to be short enough to fit at the floor: no fitter can
+       save a string that is simply too long. */
+    blurb: 'Raises what you can hold. Villagers carry to the nearest one.' },
   { key: 'well',   name: 'Well',      w: 1, h: 1, cost: { wood: 40 },            boost: 0.35, boostR: 2.6, wallH: 30, icon: '⛲',
     // no percentage here on purpose: it would be a rate figure, and the line
     // below the blurb reports what the well is really adding where it stands
@@ -963,7 +969,7 @@ const BUILDINGS = [
   { key: 'mill',   name: 'Mill',      w: 2, h: 2, cost: { wood: 120, food: 60 }, makes: { food: 1.8 },  jobs: 2, wallH: 96, icon: '🌬️',
     blurb: 'Grinds grain. Far more food than a farm, for two workers.' },
   { key: 'market', name: 'Market',    w: 2, h: 2, cost: { wood: 200, food: 120 }, caps: { wood: 800, food: 800 }, makes: { wood: 0.55 }, jobs: 1, wallH: 62, icon: '🏪',
-    blurb: 'Each market adds a trading stall and brings the traders round sooner.' },
+    blurb: 'Adds a trading stall and brings the traders round sooner.' },
 
   /* ---------- decorations ----------
      Bought and placed like buildings, but they take no time to put up, have no
@@ -3029,7 +3035,15 @@ function panelRects() {
   const btn = !!p;                             // every building has an upgrade button
   // 268 not 232: the efficiency line and the hall's village summary sit between
   // the blurb and the buttons, and at the old height they touched the buttons
-  const w = Math.min(W - 48 * u, 720 * u), h = (btn ? 268 : 152) * u;
+  /* The panel is as wide as the screen lets it be, and the screen is 1024
+     logical pixels wide on every device there is -- the shape of a phone
+     changes the HEIGHT, never the width.
+
+     This was 720 * u, which tied the panel's width to the scale that exists to
+     make TEXT bigger on a tall screen. On a tall phone that came to 960; on a
+     tablet or a desktop it came to 720, so the widest screens got the narrowest
+     panel and the market's line ran out of the side of it. */
+  const w = Math.min(W - 48 * u, 960), h = (btn ? 268 : 152) * u;
   const y = tabs[0].y - tabs[0].h / 2 - 14 * u - h / 2;
   const dec = !!(p && isDecor(p.key)), by = y + h / 2 - 44 * u, bh = 60 * u, gap = 10 * u;
   // a decoration has no upgrade, so its two buttons share the width differently
@@ -3148,8 +3162,27 @@ function villageStats() {
    village summary is the worst of them: "18 villagers - 8 posts with nobody in
    them - build or improve a house - workplaces at 74% of their best" is half
    again as wide as the card it sits on. */
+/* One row of the panel, on one line, inside the panel.
+
+   fitLines shrinks, but it will not go below the readable floor, so a row that
+   is too long at that floor is simply drawn past the side of the panel -- the
+   market's line ran 32 logical pixels over its budget, because a market is the
+   one building that both produces and stores and so collects every clause the
+   panel knows how to add.
+
+   These rows are a list of facts joined by a middle dot, written most important
+   first, so the honest way to lose the width is to lose the last fact rather
+   than the right-hand edge of all of them. The first clause is always kept: a
+   row that cannot fit even its opening is a string that needs rewriting, and
+   the sweep still reports it. */
+const ROW_SEP = '   ·   ';
 function panelRow(text, x, y, maxW, px, colour, weight) {
-  const fit = fitLines(text, maxW, px, px * 0.62, 1, weight);
+  let parts = String(text).split(ROW_SEP);
+  let fit = fitLines(parts.join(ROW_SEP), maxW, px, px * 0.62, 1, weight);
+  while (parts.length > 1 && g.measureText(fit.lines[0]).width > maxW) {
+    parts.pop();
+    fit = fitLines(parts.join(ROW_SEP), maxW, px, px * 0.62, 1, weight);
+  }
   g.fillStyle = colour;
   g.fillText(fit.lines[0], x, y);
 }
@@ -3225,15 +3258,20 @@ function drawPanel() {
     const nextPosts = nl > lvlOf(p) ? jobsOf({ ...p, lvl: nl }) : jobsOf(p);
     line += '   ·   workers ' + n + ' / ' + jobsOf(p)
       + (nextPosts > jobsOf(p) ? '  →  ' + nextPosts : '');
-    const boost = boostAt(p);
-    if (boost > 1) line += '   ·   +' + Math.round((boost - 1) * 100) + '% from wells';
-    else if (!n) line += '   — no villagers';
     /* A market makes something AND holds something, so it came through the
        producer branch and the storehouse branch never ran -- and it holds eight
        hundred of each, twice what a storehouse does, which is most of what the
        three hundred and twenty it costs is buying. Nothing on the panel said
-       so. */
+       so.
+
+       It goes BEFORE the well bonus because panelRow drops from the end when
+       the row will not fit, and a market is the one building whose row runs
+       long. What it holds is most of what it costs; the well bonus is on the
+       well's own panel. */
     if (b.caps) line += '   ·   holds 🪵' + capsOf(p, 'wood') + ' 🌾' + capsOf(p, 'food');
+    const boost = boostAt(p);
+    if (boost > 1) line += '   ·   +' + Math.round((boost - 1) * 100) + '% from wells';
+    else if (!n) line += '   — no villagers';
     /* Skipped for a building that is its own store; otherwise the placement
        gets a line of its own, stated as the counterfactual rather than as a
        score. "Efficiency 39%" is a number the player has to interpret, and
