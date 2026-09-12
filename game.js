@@ -1485,7 +1485,15 @@ const GOALS = [
   { text: 'Raise the town hall to level 4', done: () => hallLevel() >= 4,      give: { wood: 550, food: 360 } },
   { text: 'Open a market',                 done: () => countOf('market') >= 1, give: { wood: 800, food: 500 } },
   { text: 'Raise the town hall to level 5', done: () => hallLevel() >= 5,      give: { wood: 1400, food: 900 } },
-  { text: 'Claim the whole island',        done: () => landTier >= LAND_MAX,   give: { wood: 2500, food: 1600 } },
+  /* The fourth ring, which was never asked for.
+
+     Goals name land at the second ring and then at the whole island, and
+     nothing in between -- while the last ring costs 5000 wood, more than twice
+     the one before it and the largest single purchase in the game. Measured on
+     a full playthrough, that left a 33-minute stretch with one unchanging line
+     on the strip, the longest silence in the game by a wide margin. */
+  { text: 'Claim a fourth ring of land',  done: () => landTier >= LAND_MAX - 1,
+    give: { wood: 1200, food: 800 } },
   /* The village outlasts its goals by about an hour.
 
      Claiming the island was the last thing the game ever asked for, and it
@@ -1499,15 +1507,31 @@ const GOALS = [
      the allowance is cheapest, the charm ceiling is about fourteen statues, and
      raising every workplace to five is far and away the longest. The last one is
      the end of the game, which is why it is worth saying out loud. */
+  /* These three come BEFORE the island, not after it, and the order is the whole
+     point of them. Added to cover the last hour, they did nothing of the kind:
+     the final ring is the most expensive thing in the game, so by the time a
+     player can afford it they have already built everything, hit the charm
+     ceiling and maxed their buildings -- and all three fired within twelve
+     seconds of the island, measured. Asked first, they name the stretch the
+     player is actually spending that hour on.
+
+     All three are reachable on the fourth ring, checked rather than assumed: a
+     twelve-tile island holds the whole hall-five allowance -- 37 buildings in
+     104 tiles -- with room left for the fourteen statues the charm ceiling
+     needs. On the third ring it does not, which is why the ring above comes
+     first. */
   { text: 'Build everything your hall allows',
     done: () => Object.keys(HALL[HALL_MAX].allow).every(k => countOf(k) >= HALL[HALL_MAX].allow[k]),
-    give: { wood: 3000, food: 2000 } },
+    give: { wood: 2000, food: 1300 } },
   { text: 'Fill the village with charm',   done: () => charmTotal() >= CHARM_FULL,
-    give: { wood: 3500, food: 2400 } },
+    give: { wood: 2600, food: 1700 } },
   { text: 'Raise every workplace to level 5',
     done: () => { const w = placed.filter(p => B(p.key).jobs && p.key !== 'hall' && p.t >= 1);
                   return w.length > 0 && w.every(p => lvlOf(p) >= LVL_MAX); },
-    give: { wood: 5000, food: 3500 } },
+    give: { wood: 3400, food: 2200 } },
+  /* The finale, and the one the completion card names. */
+  { text: 'Claim the whole island',        done: () => landTier >= LAND_MAX,
+    give: { wood: 5000, food: 3200 } },
 ];
 const currentGoal = () => GOALS[goalIdx] || null;
 

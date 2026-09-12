@@ -289,6 +289,22 @@
       const hall = V.hallOf();
       if (!acted && V.canUpgrade(hall)) { V.upgradeBuilding(hall); note(check('upgradeHall')); acted = true; }
       if (!acted && V.canClaim && V.canClaim() && V.claimLand()) { note(check('claim')); acted = true; }
+      /* What the strip is asking for comes before what the list would pick.
+
+         Skipping anything with no spare hands is sound policy in general and
+         wrong when a goal names the building: a run measured a forty-minute
+         stretch on "Open a market" because the market has one post and the
+         village never had a spare pair of hands to fill it. A player reading
+         that goal would simply build the thing. Since the market takes a hand
+         from somewhere else rather than standing empty -- which is what the
+         warning now says -- following the goal is the honest policy. */
+      const goalNow = V.currentGoal();
+      const wanted = goalNow && ['house', 'lumber', 'farm', 'store', 'well', 'mill', 'market']
+        .find(k => new RegExp(k === 'store' ? 'storehouse' : k, 'i').test(goalNow.text));
+      if (!acted && wanted && V.unlocked(wanted) && !V.atLimit(wanted) && afford(V.B(wanted).cost)) {
+        const sp = spotFor(wanted);
+        if (sp && V.place(wanted, sp[0], sp[1])) { note(check('placeForGoal')); acted = true; }
+      }
       if (!acted) for (const k of ORDER) {
         if (!V.unlocked(k) || V.atLimit(k) || !afford(V.B(k).cost)) continue;
         if (V.noSpareHands(k)) continue;
