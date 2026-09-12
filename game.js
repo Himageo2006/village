@@ -1620,7 +1620,18 @@ const atLimit = key => isDecor(key) ? decorCount() >= DECOR_MAX : countOf(key) >
    the building is not wasted for ever, just useless for now -- which the player
    has no way to know at the moment they are deciding. */
 const sparePeople = () => villagers.reduce((n, v) => n + (v.job == null ? 1 : 0), 0);
-const wouldStandEmpty = key => {
+/* Nobody spare to staff it -- which is NOT the same as "it would stand empty",
+   which is what this used to be called and what the labels used to say.
+
+   A new post always gets a hand: the allocator gives every worthwhile workplace
+   one before filling any of them, so it simply takes somebody off an existing
+   post. Tested across 148 village states, 97 of them built the "empty" building
+   and watched a villager walk straight into it.
+
+   The advice was right and the reason was wrong. With no spare hands a new
+   workplace does not ADD output, it shares out the hands already working, so
+   the wood is wasted -- and that is what the labels say now. */
+const noSpareHands = key => {
   const b = B(key);
   /* Counting the people still walking out of a house that is being built, or
      it warned about the lumber camp the goal had just asked for -- the first
@@ -2644,7 +2655,7 @@ function drawWorld() {
         g.translate(cx, cy - 96 * sc); g.scale(sc, sc);
         g.textAlign = 'center'; g.textBaseline = 'middle';
         g.font = 'bold 22px Segoe UI, sans-serif';
-        const empty = wouldStandEmpty(selKey);
+        const empty = noSpareHands(selKey);
         /* Cheaper than either of them, and it outranks both: this is what is
            stopping the tap from working right now.
 
@@ -2665,7 +2676,7 @@ function drawWorld() {
           txt = !wg.n ? 'reaches no workplace'
             : 'lifts ' + wg.n + (wg.n === 1 ? ' workplace' : ' workplaces') + '   ·   '
               + (wg.gain > 0.005 ? '+' + wg.gain.toFixed(2) + '/s' : 'none of them worked yet');
-        } else txt = empty ? 'nobody free to work it — build a house'
+        } else txt = empty ? 'no one spare — build a house first'
           : deliveredOf(probe).toFixed(2) + '/s here'
             + (eff > 0.85 ? '' : '   ·   best ' + bestDeliveredOf(probe).toFixed(2));
         const w2 = g.measureText(txt).width + 26;
@@ -2888,9 +2899,11 @@ function drawHUD() {
       // "1/1 · upgrade hall" needed five CSS pixels to fit; the lock says it
       trayRow(isDecor(r.b.key) ? decorCount() + '/' + DECOR_MAX
         : countOf(r.b.key) + '/' + allowedOf(r.b.key) + ' 🔒', '#e5b28a', 0.32);
-    } else if (can && wouldStandEmpty(r.b.key)) {
-      // "no one free" is 137 logical wide in a 115 button; "none free" is 114
-      trayRow('none free', '#e5b28a', 0.32);   // allowed, affordable, nobody to work it
+    } else if (can && noSpareHands(r.b.key)) {
+      /* At the readable floor: "no one spare" is 157 logical wide in a 115
+         button and "none free" is 117 -- over it, and saying the wrong thing
+         besides. "no spare" is 104 and true. */
+      trayRow('no spare', '#e5b28a', 0.32);   // allowed, affordable, nobody to spare
     } else if (can) {
       costRows(Object.entries(r.b.cost), '#e8c98a',
         r.b.charm ? (charmRoom() > 0 ? '✨' + usefulCharm(r.b.key) : '✨full') : '');
@@ -4120,7 +4133,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   assignJobs, desiredJobs, computeJobs, invalidateJobs, established, buildingAt, ensureHall, jobsOf, VILLAGER_MAX, rebuildStores, nearestStore,
   isDecor, decorCount, DECOR_MAX, charmTotal, charmMul, charmRoom, usefulCharm, CHARM_FULL,
   tabRects, drawDecor, grant,
-  sparePeople, wouldStandEmpty, peopleComing, livedIn,
+  sparePeople, noSpareHands, peopleComing, livedIn,
   sellBuilding, canSell, sellValue, investedIn, capsWithout, get moving() { return moving; }, set moving(v) { moving = v; },
   get armed() { return armed; }, set armed(v) { armed = v; },
   get sellArm() { return sellArm; }, set sellArm(v) { sellArm = v; }, SELL_ARM,
