@@ -678,5 +678,93 @@
     const out = [...worst.values()].sort((a, b) => a.ratio - b.ratio);
     return { failing: out.length, worst: out.slice(0, 12) };
   };
-  console.log('textSweep ready: window.textSweep(), window.contrastSweep()');
+  /* Is this text backed by the HUD, or by whatever the camera is pointing at?
+
+     contrastSweep measures what happens to be behind a string in the states it
+     visits, so a string with no pill of its own passes for as long as those
+     states happen to put something dark behind it. The placement instruction did
+     exactly that: pale green letters painted straight onto the world, fine over
+     water, 1.33 against a sandy path, and it survived every contrast run until a
+     village with paths in it happened to come up.
+
+     This asks the structural question instead. Draw each frame twice, once with
+     the camera over open sea and once zoomed into the village, and compare what
+     was sampled behind every string. A pill is 80 to 95 per cent opaque, so its
+     backing barely moves; text painted onto the world moves with the world.
+
+       backingSweep()  -> { unprotected, worst }
+  --------------------------------------------------------------------------- */
+  window.backingSweep = function () {
+    const cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
+    const keepZ = V.CAM.z, keepX = V.CAM.x, keepY = V.CAM.y;
+    const sample = () => {
+      const out = new Map(), orig = ctx.fillText.bind(ctx);
+      ctx.fillText = function (t, x, y, ...rest) {
+        const m = ctx.getTransform();
+        const isHud = Math.abs(m.a - 1) < 1e-6 && Math.abs(m.d - 1) < 1e-6 && Math.abs(m.e) < 1e-6;
+        const str = String(t).trim();
+        if (isHud && str.length > 1 && /[A-Za-z]/.test(str) && ctx.globalAlpha > 0.95) {
+          const w = ctx.measureText(t).width, a = ctx.textAlign;
+          const x0 = a === 'center' ? x - w / 2 : a === 'right' ? x - w : x;
+          let best = -1, bg = null;
+          for (const sxRaw of [x0 - 6, x0 + w + 6]) {
+            const sx = Math.round(Math.max(0, Math.min(cv.width - 1, sxRaw)));
+            const sy = Math.round(Math.max(0, Math.min(cv.height - 1, y + m.f)));
+            const d = ctx.getImageData(sx, sy, 1, 1).data;
+            const l = luminance(d[0], d[1], d[2]);
+            if (l > best) { best = l; bg = [d[0], d[1], d[2]]; }
+          }
+          out.set(str.slice(0, 40), { bg, L: best });
+        }
+        return orig(t, x, y, ...rest);
+      };
+      try { V.draw(); } finally { ctx.fillText = orig; }
+      return out;
+    };
+    V.placed.length = 0; V.villagers.length = 0; V.landTier = 2;
+    V.ensureHall(); V.placed[0].lvl = 4;
+    const L = V.landBounds();
+    const free = k => { for (let c = L.lo; c <= L.hi; c++) for (let r = L.lo; r <= L.hi; r++)
+      if (V.canPlace(k, c, r, V.occupied())) return [c, r]; return null; };
+    for (const k of ['house', 'house', 'farm', 'lumber', 'store', 'well', 'market',
+                     'path', 'path', 'statue']) {
+      V.grant('wood', 99999, 0, 0); V.grant('food', 99999, 0, 0);
+      const sp = free(k); if (sp) V.place(k, sp[0], sp[1]);
+    }
+    for (let i = 0; i < 200 * 30; i++) V.step(1 / 30);
+    V.res.wood = 800; V.res.food = 600;
+    const b = V.landWorldBounds();
+    const modes = [
+      ['build',    () => { V.barMode = 'build'; V.sel = null; V.moving = null; V.panel = null; }],
+      ['orders',   () => { V.barMode = 'orders'; }],
+      ['placing',  () => { V.barMode = 'build'; V.sel = 'mill'; }],
+      ['moving',   () => { V.sel = null; V.moving = V.placed.find(p => p.key === 'farm').id; }],
+      ['panel',    () => { V.moving = null; V.panel = V.placed.find(p => p.key === 'market').id; }],
+      ['claim',    () => { V.panel = null; V.claimAsk = true; }],
+      ['away',     () => { V.claimAsk = false;
+                           V.away = { secs: 7200, got: { wood: 1200, food: 900 }, capped: false, spilled: true }; }],
+      ['finished', () => { V.away = null;
+                           V.finished = { villagers: 72, buildings: 38, trades: 137, charm: 630 }; }],
+    ];
+    const drift = [];
+    for (const [name, set] of modes) {
+      set(); V.step(0.001);
+      V.CAM.z = 0.6; V.CAM.x = b.x0 - 900; V.CAM.y = b.y0 - 600; V.step(0.001);
+      const sea = sample();
+      V.CAM.z = 1.9; V.CAM.x = (b.x0 + b.x1) / 2; V.CAM.y = (b.y0 + b.y1) / 2; V.step(0.001);
+      const land = sample();
+      for (const [str, a] of sea) {
+        const c = land.get(str); if (!c) continue;
+        const d = Math.abs(a.L - c.L);
+        if (d > 0.02) drift.push({ mode: name, text: str,
+          overSea: a.bg.join(','), overVillage: c.bg.join(','), lumDrift: +d.toFixed(3) });
+      }
+    }
+    V.finished = null; V.away = null; V.claimAsk = false;
+    V.panel = null; V.sel = null; V.moving = null;
+    V.CAM.z = keepZ; V.CAM.x = keepX; V.CAM.y = keepY; V.step(0.001);
+    drift.sort((x, y) => y.lumDrift - x.lumDrift);
+    return { unprotected: drift.length, worst: drift.slice(0, 8) };
+  };
+  console.log('textSweep ready: window.textSweep(), window.contrastSweep(), window.backingSweep()');
 })();
