@@ -694,8 +694,19 @@
 
        backingSweep()  -> { unprotected, worst }
   --------------------------------------------------------------------------- */
+  /* How far a BACKED string's sample is allowed to move.
+
+     A pill is 80 to 95 per cent opaque, so a little of the world does leak
+     through it and the sample is never perfectly still. Measured on this game:
+     a pill leaks 0.025 of luminance between open sea and the village, and a
+     string painted straight onto the world moves 0.121 -- nearly five times as
+     far. 0.06 sits between them with better than a two-fold margin either way,
+     and the sweep reports the largest drift it saw so the gap closing is
+     visible rather than silent. */
+  const BACKED_MAX = 0.06;
   window.backingSweep = function () {
     const cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
+    let worst = 0;
     const keepZ = V.CAM.z, keepX = V.CAM.x, keepY = V.CAM.y;
     const sample = () => {
       const out = new Map(), orig = ctx.fillText.bind(ctx);
@@ -756,15 +767,111 @@
       for (const [str, a] of sea) {
         const c = land.get(str); if (!c) continue;
         const d = Math.abs(a.L - c.L);
-        if (d > 0.02) drift.push({ mode: name, text: str,
+        if (d > BACKED_MAX) drift.push({ mode: name, text: str,
           overSea: a.bg.join(','), overVillage: c.bg.join(','), lumDrift: +d.toFixed(3) });
+        if (d > worst) worst = d;
       }
     }
     V.finished = null; V.away = null; V.claimAsk = false;
     V.panel = null; V.sel = null; V.moving = null;
     V.CAM.z = keepZ; V.CAM.x = keepX; V.CAM.y = keepY; V.step(0.001);
     drift.sort((x, y) => y.lumDrift - x.lumDrift);
-    return { unprotected: drift.length, worst: drift.slice(0, 8) };
+    return { unprotected: drift.length, worstDrift: +worst.toFixed(3),
+      allowed: BACKED_MAX, worst: drift.slice(0, 8) };
   };
-  console.log('textSweep ready: window.textSweep(), window.contrastSweep(), window.backingSweep()');
+  /* Does a reload give back everything the save wrote?
+
+     The invariant inside the fuzzer compares a signature -- a hand-written list
+     of the fields a save is supposed to carry. It was written the day a new
+     field on trade orders was added to makeOrder and quietly dropped by load(),
+     and it has the fault that bug had: a field nobody adds to the list is a
+     field nobody checks. Same shape as the contrast sweep before backingSweep.
+
+     This compares everything save() writes, so a field added tomorrow is covered
+     without anyone remembering to add it. The trick is the poison. Wiping the
+     state before loading is not enough -- the scalars (goal, land, ordersDone,
+     mute) simply survive a partial wipe, so a save missing one of them looks
+     identical to a save that has it. Loading a genuinely DIFFERENT village first
+     is the generic poison: anything load() ignores keeps the other village's
+     value, and the diff finds it.
+
+     Only three fields are excluded, and all three are volatile by design: the
+     timestamp, the measured rate, and order ids, which load() renumbers.
+
+       saveSweep()  -> { diffs, worst, detects }
+  --------------------------------------------------------------------------- */
+  const SAVE_VOLATILE = new Set(['t', 'rate', 'id']);
+  function stripVolatile(o) {
+    const go = x => {
+      if (Array.isArray(x)) return x.map(go);
+      if (x && typeof x === 'object') {
+        const out = {};
+        for (const k of Object.keys(x)) if (!SAVE_VOLATILE.has(k)) out[k] = go(x[k]);
+        return out;
+      }
+      return x;
+    };
+    return go(o);
+  }
+  function saveDiff(a, b) {
+    const d = [];
+    const walk = (x, y, p) => {
+      if (typeof x !== typeof y) { d.push({ at: p, was: typeof x, now: typeof y }); return; }
+      if (x && typeof x === 'object') {
+        const kx = Object.keys(x), ky = Object.keys(y);
+        for (const k of kx) if (!(k in y)) d.push({ at: p + '.' + k, dropped: true });
+        for (const k of ky) if (!(k in x)) d.push({ at: p + '.' + k, added: true });
+        for (const k of kx) if (k in y) walk(x[k], y[k], p + '.' + k);
+      } else if (x !== y) d.push({ at: p, was: x, now: y });
+    };
+    walk(a, b, 'save');
+    return d;
+  }
+  function buildVillage(spec) {
+    V.placed.length = 0; V.villagers.length = 0; V.landTier = spec.land;
+    V.ensureHall(); V.placed[0].lvl = spec.hall;
+    const L = V.landBounds();
+    const free = k => { for (let c = L.lo; c <= L.hi; c++) for (let r = L.lo; r <= L.hi; r++)
+      if (V.canPlace(k, c, r, V.occupied())) return [c, r]; return null; };
+    for (const k of spec.build) {
+      V.grant('wood', 99999, 0, 0); V.grant('food', 99999, 0, 0);
+      const sp = free(k); if (sp) V.place(k, sp[0], sp[1]);
+    }
+    for (let i = 0; i < 120 * 30; i++) V.step(1 / 30);
+    V.res.wood = spec.w; V.res.food = spec.f; V.goalIdx = spec.goal;
+    V.ordersDone = spec.done; V.muted = spec.mute;
+    V.tutSeen.length = 0; spec.seen.forEach(x => V.tutSeen.push(x));
+    V.orders = spec.tiers.map(t => V.makeOrder(t));
+  }
+  const RICH = { land: 2, hall: 4, build: ['house', 'farm', 'lumber', 'store', 'well', 'statue'],
+                 w: 812, f: 655, goal: 9, done: 17, mute: false, seen: ['house', 'work'], tiers: [0, 1, 2] };
+  const POOR = { land: 0, hall: 1, build: ['house'],
+                 w: 7, f: 3, goal: 1, done: 0, mute: true, seen: [], tiers: [2] };
+  window.saveSweep = function () {
+    const real = (() => { try { return localStorage.getItem(V.KEY); } catch (e) { return null; } })();
+    const reload = () => { V.placed.length = 0; V.villagers.length = 0; V.orders = []; V.load(); };
+    buildVillage(RICH); V.save();
+    const written = localStorage.getItem(V.KEY);
+    const want = stripVolatile(JSON.parse(written));
+    buildVillage(POOR);                       // the poison
+    localStorage.setItem(V.KEY, written); reload(); V.save();
+    const got = stripVolatile(JSON.parse(localStorage.getItem(V.KEY)));
+    const diffs = saveDiff(want, got);
+    /* And prove the sweep can fail, every time it runs: drop each top-level
+       field in turn and insist the diff notices. A checker that only ever
+       reports zero has told you nothing. */
+    const detects = {};
+    for (const field of Object.keys(JSON.parse(written))) {
+      if (SAVE_VOLATILE.has(field) || field === 'v') continue;
+      const mangled = JSON.parse(written); delete mangled[field];
+      buildVillage(POOR);
+      localStorage.setItem(V.KEY, JSON.stringify(mangled)); reload(); V.save();
+      const bad = stripVolatile(JSON.parse(localStorage.getItem(V.KEY)));
+      detects[field] = saveDiff(want, bad).length > 0;
+    }
+    try { if (real !== null) localStorage.setItem(V.KEY, real); } catch (e) {}
+    const blind = Object.entries(detects).filter(([, ok]) => !ok).map(([k]) => k);
+    return { diffs: diffs.length, worst: diffs.slice(0, 8), fieldsChecked: Object.keys(detects).length, blindTo: blind };
+  };
+  console.log('textSweep ready: window.textSweep(), window.contrastSweep(), window.backingSweep(), window.saveSweep()');
 })();
