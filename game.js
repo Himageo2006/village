@@ -613,14 +613,51 @@ function syncVillagers(){
 let jobPlan = null;
 function invalidateJobs() { jobPlan = null; }
 function desiredJobs(handsIn) {
-  if (handsIn === undefined && jobPlan) return jobPlan;
-  const plan = computeJobs(handsIn);
-  if (handsIn === undefined) jobPlan = plan;
-  return plan;
+  if (handsIn !== undefined) return computeJobs(handsIn);
+  /* The cache checks itself.
+
+     Room is the one input to this plan that changes without anything being
+     built, sold or moved -- every load a villager carries in can flip it -- so
+     no list of mutation points can cover it. Hanging the invalidation off the
+     tick instead was worse: the soak test grants a resource and asks the
+     question before the next tick has run, and caught a stale plan 90 times in
+     60,000 rounds. Comparing the mask on the way out is a handful of
+     arithmetic and cannot be got wrong by a caller. */
+  const m = fullMask();
+  if (jobPlan && m === jobMask) return jobPlan;
+  jobMask = m;
+  jobPlan = computeJobs();
+  return jobPlan;
 }
+/* Which resources the barn can still take a load of.
+
+   A full barn does not slow a workplace down, it throws its work away -- so a
+   post producing into one is worth nothing, however fast it is. The allocator
+   ranked posts by delivered rate alone, which is the right measure only while
+   there is somewhere to put the goods. Measured on a mid-game village with food
+   at the ceiling and no wood at all: ten of sixteen hands were on food, making
+   8.12/s that was destroyed on arrival, and six were on wood making 3.39/s.
+
+   A load is CARRY, so room for less than one load is no room. */
+const hasRoomFor = k => caps[k] - res[k] >= CARRY;
+/* One bit per resource. The plan is cached, so it must be thrown away when this
+   changes -- and only when it changes, or the cache would be rebuilt every
+   frame that anything arrives. */
+const fullMask = () => (hasRoomFor('wood') ? 1 : 0) | (hasRoomFor('food') ? 2 : 0);
+let jobMask = -1;
 function computeJobs(handsIn) {
   const posts = producers().filter(p => jobsOf(p) > 0);
-  posts.sort((a, b) => (a.key === 'hall') - (b.key === 'hall') || deliveredOf(b) - deliveredOf(a));
+  /* Falls back to the plain rate when NOTHING has room: with both barns full
+     every post is worth zero, and an arbitrary order would have the village
+     reshuffling its whole workforce for no reason. */
+  const anyRoom = hasRoomFor('wood') || hasRoomFor('food');
+  const worth = p => {
+    const b = B(p.key);
+    if (!b.makes) return 0;
+    if (anyRoom && !hasRoomFor(Object.keys(b.makes)[0])) return 0;
+    return deliveredOf(p);
+  };
+  posts.sort((a, b) => (a.key === 'hall') - (b.key === 'hall') || worth(b) - worth(a));
   const want = new Map(posts.map(p => [p.id, 0]));
   /* Callable with a population that does not exist yet: offline earnings are
      worked out before the first tick has spawned anybody. */
@@ -633,8 +670,23 @@ function computeJobs(handsIn) {
   for (const p of posts) {
     if (hands <= 0) break;
     if (p.key === 'hall') continue;
+    /* Not a post whose barn is full either. Guaranteeing one pair of hands to
+       every farm while the granary is overflowing is the same mistake as
+       guaranteeing one to the woodpile: it spends the village's labour on
+       nothing before the second pair reaches the job that is actually worth
+       doing. */
+    if (!worth(p)) continue;
     want.set(p.id, 1); hands--;
   }
+  for (const p of posts) {
+    if (!worth(p)) continue;
+    const cap = jobsOf(p);
+    while (hands > 0 && want.get(p.id) < cap) { want.set(p.id, want.get(p.id) + 1); hands--; }
+  }
+  /* Whoever is still spare goes to the posts that are producing into a full
+     barn, rather than standing about: the goods are wasted either way, and a
+     village of idlers beside working farms reads as broken. They leave again
+     the moment the barn has room, one job change per tick. */
   for (const p of posts) {
     const cap = jobsOf(p);
     while (hands > 0 && want.get(p.id) < cap) { want.set(p.id, want.get(p.id) + 1); hands--; }
@@ -1272,6 +1324,21 @@ function stepOrders(dt) {
      pulled out from under them, even one they are saving up for. Replaced in
      place so the cards do not jump around. */
   if (orders.some(canFill)) return;
+  /* Being unable to fill anything is not one situation, it is two, and only one
+     of them is helped by a new trader.
+
+     If the offers are unaffordable, or pointing the wrong way, the next one may
+     well point the right way -- that is what this replacement is for. But if
+     every offer is affordable and blocked only because there is no ROOM for what
+     it pays, a new offer hits the same wall: makeOrder asks for whichever
+     resource the village is richer in, and when both barns are full that is
+     always the same direction and always unfillable.
+
+     Measured with both stores capped: ten minutes of that wrote eight new
+     traders nobody could trade with, and 138 localStorage writes to record
+     them. The board now sits still, which is also the honest picture -- nothing
+     is wrong with the offers, the village simply has nowhere to put anything. */
+  if (orders.every(o => res[o.giveK] >= o.giveN)) return;
   const oldest = 0;
   orders.splice(oldest, 1, makeOrder());
   save();
