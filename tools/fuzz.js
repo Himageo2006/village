@@ -610,11 +610,23 @@
         build: () => { V.barMode = 'build'; V.panel = null; V.sel = null; V.away = null; V.claimAsk = false; },
         decorate: () => { V.barMode = 'decor'; },
         orders: () => { V.barMode = 'orders'; V.orders = [V.makeOrder(0), V.makeOrder(1), V.makeOrder(2)]; },
-        placing: () => { V.barMode = 'build'; V.sel = 'mill'; },
+        /* An empty board says something the full one never does, and nothing
+           had ever drawn it in a sweep. */
+        noOrders: () => { V.orders = []; },
+        placing: () => { V.barMode = 'build'; V.sel = 'mill'; V.orders = [V.makeOrder(1)]; },
         claim: () => { V.sel = null; V.claimAsk = true; },
         away: () => { V.claimAsk = false; V.away = { secs: 7200, got: { wood: 1234, food: 5678 } }; },
         hint: () => { V.away = null; V.tutSeen.length = 0; V.res.wood = V.caps.wood; V.res.food = V.caps.food; },
         goalBanner: () => { V.goalDone = { g: V.GOALS[V.GOALS.length - 1], got: { wood: 2500, food: 1600 }, age: 0 }; },
+        /* Two warnings the player only ever sees when something has gone wrong,
+           which is exactly when they must be readable, and neither had been
+           drawn in a sweep before. */
+        saveFailed: () => { V.goalDone = null; V.saveFailed = true; },
+        fromBackup: () => { V.saveFailed = false; V.loadedFromBackup = true; },
+        /* A panel on something still under scaffolding: a different set of rows
+           from a finished building, and never swept. */
+        building: () => { V.loadedFromBackup = false;
+          const q = V.placed.find(x => x.key !== 'hall'); if (q) { q.t = 0.4; V.panel = q.id; } },
         /* Seen once, at the end of a two-hour game, which is exactly the kind of
            screen that never gets looked at again after it is written. */
         finished: () => { V.goalDone = null; V.away = null;
@@ -623,6 +635,8 @@
       const tag = maxed ? ' [maxed]' : ' [mid]';
       for (const [name, set] of Object.entries(states)) { set(); found.push(...scan(name + ' @' + h + tag)); }
       V.goalDone = null; V.finished = null;
+      V.saveFailed = false; V.loadedFromBackup = false;
+      for (const q of V.placed) if (q.t < 1) q.t = 1;
       // and every panel, armed and not
       for (const p of V.placed) for (const arm of [false, true]) {
         V.panel = p.id; V.sellArm = arm ? { id: p.id, t: 4 } : null;
@@ -789,7 +803,13 @@
          state the player ends in is worth a state in the sweep. */
       ['allGoalsDone', () => { V.res.wood = 800; V.res.food = 600;
                                V.goalIdx = V.GOALS.length; V.goalDone = null; }],
-      ['orders',   () => { V.barMode = 'orders'; }],
+      ['orders',   () => { V.barMode = 'orders';
+                           V.orders = [V.makeOrder(0), V.makeOrder(1), V.makeOrder(2)]; }],
+      /* An empty board draws a line where the cards would be, over the world.
+         A state that only exists when nothing is there is easy to never draw. */
+      ['noOrders', () => { V.barMode = 'orders'; V.orders = []; }],
+      ['saveFailed', () => { V.barMode = 'build'; V.saveFailed = true; }],
+      ['fromBackup', () => { V.saveFailed = false; V.loadedFromBackup = true; }],
       ['placing',  () => { V.barMode = 'build'; V.sel = 'mill'; }],
       ['moving',   () => { V.sel = null; V.moving = V.placed.find(p => p.key === 'farm').id; }],
       ['panel',    () => { V.moving = null; V.panel = V.placed.find(p => p.key === 'market').id; }],
@@ -815,6 +835,7 @@
       }
     }
     V.finished = null; V.away = null; V.claimAsk = false;
+    V.saveFailed = false; V.loadedFromBackup = false;
     V.panel = null; V.sel = null; V.moving = null;
     V.CAM.z = keepZ; V.CAM.x = keepX; V.CAM.y = keepY; V.step(0.001);
     drift.sort((x, y) => y.lumDrift - x.lumDrift);

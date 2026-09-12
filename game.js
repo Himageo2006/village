@@ -2926,10 +2926,21 @@ function drawHUD() {
   if (barMode === 'orders') {
     const rs = orderRects();
     if (!rs.length) {
+      /* On a pill. An empty board shows this where the three cards would be --
+         over the world, with nothing behind it -- and the cards it replaces all
+         have backgrounds of their own. Fourth string in this game found painted
+         straight onto the sea. */
+      const txt = 'No orders just now — a trader will be along shortly';
+      const y2 = hudBot() - 80 * u;
       g.save(); g.textAlign = 'center'; g.textBaseline = 'middle';
-      g.font = `${Math.round(23 * u)}px Segoe UI, sans-serif`; g.fillStyle = DIM;
-      g.fillText('No orders just now — a trader will be along shortly',
-        W / 2, hudBot() - 80 * u);
+      const fit = fitLines(txt, W - 80 * u, 23 * u, 14 * u, 1);
+      g.font = `${Math.round(fit.px)}px Segoe UI, sans-serif`;
+      const pw = Math.min(W - 24 * u, g.measureText(fit.lines[0]).width + 44 * u);
+      const ph = fit.px * 1.8;
+      g.fillStyle = 'rgba(16,26,14,.82)'; g.strokeStyle = 'rgba(255,255,255,.14)'; g.lineWidth = 2;
+      g.beginPath(); g.roundRect(W / 2 - pw / 2, y2 - ph / 2, pw, ph, ph / 2); g.fill(); g.stroke();
+      g.fillStyle = DIM;
+      g.fillText(fit.lines[0], W / 2, y2);
       g.restore();
     }
     /* Which stall on the board trades best. The rate rises with the size, and
