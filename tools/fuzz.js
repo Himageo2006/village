@@ -227,6 +227,98 @@
     return 'a save/load round trip changed the village';
   }
 
+  /* The whole arc, under the same invariants.
+
+     The fuzzer taps at random, and random tapping demolishes about as often as
+     it builds: six runs of six thousand rounds each ended at hall 4 or below,
+     twenty buildings at most, three villagers at most, and never once reached
+     hall 5 or the full island. So every rule in the list above -- the workforce
+     ones, the carried-load ones, the cache ones -- had only ever been tested on
+     a small early-game village.
+
+     That is the same blind spot the drawing sweeps had: the exceptional state is
+     the one nobody visits. This plays deliberately instead, with a policy good
+     enough to finish: fill a trade when the village is rich in what it is being
+     asked for, claim land when it can, build the next thing that is allowed and
+     affordable, and otherwise improve the lowest-level building. Invariants are
+     checked after every action and every step, exactly as in the fuzzer.
+
+       arcSweep()  -> { minutes, goals, hall, land, placed, villagers, fails }
+  --------------------------------------------------------------------------- */
+  window.arcSweep = function (maxMinutes = 90) {
+    const realSave = (() => { try { return localStorage.getItem(V.KEY); } catch (e) { return null; } })();
+    V.placed.length = 0; V.villagers.length = 0; V.landTier = 0;
+    V.goalIdx = 0; V.ordersDone = 0; V.orders = []; V.tutSeen.length = 0;
+    V.res.wood = 60; V.res.food = 40; V.ensureHall();
+    const fails = [], seen = new Set();
+    const note = bad => { if (bad && !seen.has(bad)) { seen.add(bad); fails.push(bad); } };
+    /* Nearest free spot to the middle, so the village grows as a village rather
+       than a line down one edge -- distance matters to every delivery figure,
+       and a pathological layout would test the rules on a village no player
+       would ever build. */
+    const spotFor = key => {
+      const L = V.landBounds(), occ = V.occupied(), mid = V.tileToWorld(7, 7);
+      let best = null, bd = Infinity;
+      for (let c = L.lo; c <= L.hi; c++) for (let r = L.lo; r <= L.hi; r++) {
+        if (!V.canPlace(key, c, r, occ)) continue;
+        const w = V.tileToWorld(c, r), d = Math.hypot(w.x - mid.x, (w.y - mid.y) * 2);
+        if (d < bd) { bd = d; best = [c, r]; }
+      }
+      return best;
+    };
+    /* The hall first, always. It gates how many of everything else you may
+       have, so a policy that treats it as just another building never leaves
+       the early game: the first version of this bought statues with the wood
+       and finished ninety simulated minutes at hall 2 and goal 5. Decorations
+       come last, and only once the charm goal is the one on the strip. */
+    const ORDER = ['house', 'lumber', 'farm', 'house', 'store', 'well', 'farm',
+                   'lumber', 'mill', 'house', 'store', 'market', 'farm', 'lumber',
+                   'well', 'mill', 'house', 'store', 'market'];
+    const budget = maxMinutes * 60 * 30;
+    const afford = c => (c.wood || 0) <= V.res.wood && (c.food || 0) <= V.res.food;
+    for (let i = 0; i < budget; i++) {
+      carriedBefore = new Set(V.villagers.filter(g => g.carry));
+      V.step(1 / 30);
+      note(check('step'));
+      if (i % 15) continue;
+      let acted = false;
+      for (const o of V.orders.slice())
+        if (V.canFill(o) && V.res[o.giveK] / V.caps[o.giveK] > 0.55) {
+          V.fillOrder(o); note(check('fillOrder')); acted = true;
+        }
+      const hall = V.hallOf();
+      if (!acted && V.canUpgrade(hall)) { V.upgradeBuilding(hall); note(check('upgradeHall')); acted = true; }
+      if (!acted && V.canClaim && V.canClaim() && V.claimLand()) { note(check('claim')); acted = true; }
+      if (!acted) for (const k of ORDER) {
+        if (!V.unlocked(k) || V.atLimit(k) || !afford(V.B(k).cost)) continue;
+        if (V.noSpareHands(k)) continue;
+        const sp = spotFor(k);
+        if (sp && V.place(k, sp[0], sp[1])) { note(check('place')); acted = true; break; }
+      }
+      if (!acted) {
+        const ups = V.placed.filter(q => q.key !== 'hall' && V.canUpgrade(q))
+          .sort((x, y) => V.lvlOf(x) - V.lvlOf(y));
+        if (ups.length) { V.upgradeBuilding(ups[0]); note(check('upgrade')); acted = true; }
+      }
+      /* Charm is a goal of its own near the end, and statues are the cheapest
+         way to it. Only then, because a statue early is wood that should have
+         been a lumber camp. */
+      if (!acted) {
+        const g2 = V.currentGoal();
+        if (g2 && /charm|decoration/i.test(g2.text) && !V.atLimit('statue') && afford(V.B('statue').cost)) {
+          const sp = spotFor('statue');
+          if (sp && V.place('statue', sp[0], sp[1])) { note(check('decorate')); acted = true; }
+        }
+      }
+      if (V.goalIdx >= V.GOALS.length) break;
+    }
+    try { if (realSave !== null) localStorage.setItem(V.KEY, realSave); } catch (e) {}
+    return { goals: V.goalIdx + '/' + V.GOALS.length, hall: V.hallLevel(), land: V.landTier,
+      placed: V.placed.length, villagers: V.villagers.length,
+      res: { wood: Math.round(V.res.wood), food: Math.round(V.res.food) },
+      caps: { ...V.caps }, trades: V.ordersDone, fails };
+  };
+
   window.fuzz = function (rounds = 5000, populated = true) {
     const realSave = (() => { try { return localStorage.getItem(V.KEY); } catch (e) { return null; } })();
     // a throwaway village: never the player's own
