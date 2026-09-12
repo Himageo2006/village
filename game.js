@@ -1916,7 +1916,14 @@ function load() {
   if (!usable(s)) return;
   if (s.rate && typeof s.rate === 'object') for (const k of ['wood', 'food'])
     if (typeof s.rate[k] === 'number' && isFinite(s.rate[k]) && s.rate[k] >= 0)
-      rateNow[k] = Math.min(20, s.rate[k]);
+      /* Past anything the village can reach, not at a number that sounded
+         large. A maxed village delivers 28.7 wood and 37.8 a second, measured,
+         and the save records it correctly -- so a ceiling of 20 meant reopening
+         the app showed the best village in the game "+20.0 / s" on both chips
+         until the five-second window caught up. Understating the player's own
+         work, in the one number they watch most. The bound is only here to
+         reject a damaged save, so it belongs well clear of honest play. */
+      rateNow[k] = Math.min(200, s.rate[k]);
   if (Number.isFinite(s.t)) savedAt = s.t;
   if (Array.isArray(s.seen)) tutSeen = s.seen.filter(x => typeof x === 'string');
   if (typeof s.mute === 'boolean') muted = s.mute;
