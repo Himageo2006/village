@@ -443,6 +443,12 @@ const SFX = {
   upgrade: () => [0, 0.09, 0.18].forEach((d, i) =>
                    tone({ f: 523 * Math.pow(1.26, i), type: 'triangle', dur: 0.20, vol: 0.34, delay: d })),
   sell:    () => { tone({ f: 420, to: 240, type: 'triangle', dur: 0.16, vol: 0.30 }); },
+  /* Scaffolding coming down. Placing something thunks; three seconds later it
+     quietly became real and the game said nothing at all, which is the moment a
+     builder is actually about for. Rising where place() falls, and quieter than
+     an upgrade, because it happens far more often. */
+  done:    () => { tone({ f: 440, to: 660, type: 'triangle', dur: 0.14, vol: 0.26 });
+                   tone({ f: 880, type: 'sine', dur: 0.10, vol: 0.14, delay: 0.07 }); },
   deny:    () => tone({ f: 170, to: 120, type: 'square', dur: 0.16, vol: 0.20 }),
   goal:    () => [0, 0.10, 0.20, 0.32].forEach((d, i) =>
                    tone({ f: [523, 659, 784, 1047][i], type: 'sine', dur: 0.30, vol: 0.30, delay: d })),
@@ -1373,7 +1379,21 @@ const canFill = o => !!o && res[o.giveK] >= o.giveN && hasRoom(o);
 function fillOrder(o) {
   if (!canFill(o)) return false;
   res[o.giveK] -= o.giveN;
-  res[o.getK] = Math.min(caps[o.getK], res[o.getK] + o.getN);
+  /* Through grant, like everything else that arrives.
+
+     This wrote res directly, so a trade was the one thing in the game that
+     turned up with no announcement: the card vanished, a chime played, and two
+     numbers in the corner changed. The game's own rule is that everything which
+     arrives says so where it arrived -- deliveries were given pops precisely
+     because a number in a corner makes a working village look like a stalled
+     one -- and a trade is the largest single arrival there is.
+
+     It lands at the market if the village has one, because that is where the
+     trading happens, and at the hall otherwise. Not through deliver(): a sale
+     is not production and must not count towards the rate the HUD reports. */
+  const at = placed.find(q => q.key === 'market' && q.t >= 1) || hallOf();
+  const c = at ? centreOf(at) : { x: 0, y: 0 };
+  grant(o.getK, o.getN, c.x, c.y);
   orders = orders.filter(q => q.id !== o.id);
   ordersDone++;
   SFX.goal();
@@ -1949,7 +1969,7 @@ function step(dt) {
       p.t = Math.min(1, p.t + dt / (p.build || BUILD_TIME));
       // a finished building has to be written down, or reloading replays its
       // construction from wherever the last save caught it
-      if (p.t >= 1) { recomputeCaps(); save(); }
+      if (p.t >= 1) { recomputeCaps(); save(); SFX.done(); }
     }
   }
   syncVillagers();
