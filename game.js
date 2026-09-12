@@ -1915,7 +1915,18 @@ function load() {
       .map(o => ({ id: orderSeq++, giveK: o.giveK, getK: o.getK,
         tier: Number.isFinite(o.tier) ? Math.max(0, Math.min(ORDER_TIERS.length - 1, o.tier | 0))
           : nearestTier(o.giveN, o.giveK),
-        giveN: Math.max(1, o.giveN | 0), getN: Math.max(1, o.getN | 0) }));
+        /* | 0 is a 32-bit truncation, and a size past that range wraps. A save
+           carrying 1e12 came back as 1 -- and a one-for-one trade is not a
+           broken order, it is the free converter makeOrder goes out of its way
+           to prevent: loop it and wood and food become the same resource, which
+           makes balancing farms against lumber camps pointless. Rounded and
+           held inside the ceiling instead. */
+        giveN: Math.max(1, Math.min(caps[o.giveK], Math.round(o.giveN))),
+        getN: Math.max(1, Math.min(caps[o.getK], Math.round(o.getN))) }))
+      /* And an order must still be worth less than it asks, which is the one
+         rule every generated order obeys. Anything that is not is dropped; the
+         board writes a new one within the minute. */
+      .filter(o => o.getN / Math.max(1, caps[o.getK]) < o.giveN / Math.max(1, caps[o.giveK]));
   }
   if (s.res && typeof s.res === 'object') for (const k of ['wood', 'food'])
     if (typeof s.res[k] === 'number' && isFinite(s.res[k])) res[k] = s.res[k];
@@ -1926,7 +1937,11 @@ function load() {
       key: p.key, c: p.c | 0, r: p.r | 0,
       t: typeof p.t === 'number' ? Math.min(1, Math.max(0, p.t)) : 1,
       lvl: Math.min(p.key === 'hall' ? HALL_MAX : LVL_MAX, Math.max(1, p.lvl | 0)),
-      stock: typeof p.stock === 'number' && isFinite(p.stock) ? Math.max(0, p.stock) : 0,
+      /* What a workplace is holding, waiting to be carried. It stops filling at
+         STOCK_MAX by design, so a save saying 9999 is describing a state the
+         game never produces -- and it pays out as a backlog of free goods. */
+      stock: typeof p.stock === 'number' && isFinite(p.stock)
+        ? Math.max(0, Math.min(STOCK_MAX, p.stock)) : 0,
       /* How long this one takes, not how long a new building takes.
 
          t is progress from 0 to 1 and build is what that progress is measured
