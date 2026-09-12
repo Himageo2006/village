@@ -3733,7 +3733,12 @@ function drawPanel() {
     : busy ? 'Building…'
     : i.max ? 'Highest level'
     : i.gate ? 'Needs town hall level ' + i.gate
-    : overCap ? 'Needs a bigger storehouse'
+    /* Which of the two is actually open to them. A player with all four
+       storehouses the hall allows was told to get a bigger one, with no way to
+       build another -- the same impossible advice the hall panel used to give.
+       Storehouse LEVELS raise the ceiling as well as storehouse count, so at
+       the limit there is still an answer, and it is a different one. */
+    : overCap ? (atLimit('store') ? 'Needs a bigger storehouse' : 'Needs another storehouse')
     : !canAfford(i.cost) ? 'Need ' + shortText(i.cost) + ' more'
     : 'Upgrade to ' + (lvlOf(p) + 1) + '   ' + Object.entries(i.cost).map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join('  ');
   g.fillStyle = ok ? 'rgba(62,104,44,.98)' : 'rgba(40,44,36,.9)';
