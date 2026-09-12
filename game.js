@@ -2584,7 +2584,13 @@ function drawWorld() {
       g.fillStyle = ghost.ok ? 'rgba(120,230,120,.40)' : 'rgba(235,90,70,.40)';
       g.fill();
     }
-    if (ghost.ok) {
+    /* fits, not ok: a tile that is legal but unaffordable still gets the preview
+       and the label, because "you cannot pay for this yet" is worth saying and
+       the red under it already says you cannot place it. A tile that is illegal
+       -- off the land, under something else -- still gets nothing but the red,
+       which needs no words and would otherwise flicker a pill under the finger
+       across every unusable tile on the island. */
+    if (ghost.fits) {
       // a well's reach, under the ghost, before it is paid for
       if (selKey === 'well') drawWellReach(ghost.c, ghost.r, 1);
       drawPlaced({ id: -1, key: selKey, c: ghost.c, r: ghost.r, t: 1, lvl: 1 }, 0.55);
@@ -2596,8 +2602,15 @@ function drawWorld() {
          percentage has to be decoded first -- and decoded wrongly, since the
          same percentage means different things at different levels. */
       const isWell = !!B(selKey).boost;
-      const eff = (B(selKey).caps || isWell) ? null : reachOf(probe);
-      if (eff !== null || isWell) {
+      /* Only something that PRODUCES gets a rate. reachOf returns 1 for a
+         building with no output -- there is nothing to fall short of -- so
+         moving a house put a green pill reading "0.00/s here" over it. */
+      const makes = !!(b.makes && b.jobs);
+      const eff = (B(selKey).caps || isWell || !makes) ? null : reachOf(probe);
+      /* A storehouse has no reach figure and is not a well, so it never got a
+         label at all -- and it is one of the two most expensive things in the
+         tray. It gets one now when the only thing to say is the price. */
+      if (eff !== null || isWell || (selBuild && !affordable(selKey))) {
         const a = tileToWorld(ghost.c, ghost.r), d2 = tileToWorld(ghost.c + b.w - 1, ghost.r + b.h - 1);
         const cx = (a.x + d2.x) / 2, cy = (a.y + d2.y) / 2;
         const sc = badgeScale();
@@ -2611,8 +2624,19 @@ function drawWorld() {
         g.textAlign = 'center'; g.textBaseline = 'middle';
         g.font = 'bold 22px Segoe UI, sans-serif';
         const empty = wouldStandEmpty(selKey);
+        /* Cheaper than either of them, and it outranks both: this is what is
+           stopping the tap from working right now.
+
+           The label quoted a delivery rate for a mill the player could not buy
+           -- a green pill promising 1.80/s, and then a buzz when they tapped.
+           The claim panel has said "Need 🪵140 more" for a long time; the
+           placement preview, which is where most of the buying happens, said
+           nothing at all. Only for a BUILD: moving something already paid for
+           costs nothing. */
+        const cantAfford = selBuild && !affordable(selKey);
         let txt;
-        if (isWell) {
+        if (cantAfford) txt = 'need ' + shortText(B(selKey).cost) + ' more';
+        else if (isWell) {
           const wg = wellGainAt(ghost.c, ghost.r, 1);
           /* In reach of three sheds that nobody is working is not the same as
              in reach of nothing, and "+0.00/s" beside "lifts 3 workplaces"
@@ -2626,11 +2650,11 @@ function drawWorld() {
         const w2 = g.measureText(txt).width + 26;
         g.fillStyle = 'rgba(14,22,12,.9)';
         const good = isWell ? wellGainAt(ghost.c, ghost.r, 1).n > 0 : !empty && eff > 0.66;
-        g.strokeStyle = isWell ? (good ? '#9fe86b' : '#e59a86')
+        g.strokeStyle = cantAfford ? '#e59a86' : isWell ? (good ? '#9fe86b' : '#e59a86')
           : empty ? '#e59a86' : eff > 0.66 ? '#9fe86b' : eff > 0.42 ? '#e8c98a' : '#e59a86';
         g.lineWidth = 2.5;
         g.beginPath(); g.roundRect(-w2 / 2, -17, w2, 34, 17); g.fill(); g.stroke();
-        g.fillStyle = isWell ? (good ? '#b6f58a' : '#f0a583')
+        g.fillStyle = cantAfford ? '#f0a583' : isWell ? (good ? '#b6f58a' : '#f0a583')
           : empty ? '#f0a583' : eff > 0.66 ? '#b6f58a' : eff > 0.42 ? '#f0d89a' : '#f0a583';
         g.fillText(txt, 0, 1);
         g.restore();
@@ -3920,7 +3944,12 @@ function updateGhost(sx, sy) {
   const c = t.c, r = t.r;
   // a building being moved must not be blocked by the ground it is standing on
   const occ = occupied(moving == null ? undefined : moving);
-  ghost = { c, r, ok: canPlace(key, c, r, occ) && (moving != null || buildable(key)) };
+  /* Two different refusals wearing the same red. A tile can be illegal -- off
+     the claimed land, under something else -- or perfectly good and simply
+     unaffordable, and the preview painted both the same and said nothing. fits
+     is the tile alone, so the label can tell them apart. */
+  const fits = canPlace(key, c, r, occ);
+  ghost = { c, r, fits, ok: fits && (moving != null || buildable(key)) };
 }
 /* Which placed building covers a screen point, if any. */
 function buildingAt(sx, sy) {
