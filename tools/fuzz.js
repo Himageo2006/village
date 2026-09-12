@@ -468,24 +468,26 @@
       if (!fg) return orig(t, x, y, ...rest);
       const w = ctx.measureText(t).width, a = ctx.textAlign;
       const x0 = a === 'center' ? x - w / 2 : a === 'right' ? x - w : x;
-      /* Sampled ABOVE and BELOW the line of text, never on it. Sampling along
-         the baseline picks up the glyphs already drawn in the same label -- the
-         wood and wheat icons sit right there -- and then the checker compares a
-         label against its own emoji and reports nonsense. A pill is always
-         taller than the text inside it, so half a line clear of the baseline is
-         still the pill. */
-      const sizeEarly = /([0-9.]+)px/.exec(ctx.font);
-      const lineH = sizeEarly ? parseFloat(sizeEarly[1]) : 16;
+      /* Sampled just BESIDE the string, at its own baseline.
+
+         Above and below was the obvious choice and it is wrong here: the tray
+         stacks two cost rows 28 logical pixels apart, and half a line clear of
+         one lands inside the other's emoji -- so the checker measured a label
+         against its neighbour's icon and called white. Either side of the
+         string is background by construction, because the same row's glyphs
+         live between x0 and x0 + w, and the text is made to fit its pill.
+
+         The lighter of the two is used: pale text on a dark pill fails on the
+         light side first. */
       let lightest = -1, bg = null;
-      for (let i = 0; i <= 4; i++) {
-        const sx = Math.round(Math.max(0, Math.min(cv.width - 1, x0 + (w * i) / 4)));
-        for (const off of [-lineH * 0.62, lineH * 0.62]) {
-          const sy = Math.round(Math.max(0, Math.min(cv.height - 1, y + m.f + off)));
-          const d = ctx.getImageData(sx, sy, 1, 1).data;
-          const L = luminance(d[0], d[1], d[2]);
-          if (L > lightest) { lightest = L; bg = [d[0], d[1], d[2]]; }
-        }
+      for (const sxRaw of [x0 - 6, x0 + w + 6]) {
+        const sx = Math.round(Math.max(0, Math.min(cv.width - 1, sxRaw)));
+        const sy = Math.round(Math.max(0, Math.min(cv.height - 1, y + m.f)));
+        const d = ctx.getImageData(sx, sy, 1, 1).data;
+        const L = luminance(d[0], d[1], d[2]);
+        if (L > lightest) { lightest = L; bg = [d[0], d[1], d[2]]; }
       }
+      const sizeEarly = /([0-9.]+)px/.exec(ctx.font);
       const l1 = luminance(fg[0], fg[1], fg[2]);
       const ratio = (Math.max(l1, lightest) + 0.05) / (Math.min(l1, lightest) + 0.05);
       const sizeM = /([0-9.]+)px/.exec(ctx.font);

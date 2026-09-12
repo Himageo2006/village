@@ -2549,8 +2549,16 @@ function drawHUD() {
     g.beginPath(); g.roundRect(x, ry - h / 2, wch, h, h / 2); g.fill(); g.stroke();
     g.textAlign = 'left'; g.font = `${Math.round(28 * u)}px Segoe UI, sans-serif`;
     g.fillStyle = '#fff'; g.fillText(icon, x + 16 * u, ry - 1 * u);
-    g.font = `bold ${Math.round(27 * u)}px Segoe UI, sans-serif`; g.fillStyle = col;
-    g.fillText(Math.floor(val) + ' / ' + cap, x + 58 * u, ry - 12 * u);
+    /* The most-looked-at number in the game, and it was spilling out of its own
+       pill for most of a playthrough: "1800 / 1800" is 201 logical pixels wide
+       in the 185 the chip leaves it, and every cap from hall three onwards is
+       four digits. Tightened around the slash, and fitted as a backstop -- at
+       eight thousand of each it comes down a size rather than running into the
+       chip beside it. */
+    const amount = Math.floor(val) + '/' + cap;
+    const amountFit = fitLines(amount, wch - 58 * u - 14 * u, 27 * u, 18 * u, 1);
+    g.fillStyle = col;
+    g.fillText(amountFit.lines[0], x + 58 * u, ry - 12 * u);
     /* Fitted to the pill, like everything else. The first version of the
        wasting line ran straight out of the chip and into the one beside it --
        and the screen-edge sweep could not see it, because a chip is not the
@@ -3359,12 +3367,16 @@ function drawPanel() {
     /* Shrink to fit rather than spill into the neighbouring button. These
        labels carry costs, shortfalls and warnings whose length is not knowable
        up front -- "Sell 77 60 (stores full)" ran clean across the Upgrade
-       button next to it. */
-    let px = (small ? 21 : 24) * u;
-    const room = r2.w - 16 * u;
-    do { g.font = `bold ${Math.round(px)}px Segoe UI, sans-serif`; px -= 1; }
-    while (px > 11 * u && g.measureText(text).width > room);
-    g.fillText(text, r2.x, r2.y);
+       button next to it.
+
+       Through the same fitter as every other string, rather than the hand-rolled
+       loop that used to live here. That one tested the width AFTER setting the
+       next size down, so it stopped one step early: the Upgrade label went out
+       at 32px and 403 logical pixels wide in 397, which is how the contrast
+       checker found it -- sampling beside the text landed on the button's own
+       border. Two shrink implementations, one of them tested. */
+    const fit = fitLines(text, r2.w - 16 * u, (small ? 21 : 24) * u, 11 * u, 1);
+    g.fillText(fit.lines[0], r2.x, r2.y);
   };
   btnFace(R.move, true, 'Move', true);
   const sv = canSell(p) ? sellValue(p) : null;
@@ -3386,7 +3398,9 @@ function drawPanel() {
     /* A refund is clamped to storage like every other grant, so on full stores
        the honest figure is nothing -- and saying so plainly beats a row of
        zeroes, which reads like the label failed to fill itself in. */
-    : backTotal === 0 ? (dec ? 'Remove  · nothing back' : 'Sell  · nothing back')
+    /* "Sell · nothing back" is 233 logical wide in a 209 button even at the
+       readable floor, and "Remove · nothing back" is 287. Shorter says it. */
+    : backTotal === 0 ? (dec ? 'Remove · none' : 'Sell · nothing')
     : (dec ? 'Remove  ' : 'Sell  ') + Object.entries(netSell)
         .filter(([, v]) => v > 0).map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join(' '),
     true, armedHere);
@@ -3408,9 +3422,14 @@ function drawPanel() {
   g.fillStyle = ok ? 'rgba(62,104,44,.98)' : 'rgba(40,44,36,.9)';
   g.strokeStyle = ok ? '#9fe86b' : 'rgba(255,255,255,.16)'; g.lineWidth = 3;
   g.beginPath(); g.roundRect(R.up.x - R.up.w / 2, R.up.y - R.up.h / 2, R.up.w, R.up.h, 16 * u); g.fill(); g.stroke();
+  /* Through the fitter, like every other label. This button was drawn by its
+     own code rather than by btnFace beside it, at a fixed size with no shrinking
+     at all -- so EVERY upgrade label overflowed its button, by six logical
+     pixels on a well and forty-three on a market. Two buttons on the same card,
+     drawn two different ways, and only one of them fitted. */
   g.fillStyle = ok ? '#eaffd6' : '#9aa693';
-  g.font = `bold ${Math.round(24 * u)}px Segoe UI, sans-serif`;
-  g.fillText(label, R.up.x, R.up.y);
+  const upFit = fitLines(label, R.up.w - 16 * u, 24 * u, 11 * u, 1);
+  g.fillText(upFit.lines[0], R.up.x, R.up.y);
   g.restore();
 }
 
