@@ -1984,9 +1984,17 @@ function load() {
      prevents it" -- and the soak test has rules saying neither state may exist.
      load() was the way in.
 
-     Kept in order, so the hall (always first) wins any tile it shares, and land
-     is clamped before this runs so "on the claimed land" means the land this
-     save actually has. */
+     Kept in order, so the hall (always first) wins any tile it shares.
+
+     The land is stretched to cover the village BEFORE any of this, which is not
+     a detail. coverPlaced() has always repaired a save whose land field came
+     back smaller than its buildings by claiming rings until they fit -- and it
+     runs after load(), so when this filter first went in it threw those
+     buildings away before the repair could reach them. An eight-building village
+     whose land field read 0 came back as one building. Dropping a building is
+     for a position the game could never have produced; a shrunken land field is
+     a save to mend, not a village to demolish. */
+  coverPlaced();
   {
     const taken = new Set(), keep = [];
     for (const q of placed) {
