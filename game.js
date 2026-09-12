@@ -1428,6 +1428,28 @@ const GOALS = [
   { text: 'Open a market',                 done: () => countOf('market') >= 1, give: { wood: 800, food: 500 } },
   { text: 'Raise the town hall to level 5', done: () => hallLevel() >= 5,      give: { wood: 1400, food: 900 } },
   { text: 'Claim the whole island',        done: () => landTier >= LAND_MAX,   give: { wood: 2500, food: 1600 } },
+  /* The village outlasts its goals by about an hour.
+
+     Claiming the island was the last thing the game ever asked for, and it
+     happens around fifty minutes in -- while a maxed village is another hour of
+     upgrades beyond that, all of it unacknowledged. Simulated to the end: hall 5
+     and the whole island arrive with every building still at level 3 or so, and
+     from there the player is filling out an allowance, a charm ceiling and a
+     hundred and eighty levels with nothing naming any of it.
+
+     These three name the rest, in the order they are actually reachable. Filling
+     the allowance is cheapest, the charm ceiling is about fourteen statues, and
+     raising every workplace to five is far and away the longest. The last one is
+     the end of the game, which is why it is worth saying out loud. */
+  { text: 'Build everything your hall allows',
+    done: () => Object.keys(HALL[HALL_MAX].allow).every(k => countOf(k) >= HALL[HALL_MAX].allow[k]),
+    give: { wood: 3000, food: 2000 } },
+  { text: 'Fill the village with charm',   done: () => charmTotal() >= CHARM_FULL,
+    give: { wood: 3500, food: 2400 } },
+  { text: 'Raise every workplace to level 5',
+    done: () => { const w = placed.filter(p => B(p.key).jobs && p.key !== 'hall' && p.t >= 1);
+                  return w.length > 0 && w.every(p => lvlOf(p) >= LVL_MAX); },
+    give: { wood: 5000, food: 3500 } },
 ];
 const currentGoal = () => GOALS[goalIdx] || null;
 
