@@ -965,10 +965,32 @@ function camFitTarget(wide) {
   const s = CAM.base * z;
   return { z, x: (b.x0 + b.x1) / 2, y: (b.y0 + b.y1) / 2 + (300 * US() - 130 * US()) / (2 * s) };
 }
+/* The player's "reduce motion" setting, read live.
+
+   Android and iOS both expose it and a Capacitor WebView passes it through as
+   prefers-reduced-motion, and nothing in this game had ever looked at it -- while
+   the last few rounds ADDED motion: a glide whenever the camera frames something,
+   and momentum that carries a flick onwards after the finger lifts. Uninvited
+   camera movement is exactly what that setting exists to switch off.
+
+   What goes is decoration: the glide becomes a cut, a flick stops where the
+   finger stops, villagers walk without bobbing, smoke and lamplight hold still.
+   What stays is information -- villagers still move between their work and the
+   store, because that movement IS the economy, and delivery pops still rise
+   where goods land. Listened to rather than read once, because the setting can
+   be changed with the app open. */
+let reduceMotion = false;
+try {
+  const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+  reduceMotion = mq.matches;
+  const onChange = e => { reduceMotion = e.matches; if (reduceMotion) { camFling = null; } };
+  if (mq.addEventListener) mq.addEventListener('change', onChange);
+  else if (mq.addListener) mq.addListener(onChange);
+} catch (e) {}
 function camFit(instant, wide) {
   const t = camFitTarget(wide);
   camFling = null;                       // a framing move outranks a flick
-  if (instant) { CAM.z = t.z; CAM.x = t.x; CAM.y = t.y; camGlide = null; camClamp(); }
+  if (instant || reduceMotion) { CAM.z = t.z; CAM.x = t.x; CAM.y = t.y; camGlide = null; camClamp(); }
   else camGlide = t;
 }
 /* An eased move rather than a jump. A cut makes the player re-find their own
@@ -2359,8 +2381,8 @@ function drawVillager(v) {
   /* Standing art walks by leaning: rocked about the feet and lifted on each
      step, twice per stride so both feet read. Kept small -- at this size a
      hint of motion is convincing and anything more looks like staggering. */
-  const bob = moving ? Math.abs(Math.sin(v.ph * 3)) * HGT * 0.05 : 0;
-  const lean = moving ? Math.sin(v.ph * 1.5) * 0.055 : 0;
+  const bob = moving && !reduceMotion ? Math.abs(Math.sin(v.ph * 3)) * HGT * 0.05 : 0;
+  const lean = moving && !reduceMotion ? Math.sin(v.ph * 1.5) * 0.055 : 0;
   g.save();
   g.fillStyle = 'rgba(10,18,8,.34)';
   g.beginPath(); g.ellipse(v.x, v.y + 2, HGT * 0.24, HGT * 0.11, 0, 0, 7); g.fill();
@@ -2483,7 +2505,8 @@ function drawBuilding(p, alpha, tint) {
       const chx = cx + halfW * 0.42, chy = ridge + halfH * 0.30;
       g.fillStyle = '#6e6157'; g.fillRect(chx - 6, chy - 26, 13, 28);
       g.fillStyle = 'rgba(226,226,226,.34)';
-      for (let i = 0; i < 3; i++) { const t2 = ((Date.now() / 900 + i * 0.33) % 1);
+      // held at fixed heights under reduced motion, so the chimney still reads as lit
+      for (let i = 0; i < 3; i++) { const t2 = reduceMotion ? 0.15 + i * 0.3 : ((Date.now() / 900 + i * 0.33) % 1);
         g.beginPath(); g.arc(chx + Math.sin(t2 * 5 + i) * 7, chy - 30 - t2 * 40, 5 + t2 * 9, 0, 7); g.fill(); }
     }
     // log pile marks the lumber camp
@@ -2680,7 +2703,7 @@ function drawDecor(p, alpha) {
     g.beginPath(); g.ellipse(o.x, o.y, 11, 5, 0, 0, 7); g.fill();
     g.strokeStyle = '#3f3830'; g.lineWidth = 6; g.lineCap = 'round';
     g.beginPath(); g.moveTo(o.x, o.y - 2); g.lineTo(o.x, o.y - 52); g.stroke();
-    const glow = 0.7 + 0.3 * Math.sin(Date.now() / 700 + n * 6);
+    const glow = reduceMotion ? 0.85 : 0.7 + 0.3 * Math.sin(Date.now() / 700 + n * 6);
     g.fillStyle = 'rgba(255,206,120,' + (0.20 * glow) + ')';
     g.beginPath(); g.arc(o.x, o.y - 58, 20, 0, 7); g.fill();
     g.fillStyle = '#ffd98a';
@@ -4138,7 +4161,7 @@ function ptrEnd(ev) {
      before that. */
   if (rec.drag && !rec.pinch && PTRS.size === 0 && rec.vx !== undefined
     && performance.now() - (rec.tMove || 0) < 90
-    && Math.hypot(rec.vx, rec.vy) > FLING_MIN * 3) {
+    && Math.hypot(rec.vx, rec.vy) > FLING_MIN * 3 && !reduceMotion) {
     camGlide = null;
     camFling = { x: rec.vx, y: rec.vy };
   }
@@ -4410,7 +4433,8 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   KEY, KEY_BAK, BACKUP_EVERY,
   get saveFailed() { return saveFailed; }, set saveFailed(v) { saveFailed = v; },
   get loadedFromBackup() { return loadedFromBackup; }, set loadedFromBackup(v) { loadedFromBackup = v; },
-  sky, dayPhase, DAY_MS, camFit, get camFling() { return camFling; }, landFitZoom, landWorldBounds, builtBounds, artFor, ART, villagerArt,
+  sky, dayPhase, DAY_MS, camFit, get camFling() { return camFling; },
+  get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, ART, villagerArt,
   hudTop, hudBot, screenTop, screenBot, readSafeArea, get SAFE() { return SAFE; }, set SAFE(v) { SAFE = v; },
   fitLines, TUT, GOALS, get finished() { return finished; }, set finished(v) { finished = v; },
   efficiencyOf, hasStore, onPath, PATH_SPEED, rebuildPaths, routeOf, get pathSet() { return pathSet; },
