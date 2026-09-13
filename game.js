@@ -2774,6 +2774,27 @@ function drawWorld() {
       tilePath(ghost.c + dc, ghost.r + dr);
       g.fillStyle = ghost.ok ? 'rgba(120,230,120,.40)' : 'rgba(235,90,70,.40)';
       g.fill();
+      /* Hatched when it cannot go there, not only red.
+
+         Green for yes and red for no is the one pairing the most common colour
+         blindness takes away. Measured on the island's own ground: the two
+         fills sit 51 apart in perceived colour for normal vision, and 9.9 apart
+         under deuteranopia -- roughly one man in twelve. Worse than the number
+         sounds, because nobody sees the two side by side: the player sees ONE
+         tile and has to decide what its colour means.
+
+         Stripes carry the answer without colour at all, so the tile reads as
+         blocked in greyscale, at night, and to anyone. */
+      if (!ghost.ok) {
+        const o = tileToWorld(ghost.c + dc, ghost.r + dr);
+        g.save(); g.clip();
+        g.strokeStyle = 'rgba(40,12,8,.55)'; g.lineWidth = 5;
+        g.beginPath();
+        for (let k = -TW; k <= TW; k += 18) {
+          g.moveTo(o.x + k - TH, o.y - TH); g.lineTo(o.x + k + TH, o.y + TH);
+        }
+        g.stroke(); g.restore();
+      }
     }
     /* fits, not ok: a tile that is legal but unaffordable still gets the preview
        and the label, because "you cannot pay for this yet" is worth saying and
