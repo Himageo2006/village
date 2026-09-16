@@ -2516,12 +2516,18 @@ function drawVillager(v) {
    is still decoding on a cold start. */
 /* Where a building's painting sits in the world, or null when it has none.
    One definition for drawing it and for tapping it. */
+/* How far up a building has risen. Only the FIRST time: an upgrade put the
+   hall back to a third of its size and grew it again, so for the length of
+   the work the village's biggest building looked demolished -- a small hall
+   sitting in the middle of its own full-size shadow. An upgrade keeps the
+   building standing and shows the scaffold. */
+const growOf = p => established(p) ? 1 : 0.35 + 0.65 * Math.max(0, Math.min(1, p.t));
 function artRect(p) {
   const b = B(p.key), art = artFor(p.key);
   if (!art || isDecor(p.key)) return null;
   const a = tileToWorld(p.c, p.r), d = tileToWorld(p.c + b.w - 1, p.r + b.h - 1);
   const cx = (a.x + d.x) / 2, cy = (a.y + d.y) / 2;
-  const grow = p.t < 1 ? 0.35 + 0.65 * p.t : 1;
+  const grow = growOf(p);
   const f = ART_FIT[p.key] || FIT_DEF;
   const fw = (b.w + b.h) * TW / 2;          // width of the plot's diamond
   const wid = fw * f.w * grow;
@@ -2550,7 +2556,7 @@ function drawBuilding(p, alpha, tint) {
     return;
   }
   const halfW = (b.w + b.h) * TW / 4.6, halfH = (b.w + b.h) * TH / 4.6;
-  const grow = p.t < 1 ? 0.35 + 0.65 * p.t : 1;      // rises as it is built
+  const grow = growOf(p);                            // rises as it is built
   const wallH = (b.wallH || 62) * grow;
 
   g.save(); g.globalAlpha = alpha;
@@ -2641,16 +2647,13 @@ function drawBuilding(p, alpha, tint) {
 /* Roughly where the top of a building is in world space, so a badge can sit
    above it. The art path knows its real height; the procedural one is measured
    from its wall height. */
+// the top of the painting, from the same artRect the painting is drawn with
 function topOf(p) {
-  const b = B(p.key), art = artFor(p.key);
+  const R = artRect(p);
+  if (R) return { x: R.cx, y: R.top };
+  const b = B(p.key);
   const a = tileToWorld(p.c, p.r), d = tileToWorld(p.c + b.w - 1, p.r + b.h - 1);
   const cx = (a.x + d.x) / 2, cy = (a.y + d.y) / 2;
-  const ny = cy + (b.w + b.h) * TH / 4;
-  if (art) {
-    const f = ART_FIT[p.key] || FIT_DEF, fw = (b.w + b.h) * TW / 2;
-    const wid = fw * f.w, hgt = art.height * (wid / art.width);
-    return { x: cx, y: ny - f.ay * hgt };
-  }
   return { x: cx, y: cy - (b.wallH || 62) - (b.w + b.h) * TH / 4 };
 }
 /* Badges are counter-scaled so they stay readable when the camera pulls back.

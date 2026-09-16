@@ -31,6 +31,12 @@
      one mid-cycle. */
   const INVARIANTS = [
     ['no negative resources', () => V.res.wood >= 0 && V.res.food >= 0],
+    // an upgrade leaves the building standing: only a first build rises from the ground
+    ['an upgrading building keeps its full size', () => V.placed.every(p => {
+      if (p.t >= 1 || !V.established(p)) return true;
+      const now = V.artRect(p), done = V.artRect({ ...p, t: 1 });
+      return !now || Math.abs(now.wid - done.wid) < 1e-6;
+    })],
     /* The hall's advice names something the player can actually do. It said
        "build a house" above a locked House card. Checked against the tray's and
        the upgrade button's own rules, not the advice's. */
