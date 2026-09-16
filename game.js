@@ -3026,6 +3026,8 @@ function tabRects() {
     { mode: 'orders',   label: 'Orders',   x: W / 2 + step, y, w, h },
   ];
 }
+// vertical centres on a build card, in HUD units from its middle (it is 118 tall)
+const TRAY_ICON = -35, TRAY_NAME = -8, TRAY_ONE = 26, TRAY_ROWS = [15, 37];
 function barRects() {
   const list = barList(), u = US(), n = list.length;
   const h = 118 * u, pad = 8 * u;
@@ -3126,15 +3128,21 @@ function drawHUD() {
     g.beginPath(); g.roundRect(r.x - r.w / 2, r.y - r.h / 2, r.w, r.h, 16); g.fill(); g.stroke();
     g.textAlign = 'center'; g.textBaseline = 'middle';
     g.globalAlpha = full ? 0.55 : 1;
-    g.font = `${Math.round(38 * u)}px Segoe UI, sans-serif`;
-    g.fillText(r.b.icon, r.x, r.y - r.h * 0.24);
+    /* Laid out in measured bands, not fractions of the card. With two costs
+       the name reached 15 below centre and the first cost row began at 12, so
+       "Lumber" and "Store" were printed through their own prices -- on the
+       first screen a new player sees. Glyph extents at these sizes (from
+       measureText): icon 32 is -18..+13, a name at 20 is -9.5..+5.5 (+2 for a
+       descender), a cost row at 20 is -12.5..+8.5. The card is -59..+59. */
+    g.font = `${Math.round(32 * u)}px Segoe UI, sans-serif`;
+    g.fillText(r.b.icon, r.x, r.y + TRAY_ICON * u);
     /* Shrunk like the price beneath it. The buttons divide a fixed 1024 across
        however many kinds there are, while the font grows with the HUD scale --
        so on a tall phone "Lumber Camp" came out 158 wide in a 134 button and ran
        into its neighbours. Another failure that only appears on the shape of
        screen the game is actually for. */
     const nameFit = fitLines(r.b.short || r.b.name, r.w - 12 * u, 20 * u, 11 * u, 1);
-    g.fillStyle = '#fff'; g.fillText(nameFit.lines[0], r.x, r.y + r.h * 0.08);
+    g.fillStyle = '#fff'; g.fillText(nameFit.lines[0], r.x, r.y + TRAY_NAME * u);
     g.globalAlpha = 1;
     /* Shrunk to fit the button. Two costs and a charm value at the largest HUD
        scale is wider than the tile it sits in, and a price that runs into its
@@ -3152,7 +3160,7 @@ function drawHUD() {
     const trayRow = (text, colour, at) => {
       const fit = fitLines(text, r.w - 14 * u, 20 * u, 11 * u, 1, '');
       g.fillStyle = colour;
-      g.fillText(fit.lines[0], r.x, r.y + r.h * at);
+      g.fillText(fit.lines[0], r.x, r.y + at * u);
     };
     /* Charm goes on the LAST cost line. It was beside the name for a while and
        "Flowerbed ✨5" is 193 logical pixels in a 139 pixel button -- one
@@ -3160,21 +3168,20 @@ function drawHUD() {
     const costRows = (entries, colour, tail) => {
       const parts = entries.map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v);
       if (tail) parts[parts.length - 1] += ' ' + tail;   // one space: two put it 3px over
-      if (parts.length < 2) { trayRow(parts.join(''), colour, 0.32); return; }
-      // 0.42 put the lower row's descenders on the button's own border
-      trayRow(parts[0], colour, 0.20);
-      trayRow(parts[1], colour, 0.38);
+      if (parts.length < 2) { trayRow(parts.join(''), colour, TRAY_ONE); return; }
+      trayRow(parts[0], colour, TRAY_ROWS[0]);
+      trayRow(parts[1], colour, TRAY_ROWS[1]);
     };
     if (full) {
       // the cost is irrelevant when the hall will not allow another one, and
       // "1/1 · upgrade hall" needed five CSS pixels to fit; the lock says it
       trayRow(isDecor(r.b.key) ? decorCount() + '/' + DECOR_MAX
-        : countOf(r.b.key) + '/' + allowedOf(r.b.key) + ' 🔒', '#e5b28a', 0.32);
+        : countOf(r.b.key) + '/' + allowedOf(r.b.key) + ' 🔒', '#e5b28a', TRAY_ONE);
     } else if (can && noSpareHands(r.b.key)) {
       /* At the readable floor: "no one spare" is 157 logical wide in a 115
          button and "none free" is 117 -- over it, and saying the wrong thing
          besides. "no spare" is 104 and true. */
-      trayRow('no spare', '#e5b28a', 0.32);   // allowed, affordable, nobody to spare
+      trayRow('no spare', '#e5b28a', TRAY_ONE);   // allowed, affordable, nobody to spare
     } else if (can) {
       costRows(Object.entries(r.b.cost), '#e8c98a',
         r.b.charm ? (charmRoom() > 0 ? '✨' + usefulCharm(r.b.key) : '✨full') : '');
@@ -3544,7 +3551,7 @@ function drawClaim() {
     g.font = `bold ${Math.round(30 * u)}px Segoe UI, sans-serif`;
     g.fillStyle = ok ? '#e8c98a' : '#e59a86';
     g.fillText(Object.entries(cost).map(([k, v]) => (k === 'wood' ? '🪵 ' : '🌾 ') + v).join('     '),
-      R.x, R.y + 2 * u);
+      R.x, R.y + 14 * u);   // at +2 its emoji touched the descenders of the line above
     g.fillStyle = ok ? 'rgba(62,104,44,.98)' : 'rgba(40,44,36,.9)';
     g.strokeStyle = ok ? '#9fe86b' : 'rgba(255,255,255,.16)'; g.lineWidth = 3;
     g.beginPath(); g.roundRect(R.yes.x - R.yes.w / 2, R.yes.y - R.yes.h / 2, R.yes.w, R.yes.h, 16 * u);
@@ -4544,7 +4551,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   get hiddenSim() { return hiddenSim; }, set hiddenSim(v) { hiddenSim = v; }, AWAY_MIN, AWAY_MAX,
   GOALS, currentGoal, get goalIdx() { return goalIdx; }, set goalIdx(v) { goalIdx = v; },
   get orders() { return orders; }, set orders(v) { orders = v; },
-  makeOrder, fillOrder, canFill, orderRects, ORDER_EVERY, ORDER_SLOTS, orderSlots, orderEvery, marketCount,
+  makeOrder, fillOrder, canFill, orderRects, ORDER_EVERY, ORDER_SLOTS, orderSlots, orderEvery, marketCount, TRAY_ICON, TRAY_NAME, TRAY_ONE, TRAY_ROWS,
   get ordersDone() { return ordersDone; }, set ordersDone(v) { ordersDone = v; },
   get orderT() { return orderT; }, set orderT(v) { orderT = v; },
   get goalDone() { return goalDone; }, set goalDone(v) { goalDone = v; },

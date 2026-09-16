@@ -769,8 +769,16 @@
            ran out of its chip into the chip beside it -- neither goes near a
            screen edge. Two pieces of HUD text sitting on top of each other is
            the symptom either way, so that is what gets checked. */
+        /* The ink, not a guess from the font size. Half a size either side is
+           too short for an emoji (a price at 20 inks -12.5..+8.5), so a name
+           printed through its own price measured as clear. */
+        const mt = ctx.measureText(t);
         const size = parseFloat(ctx.font) || 16;
-        boxes.push({ t: String(t).slice(0, 40), x0, x1: x0 + w, y0: y - size * 0.5, y1: y + size * 0.5 });
+        const asc = mt.actualBoundingBoxAscent, desc = mt.actualBoundingBoxDescent;
+        // both are measured from whatever textBaseline is set, so no case per baseline
+        const ok = Number.isFinite(asc) && Number.isFinite(desc);
+        const y0 = ok ? y - asc : y - size * 0.5, y1 = ok ? y + desc : y + size * 0.5;
+        boxes.push({ t: String(t).slice(0, 40), x0, x1: x0 + w, y0, y1 });
       }
       return orig(t, x, y, ...rest);
     };
@@ -780,7 +788,7 @@
       const ox = Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0);
       const oy = Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0);
       // a few pixels of kerning overlap is not a collision; a quarter of a line is
-      if (ox > 4 && oy > (a.y1 - a.y0) * 0.25)
+      if (ox > 4 && oy > 1)
         bad.push({ state: label, collide: [a.t, b.t], overlapPx: Math.round(ox) });
     }
     return bad;
@@ -1001,8 +1009,26 @@
     for (const [sw, sh] of [[1280, 720], [768, 1024], [400, 660], [360, 640],
                             [400, 750], [375, 812], [320, 960]]) {
       asScreen(sw, sh); const h = (V.step(0.001), cv.height); V.camFit(true);
+      let keptVillage = null;
       const states = {
-        build: () => { V.barMode = 'build'; V.panel = null; V.sel = null; V.away = null; V.claimAsk = false; },
+        /* The tray as a NEW player sees it: nothing built, nobody working, so
+           every card shows its full price -- and the two-price cards printed
+           the name straight through the first price. Neither sweep village
+           ever showed a two-price card, so nothing had drawn it. */
+        freshTray: () => { V.barMode = 'build'; V.panel = null; V.sel = null; V.away = null; V.claimAsk = false;
+          keptVillage = { placed: V.placed.slice(), villagers: V.villagers.slice(),
+                          wood: V.res.wood, food: V.res.food, tier: V.landTier };
+          V.placed.length = 0; V.villagers.length = 0; V.landTier = 1; V.ensureHall(); V.rebuildStores();
+          V.res.wood = 120; V.res.food = 60; V.invalidateJobs(); },
+        // and short of both, which stacks two shortfalls instead
+        brokeTray: () => { V.res.wood = 0; V.res.food = 0; },
+        build: () => { V.barMode = 'build'; V.panel = null; V.sel = null; V.away = null; V.claimAsk = false;
+          if (keptVillage) {
+            V.placed.length = 0; V.placed.push(...keptVillage.placed);
+            V.villagers.length = 0; V.villagers.push(...keptVillage.villagers);
+            V.res.wood = keptVillage.wood; V.res.food = keptVillage.food; V.landTier = keptVillage.tier;
+            V.rebuildStores(); V.invalidateJobs(); V.camFit(true); keptVillage = null;
+          } },
         decorate: () => { V.barMode = 'decor'; },
         /* And the decorate tray once charm is at its ceiling, which swaps every
            decoration's label for a different one. The sweep's village never had
