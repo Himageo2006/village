@@ -567,7 +567,18 @@ function rebuildStores() {
   invalidateJobs();                   // and they all move the delivery figures
   storeAt.length = 0;
   for (const p of placed)
-    if (p.t >= 1 && (B(p.key).caps || p.key === 'hall')) {
+    /* established, not finished -- the same line capacity and staffing already
+       draw. A building under its FIRST construction is not a store yet; one
+       being UPGRADED still is.
+
+       With p.t >= 1 here, starting an upgrade took the building off the list of
+       places to carry goods, while its capacity stayed. For the town hall that
+       broke the promise written just above: early on the hall is the only store,
+       raising it is a goal, and for the six seconds the work took the list of
+       delivery targets was empty -- measured, carriers stopped hauling and goods
+       piled up at the workplaces until the scaffolding came down. Upgrading a
+       storehouse likewise sent every carrier on a detour to the next one. */
+    if (established(p) && (B(p.key).caps || p.key === 'hall')) {
       const c = centreOf(p);
       storeAt.push({ p, x: c.x, y: c.y });
     }

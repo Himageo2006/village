@@ -131,7 +131,8 @@
        twelfth of those points -- so the soak test recomputes them from scratch
        after every action and insists they agree. */
     ['the cached store list is not stale', () => {
-      const want = V.placed.filter(p => p.t >= 1 && (V.B(p.key).caps || p.key === 'hall'));
+      // the same line the game draws: an upgrading store is still a store
+      const want = V.placed.filter(p => V.established(p) && (V.B(p.key).caps || p.key === 'hall'));
       const have = V.stores();
       return have.length === want.length && want.every(p => have.includes(p));
     }],
