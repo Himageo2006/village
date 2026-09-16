@@ -782,7 +782,40 @@
       }
       return orig(t, x, y, ...rest);
     };
-    try { V.draw(); } finally { ctx.fillText = orig; }
+    /* Boxes, as well as the words in them. The placement pill sat 4 units down
+       over the top of the tabs for as long as it existed -- no two strings
+       touched, so the text check had nothing to say. Two HUD shapes may nest (a
+       button in a panel) or stand apart; one lying PARTLY over another is a
+       collision. Each shape is labelled with the first text drawn inside it. */
+    const shapes = [], origRR = ctx.roundRect.bind(ctx);
+    const hudNow = () => { const m = ctx.getTransform();
+      return Math.abs(m.a - 1) < 1e-6 && Math.abs(m.d - 1) < 1e-6 && Math.abs(m.b) < 1e-6
+        && Math.abs(m.c) < 1e-6 && Math.abs(m.e) < 1e-6; };
+    ctx.roundRect = function (x, y, w, h, ...rest) {
+      if (hudNow() && w > 0 && h > 0) shapes.push({ x0: x, y0: y, x1: x + w, y1: y + h, alpha: ctx.globalAlpha, t: '' });
+      return origRR(x, y, w, h, ...rest);
+    };
+    const origFT = ctx.fillText;
+    ctx.fillText = function (t, x, y, ...rest) {
+      for (let i = shapes.length - 1; i >= 0; i--) {
+        const q = shapes[i];
+        if (!q.t && x >= q.x0 && x <= q.x1 && y >= q.y0 && y <= q.y1) { q.t = String(t).slice(0, 30); break; }
+      }
+      return origFT.call(this, t, x, y, ...rest);
+    };
+    try { V.draw(); } finally { ctx.fillText = orig; ctx.roundRect = origRR; }
+    const tol = 1.5;
+    for (let i = 0; i < shapes.length; i++) for (let j = i + 1; j < shapes.length; j++) {
+      const a = shapes[i], b = shapes[j];
+      if (a.alpha < 0.05 || b.alpha < 0.05) continue;       // faded out, not on screen
+      const ix = Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0);
+      const iy = Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0);
+      if (ix <= tol || iy <= tol) continue;
+      const inside = (p, q) => p.x0 >= q.x0 - tol && p.x1 <= q.x1 + tol && p.y0 >= q.y0 - tol && p.y1 <= q.y1 + tol;
+      if (inside(a, b) || inside(b, a)) continue;
+      bad.push({ state: label + ' [boxes]', collide: [a.t || '(box)', b.t || '(box)'],
+                 overlapPx: Math.round(Math.min(ix, iy)) });
+    }
     for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
       const a = boxes[i], b = boxes[j];
       const ox = Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0);

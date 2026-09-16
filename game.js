@@ -3285,12 +3285,14 @@ function drawHUD() {
       : moving != null
         ? 'Tap where it should go  ·  tap a tab to cancel'
         : 'Tap a tile to try it  ·  tap the icon again to cancel';
-    const y = tabRects()[0].y - tabRects()[0].h / 2 - 16 * u;
     g.save(); g.textAlign = 'center'; g.textBaseline = 'middle';
     const fit = fitLines(txt, W - 80 * u, 24 * u, 14 * u, 1, 'bold ');
     g.font = `bold ${Math.round(fit.px)}px Segoe UI, sans-serif`;
     const pw = Math.min(W - 24 * u, g.measureText(fit.lines[0]).width + 44 * u);
     const ph = fit.px * 1.7;
+    /* Sat on its own height, not a fixed 16 above the tabs: the pill is 41
+       tall, so half of it is 20, and its bottom covered the top of the tabs. */
+    const y = tabRects()[0].y - tabRects()[0].h / 2 - ph / 2 - 6 * u;
     g.fillStyle = 'rgba(16,26,14,.86)'; g.strokeStyle = 'rgba(255,255,255,.16)'; g.lineWidth = 2;
     g.beginPath(); g.roundRect(W / 2 - pw / 2, y - ph / 2, pw, ph, ph / 2); g.fill(); g.stroke();
     g.fillStyle = '#cfe0a8';
