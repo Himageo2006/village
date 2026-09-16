@@ -398,6 +398,8 @@
       tilesOffTheMap: JSON.stringify({ ...o, placed: o.placed.map(p => ({ ...p, c: -40, r: 80 })) }),
       everythingOnOneTile: JSON.stringify({ ...o, placed: o.placed.map(p => ({ ...p, c: 7, r: 7 })) }),
       landShrunkUnderTheVillage: JSON.stringify({ ...o, land: 0 }),
+      sharedGarbage: JSON.stringify({ ...o, shared: { wood: -5, food: 'lots' } }),
+      sharedHuge: JSON.stringify({ ...o, shared: { wood: 1e300, food: NaN } }),
     };
     const bad = [], kept = {};
     for (const [name, raw] of Object.entries(cases)) {
@@ -405,6 +407,7 @@
         localStorage.setItem(V.KEY, raw); localStorage.removeItem(V.KEY_BAK);
         V.placed.length = 0; V.villagers.length = 0; V.orders = [];
         V.res.wood = 60; V.res.food = 40; V.landTier = 0; V.goalIdx = 0; V.ordersDone = 0;
+        V.sharedTotal = { wood: 0, food: 0 };
         V.load(); V.ensureHall(); V.collectAway();
         for (let i = 0; i < 5 * 30; i++) V.step(1 / 30);
         V.draw();
@@ -423,6 +426,8 @@
           if (!Number.isFinite(V.res[k]) || V.res[k] < 0 || V.res[k] > V.caps[k] + 1) why.push(k + ' out of range');
         if (V.villagers.length < 1) why.push('nobody alive');
         if (!V.placed.every(q => V.B(q.key))) why.push('unknown building key');
+        for (const k of ['wood', 'food'])
+          if (!Number.isFinite(V.sharedTotal[k]) || V.sharedTotal[k] < 0) why.push('shared tally ' + k + ' broken');
         kept[name] = V.placed.length;
         if (why.length) bad.push({ name, why });
       } catch (e) { bad.push({ name, threw: String(e.message || e).slice(0, 70) }); }
@@ -1293,11 +1298,14 @@
     V.ordersDone = spec.done; V.muted = spec.mute;
     V.tutSeen.length = 0; spec.seen.forEach(x => V.tutSeen.push(x));
     V.orders = spec.tiers.map(t => V.makeOrder(t));
+    V.sharedTotal = { ...spec.shared };
   }
   const RICH = { land: 2, hall: 4, build: ['house', 'farm', 'lumber', 'store', 'well', 'statue'],
-                 w: 812, f: 655, goal: 9, done: 17, mute: false, seen: ['house', 'work'], tiers: [0, 1, 2] };
+                 w: 812, f: 655, goal: 9, done: 17, mute: false, seen: ['house', 'work'], tiers: [0, 1, 2],
+                 shared: { wood: 123456.5, food: 7890.25 } };
   const POOR = { land: 0, hall: 1, build: ['house'],
-                 w: 7, f: 3, goal: 1, done: 0, mute: true, seen: [], tiers: [2] };
+                 w: 7, f: 3, goal: 1, done: 0, mute: true, seen: [], tiers: [2],
+                 shared: { wood: 0, food: 0 } };
   window.saveSweep = function () {
     const real = (() => { try { return localStorage.getItem(V.KEY); } catch (e) { return null; } })();
     const reload = () => { V.placed.length = 0; V.villagers.length = 0; V.orders = []; V.load(); };

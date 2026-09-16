@@ -479,12 +479,36 @@ function grant(k, n, x, y) {
   if (got > 0.01 && pops.length < POP_MAX) pops.push({ x, y, k, n: got, age: 0 });
   return got;
 }
+/* What a finished village does with what it cannot keep.
+
+   Every goal done, every building at its best, the whole island claimed: a
+   village in that state has seventy-two villagers carrying about sixty-five goods
+   a second into stores that are already full, and for as long as this game has
+   existed every one of those loads was thrown away. Measured, and written down
+   as the one gap left -- a finished village with nowhere for its work to go.
+
+   So once the goal list is complete, overflow is sent to the neighbouring
+   villages instead, and the village keeps a tally of what it has given. It
+   changes nothing that can be spent -- the goods were lost either way -- which is
+   the point: it is a record, not a new economy, and it does not reach back into
+   the game before it is finished. Before that, a full store still says
+   "wasting", because that pressure is what teaches storage and trade. */
+let sharedTotal = { wood: 0, food: 0 };
+const villageFinished = () => goalIdx >= GOALS.length;
 function deliver(k, n, x, y) {
   const got = grant(k, n, x, y);
   rateAcc[k] += got;                  // a sale is not production, so only here
   if (got > 0.01) SFX.deliver();
+  // only what the villagers carried: rewards and refunds are not the village's work
+  if (villageFinished()) sharedTotal[k] += Math.max(0, Math.min(n, n - got));
   return got;
 }
+/* 1234 -> "1.2k", 1234567 -> "1.2M". A tally that runs for hours reaches seven
+   figures, and the hall panel has one line to say it in. */
+const compact = n => n < 1000 ? String(Math.floor(n))
+  : n < 1e6 ? (n / 1e3).toFixed(n < 1e4 ? 1 : 0) + 'k'
+  : n < 1e9 ? (n / 1e6).toFixed(n < 1e7 ? 1 : 0) + 'M'
+  : (n / 1e9).toFixed(1) + 'B';
 function stepFeedback(dt) {
   for (const q of pops) q.age += dt;
   for (let i = pops.length - 1; i >= 0; i--) if (pops[i].age > POP_LIFE) pops.splice(i, 1);
@@ -1917,7 +1941,7 @@ function save() {
   } catch (e) {}
   try { localStorage.setItem(KEY, JSON.stringify({
     v: SAVE_V, res, placed, t: Date.now(), rate: rateNow, seen: tutSeen, mute: muted,
-    goal: goalIdx, land: landTier, orders, ordersDone }));
+    goal: goalIdx, land: landTier, orders, ordersDone, shared: sharedTotal }));
     saveFailed = false;
   } catch (e) {
     /* Storage can be full, or blocked outright in a private window. Swallowing
@@ -1952,6 +1976,12 @@ function load() {
   if (Number.isFinite(s.goal)) goalIdx = Math.max(0, Math.min(GOALS.length, s.goal | 0));
   if (Number.isFinite(s.land)) landTier = Math.max(0, Math.min(LAND_MAX, s.land | 0));
   if (Number.isFinite(s.ordersDone)) ordersDone = Math.max(0, s.ordersDone | 0);
+  /* Not | 0: a tally that runs for hours passes the 32-bit range, and a wrapped
+     one would come back negative -- the same truncation that turned trade orders
+     into free converters. A save written before the tally existed has none. */
+  if (s.shared && typeof s.shared === 'object') for (const k of ['wood', 'food'])
+    if (typeof s.shared[k] === 'number' && isFinite(s.shared[k]) && s.shared[k] >= 0)
+      sharedTotal[k] = Math.min(1e15, s.shared[k]);
   if (Array.isArray(s.orders)) {
     orders = s.orders.filter(o => o && ['wood', 'food'].includes(o.giveK) && ['wood', 'food'].includes(o.getK)
       && Number.isFinite(o.giveN) && Number.isFinite(o.getN))
@@ -3003,9 +3033,11 @@ function drawHUD() {
        the fitter returns the line untouched rather than smaller. The string has
        to be the thing that gives. Dropping the decimal at ten takes it to 126,
        and three figures -- "wasting 999/s" -- lands exactly on 138. */
+    /* A finished village is not wasting anything; its surplus is going next
+       door. Same number, calm colour, true word. */
     if (full) sub(lost > 0.05
-      ? 'wasting ' + (lost >= 10 ? Math.round(lost) : lost.toFixed(1)) + '/s'
-      : 'storage full', '#f0a583');
+      ? (villageFinished() ? 'sharing ' : 'wasting ') + (lost >= 10 ? Math.round(lost) : lost.toFixed(1)) + '/s'
+      : 'storage full', villageFinished() ? '#9fd6a0' : '#f0a583');
     else sub(rate > 0.02 ? '+' + rate.toFixed(1) + ' / s' : 'idle',
       rate > 0.02 ? '#8fd06a' : DIM);
   };
@@ -3963,14 +3995,20 @@ function drawPanel() {
        are spending and trading. */
     const full = ['wood', 'food'].filter(k => res[k] >= caps[k] - CARRY);
     let s2 = count(st.villagers, 'villager');
-    if (full.length) s2 += '  ·  ' + (full.length === 2 ? 'stores' : full[0] === 'wood' ? '🪵 store' : '🌾 store')
+    /* A finished village has no binding constraint left to name -- it has
+       nothing it needs -- so the hall reports what it has given instead. */
+    if (villageFinished()) s2 += '  ·  ' + (sharedTotal.wood + sharedTotal.food >= 1
+      ? '🪵' + compact(sharedTotal.wood) + ' 🌾' + compact(sharedTotal.food) + ' shared with neighbours'
+      : 'every goal done');
+    else if (full.length) s2 += '  ·  ' + (full.length === 2 ? 'stores' : full[0] === 'wood' ? '🪵 store' : '🌾 store')
       + ' full — ' + (atLimit('store') ? 'spend or trade' : 'build a storehouse');
     else if (st.idle) s2 += '  ·  ' + st.idle + ' idle — build a workplace';
     else if (empty) s2 += '  ·  ' + count(empty, 'post') + ' empty — build a house';
     else s2 += '  ·  every post filled';
     if (st.avg !== null) s2 += '  ·  workplaces at ' + Math.round(st.avg * 100) + '%';
     panelRow(s2, lx, R.y - R.h / 2 + 78 * u, R.w - 56 * u, 20 * u,
-      (full.length || st.idle || empty) ? '#f0c88a'
+      villageFinished() ? '#a9bd9c'
+      : (full.length || st.idle || empty) ? '#f0c88a'
         : (st.avg !== null && st.avg < 0.6 ? '#f0c88a' : '#a9bd9c'), '');
   }
 
@@ -4465,5 +4503,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   get tutSeen() { return tutSeen; }, set tutSeen(v) { tutSeen = v; },
   get savedAt() { return savedAt; }, set savedAt(v) { savedAt = v; },
   get pops() { return pops; }, get rateNow() { return rateNow; },
+  get sharedTotal() { return sharedTotal; }, set sharedTotal(v) { sharedTotal = v; },
+  villageFinished, compact,
   get barMode() { return barMode; }, set barMode(v) { barMode = v; },
   backOpen, backClose, armBack, get backArmed() { return backArmed; } };
