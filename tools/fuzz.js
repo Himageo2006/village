@@ -980,6 +980,23 @@
       const states = {
         build: () => { V.barMode = 'build'; V.panel = null; V.sel = null; V.away = null; V.claimAsk = false; },
         decorate: () => { V.barMode = 'decor'; },
+        /* And the decorate tray once charm is at its ceiling, which swaps every
+           decoration's label for a different one. The sweep's village never had
+           enough charm to reach that branch, so those labels had never been
+           drawn in a sweep at all -- and a replacement I tried for one of them
+           ran 204 logical pixels wide in 148 of button without anything
+           noticing. */
+        decorateFull: () => { V.barMode = 'decor';
+          const L2 = V.landBounds();
+          for (let i = 0; i < 16 && V.charmRoom() > 0; i++) {
+            V.grant('wood', 999999, 0, 0); V.grant('food', 999999, 0, 0);
+            let done = false;
+            for (let c = L2.lo; c <= L2.hi && !done; c++) for (let r2 = L2.lo; r2 <= L2.hi && !done; r2++)
+              if (V.canPlace('statue', c, r2, V.occupied())) { V.place('statue', c, r2); done = true; }
+            if (!done) break;
+          }
+          for (const q2 of V.placed) if (q2.t < 1) q2.t = 1;
+        },
         orders: () => { V.barMode = 'orders'; V.orders = [V.makeOrder(0), V.makeOrder(1), V.makeOrder(2)]; },
         /* An empty board says something the full one never does, and nothing
            had ever drawn it in a sweep. */
