@@ -2969,7 +2969,7 @@ function drawWorld() {
           txt = !wg.n ? 'reaches no workplace'
             : 'lifts ' + count(wg.n, 'workplace') + '   ·   '
               + (wg.gain > 0.005 ? '+' + wg.gain.toFixed(2) + '/s' : 'none of them worked yet');
-        } else txt = empty ? 'no one spare — build a house first'
+        } else txt = empty ? 'no one spare — ' + remedy('people') + ' first'
           : deliveredOf(probe).toFixed(2) + '/s here'
             + (eff > 0.85 ? '' : '   ·   best ' + bestDeliveredOf(probe).toFixed(2));
         const w2 = g.measureText(txt).width + 26;
@@ -3881,6 +3881,27 @@ function charmDelivered() {
    workplaces average 48%" -- which are the two facts that actually tell you
    what to do next. Idle villagers mean build a workplace; a low average means
    move a storehouse or lay a road. */
+/* What the player can actually DO about a shortage, right now.
+
+   The hall said "1 post empty -- build a house" directly above a House card
+   reading 2/2 and locked, and "idle -- build a workplace" with every workplace
+   at its limit. Advice the tray refuses is worse than none. So: build one if
+   the hall allows another; otherwise improve one, if that adds what is short
+   and the hall allows the level; otherwise raise the hall. */
+function remedy(short) {
+  const kinds = BUILDINGS.filter(b => b.key !== 'hall' && !b.decor
+    && (short === 'people' ? b.pop : b.jobs && b.makes));
+  const noun = short === 'people' ? 'a house' : 'a workplace';
+  if (kinds.some(b => unlocked(b.key) && !atLimit(b.key))) return 'build ' + noun;
+  const gains = p => { const i = upInfo(p);
+    if (i.max || i.gate || p.t < 1) return false;
+    const next = { ...p, lvl: lvlOf(p) + 1 };
+    return short === 'people' ? popOf(next) > popOf(p) : jobsOf(next) > jobsOf(p); };
+  if (placed.some(p => kinds.some(b => b.key === p.key) && gains(p))) return 'improve ' + noun;
+  const h = hallOf();
+  if (h && !upInfo(h).max) return 'raise the town hall';
+  return short === 'people' ? 'no more houses possible' : 'no more workplaces possible';
+}
 function villageStats() {
   const prod = placed.filter(p => established(p) && B(p.key).jobs && B(p.key).makes && p.key !== 'hall');
   let working = 0;
@@ -4148,8 +4169,8 @@ function drawPanel() {
       : 'every goal done');
     else if (full.length) s2 += '  ·  ' + (full.length === 2 ? 'stores' : full[0] === 'wood' ? '🪵 store' : '🌾 store')
       + ' full — ' + (atLimit('store') ? 'spend or trade' : 'build a storehouse');
-    else if (st.idle) s2 += '  ·  ' + st.idle + ' idle — build a workplace';
-    else if (empty) s2 += '  ·  ' + count(empty, 'post') + ' empty — build a house';
+    else if (st.idle) s2 += '  ·  ' + st.idle + ' idle — ' + remedy('jobs');
+    else if (empty) s2 += '  ·  ' + count(empty, 'post') + ' empty — ' + remedy('people');
     else s2 += '  ·  every post filled';
     if (st.avg !== null) s2 += '  ·  workplaces at ' + Math.round(st.avg * 100) + '%';
     panelRow(s2, lx, R.y - R.h / 2 + 78 * u, R.w - 56 * u, 20 * u,
@@ -4664,7 +4685,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   tap, CAM, save, load, get caps() { return caps; },
   HALL, hallOf, hallLevel, allowedOf, countOf, atLimit, unlocked, buildable,
   canUpgrade, upgradeBuilding, upInfo, upCostOf, lvlOf, popOf, capsOf, rateOf, outMul, LVL_MAX,
-  shortfall, shortText, villageStats, wellGain, wellGainAt, charmDelivered, deliveredOf, deliveredWith, travelSecondsOf, handsFor,
+  shortfall, shortText, remedy, villageStats, wellGain, wellGainAt, charmDelivered, deliveredOf, deliveredWith, travelSecondsOf, handsFor,
   bestDeliveredOf, reachOf, SNUG_WALK,
   panelRects, TOUCH_MIN, padHit, TEXT_MIN, get panel() { return panel; }, set panel(v) { panel = v; },
   get villagers() { return villagers; }, workersAt, boostAt, producers, stores,

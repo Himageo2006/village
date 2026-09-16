@@ -31,6 +31,20 @@
      one mid-cycle. */
   const INVARIANTS = [
     ['no negative resources', () => V.res.wood >= 0 && V.res.food >= 0],
+    /* The hall's advice names something the player can actually do. It said
+       "build a house" above a locked House card. Checked against the tray's and
+       the upgrade button's own rules, not the advice's. */
+    ['the village only advises what can be done', () => {
+      for (const short of ['people', 'jobs']) {
+        const say = V.remedy(short);
+        const kinds = V.BUILDINGS.filter(b => b.key !== 'hall' && !b.decor && (short === 'people' ? b.pop : b.jobs && b.makes));
+        if (say.startsWith('build') && !kinds.some(b => V.unlocked(b.key) && !V.atLimit(b.key))) return false;
+        if (say.startsWith('improve') && !V.placed.some(p => kinds.some(b => b.key === p.key)
+          && p.t >= 1 && !V.upInfo(p).max && !V.upInfo(p).gate)) return false;
+        if (say.startsWith('raise') && (!V.hallOf() || V.upInfo(V.hallOf()).max)) return false;
+      }
+      return true;
+    }],
     /* NOT "resources never exceed the cap" -- that is false for an honest
        village, because selling a storehouse drops the ceiling below what is
        already in the barn and the goods do not evaporate. The rule that
