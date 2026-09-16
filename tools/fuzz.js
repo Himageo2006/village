@@ -1085,6 +1085,10 @@
            had ever drawn it in a sweep. */
         noOrders: () => { V.orders = []; },
         placing: () => { V.barMode = 'build'; V.sel = 'mill'; V.orders = [V.makeOrder(1)]; },
+        // the pill giving the reason a tap was refused, both reasons
+        refusedLand: () => { V.ghost = { c: 0, r: 0, fits: false, why: 'land', ok: false }; },
+        refusedTaken: () => { V.ghost = { c: 0, r: 0, fits: false, why: 'taken', ok: false }; },
+        placingDone: () => { V.ghost = null; },
         claim: () => { V.sel = null; V.claimAsk = true; },
         away: () => { V.claimAsk = false; V.away = { secs: 7200, got: { wood: 1234, food: 5678 } }; },
         /* A finished village back after twelve hours: the shared line, with
@@ -1189,6 +1193,19 @@
               for (const mode of ['build', 'decor', 'orders']) {
                 V.barMode = mode; V.panel = null; V.sel = null; V.step(0.001); take();
               }
+              /* Placement, which had never been measured here: the instruction
+                 pill, and the same pill giving a refusal in its warmer colour. */
+              V.barMode = 'build'; V.sel = 'house';
+              for (const why of [null, 'land', 'taken']) {
+                V.ghost = why ? { c: 0, r: 0, fits: false, why, ok: false } : null;
+                V.step(0.001); take();
+              }
+              // and a card picked before it is affordable, which shows its shortfall in red
+              V.ghost = null;
+              const keepRes = { wood: V.res.wood, food: V.res.food };
+              V.res.wood = 0; V.res.food = 0; V.step(0.001); take();
+              V.res.wood = keepRes.wood; V.res.food = keepRes.food;
+              V.ghost = null; V.sel = null;
               for (const q of [V.placed[0], V.placed[5], V.placed[7]]) {
                 if (!q) continue; V.panel = q.id; V.step(0.001); take();
               }

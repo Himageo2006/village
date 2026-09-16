@@ -1812,15 +1812,19 @@ const occupied = (exceptId) => {
     for (let dc = 0; dc < b.w; dc++) for (let dr = 0; dr < b.h; dr++) set.add((p.c + dc) + ',' + (p.r + dr)); }
   return set;
 };
-function canPlace(key, c, r, occ) {
+/* WHY a spot is refused, or null when it is not. canPlace is this and nothing
+   else, so the reason the placement pill gives can never disagree with the
+   refusal itself. */
+function placeProblem(key, c, r, occ) {
   const b = B(key);
-  if (c < 0 || r < 0 || c + b.w > GW || r + b.h > GH) return false;
+  if (c < 0 || r < 0 || c + b.w > GW || r + b.h > GH) return 'land';
   // every tile of the footprint has to be on land you actually own
   for (let dc = 0; dc < b.w; dc++) for (let dr = 0; dr < b.h; dr++)
-    if (!inLand(c + dc, r + dr)) return false;
-  for (let dc = 0; dc < b.w; dc++) for (let dr = 0; dr < b.h; dr++) if (occ.has((c + dc) + ',' + (r + dr))) return false;
-  return true;
+    if (!inLand(c + dc, r + dr)) return 'land';
+  for (let dc = 0; dc < b.w; dc++) for (let dr = 0; dr < b.h; dr++) if (occ.has((c + dc) + ',' + (r + dr))) return 'taken';
+  return null;
 }
+const canPlace = (key, c, r, occ) => placeProblem(key, c, r, occ) === null;
 const canAfford = cost => Object.entries(cost).every(([k, v]) => res[k] >= v);
 /* Exactly how far short you are. "Cannot afford" was signalled by a red tint
    and nothing else, which says the same thing whether you are two wood away or
@@ -3122,7 +3126,12 @@ function drawHUD() {
   for (const r of barRects()) {
     const full = atLimit(r.b.key), can = !full && affordable(r.b.key), sel = selBuild === r.b.key;
     g.save();
-    g.fillStyle = sel ? 'rgba(60,96,44,.95)' : can ? 'rgba(22,32,20,.92)' : 'rgba(40,22,20,.92)';
+    /* The selected green was light enough that the gold price on it measured
+       4.09, and a red shortfall (a card can be picked before it is affordable)
+       about 4.2 -- on the one card the player is looking at. Never measured,
+       because no sweep had a card selected. Darker, still plainly green, and
+       the bright border is what says "selected" anyway. */
+    g.fillStyle = sel ? 'rgba(38,64,28,.95)' : can ? 'rgba(22,32,20,.92)' : 'rgba(40,22,20,.92)';
     g.strokeStyle = sel ? '#9fe86b' : can ? 'rgba(255,255,255,.22)' : 'rgba(200,110,90,.5)';
     g.lineWidth = sel ? 4 : 2.5;
     g.beginPath(); g.roundRect(r.x - r.w / 2, r.y - r.h / 2, r.w, r.h, 16); g.fill(); g.stroke();
@@ -3189,7 +3198,7 @@ function drawHUD() {
       // what is still missing, not what it costs
       const short = Object.entries(r.b.cost)
         .map(([k, v]) => [k, Math.max(0, Math.ceil(v - res[k]))]).filter(([, v]) => v > 0);
-      costRows(short, '#e59a86', '');
+      costRows(short, '#f0a583', '');   // #e59a86 measured 4.45 on a selected card
     }
     g.restore();
   }
@@ -3281,7 +3290,16 @@ function drawHUD() {
 
        Fitted as well as backed, because the two cancel strings are the longest
        instructions in the game and the pill has to hold them. */
+    /* And why a tap was refused. A blocked tile got red stripes and a buzz --
+       and the buzz is nothing at all with the sound off -- so a new player
+       tapping the dark ground beside the hall, the most natural first try, was
+       told only "no". The reason goes HERE, on the pill that stays put, rather
+       than under the finger where it would flicker across every blocked tile. */
+    const refused = ghost && !ghost.fits && ghost.why;
     const txt = armed ? 'Tap the same spot again to confirm'
+      : refused === 'land' ? (landTier >= LAND_MAX ? 'Buildings have to go on the island'
+                              : 'That ground is not yours yet  ·  build on the lighter grass')
+      : refused === 'taken' ? 'Something is already standing there'
       : moving != null
         ? 'Tap where it should go  ·  tap a tab to cancel'
         : 'Tap a tile to try it  ·  tap the icon again to cancel';
@@ -3295,7 +3313,7 @@ function drawHUD() {
     const y = tabRects()[0].y - tabRects()[0].h / 2 - ph / 2 - 6 * u;
     g.fillStyle = 'rgba(16,26,14,.86)'; g.strokeStyle = 'rgba(255,255,255,.16)'; g.lineWidth = 2;
     g.beginPath(); g.roundRect(W / 2 - pw / 2, y - ph / 2, pw, ph, ph / 2); g.fill(); g.stroke();
-    g.fillStyle = '#cfe0a8';
+    g.fillStyle = refused ? '#f0c79a' : '#cfe0a8';
     g.fillText(fit.lines[0], W / 2, y);
     g.restore();
   }
@@ -4398,8 +4416,8 @@ function updateGhost(sx, sy) {
      the claimed land, under something else -- or perfectly good and simply
      unaffordable, and the preview painted both the same and said nothing. fits
      is the tile alone, so the label can tell them apart. */
-  const fits = canPlace(key, c, r, occ);
-  ghost = { c, r, fits, ok: fits && (moving != null || buildable(key)) };
+  const why = placeProblem(key, c, r, occ), fits = why === null;
+  ghost = { c, r, fits, why, ok: fits && (moving != null || buildable(key)) };
 }
 /* Which placed building covers a screen point, if any. */
 function buildingAt(sx, sy) {
@@ -4532,7 +4550,7 @@ for (const k of ['ground', 'water', 'tree_pine', 'tree_oak', 'rock', 'bush']) ar
 
 /* test hooks */
 window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, worldToTile,
-  camProject, camUnproject, canPlace, occupied, place, step, draw, barRects, barList, tileAt,
+  camProject, camUnproject, canPlace, placeProblem, occupied, place, step, draw, barRects, barList, tileAt,
   get sel() { return selBuild; }, set sel(v) { selBuild = v; },
   tap, CAM, save, load, get caps() { return caps; },
   HALL, hallOf, hallLevel, allowedOf, countOf, atLimit, unlocked, buildable,
@@ -4547,6 +4565,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   sparePeople, noSpareHands, peopleComing, livedIn,
   sellBuilding, canSell, sellValue, investedIn, capsWithout, get moving() { return moving; }, set moving(v) { moving = v; },
   get armed() { return armed; }, set armed(v) { armed = v; },
+  get ghost() { return ghost; }, set ghost(v) { ghost = v; },
   get sellArm() { return sellArm; }, set sellArm(v) { sellArm = v; }, SELL_ARM,
   collectAway, grantAway, potentialRate, currentHint, get away() { return away; }, set away(v) { away = v; },
   get hiddenAt() { return hiddenAt; }, set hiddenAt(v) { hiddenAt = v; },
