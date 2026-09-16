@@ -3461,7 +3461,10 @@ function drawGoal() {
     g.fillText(txt2, W / 2, y);
     g.restore(); return;
   }
-  const reward = Object.entries(gl.give).map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join(' ');
+  /* Named as a reward. Bare, it read as a price: 'Build a storehouse · 🪵70'
+     over a storehouse costing 🪵60 🌾20, 'Build a farm · 🪵30 🌾20' over a farm
+     costing 🪵45 -- the same icons-and-numbers the tray uses for what things cost. */
+  const reward = 'reward ' + Object.entries(gl.give).map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join(' ');
   /* How far along, for the goals that can count.
 
      "Raise every workplace to level 5" is thirty-one minutes and a hundred and
