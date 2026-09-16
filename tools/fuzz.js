@@ -31,6 +31,20 @@
      one mid-cycle. */
   const INVARIANTS = [
     ['no negative resources', () => V.res.wood >= 0 && V.res.food >= 0],
+    /* An offer stays in its stall until it is gone: filling one used to slide the
+       rest left under the player's finger. Remembers each id's stall between
+       checks; a reload issues new ids, so it cannot be fooled across one. */
+    ['an offer never moves to another stall', (() => { const at = new Map(); return () => {
+      V.orderRects();
+      const seen = new Set();
+      for (const o of V.orders) {
+        if (seen.has(o.slot)) return false;
+        seen.add(o.slot);
+        if (at.has(o.id) && at.get(o.id) !== o.slot && o.slot < V.orderSlots() && at.get(o.id) < V.orderSlots()) return false;
+        at.set(o.id, o.slot);
+      }
+      return true;
+    }; })()],
     // an upgrade leaves the building standing: only a first build rises from the ground
     ['an upgrading building keeps its full size', () => V.placed.every(p => {
       if (p.t >= 1 || !V.established(p)) return true;

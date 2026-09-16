@@ -1457,11 +1457,37 @@ function makeOrder(tier) {
   while (getN > step && getN / caps[getK] >= giveN / caps[giveK]) getN -= step;
   return { id: orderSeq++, tier, giveK, giveN, getK, getN };
 }
+/* Each offer keeps its stall.
+
+   Filling an order took it out of the list and the ones after it slid left
+   into its place, so a quick second tap where the first had been traded on a
+   DIFFERENT offer -- the 185-wood "best rate" card moved under the finger the
+   instant the 42-food one beside it was taken. The replacement path already
+   swapped in place for exactly this reason; filling did not. Now a filled
+   stall stays empty, with its countdown, until a trader takes it. */
+function freeStall() {
+  const n = Math.max(1, orderSlots()), used = new Set(orders.map(o => o.slot));
+  for (let i = 0; i < n; i++) if (!used.has(i)) return i;
+  return n;
+}
+// repair: a stall that is missing, doubled, or beyond the board (a market sold)
+function seatOrders() {
+  const n = Math.max(1, orderSlots()), seen = new Set();
+  for (const o of orders) {
+    if (Number.isInteger(o.slot) && o.slot >= 0 && o.slot < n && !seen.has(o.slot)) seen.add(o.slot);
+    else o.slot = undefined;
+  }
+  for (const o of orders) if (o.slot === undefined) {
+    let i = 0; while (seen.has(i)) i++;
+    o.slot = i; seen.add(i);
+  }
+}
 function stepOrders(dt) {
   orderT += dt;
   if (orderT < orderEvery()) return;
   orderT = 0;
-  if (orders.length < orderSlots()) { orders.push(makeOrder()); save(); return; }
+  seatOrders();
+  if (orders.length < orderSlots()) { orders.push({ ...makeOrder(), slot: freeStall() }); save(); return; }
   /* A full board never changed again until something on it was filled, and an
      order asks for whichever resource the village was richer in WHEN IT WAS
      WRITTEN. Spend that down, or simply tip the other way, and all three point
@@ -1490,7 +1516,7 @@ function stepOrders(dt) {
      is wrong with the offers, the village simply has nowhere to put anything. */
   if (orders.every(o => res[o.giveK] >= o.giveN)) return;
   const oldest = 0;
-  orders.splice(oldest, 1, makeOrder());
+  orders.splice(oldest, 1, { ...makeOrder(), slot: orders[oldest].slot });
   save();
 }
 /* Room for the reward is part of the price. Without this an order filled while
@@ -2036,7 +2062,7 @@ function load() {
          rate and stopped keeping the three sizes distinct when it refilled --
          and both of those are invisible failures that only start after a
          reload. An order saved before tiers existed is placed by its size. */
-      .map(o => ({ id: orderSeq++, giveK: o.giveK, getK: o.getK,
+      .map(o => ({ id: orderSeq++, giveK: o.giveK, getK: o.getK, slot: o.slot,
         tier: Number.isFinite(o.tier) ? Math.max(0, Math.min(ORDER_TIERS.length - 1, o.tier | 0))
           : nearestTier(o.giveN, o.giveK),
         /* | 0 is a 32-bit truncation, and a size past that range wraps. A save
@@ -3075,8 +3101,9 @@ function orderSlotRects() {
   return Array.from({ length: n }, (_, i) => ({ x: (W - total) / 2 + w / 2 + i * (w + pad), y, w, h }));
 }
 function orderRects() {
+  seatOrders();
   const slots = orderSlotRects();
-  return orders.slice(0, slots.length).map((o, i) => ({ o, ...slots[i] }));
+  return orders.filter(o => o.slot < slots.length).map(o => ({ o, ...slots[o.slot] }));
 }
 // seconds until the next trader arrives, or null when the board is full
 const nextTraderIn = () => orders.length >= orderSlots() ? null : Math.max(0, orderEvery() - orderT);
@@ -3287,7 +3314,9 @@ function drawHUD() {
        with a new trader only every 75 seconds, how long is the one thing worth
        knowing before deciding whether to wait or go and build. */
     const slots = orderSlotRects(), wait = nextTraderIn();
-    for (let i = rs.length; i < slots.length; i++) {
+    const taken = new Set(orders.map(o => o.slot)), firstFree = slots.findIndex((_, i) => !taken.has(i));
+    for (let i = 0; i < slots.length; i++) {
+      if (taken.has(i)) continue;
       const r = slots[i];
       g.save();
       g.fillStyle = 'rgba(16,26,14,.80)'; g.strokeStyle = 'rgba(255,255,255,.28)'; g.lineWidth = 2;
@@ -3295,7 +3324,7 @@ function drawHUD() {
       g.beginPath(); g.roundRect(r.x - r.w / 2, r.y - r.h / 2, r.w, r.h, 16); g.fill(); g.stroke();
       g.setLineDash([]);
       g.textAlign = 'center'; g.textBaseline = 'middle';
-      const first = i === rs.length && wait !== null;
+      const first = i === firstFree && wait !== null;
       const secs = first ? Math.ceil(wait) : 0;
       const when = secs >= 60 ? Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0') : secs + 's';
       const top = first ? 'next trader' : 'empty stall', bottom = first ? 'in ' + when : '';
@@ -3324,18 +3353,23 @@ function drawHUD() {
       g.lineWidth = ok ? 3 : 2.5;
       g.beginPath(); g.roundRect(r.x - r.w / 2, r.y - r.h / 2, r.w, r.h, 16); g.fill(); g.stroke();
       g.textAlign = 'center'; g.textBaseline = 'middle';
-      g.font = `bold ${Math.round(26 * u)}px Segoe UI, sans-serif`;
-      g.fillStyle = ok ? '#fff' : '#d8b3a6';
-      g.fillText((r.o.giveK === 'wood' ? '🪵' : '🌾') + ' ' + r.o.giveN, r.x, r.y - r.h * 0.26);
+      /* Which way the goods go. "🌾42 for 🪵39" reads either way round -- is
+         that 42 food for their 39 wood, or 42 food they want for 39 of yours?
+         The card said it only by making the lower figure green. */
+      const side = (verb, k, n, at, colour) => {
+        const fit = fitLines(verb + '  ' + (k === 'wood' ? '🪵' : '🌾') + ' ' + n, r.w - 18 * u, 26 * u, 14 * u, 1, 'bold ');
+        g.font = `bold ${Math.round(fit.px)}px Segoe UI, sans-serif`;
+        g.fillStyle = colour;
+        g.fillText(fit.lines[0], r.x, r.y + r.h * at);
+      };
+      side('give', r.o.giveK, r.o.giveN, -0.26, ok ? '#fff' : '#d8b3a6');
       g.font = `${Math.round(20 * u)}px Segoe UI, sans-serif`;
       // say WHY a card cannot be taken, rather than just greying it
       const why = res[r.o.giveK] < r.o.giveN ? 'not enough' : !hasRoom(r.o) ? 'no room'
-        : best ? 'best rate' : 'for';
-      g.fillStyle = why === 'for' ? DIM : best ? '#f0d894' : '#e59a86';
+        : best ? 'best rate' : 'tap to trade';
+      g.fillStyle = why === 'tap to trade' ? DIM : best ? '#f0d894' : '#e59a86';
       g.fillText(why, r.x, r.y);
-      g.font = `bold ${Math.round(26 * u)}px Segoe UI, sans-serif`;
-      g.fillStyle = ok ? '#9fe86b' : '#a2907f';
-      g.fillText((r.o.getK === 'wood' ? '🪵' : '🌾') + ' ' + r.o.getN, r.x, r.y + r.h * 0.26);
+      side('get', r.o.getK, r.o.getN, 0.26, ok ? '#9fe86b' : '#a2907f');
       g.restore();
     }
   }
@@ -4732,7 +4766,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   get hiddenSim() { return hiddenSim; }, set hiddenSim(v) { hiddenSim = v; }, AWAY_MIN, AWAY_MAX,
   GOALS, currentGoal, get goalIdx() { return goalIdx; }, set goalIdx(v) { goalIdx = v; },
   get orders() { return orders; }, set orders(v) { orders = v; },
-  makeOrder, fillOrder, canFill, orderRects, orderSlotRects, nextTraderIn, ORDER_EVERY, ORDER_SLOTS, orderSlots, orderEvery, marketCount, TRAY_ICON, TRAY_NAME, TRAY_ONE, TRAY_ROWS,
+  makeOrder, fillOrder, canFill, orderRects, orderSlotRects, nextTraderIn, seatOrders, freeStall, ORDER_EVERY, ORDER_SLOTS, orderSlots, orderEvery, marketCount, TRAY_ICON, TRAY_NAME, TRAY_ONE, TRAY_ROWS,
   get ordersDone() { return ordersDone; }, set ordersDone(v) { ordersDone = v; },
   get orderT() { return orderT; }, set orderT(v) { orderT = v; },
   get goalDone() { return goalDone; }, set goalDone(v) { goalDone = v; },
