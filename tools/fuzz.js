@@ -431,6 +431,124 @@
     return { cases: Object.keys(cases).length, unplayable: bad.length, bad, buildingsKept: kept };
   };
 
+  /* The badges over the buildings, which nothing had ever checked.
+
+     contrastFrame and its sweep look only at HUD text -- anything drawn under
+     the camera transform is skipped, because world text is SUPPOSED to be able
+     to run off the side of the screen. That exemption quietly covered the
+     badges too: the level on the hall, the green arrow for an affordable
+     upgrade, the amber "!" for a post with nobody at it, the "-N%" for one
+     losing itself to the walk. Those are information, and the world they sit on
+     is washed darker at night.
+
+     Sampled ABOVE and BELOW the glyph rather than beside it. Beside lands on the
+     badge's own bright border -- a 34-wide pill around a 20-wide glyph leaves
+     about six pixels of interior -- and measuring text against its own outline
+     reported 1.2 where the truth is 8.8, the same mistake emoji caused in the
+     HUD checker.
+
+       badgeSweep()  -> { failing, worst, samples }
+  --------------------------------------------------------------------------- */
+  window.badgeSweep = function () {
+    const cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
+    const realNow = Date.now;
+    /* Its own copies: the HUD checker's helpers live in the other closure in
+       this file, and reaching across silently threw inside a draw. */
+    const luminance = (r, g, b) => { const f = v => { v /= 255;
+      return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+      return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
+    const parseColour = c => {
+      const m = /^#?([0-9a-f]{6})$/i.exec(String(c));
+      if (m) { const n = parseInt(m[1], 16); return [n >> 16, (n >> 8) & 255, n & 255]; }
+      const r2 = /rgba?(([^)]+))/.exec(String(c));
+      if (!r2) return null;
+      const q = r2[1].split(',').map(Number); return [q[0], q[1], q[2]];
+    };
+    V.placed.length = 0; V.villagers.length = 0; V.landTier = 2;
+    V.ensureHall(); V.placed[0].lvl = 3;
+    const L = V.landBounds();
+    const put = k => { V.grant('wood', 99999, 0, 0); V.grant('food', 99999, 0, 0);
+      for (let c = L.lo; c <= L.hi; c++) for (let r = L.lo; r <= L.hi; r++)
+        if (V.canPlace(k, c, r, V.occupied())) return V.place(k, c, r); };
+    for (const k of ['house', 'house', 'store', 'farm', 'farm', 'lumber', 'lumber', 'mill']) put(k);
+    /* One workplace in the far corner, so the "losing it to the walk" badge has
+       something to appear on. */
+    V.grant('wood', 99999, 0, 0); V.grant('food', 99999, 0, 0);
+    outer: for (let c = L.hi; c >= L.lo; c--) for (let r = L.hi; r >= L.lo; r--)
+      if (V.canPlace('farm', c, r, V.occupied())) { V.place('farm', c, r); break outer; }
+    for (let i = 0; i < 200 * 30; i++) V.step(1 / 30);
+    V.panel = null; V.sel = null; V.moving = null; V.camFit(true); V.step(0.001);
+    const found = [];
+    const scan = () => {
+      const orig = ctx.fillText.bind(ctx);
+      const origStroke = ctx.strokeText.bind(ctx);
+      /* Text drawn with its own outline carries its background with it. The
+         delivery pops are stroked in near-black before they are filled, so the
+         reader sees the glyph against that halo -- but a sample taken six pixels
+         out clears the halo and lands on whatever roof is underneath, which
+         reported 4.01 for a pop that is perfectly legible. Anything stroked at
+         the same spot immediately before is exempt. */
+      let lastStroke = null;
+      ctx.strokeText = function (t, x, y, ...rest) {
+        lastStroke = { t: String(t), x, y };
+        return origStroke(t, x, y, ...rest);
+      };
+      ctx.fillText = function (t, x, y, ...rest) {
+        const m = ctx.getTransform(), str = String(t).trim();
+        const isWorld = Math.abs(m.a - 1) > 1e-6 || Math.abs(m.e) > 1e-6;
+        const outlined = lastStroke && lastStroke.t === String(t)
+          && lastStroke.x === x && lastStroke.y === y;
+        /* Emoji ignore fillStyle and paint in their own colours, so measuring one
+           against the fill in force compares a pill with itself. But "anything
+           without a letter or digit" is too blunt a way to say emoji: it throws
+           away the green ▲ over a building you can afford to improve, which is
+           an ordinary glyph that does take the fill colour -- and with it thrown
+           away the sweep stopped noticing when I dimmed that arrow on purpose.
+           Judged by codepoint instead: a character above the basic plane, or in
+           the Miscellaneous Symbols block, is emoji; U+25B2 is not. */
+        const isEmojiChar = ch => { const c = ch.codePointAt(0);
+          return c > 0xFFFF || (c >= 0x2600 && c <= 0x27BF) || (c >= 0xFE00 && c <= 0xFE0F); };
+        const isText = [...str].some(ch => ch.trim() && !isEmojiChar(ch));
+        if (isWorld && str.length && isText && !outlined) {
+          const fg = parseColour(ctx.fillStyle);
+          if (fg) {
+            const w = ctx.measureText(t).width, a = ctx.textAlign;
+            const lx = a === 'center' ? x : a === 'right' ? x - w / 2 : x + w / 2;
+            for (const dy of [-6, 6]) {
+              const px = Math.round(m.a * lx + m.c * (y + dy) + m.e);
+              const py = Math.round(m.b * lx + m.d * (y + dy) + m.f);
+              if (px < 0 || py < 0 || px >= cv.width || py >= cv.height) continue;
+              const d = ctx.getImageData(px, py, 1, 1).data;
+              const l1 = luminance(fg[0], fg[1], fg[2]), l2 = luminance(d[0], d[1], d[2]);
+              const ratio = (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+              found.push({ text: str.slice(0, 12), colour: String(ctx.fillStyle),
+                behind: 'rgb(' + d[0] + ',' + d[1] + ',' + d[2] + ')', ratio: +ratio.toFixed(2) });
+            }
+          }
+        }
+        return orig(t, x, y, ...rest);
+      };
+      try { V.draw(); } finally { ctx.fillText = orig; ctx.strokeText = origStroke; }
+    };
+    /* Across the day, and with the stores both empty and full -- full is what
+       sends a post to rest, and empty is what leaves it wanting people. */
+    for (const frac of [0.25, 0.6, 0.85]) {
+      Date.now = () => frac * V.DAY_MS;
+      for (const full of [false, true]) {
+        V.res.wood = full ? V.caps.wood : 40;
+        V.res.food = full ? V.caps.food : 30;
+        V.step(0.001); scan();
+      }
+    }
+    Date.now = realNow;
+    const best = new Map();
+    for (const f of found) { const k = f.text + '|' + f.colour;
+      if (!best.has(k) || f.ratio < best.get(k).ratio) best.set(k, f); }
+    const rows = [...best.values()].sort((a, b) => a.ratio - b.ratio);
+    return { failing: rows.filter(r => r.ratio < 4.5).length, samples: found.length,
+      worst: rows.slice(0, 6) };
+  };
+
   window.fuzz = function (rounds = 5000, populated = true) {
     const realSave = (() => { try { return localStorage.getItem(V.KEY); } catch (e) { return null; } })();
     // a throwaway village: never the player's own
