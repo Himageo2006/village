@@ -653,7 +653,25 @@
         }
         else if (act === 'upgrade') {
           const q = pick(V.placed);
-          if (q) { V.grant('wood', 400, 0, 0); V.grant('food', 400, 0, 0); V.upgradeBuilding(q); }
+          if (q) { V.grant('wood', 400, 0, 0); V.grant('food', 400, 0, 0);
+            /* Starting an upgrade must never take anything away. Storehouses,
+               houses, wells and markets each lost what they gave for the length
+               of the work, one at a time, and each was found separately -- this
+               asks the question once for everything the village is given. */
+            const gives = () => {
+              const workplaces = V.producers().filter(x => x.key !== 'hall');
+              return { wood: V.caps.wood, food: V.caps.food, homes: V.placed.reduce((n, x) => n + V.livedIn(x), 0),
+                trades: V.orderSlots(), stores: V.stores().length,
+                boost: workplaces.reduce((m, x) => m + V.boostAt(x), 0),
+                workplaces: V.villageStats().workplaces };
+            };
+            const was = gives();
+            if (V.upgradeBuilding(q)) {
+              const now = gives();
+              for (const [k, v] of Object.entries(was))
+                if (now[k] < v - 1e-9) { fails.push('upgrading a ' + q.key + ' took away ' + k + ' (' + v + ' -> ' + now[k] + ')'); break; }
+            }
+          }
         }
         else if (act === 'move') {
           /* A move takes two taps on the SAME tile -- arm, then commit. Tapping
@@ -1014,6 +1032,11 @@
            numbers as large as that path can produce. */
         awayShared: () => { V.away = { secs: 43200, capped: true, spilled: true,
           got: { wood: 8380, food: 8380 }, shared: { wood: 1234567, food: 9876543 } }; },
+        /* The same line at the largest total a save is allowed to hold. The
+           formatter stopped at billions and printed "1000000.0B" off the hall
+           panel, which a sweep only saw by accident, from a save left behind. */
+        awaySharedHuge: () => { V.away = { secs: 43200, capped: true, spilled: true,
+          got: { wood: 8380, food: 8380 }, shared: { wood: 1e15, food: 999999 } }; },
         hint: () => { V.away = null; V.tutSeen.length = 0; V.res.wood = V.caps.wood; V.res.food = V.caps.food; },
         goalBanner: () => { V.goalDone = { g: V.GOALS[V.GOALS.length - 1], got: { wood: 2500, food: 1600 }, age: 0 }; },
         /* Two warnings the player only ever sees when something has gone wrong,
@@ -1035,12 +1058,16 @@
       V.goalDone = null; V.finished = null;
       V.saveFailed = false; V.loadedFromBackup = false;
       for (const q of V.placed) if (q.t < 1) q.t = 1;
-      // and every panel, armed and not
+      // and every panel, armed and not -- the hall's with the village finished
+      // and the shared total at its ceiling, its longest line
+      const keepGoal = V.goalIdx, keepShared = V.sharedTotal;
+      V.goalIdx = V.GOALS.length; V.sharedTotal = { wood: 1e15, food: 999999 };
       for (const p of V.placed) for (const arm of [false, true]) {
         V.panel = p.id; V.sellArm = arm ? { id: p.id, t: 4 } : null;
         found.push(...scan('panel:' + p.key + (arm ? ' armed' : '') + ' @' + h + tag));
       }
       V.panel = null; V.sellArm = null;
+      V.goalIdx = keepGoal; V.sharedTotal = keepShared;
     }
     }
     asScreen(keepW, keepH); V.step(0.001);

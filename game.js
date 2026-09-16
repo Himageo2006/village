@@ -505,10 +505,20 @@ function deliver(k, n, x, y) {
 }
 /* 1234 -> "1.2k", 1234567 -> "1.2M". A tally that runs for hours reaches seven
    figures, and the hall panel has one line to say it in. */
-const compact = n => n < 1000 ? String(Math.floor(n))
-  : n < 1e6 ? (n / 1e3).toFixed(n < 1e4 ? 1 : 0) + 'k'
-  : n < 1e9 ? (n / 1e6).toFixed(n < 1e7 ? 1 : 0) + 'M'
-  : (n / 1e9).toFixed(1) + 'B';
+/* Stopped at billions, so the largest total a save may hold printed as
+   "1000000.0B" and ran off the hall panel. Each step also decides its unit from
+   the ROUNDED figure: 999,999 used to come out as "1000k". */
+const COMPACT_UNITS = ['k', 'M', 'B', 'T', 'Q'];
+function compact(n) {
+  n = Math.floor(Math.max(0, n) || 0);
+  if (n < 1000) return String(n);
+  let v = n;
+  for (let u = 0; u < COMPACT_UNITS.length; u++) {
+    v /= 1000;
+    const s = v.toFixed(v < 9.95 ? 1 : 0);
+    if (+s < 1000 || u === COMPACT_UNITS.length - 1) return s + COMPACT_UNITS[u];
+  }
+}
 function stepFeedback(dt) {
   for (const q of pops) q.age += dt;
   for (let i = pops.length - 1; i >= 0; i--) if (pops[i].age > POP_LIFE) pops.splice(i, 1);
@@ -546,6 +556,11 @@ const centreOf = p => { const b=B(p.key); return tileToWorld(p.c+(b.w-1)/2, p.r+
    as one being built for the first: the first has nobody working it yet, the
    second has people who should still have their jobs when it comes back. */
 const established = p => p.t >= 1 || lvlOf(p) > 1;
+/* The level a building is USING right now: the one it has once it is done, the
+   one it had while the scaffolding is up, nought the first time round. Houses,
+   storehouses, wells and markets all keep what they had while they improve --
+   starting an upgrade must never take anything away. */
+const lvlHeld = p => p.t >= 1 ? lvlOf(p) : lvlOf(p) - 1;
 const producers = () => placed.filter(p => established(p) && B(p.key).jobs);
 // the hall always accepts a delivery, so a village can never deadlock for want
 // of somewhere to put things
@@ -592,12 +607,12 @@ const workersAt = id => villagers.reduce((n,v)=>n+(v.job===id?1:0),0);
 function boostAt(p, exceptWell){
   const bp=B(p.key); let m=1;
   for(const w of placed){
-    if(w.key!=='well' || w.t<1) continue;
+    if(w.key!=='well' || !established(w)) continue;   // an improving well keeps its reach
     if(exceptWell !== undefined && w.id === exceptWell) continue;   // "what if this well were not here"
     const bw=B('well');
     const dx=(w.c+(bw.w-1)/2)-(p.c+(bp.w-1)/2);
     const dy=(w.r+(bw.h-1)/2)-(p.r+(bp.h-1)/2);
-    if(Math.hypot(dx,dy)<=bw.boostR) m+=bw.boost*outMul(lvlOf(w));
+    if(Math.hypot(dx,dy)<=bw.boostR) m+=bw.boost*outMul(lvlHeld(w));
   }
   return m;
 }
@@ -1269,7 +1284,7 @@ const popOf  = p => B(p.key).pop ? B(p.key).pop + (lvlOf(p) - 1) : 0;
    improving it. A house that has never finished houses nobody. */
 function livedIn(p) {
   if (!B(p.key).pop) return 0;
-  const lvl = p.t >= 1 ? lvlOf(p) : lvlOf(p) - 1;
+  const lvl = lvlHeld(p);
   return lvl >= 1 ? B(p.key).pop + (lvl - 1) : 0;
 }
 // and how many are on their way, once what is being built finishes
@@ -1375,7 +1390,7 @@ let orders = [], orderT = 0, orderSeq = 1, ordersDone = 0;
    numbers: it was that the trade BUILDING had nothing to do with the trade
    SYSTEM. Now each one adds a stall and brings the traders round faster, which
    at a full village is where a third of all wood comes from. */
-const marketCount = () => placed.reduce((n, p) => n + (p.key === 'market' && p.t >= 1 ? 1 : 0), 0);
+const marketCount = () => placed.reduce((n, p) => n + (p.key === 'market' && established(p) ? 1 : 0), 0);
 const orderSlots = () => Math.min(5, ORDER_SLOTS + marketCount());
 const orderEvery = () => ORDER_EVERY / (1 + 0.30 * marketCount());
 
@@ -1498,7 +1513,7 @@ function fillOrder(o) {
      It lands at the market if the village has one, because that is where the
      trading happens, and at the hall otherwise. Not through deliver(): a sale
      is not production and must not count towards the rate the HUD reports. */
-  const at = placed.find(q => q.key === 'market' && q.t >= 1) || hallOf();
+  const at = placed.find(q => q.key === 'market' && established(q)) || hallOf();
   const c = at ? centreOf(at) : { x: 0, y: 0 };
   grant(o.getK, o.getN, c.x, c.y);
   orders = orders.filter(q => q.id !== o.id);
@@ -1602,11 +1617,14 @@ const GOALS = [
     give: { wood: 2600, food: 1700 },
     at: () => [Math.min(charmTotal(), CHARM_FULL), CHARM_FULL] },
   { text: 'Raise every workplace to level 5',
-    done: () => { const w = placed.filter(p => B(p.key).jobs && p.key !== 'hall' && p.t >= 1);
-                  return w.length > 0 && w.every(p => lvlOf(p) >= LVL_MAX); },
+    /* Counted at the level each has REACHED: one still under scaffolding on its
+       way to five is not there yet, and leaving it out finished the goal the
+       moment the last upgrade was paid for. */
+    done: () => { const w = placed.filter(p => B(p.key).jobs && p.key !== 'hall');
+                  return w.length > 0 && w.every(p => lvlHeld(p) >= LVL_MAX); },
     give: { wood: 3400, food: 2200 },
-    at: () => { const w = placed.filter(p => B(p.key).jobs && p.key !== 'hall' && p.t >= 1);
-                return [w.filter(p => lvlOf(p) >= LVL_MAX).length, w.length]; } },
+    at: () => { const w = placed.filter(p => B(p.key).jobs && p.key !== 'hall');
+                return [w.filter(p => lvlHeld(p) >= LVL_MAX).length, w.length]; } },
   /* The finale, and the one the completion card names. */
   { text: 'Claim the whole island',        done: () => landTier >= LAND_MAX,
     give: { wood: 5000, food: 3200 } },
@@ -1858,7 +1876,7 @@ function capsSum(skip) {
        put the village instantly over it, and stopped every delivery until the
        work finished -- so improving your storage punished you for improving
        your storage. It earns the new capacity when it is done, not before. */
-    const lvl = p.t >= 1 ? lvlOf(p) : lvlOf(p) - 1;
+    const lvl = lvlHeld(p);
     if (lvl < 1) continue;                        // still being built the first time
     for (const k of ['wood', 'food']) out[k] += capsOf({ key: p.key, lvl }, k);
   }
@@ -2829,7 +2847,7 @@ function drawWorld() {
      where to move it. */
   if (panel != null) {
     const wp = byId(panel);
-    if (wp && B(wp.key).boost && wp.t >= 1) drawWellReach(wp.c, wp.r, 0.8);
+    if (wp && B(wp.key).boost && established(wp)) drawWellReach(wp.c, wp.r, 0.8);
   }
   if (ghost && ghostKey()) {                            // placement preview
     const selKey = ghostKey(), b = B(selKey);
@@ -3092,7 +3110,7 @@ function drawHUD() {
        covers a village full of working farms whose three charm is worth a
        thousandth of a load a second. Two different things, and only one of them
        is the player's to fix by building something. */
-    const anyWork = placed.some(q => q.t >= 1 && B(q.key).makes && B(q.key).jobs && workersAt(q.id));
+    const anyWork = placed.some(q => established(q) && B(q.key).makes && B(q.key).jobs && workersAt(q.id));
     g.fillText(cd > 0.005 ? 'charm ' + ch
       : anyWork ? 'too little to count yet' : 'no workplaces yet', x + 58 * u, ry + 18 * u);
   }
@@ -3702,7 +3720,7 @@ function panelRects() {
 function wellGain(w) {
   let n = 0, gain = 0;
   for (const p of placed) {
-    if (p.t < 1 || !B(p.key).makes || !B(p.key).jobs) continue;
+    if (!established(p) || !B(p.key).makes || !B(p.key).jobs) continue;
     const withIt = boostAt(p), without = boostAt(p, w.id);
     if (withIt === without) continue;
     n++;
@@ -3726,7 +3744,7 @@ function wellGainAt(c, r, lvl) {
   let n = 0, gain = 0;
   for (const p of placed) {
     const b = B(p.key);
-    if (p.t < 1 || !b.makes || !b.jobs) continue;
+    if (!established(p) || !b.makes || !b.jobs) continue;
     const dx = (c + (bw.w - 1) / 2) - (p.c + (b.w - 1) / 2);
     const dy = (r + (bw.h - 1) / 2) - (p.r + (b.h - 1) / 2);
     if (Math.hypot(dx, dy) > bw.boostR) continue;
@@ -3761,7 +3779,7 @@ function charmDelivered() {
   let gain = 0;
   for (const p of placed) {
     const b = B(p.key);
-    if (p.t < 1 || !b.makes || !b.jobs) continue;
+    if (!established(p) || !b.makes || !b.jobs) continue;
     const hands = workersAt(p.id);
     if (!hands) continue;
     const base = rateOf(p, Object.keys(b.makes)[0]) * boostAt(p);
@@ -3778,14 +3796,14 @@ function charmDelivered() {
    what to do next. Idle villagers mean build a workplace; a low average means
    move a storehouse or lay a road. */
 function villageStats() {
-  const prod = placed.filter(p => p.t >= 1 && B(p.key).jobs && B(p.key).makes && p.key !== 'hall');
+  const prod = placed.filter(p => established(p) && B(p.key).jobs && B(p.key).makes && p.key !== 'hall');
   let working = 0;
   for (const p of placed) if (B(p.key).jobs) working += workersAt(p.id);
   const idle = Math.max(0, villagers.length - working);
   // measured against what each would give in a good spot -- see reachOf
   const effs = prod.map(p => reachOf(p)).filter(e => e !== null);
   const avg = effs.length ? effs.reduce((a, b) => a + b, 0) / effs.length : null;
-  const slots = placed.reduce((n, p) => n + (p.t >= 1 ? jobsOf(p) : 0), 0);
+  const slots = placed.reduce((n, p) => n + (established(p) ? jobsOf(p) : 0), 0);
   return { villagers: villagers.length, working, idle, avg, slots, workplaces: prod.length };
 }
 
@@ -4514,7 +4532,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   bestDeliveredOf, reachOf, SNUG_WALK,
   panelRects, TOUCH_MIN, padHit, TEXT_MIN, get panel() { return panel; }, set panel(v) { panel = v; },
   get villagers() { return villagers; }, workersAt, boostAt, producers, stores,
-  assignJobs, desiredJobs, computeJobs, invalidateJobs, established, buildingAt, ensureHall, jobsOf, VILLAGER_MAX, rebuildStores, nearestStore,
+  assignJobs, desiredJobs, computeJobs, invalidateJobs, established, lvlHeld, buildingAt, ensureHall, jobsOf, VILLAGER_MAX, rebuildStores, nearestStore,
   isDecor, decorCount, DECOR_MAX, charmTotal, charmMul, charmRoom, usefulCharm, CHARM_FULL,
   tabRects, drawDecor, grant,
   sparePeople, noSpareHands, peopleComing, livedIn,
