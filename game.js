@@ -3036,14 +3036,23 @@ const barList = () => barMode === 'decor'
 
 /* Order cards occupy the same strip as the build bar, laid out on the same
    geometry so the two cannot drift apart. */
-function orderRects() {
+/* Every stall on the board, filled or not. The cards are laid out for all of
+   them, so drawing only the filled ones put a lone offer in the left-hand
+   third of the screen beside an empty row. */
+function orderSlotRects() {
   const u = US(), n = Math.max(1, orderSlots());
   const h = 118 * u, pad = 8 * u;
   const w = Math.min(250 * u, (W - pad * (n + 1)) / n);
   const y = hudBot() - h / 2 - 22 * u;
   const total = n * w + (n - 1) * pad;
-  return orders.slice(0, n).map((o, i) => ({ o, x: (W - total) / 2 + w / 2 + i * (w + pad), y, w, h }));
+  return Array.from({ length: n }, (_, i) => ({ x: (W - total) / 2 + w / 2 + i * (w + pad), y, w, h }));
 }
+function orderRects() {
+  const slots = orderSlotRects();
+  return orders.slice(0, slots.length).map((o, i) => ({ o, ...slots[i] }));
+}
+// seconds until the next trader arrives, or null when the board is full
+const nextTraderIn = () => orders.length >= orderSlots() ? null : Math.max(0, orderEvery() - orderT);
 
 /* The two tabs above the bar. One definition, used to draw and to hit-test. */
 function tabRects() {
@@ -3245,22 +3254,31 @@ function drawHUD() {
   }
   if (barMode === 'orders') {
     const rs = orderRects();
-    if (!rs.length) {
-      /* On a pill. An empty board shows this where the three cards would be --
-         over the world, with nothing behind it -- and the cards it replaces all
-         have backgrounds of their own. Fourth string in this game found painted
-         straight onto the sea. */
-      const txt = 'No orders just now — a trader will be along shortly';
-      const y2 = hudBot() - 80 * u;
-      g.save(); g.textAlign = 'center'; g.textBaseline = 'middle';
-      const fit = fitLines(txt, W - 80 * u, 23 * u, 14 * u, 1);
-      g.font = `${Math.round(fit.px)}px Segoe UI, sans-serif`;
-      const pw = Math.min(W - 24 * u, g.measureText(fit.lines[0]).width + 44 * u);
-      const ph = fit.px * 1.8;
-      g.fillStyle = 'rgba(16,26,14,.82)'; g.strokeStyle = 'rgba(255,255,255,.14)'; g.lineWidth = 2;
-      g.beginPath(); g.roundRect(W / 2 - pw / 2, y2 - ph / 2, pw, ph, ph / 2); g.fill(); g.stroke();
-      g.fillStyle = DIM;
-      g.fillText(fit.lines[0], W / 2, y2);
+    /* The stalls with nobody at them, as stalls: an outline where the next
+       offer will appear, and WHEN. "A trader will be along shortly" was the
+       whole of what an empty board said, and a half-empty one said nothing --
+       with a new trader only every 75 seconds, how long is the one thing worth
+       knowing before deciding whether to wait or go and build. */
+    const slots = orderSlotRects(), wait = nextTraderIn();
+    for (let i = rs.length; i < slots.length; i++) {
+      const r = slots[i];
+      g.save();
+      g.fillStyle = 'rgba(16,26,14,.80)'; g.strokeStyle = 'rgba(255,255,255,.28)'; g.lineWidth = 2;
+      g.setLineDash([10, 8]);
+      g.beginPath(); g.roundRect(r.x - r.w / 2, r.y - r.h / 2, r.w, r.h, 16); g.fill(); g.stroke();
+      g.setLineDash([]);
+      g.textAlign = 'center'; g.textBaseline = 'middle';
+      const first = i === rs.length && wait !== null;
+      const secs = first ? Math.ceil(wait) : 0;
+      const when = secs >= 60 ? Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0') : secs + 's';
+      const top = first ? 'next trader' : 'empty stall', bottom = first ? 'in ' + when : '';
+      const f1 = fitLines(top, r.w - 20 * u, 21 * u, 12 * u, 1);
+      g.font = `${Math.round(f1.px)}px Segoe UI, sans-serif`; g.fillStyle = DIM;
+      g.fillText(f1.lines[0], r.x, bottom ? r.y - 16 * u : r.y);
+      if (bottom) {
+        g.font = `bold ${Math.round(24 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#e8e2c8';
+        g.fillText(bottom, r.x, r.y + 17 * u);
+      }
       g.restore();
     }
     /* Which stall on the board trades best. The rate rises with the size, and
@@ -4568,6 +4586,9 @@ function tap(sx, sy) {
         return;
       }
     }
+    // an empty stall is part of the board, not a hole through it to the world
+    for (const r of orderSlotRects())
+      if (Math.abs(sx - r.x) < r.w / 2 && Math.abs(sy - r.y) < r.h / 2) return;
   }
   for (const r of barRects()) {
     if (Math.abs(sx - r.x) < r.w / 2 && Math.abs(sy - r.y) < r.h / 2) {
@@ -4660,7 +4681,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   get hiddenSim() { return hiddenSim; }, set hiddenSim(v) { hiddenSim = v; }, AWAY_MIN, AWAY_MAX,
   GOALS, currentGoal, get goalIdx() { return goalIdx; }, set goalIdx(v) { goalIdx = v; },
   get orders() { return orders; }, set orders(v) { orders = v; },
-  makeOrder, fillOrder, canFill, orderRects, ORDER_EVERY, ORDER_SLOTS, orderSlots, orderEvery, marketCount, TRAY_ICON, TRAY_NAME, TRAY_ONE, TRAY_ROWS,
+  makeOrder, fillOrder, canFill, orderRects, orderSlotRects, nextTraderIn, ORDER_EVERY, ORDER_SLOTS, orderSlots, orderEvery, marketCount, TRAY_ICON, TRAY_NAME, TRAY_ONE, TRAY_ROWS,
   get ordersDone() { return ordersDone; }, set ordersDone(v) { ordersDone = v; },
   get orderT() { return orderT; }, set orderT(v) { orderT = v; },
   get goalDone() { return goalDone; }, set goalDone(v) { goalDone = v; },

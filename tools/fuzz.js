@@ -1127,6 +1127,8 @@
         /* An empty board says something the full one never does, and nothing
            had ever drawn it in a sweep. */
         noOrders: () => { V.orders = []; },
+        // one offer, the countdown at its longest (minutes) and an empty stall
+        halfOrders: () => { V.orders = [V.makeOrder(2)]; V.orderT = 0; },
         placing: () => { V.barMode = 'build'; V.sel = 'mill'; V.orders = [V.makeOrder(1)]; },
         // the pill giving the reason a tap was refused, both reasons
         refusedLand: () => { V.ghost = { c: 0, r: 0, fits: false, why: 'land', ok: false }; },
@@ -1249,6 +1251,9 @@
               V.res.wood = 0; V.res.food = 0; V.step(0.001); take();
               V.res.wood = keepRes.wood; V.res.food = keepRes.food;
               V.ghost = null; V.sel = null;
+              // a half-empty board: its countdown and empty stalls, never measured before
+              { const keepO = V.orders; V.barMode = 'orders'; V.orders = [V.makeOrder(1)]; V.orderT = 0;
+                V.step(0.001); take(); V.orders = keepO; }
               for (const q of [V.placed[0], V.placed[5], V.placed[7]]) {
                 if (!q) continue; V.panel = q.id; V.step(0.001); take();
               }
