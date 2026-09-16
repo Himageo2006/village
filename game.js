@@ -3021,11 +3021,15 @@ function drawWorld() {
     g.beginPath(); g.ellipse(w.x, w.y, rx, ry, 0, 0, 7); g.stroke();
     g.restore();
   }
-  if (pendingGhost) pendingGhost();
   // after the entities, so the trees out in the wild are dimmed with the ground
   // they stand on rather than glowing against it
   drawFrontier();
   drawPops();
+  /* Last of all. It was drawn before the frontier and the delivery pops, so
+     "+8" floated over the first word of "lifts 3 workplaces", and a label
+     hanging out over unclaimed ground was dimmed along with it -- the one
+     number the player is choosing a spot by, under passing decoration. */
+  if (pendingGhost) pendingGhost();
 }
 
 /* ---------- HUD ---------- */
