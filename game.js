@@ -2514,20 +2514,29 @@ function drawVillager(v) {
 /* Draws the painted sprite when it has loaded, and the procedural building when
    it has not -- so the village still works before the art arrives, and while it
    is still decoding on a cold start. */
+/* Where a building's painting sits in the world, or null when it has none.
+   One definition for drawing it and for tapping it. */
+function artRect(p) {
+  const b = B(p.key), art = artFor(p.key);
+  if (!art || isDecor(p.key)) return null;
+  const a = tileToWorld(p.c, p.r), d = tileToWorld(p.c + b.w - 1, p.r + b.h - 1);
+  const cx = (a.x + d.x) / 2, cy = (a.y + d.y) / 2;
+  const grow = p.t < 1 ? 0.35 + 0.65 * p.t : 1;
+  const f = ART_FIT[p.key] || FIT_DEF;
+  const fw = (b.w + b.h) * TW / 2;          // width of the plot's diamond
+  const wid = fw * f.w * grow;
+  const hgt = art.height * (wid / art.width);
+  // the plot's near vertex: where the front corner of the building lands
+  const ny = cy + (b.w + b.h) * TH / 4;
+  return { art, cx, cy, fw, ny, wid, hgt, left: cx - f.ax * wid, top: ny - f.ay * hgt };
+}
 function drawBuilding(p, alpha, tint) {
   const b = B(p.key);
   const a = tileToWorld(p.c, p.r), d = tileToWorld(p.c + b.w - 1, p.r + b.h - 1);
   const cx = (a.x + d.x) / 2, cy = (a.y + d.y) / 2;
-  const art = artFor(p.key);
-  if (art && !tint) {                       // tint is only used by the ghost preview
-    const grow = p.t < 1 ? 0.35 + 0.65 * p.t : 1;
-    const f = ART_FIT[p.key] || FIT_DEF;
-    const fw = (b.w + b.h) * TW / 2;        // width of the plot's diamond
-    const wid = fw * f.w * grow;
-    const hgt = art.height * (wid / art.width);
-    // the plot's near vertex: where the front corner of the building lands
-    const ny = cy + (b.w + b.h) * TH / 4;
-    const left = cx - f.ax * wid, top = ny - f.ay * hgt;
+  const ar = tint ? null : artRect(p);        // tint is only used by the ghost preview
+  if (ar) {
+    const { art, fw, ny, wid, hgt, left, top } = ar;
     g.save(); g.globalAlpha = alpha;
     g.fillStyle = 'rgba(10,18,8,.30)';
     g.beginPath(); g.ellipse(cx, cy, fw * 0.40, fw * 0.20, 0, 0, 7); g.fill();
@@ -4451,9 +4460,56 @@ function updateGhost(sx, sy) {
   const why = placeProblem(key, c, r, occ), fits = why === null;
   ghost = { c, r, fits, why, ok: fits && (moving != null || buildable(key)) };
 }
-/* Which placed building covers a screen point, if any. */
+/* Which placed building a screen point is ON, as the player sees it.
+
+   It used to ask only which building's ground tiles the point was over. The
+   paintings stand well above their plots -- the hall's roof and tower are the
+   upper half of what you see -- so a tap on the top of a building landed on
+   the ground BEHIND it: another building, nothing, or, at the edge of the
+   claim, the "Claim more land" card. The most natural place to tap the hall
+   was the one place that did not open it.
+
+   So the paintings are asked first, front to back in the order they are
+   drawn, and only where they are actually painted (a coarse alpha mask per
+   image, so the sky beside a roof is not the roof). Then the ground, for
+   decorations and anything drawn without art. */
+const HIT_MASK = new Map();                   // image -> { w, h, a: Uint8Array }
+const HIT_STEP = 4;                           // source pixels per mask cell
+function hitMask(art) {
+  if (HIT_MASK.has(art)) return HIT_MASK.get(art);
+  let m = null;
+  try {
+    const w = Math.max(1, Math.ceil(art.width / HIT_STEP)), h = Math.max(1, Math.ceil(art.height / HIT_STEP));
+    const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+    const cx = cv.getContext('2d', { willReadFrequently: true });
+    cx.drawImage(art, 0, 0, w, h);
+    const d = cx.getImageData(0, 0, w, h).data, a = new Uint8Array(w * h);
+    for (let i = 0; i < a.length; i++) a[i] = d[i * 4 + 3];
+    m = { w, h, a };
+  } catch (e) { m = null; }                   // unreadable: fall back to the rectangle
+  HIT_MASK.set(art, m);
+  return m;
+}
+function paintedAt(p, wx, wy) {
+  const R = artRect(p);
+  if (!R || wx < R.left || wx >= R.left + R.wid || wy < R.top || wy >= R.top + R.hgt) return false;
+  const m = hitMask(R.art);
+  if (!m) return true;
+  const u = Math.min(m.w - 1, Math.floor((wx - R.left) / R.wid * m.w));
+  const v = Math.min(m.h - 1, Math.floor((wy - R.top) / R.hgt * m.h));
+  return m.a[v * m.w + u] > 96;
+}
+const depthOf = p => { const b = B(p.key); return tileToWorld(p.c + b.w - 1, p.r + b.h - 1).y; };
 function buildingAt(sx, sy) {
   const w = camUnproject(sx, sy), t = tileAt(w.x, w.y);
+  let best = null, bestY = -Infinity;
+  for (const p of placed) {
+    if (B(p.key).flat) continue;
+    const y = depthOf(p);
+    // >= because a later building at the same depth is drawn over an earlier one
+    if (y >= bestY && paintedAt(p, w.x, w.y)) { best = p; bestY = y; }
+  }
+  if (best) return best;
   const c = t.c, r = t.r;
   return placed.find(p => { const b = B(p.key);
     return c >= p.c && c < p.c + b.w && r >= p.r && r < p.r + b.h; }) || null;
@@ -4592,7 +4648,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   panelRects, TOUCH_MIN, padHit, TEXT_MIN, get panel() { return panel; }, set panel(v) { panel = v; },
   get villagers() { return villagers; }, workersAt, boostAt, producers, stores,
   assignJobs, desiredJobs, computeJobs, invalidateJobs, established, lvlHeld, buildingAt, ensureHall, jobsOf, VILLAGER_MAX, rebuildStores, nearestStore,
-  isDecor, decorCount, DECOR_MAX, charmTotal, charmMul, charmRoom, usefulCharm, CHARM_FULL,
+  artRect, paintedAt, isDecor, decorCount, DECOR_MAX, charmTotal, charmMul, charmRoom, usefulCharm, CHARM_FULL,
   tabRects, drawDecor, grant,
   sparePeople, noSpareHands, peopleComing, livedIn,
   sellBuilding, canSell, sellValue, investedIn, capsWithout, get moving() { return moving; }, set moving(v) { moving = v; },

@@ -911,7 +911,28 @@
       }
     }
     V2.panel = null;
-    return { controls: drawn.length, conflicts: bad.length, worst: bad.slice(0, 6) };
+    /* A building is what you see, not the ground under it. Taps used to be
+       matched to plots only, so the roof and tower of the hall -- the top half
+       of it on screen -- opened whatever stood behind, or the claim card. For
+       every painting, points where it is the one on top and which lie ABOVE its
+       own plot must still open it. */
+    let paintingChecks = 0;
+    for (const p of V2.placed) {
+      const R = V2.artRect(p); if (!R) continue;
+      const b = V2.B(p.key), dep = q => { const bq = V2.B(q.key); return V2.tileToWorld(q.c + bq.w - 1, q.r + bq.h - 1).y; };
+      for (let fy = 0.08; fy < 0.6; fy += 0.07) for (let fx = 0.2; fx <= 0.8; fx += 0.1) {
+        const wx = R.left + fx * R.wid, wy = R.top + fy * R.hgt;
+        if (!V2.paintedAt(p, wx, wy)) continue;
+        const t = V2.tileAt(wx, wy);
+        if (t.c >= p.c && t.c < p.c + b.w && t.r >= p.r && t.r < p.r + b.h) continue;   // over its own plot
+        const later = q => dep(q) > dep(p) || (dep(q) === dep(p) && V2.placed.indexOf(q) > V2.placed.indexOf(p));
+        if (V2.placed.some(q => q !== p && !V2.B(q.key).flat && later(q) && V2.paintedAt(q, wx, wy))) continue;   // drawn over here
+        const sc = V2.camProject(wx, wy), got = V2.buildingAt(sc.x, sc.y);
+        paintingChecks++;
+        if (got !== p) bad.push({ drawn_as: p.key + ' painting', taken_by: got ? got.key : 'the ground' });
+      }
+    }
+    return { controls: drawn.length, paintingChecks, conflicts: bad.length, worst: bad.slice(0, 6) };
   };
 
   /* ---------------------------------------------------------------------------
