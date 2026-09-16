@@ -3025,6 +3025,26 @@ function drawWorld() {
   // they stand on rather than glowing against it
   drawFrontier();
   drawPops();
+  /* The spot being chosen, outlined over everything standing in front of it.
+     The preview fill is painted on the ground, so a spot behind the hall or a
+     lumber camp was entirely hidden -- a well's reach circle and label floating
+     over a building, and no sign of which tile they belonged to. Outline only,
+     so what is in front is still seen; dashed when the spot is refused, so it
+     does not rest on colour. */
+  if (ghost && ghostKey()) {
+    const b = B(ghostKey());
+    const top = tileToWorld(ghost.c, ghost.r), rt = tileToWorld(ghost.c + b.w - 1, ghost.r);
+    const bot = tileToWorld(ghost.c + b.w - 1, ghost.r + b.h - 1), lf = tileToWorld(ghost.c, ghost.r + b.h - 1);
+    const outline = () => { g.beginPath();
+      g.moveTo(top.x, top.y - TH / 2); g.lineTo(rt.x + TW / 2, rt.y);
+      g.lineTo(bot.x, bot.y + TH / 2); g.lineTo(lf.x - TW / 2, lf.y); g.closePath(); };
+    g.save();
+    g.lineJoin = 'round';
+    if (!ghost.ok) g.setLineDash([14, 10]);
+    outline(); g.strokeStyle = 'rgba(10,16,8,.65)'; g.lineWidth = 7; g.stroke();
+    outline(); g.strokeStyle = ghost.ok ? '#b6f58a' : '#f0a583'; g.lineWidth = 3.5; g.stroke();
+    g.restore();
+  }
   /* Last of all. It was drawn before the frontier and the delivery pops, so
      "+8" floated over the first word of "lifts 3 workplaces", and a label
      hanging out over unclaimed ground was dimmed along with it -- the one
