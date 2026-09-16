@@ -1009,6 +1009,10 @@
         placing: () => { V.barMode = 'build'; V.sel = 'mill'; V.orders = [V.makeOrder(1)]; },
         claim: () => { V.sel = null; V.claimAsk = true; },
         away: () => { V.claimAsk = false; V.away = { secs: 7200, got: { wood: 1234, food: 5678 } }; },
+        /* A finished village back after twelve hours: the shared line, with
+           numbers as large as that path can produce. */
+        awayShared: () => { V.away = { secs: 43200, capped: true, spilled: true,
+          got: { wood: 8380, food: 8380 }, shared: { wood: 1234567, food: 9876543 } }; },
         hint: () => { V.away = null; V.tutSeen.length = 0; V.res.wood = V.caps.wood; V.res.food = V.caps.food; },
         goalBanner: () => { V.goalDone = { g: V.GOALS[V.GOALS.length - 1], got: { wood: 2500, food: 1600 }, age: 0 }; },
         /* Two warnings the player only ever sees when something has gone wrong,

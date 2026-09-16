@@ -2156,13 +2156,23 @@ function grantAway(secs) {
   const capped = secs > AWAY_MAX;              // away longer than the village can bank
   secs = Math.min(AWAY_MAX, secs);
   if (secs < AWAY_MIN) return;
-  const got = {};
+  const got = {}, shared = {};
   let any = false, spilled = false;
   const rate = potentialRate();
+  /* The same rule as a delivery, or the two paths contradict each other. A
+     finished village shares its overflow while you watch it; left alone for an
+     hour it used to "spill" the very same overflow instead, in amber, on the
+     first card a returning player reads. Only the time the village actually
+     worked counts -- past AWAY_MAX it was not working, so it was not sharing. */
+  const finished = villageFinished();
   for (const k of ['wood', 'food']) {
     const room = caps[k] - res[k];
     const want = rate[k] * secs;
     const earned = Math.max(0, Math.min(room, want));
+    if (finished && want - earned > 1) {
+      sharedTotal[k] += want - earned;
+      shared[k] = Math.floor(want - earned);
+    }
     /* Two different ceilings can eat this haul, and the card used to show the
        survivor of both with no account of either: twelve hours away could hand
        back three wood because the barn was already nearly full, and twelve
@@ -2171,7 +2181,7 @@ function grantAway(secs) {
     if (want - earned > 1) spilled = true;
     if (earned >= 1) { res[k] += earned; got[k] = Math.floor(earned); any = true; }
   }
-  if (any || spilled) away = { secs, got, capped, spilled };
+  if (any || spilled) away = { secs, got, capped, spilled, shared: finished ? shared : null };
 }
 // a cold start: measured from the save, which is where the last session ended
 function collectAway() {
@@ -3540,7 +3550,16 @@ function drawAway() {
   const parts = Object.entries(away.got).map(([k, v]) => (k === 'wood' ? '🪵 +' : '🌾 +') + v);
   g.font = `bold ${Math.round(40 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#e8c98a';
   g.fillText(parts.length ? parts.join('     ') : 'nothing would fit', R.x, R.y + 6 * u);
-  if (away.spilled) {
+  const sharedParts = away.shared ? Object.entries(away.shared)
+    .filter(([, v]) => v >= 1).map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + compact(v)) : [];
+  if (sharedParts.length) {
+    /* Fitted, because a finished village away for twelve hours shares amounts
+       in the millions and the line length is not knowable when it is written. */
+    const fit = fitLines('and ' + sharedParts.join(' ') + ' shared with neighbours',
+      R.w - 56 * u, 20 * u, 14 * u, 1);
+    g.font = `${Math.round(fit.px)}px Segoe UI, sans-serif`; g.fillStyle = '#9fd6a0';
+    g.fillText(fit.lines[0], R.x, R.y + 46 * u);
+  } else if (away.spilled) {
     g.font = `${Math.round(20 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#f0a583';
     g.fillText('the rest spilled — your stores were full', R.x, R.y + 46 * u);
   }
