@@ -692,6 +692,18 @@ function desiredJobs(handsIn) {
 
    A load is CARRY, so room for less than one load is no room. */
 const hasRoomFor = k => caps[k] - res[k] >= CARRY;
+/* THE definition of a full store, used everywhere that says so.
+
+   There were three. The workforce, the resting badge, the building panel and the
+   hall said "full" with room for less than one load; the resource bar and its
+   wasting figure waited until the very ceiling; the first-time hint wanted the
+   ceiling exactly. So for a moment on the way up -- four wood short, say -- the
+   hall read "🪵 store full, build a storehouse" while the bar underneath it read
+   "+0.3 / s". Brief in ordinary play, 0.6% of it and never more than three
+   seconds, but it is the same fault twice now in two rounds: one rule, two
+   places. Room for less than one load is the honest line, because the next load
+   will not fit. */
+const isFull = k => !hasRoomFor(k);
 /* One bit per resource. The plan is cached, so it must be thrown away when this
    changes -- and only when it changes, or the cache would be rebuilt every
    frame that anything arrives. */
@@ -1675,7 +1687,7 @@ const TUT = [
      built around, and "build a storehouse" only postpones it. */
   { id: 'full',  text: 'Your stores are full — what villagers bring in now is thrown away. Spend it, trade it away, or build a storehouse',
     when: () => placed.some(p => p.key !== 'hall' && B(p.key).jobs && p.t >= 1)
-                && (res.wood >= caps.wood || res.food >= caps.food) },
+                && (isFull('wood') || isFull('food')) },
 ];
 function currentHint() {
   for (const h of TUT) if (!tutSeen.includes(h.id) && h.when()) return h;
@@ -3008,10 +3020,10 @@ function drawHUD() {
      is the one moment the player most needs a number and the only moment the
      interface stopped giving them one. Worked out once for both chips, off the
      cached workforce plan. */
-  const wasting = (res.wood >= caps.wood - 0.5 || res.food >= caps.food - 0.5)
+  const wasting = (isFull('wood') || isFull('food'))
     ? potentialRate() : null;
-  const chip = (x, icon, val, cap, col, rate, lost) => {
-    const wch = 210 * u, h = 76 * u, full = val >= cap - 0.5;
+  const chip = (x, icon, k, val, cap, col, rate, lost) => {
+    const wch = 210 * u, h = 76 * u, full = isFull(k);
     g.fillStyle = 'rgba(16,26,14,.80)';
     g.strokeStyle = full ? 'rgba(235,150,110,.75)' : 'rgba(255,255,255,.14)';
     g.lineWidth = full ? 3 : 2;
@@ -3051,8 +3063,8 @@ function drawHUD() {
     else sub(rate > 0.02 ? '+' + rate.toFixed(1) + ' / s' : 'idle',
       rate > 0.02 ? '#8fd06a' : DIM);
   };
-  chip(24 * u, '🪵', res.wood, caps.wood, '#e8c98a', rateNow.wood, wasting && wasting.wood);
-  chip(24 * u + 226 * u, '🌾', res.food, caps.food, '#bfe08a', rateNow.food, wasting && wasting.food);
+  chip(24 * u, '🪵', 'wood', res.wood, caps.wood, '#e8c98a', rateNow.wood, wasting && wasting.wood);
+  chip(24 * u + 226 * u, '🌾', 'food', res.food, caps.food, '#bfe08a', rateNow.food, wasting && wasting.food);
   const ch = charmTotal();
   if (ch > 0) {
     const x = 24 * u + 452 * u, wch = 190 * u, hh = 76 * u;
@@ -4012,7 +4024,7 @@ function drawPanel() {
        having nowhere to put anything. What to do about it depends on whether
        the hall still allows a storehouse; when it does not, the honest answers
        are spending and trading. */
-    const full = ['wood', 'food'].filter(k => res[k] >= caps[k] - CARRY);
+    const full = ['wood', 'food'].filter(isFull);
     let s2 = count(st.villagers, 'villager');
     /* A finished village has no binding constraint left to name -- it has
        nothing it needs -- so the hall reports what it has given instead. */
