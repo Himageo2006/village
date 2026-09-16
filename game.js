@@ -2172,6 +2172,25 @@ const FINISH_ID = 'complete';
    out the way assignJobs would fill it: the houses' population spread across
    the job slots, real workplaces before the hall's woodpile. Efficiency is
    folded in, so walking time is still paid for. */
+/* What the villagers at work RIGHT NOW should be delivering, per resource.
+
+   potentialRate answers for the village as it would be staffed; this answers
+   for the hands actually in the posts, and it is what the chips fall back on
+   while the measured rate has nothing to say yet. The measurement is a five
+   second window eased in at 40% a window, and wood arrives in loads, so a new
+   player's first lumber camp read "idle" for its first several seconds while
+   the number above it visibly climbed. Measured against the eased rate in a
+   full village the two agree within a few per cent. */
+function expectedRate() {
+  const out = { wood: 0, food: 0 };
+  for (const p of producers()) {
+    const b = B(p.key);
+    if (!b.makes) continue;
+    const n = workersAt(p.id);
+    if (n) out[Object.keys(b.makes)[0]] += n * deliveredOf(p);
+  }
+  return out;
+}
 function potentialRate() {
   /* The workforce assembled exactly the way assignJobs assembles it. It used to
      fill posts in the order they were built, which matched the game until hands
@@ -3098,8 +3117,21 @@ function drawHUD() {
     else sub(rate > 0.02 ? '+' + rate.toFixed(1) + ' / s' : 'idle',
       rate > 0.02 ? '#8fd06a' : DIM);
   };
-  chip(24 * u, '🪵', 'wood', res.wood, caps.wood, '#e8c98a', rateNow.wood, wasting && wasting.wood);
-  chip(24 * u + 226 * u, '🌾', 'food', res.food, caps.food, '#bfe08a', rateNow.food, wasting && wasting.food);
+  /* "idle" means nobody is making it -- not that the five second window has
+     not caught up yet. That read "idle" for the first EIGHTEEN seconds of a
+     new player's first lumber camp while the wood above it climbed.
+
+     And the measurement is only worth showing once a window holds several
+     loads. Wood arrives eight at a time, so a small village's window catches
+     none or one: the same camp read +0.4, +1.2, +0.6, +1.1 against a true
+     0.89. Below four loads a window the rate the hands at work should give is
+     the better number; above it, what actually arrived. Decided on the
+     expected figure, which is steady, so the chip does not flip between them. */
+  const expect = expectedRate();
+  const shown = k => expect[k] <= 0.02 ? 0
+    : expect[k] * RATE_WINDOW >= 4 * CARRY && rateNow[k] > 0.02 ? rateNow[k] : expect[k];
+  chip(24 * u, '🪵', 'wood', res.wood, caps.wood, '#e8c98a', shown('wood'), wasting && wasting.wood);
+  chip(24 * u + 226 * u, '🌾', 'food', res.food, caps.food, '#bfe08a', shown('food'), wasting && wasting.food);
   const ch = charmTotal();
   if (ch > 0) {
     const x = 24 * u + 452 * u, wch = 190 * u, hh = 76 * u;
@@ -4567,7 +4599,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   get armed() { return armed; }, set armed(v) { armed = v; },
   get ghost() { return ghost; }, set ghost(v) { ghost = v; },
   get sellArm() { return sellArm; }, set sellArm(v) { sellArm = v; }, SELL_ARM,
-  collectAway, grantAway, potentialRate, currentHint, get away() { return away; }, set away(v) { away = v; },
+  collectAway, grantAway, potentialRate, expectedRate, currentHint, get away() { return away; }, set away(v) { away = v; },
   get hiddenAt() { return hiddenAt; }, set hiddenAt(v) { hiddenAt = v; },
   get hiddenSim() { return hiddenSim; }, set hiddenSim(v) { hiddenSim = v; }, AWAY_MIN, AWAY_MAX,
   GOALS, currentGoal, get goalIdx() { return goalIdx; }, set goalIdx(v) { goalIdx = v; },

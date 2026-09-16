@@ -346,6 +346,28 @@
       }
       if (V.goalIdx >= V.GOALS.length) break;
     }
+    /* The HUD quotes expectedRate below a few loads a window and until the
+       measurement catches up, so it has to be the truth about what arrives.
+       Measured the plain way -- stock gained over two minutes with the stores
+       kept half empty so nothing is refused -- in the finished village. */
+    {
+      const secs = 120, got = { wood: 0, food: 0 };
+      const half = () => { for (const k of ['wood', 'food']) V.res[k] = V.caps[k] / 2; };
+      half(); for (let i = 0; i < 20 * 30; i++) V.step(1 / 30);   // settle
+      half();
+      const want = V.expectedRate();
+      for (let s2 = 0; s2 < secs; s2++) {
+        const before = { wood: V.res.wood, food: V.res.food };
+        for (let i = 0; i < 30; i++) V.step(1 / 30);
+        for (const k of ['wood', 'food']) got[k] += V.res[k] - before[k];
+        half();
+      }
+      for (const k of ['wood', 'food']) {
+        const real = got[k] / secs;
+        if (Math.abs(real - want[k]) > 0.15 * Math.max(real, want[k]))
+          fails.push('the HUD rate for ' + k + ' is not what arrives: expected ' + want[k].toFixed(2) + '/s, got ' + real.toFixed(2) + '/s');
+      }
+    }
     try { if (realSave !== null) localStorage.setItem(V.KEY, realSave); } catch (e) {}
     return { goals: V.goalIdx + '/' + V.GOALS.length, hall: V.hallLevel(), land: V.landTier,
       placed: V.placed.length, villagers: V.villagers.length,
