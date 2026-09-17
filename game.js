@@ -402,7 +402,10 @@ let actx = null, master = null, muted = false;
 let lastDeliverAt = 0;
 
 function audioOn() {
-  if (actx) { if (actx.state === 'suspended') actx.resume(); return; }
+  /* Anything but running. iOS reports 'interrupted', not 'suspended', after a
+     phone call or a trip to the background, and checking only for suspended
+     left the game silent until it was restarted. */
+  if (actx) { if (actx.state !== 'running' && actx.state !== 'closed') actx.resume().catch(() => {}); return; }
   const AC = window.AudioContext || window.webkitAudioContext;
   if (!AC) return;
   try {
@@ -4673,6 +4676,9 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
     // a backgrounded tab may never come back, so bank the progress now
     PTRS.clear(); save();
+    /* And let go of the audio output. A running context keeps the device's
+       audio path awake behind the home screen; the next touch resumes it. */
+    if (actx && actx.state === 'running') actx.suspend().catch(() => {});
     hiddenAt = Date.now(); hiddenSim = 0;
   } else if (hiddenAt) {
     grantAway((Date.now() - hiddenAt) / 1000 - hiddenSim);
@@ -4955,7 +4961,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   get armed() { return armed; }, set armed(v) { armed = v; },
   get ghost() { return ghost; }, set ghost(v) { ghost = v; },
   get sellArm() { return sellArm; }, set sellArm(v) { sellArm = v; }, SELL_ARM,
-  collectAway, grantAway, duration, potentialRate, expectedRate, currentHint, get away() { return away; }, set away(v) { away = v; },
+  collectAway, grantAway, duration, get actx() { return actx; }, potentialRate, expectedRate, currentHint, get away() { return away; }, set away(v) { away = v; },
   get hiddenAt() { return hiddenAt; }, set hiddenAt(v) { hiddenAt = v; },
   get hiddenSim() { return hiddenSim; }, set hiddenSim(v) { hiddenSim = v; }, AWAY_MIN, AWAY_MAX,
   GOALS, currentGoal, buyProgress, get goalIdx() { return goalIdx; }, set goalIdx(v) { goalIdx = v; },
