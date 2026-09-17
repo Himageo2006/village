@@ -722,7 +722,18 @@
         }
         else if (act === 'sell') {
           const q = pick(V.placed.filter(x => V.canSell(x)));
-          if (q) V.sellBuilding(q);
+          /* Selling a house warns what the village would lose; afterwards its
+             expected output must be exactly what the warning predicted. */
+          const house = q && V.B(q.key).pop, pred = house ? V.potentialRate(q.id) : null;
+          /* Unless the refund itself fills a store: a full store sends workers to
+             other posts, which changes the plan for a reason that is not the house. */
+          const fullness = () => ['wood', 'food'].map(k => V.caps[k] - V.res[k] < 8).join();
+          const fullBefore = q ? fullness() : '';
+          if (q && V.sellBuilding(q) && house && fullness() === fullBefore) {
+            const now = V.potentialRate();
+            for (const k of ['wood', 'food'])
+              if (Math.abs(now[k] - pred[k]) > 1e-6) fails.push('selling a house predicted ' + k + ' ' + pred[k].toFixed(3) + '/s and left ' + now[k].toFixed(3));
+          }
         }
         else if (act === 'upgrade') {
           const q = pick(V.placed);

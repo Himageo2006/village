@@ -2255,7 +2255,7 @@ function expectedRate() {
   }
   return out;
 }
-function potentialRate() {
+function potentialRate(withoutHome) {
   /* The workforce assembled exactly the way assignJobs assembles it. It used to
      fill posts in the order they were built, which matched the game until hands
      started going where they deliver most -- and then the offline figure sat a
@@ -2265,7 +2265,7 @@ function potentialRate() {
      Counted from the houses rather than from the villagers, because this runs
      at load, before the first tick has spawned any of them. */
   let pop = 0;
-  for (const p of placed) pop += livedIn(p);
+  for (const p of placed) if (p.id !== withoutHome) pop += livedIn(p);
   const { want, posts } = desiredJobs(Math.min(pop, VILLAGER_MAX));
   const out = { wood: 0, food: 0 };
   for (const p of posts) {
@@ -3873,6 +3873,32 @@ function duration(secs) {
   const hrs = Math.round(mins / 6) / 10;
   return hrs % 1 === 0 ? count(hrs, 'hour') : hrs + ' hours';
 }
+/* What selling p would take away, in the numbers its panel uses. */
+const perSec = (k, v) => (k === 'wood' ? '🪵' : '🌾') + '−' + v.toFixed(2) + '/s';
+function saleCost(p) {
+  const b = B(p.key);
+  if (b.pop) {
+    const n = livedIn(p);
+    if (!n) return null;
+    const now = potentialRate(), after = potentialRate(p.id);
+    const lost = ['wood', 'food'].map(k => [k, now[k] - after[k]]).filter(([, v]) => v > 0.005);
+    return 'Selling it sends ' + count(n, 'villager') + ' away   —   '
+      + (lost.length ? lost.map(([k, v]) => perSec(k, v)).join('  ') : 'none of them were working');
+  }
+  if (b.jobs && b.makes && p.key !== 'hall') {
+    const k = Object.keys(b.makes)[0], v = workersAt(p.id) * deliveredOf(p);
+    return v > 0.005 ? 'Selling it stops ' + perSec(k, v).replace('−', '') + ' arriving' : null;
+  }
+  if (b.boost) {
+    const wg = wellGain(p);
+    return wg.gain > 0.005 ? 'Selling it takes −' + wg.gain.toFixed(2) + '/s from ' + count(wg.n, 'workplace') : null;
+  }
+  if (b.charm) {
+    const now = deliveredAtMul(charmMul()), after = deliveredAtMul(mulFor(Math.max(0, charmSum - b.charm)));
+    return 'Selling it takes ✨' + b.charm + ' charm' + (now - after > 0.005 ? '   —   −' + (now - after).toFixed(2) + '/s' : '');
+  }
+  return null;
+}
 function drawAway() {
   if (!away) return;
   const R = awayRect(), u = R.u;
@@ -4242,6 +4268,12 @@ function drawPanel() {
       + '   —   ' + spoiling.map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join(' ')
       + ' would spoil'
     : null;
+  /* And what a sale costs that is NOT storage. Only a storehouse ever said:
+     selling a house sent its villagers away and stopped whatever they worked,
+     selling a well dropped the lift to everything in reach, and the button just
+     said "Tap again to sell". The row the storage warning uses, the moment Sell
+     is armed, for every kind of building. */
+  const saleRow = spoilRow || (armedHere ? saleCost(p) : null);
 
 
   /* What this building does at its CURRENT level, and what the next one would
@@ -4325,8 +4357,8 @@ function drawPanel() {
     /* Not for a market: it makes something AND holds something, so it comes
        through here and through the market block below, and both wanted this
        row. It was drawing the same warning twice in the same place. */
-    if (spoilRow && p.key !== 'market')
-      panelRow(spoilRow, lx, R.y - R.h / 2 + 148 * u, R.w - 56 * u, 20 * u, '#e59a86', '');
+    if (saleRow && p.key !== 'market')
+      panelRow(saleRow, lx, R.y - R.h / 2 + 148 * u, R.w - 56 * u, 20 * u, '#e59a86', '');
     else if (reach !== null) {
       const walk = travelSecondsOf(p);
       const here = n * deliveredOf(p), snug = n * bestDeliveredOf(p);
@@ -4391,11 +4423,14 @@ function drawPanel() {
     }
   }
   panelRow(line, lx, R.y - R.h / 2 + 116 * u, R.w - 56 * u, 22 * u, '#e8c98a', '');
+  // houses, wells and decorations have nothing else on that row
+  if (saleRow && !(b.jobs && b.makes) && !b.caps && p.key !== 'market')
+    panelRow(saleRow, lx, R.y - R.h / 2 + 148 * u, R.w - 56 * u, 20 * u, '#e59a86', '');
 
   if (p.key === 'market') {
     // its real worth is the trade it unlocks, which no number on this panel
     // would otherwise show
-    if (spoilRow) panelRow(spoilRow, lx, R.y - R.h / 2 + 148 * u, R.w - 56 * u, 20 * u, '#e59a86', '');
+    if (saleRow) panelRow(saleRow, lx, R.y - R.h / 2 + 148 * u, R.w - 56 * u, 20 * u, '#e59a86', '');
     else panelRow(count(orderSlots(), 'trading stall') + '   ·   a new offer every '
       + Math.round(orderEvery()) + 's', lx, R.y - R.h / 2 + 148 * u, R.w - 56 * u, 20 * u, '#cbb6f0', '');
   }
@@ -4990,7 +5025,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   get armed() { return armed; }, set armed(v) { armed = v; },
   get ghost() { return ghost; }, set ghost(v) { ghost = v; },
   get sellArm() { return sellArm; }, set sellArm(v) { sellArm = v; }, SELL_ARM,
-  collectAway, grantAway, duration, get actx() { return actx; }, potentialRate, expectedRate, currentHint, get away() { return away; }, set away(v) { away = v; },
+  collectAway, grantAway, duration, saleCost, get actx() { return actx; }, potentialRate, expectedRate, currentHint, get away() { return away; }, set away(v) { away = v; },
   get hiddenAt() { return hiddenAt; }, set hiddenAt(v) { hiddenAt = v; },
   get hiddenSim() { return hiddenSim; }, set hiddenSim(v) { hiddenSim = v; }, AWAY_MIN, AWAY_MAX,
   GOALS, currentGoal, buyProgress, get goalIdx() { return goalIdx; }, set goalIdx(v) { goalIdx = v; },
