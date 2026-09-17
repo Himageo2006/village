@@ -1169,6 +1169,32 @@
     asScreen(keepW, keepH); V.step(0.001);
     return { checks, cropped: bad.length, worst: bad.slice(0, 5) };
   };
+  /* The number a move quotes for where a building is NOW must be the number its
+     panel shows. The label quoted one worker's share, half the panel's figure
+     for a two-worker camp. Read off the canvas, as the player reads them. */
+  window.moveLabelSweep = function () {
+    const V = window.__v, cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
+    const grab = re => { const got = []; const o = ctx.fillText;
+      ctx.fillText = function (t, ...r) { if (re.test(String(t))) got.push(String(t)); return o.call(this, t, ...r); };
+      try { V.draw(); } finally { ctx.fillText = o; } return got; };
+    const bad = []; let checks = 0;
+    for (const maxed of [false, true]) {
+    sweepVillage(maxed);
+    for (const p of V.placed) {
+      const b = V.B(p.key);
+      if (!b.makes || !b.jobs || p.key === 'hall' || !V.workersAt(p.id)) continue;
+      V.moving = null; V.ghost = null; V.panel = p.id; V.step(0.001);
+      const panel = grab(/\/s delivered/)[0];
+      V.panel = null; V.moving = p.id; V.ghost = { c: p.c, r: p.r, fits: true, ok: true, why: null };
+      const label = grab(/\/s here/)[0];
+      V.moving = null; V.ghost = null;
+      const pv = panel && panel.match(/([0-9.]+)\/s delivered/), lv = label && label.match(/now ([0-9.]+)/);
+      checks++;
+      if (!pv || !lv || Math.abs(+pv[1] - +lv[1]) > 0.011) bad.push({ key: p.key, panel, label });
+    }
+    }
+    return { checks, mismatched: bad.length, worst: bad.slice(0, 4) };
+  };
   window.textSweep = function () {
     const cv = document.querySelector('canvas');
     const keepW = window.innerWidth, keepH = window.innerHeight;

@@ -3023,7 +3023,10 @@ function drawWorld() {
          building with no output -- there is nothing to fall short of -- so
          moving a house put a green pill reading "0.00/s here" over it. */
       const makes = !!(b.makes && b.jobs);
-      const eff = (B(selKey).caps || isWell || !makes) ? null : reachOf(probe);
+      /* Anything that PRODUCES gets its rate, storage or not: a market makes wood
+         as well as holding it, and moving one quoted nothing while its panel said
+         0.56/s delivered. */
+      const eff = (isWell || !makes) ? null : reachOf(probe);
       /* A storehouse has no reach figure and is not a well, so it never got a
          label at all -- and it is one of the two most expensive things in the
          tray. It gets one now when the only thing to say is the price. */
@@ -3040,7 +3043,14 @@ function drawWorld() {
         g.translate(cx, cy - 96 * sc); g.scale(sc, sc);
         g.textAlign = 'center'; g.textBaseline = 'middle';
         g.font = 'bold 22px Segoe UI, sans-serif';
-        const empty = noSpareHands(selKey);
+        /* Only a NEW building needs hands to spare. Moving one takes its workers
+           with it, and the label said "no one spare -- raise the town hall first"
+           over a lumber camp being moved, in red, instead of the one number a
+           move is for: what it would deliver there. */
+        const empty = moving == null && noSpareHands(selKey);
+        const from = moving != null ? byId(moving) : null;
+        // a move keeps its workers; a new building gets whoever is free to take its posts
+        const hands = Math.max(1, from ? workersAt(from.id) : handsFor(probe, 1));
         /* Cheaper than either of them, and it outranks both: this is what is
            stopping the tap from working right now.
 
@@ -3062,8 +3072,13 @@ function drawWorld() {
             : 'lifts ' + count(wg.n, 'workplace') + '   ·   '
               + (wg.gain > 0.005 ? '+' + wg.gain.toFixed(2) + '/s' : 'none of them worked yet');
         } else txt = empty ? 'no one spare — ' + remedy('people') + ' first'
-          : deliveredOf(probe).toFixed(2) + '/s here'
-            + (eff > 0.85 ? '' : '   ·   best ' + bestDeliveredOf(probe).toFixed(2));
+          /* For the whole building, as its panel counts it -- the hands it would
+             have times what each delivers. The label quoted one worker's share,
+             so a lumber camp whose panel said "0.92/s delivered" was "now 0.46"
+             here: the same camp, two numbers, a factor of two apart. */
+          : (hands * deliveredOf(probe)).toFixed(2) + '/s here'
+            + (from && from.key === selKey ? '   ·   now ' + (hands * deliveredOf(from)).toFixed(2)
+              : eff > 0.85 ? '' : '   ·   best ' + (hands * bestDeliveredOf(probe)).toFixed(2));
         const w2 = g.measureText(txt).width + 26;
         g.fillStyle = 'rgba(14,22,12,.9)';
         const good = isWell ? wellGainAt(ghost.c, ghost.r, 1).n > 0 : !empty && eff > 0.66;
@@ -3122,18 +3137,30 @@ function drawWorld() {
      over a building, and no sign of which tile they belonged to. Outline only,
      so what is in front is still seen; dashed when the spot is refused, so it
      does not rest on colour. */
+  const footprint = (c, r, b) => {
+    const top = tileToWorld(c, r), rt = tileToWorld(c + b.w - 1, r);
+    const bot = tileToWorld(c + b.w - 1, r + b.h - 1), lf = tileToWorld(c, r + b.h - 1);
+    g.beginPath();
+    g.moveTo(top.x, top.y - TH / 2); g.lineTo(rt.x + TW / 2, rt.y);
+    g.lineTo(bot.x, bot.y + TH / 2); g.lineTo(lf.x - TW / 2, lf.y); g.closePath();
+  };
+  /* And which building is being moved. "Tap where it should go" named nothing:
+     the building looked like every other one until a destination was tapped. */
+  const movingP = moving != null ? byId(moving) : null;
+  if (movingP) {
+    const b = B(movingP.key);
+    g.save(); g.lineJoin = 'round'; g.setLineDash([6, 8]);
+    footprint(movingP.c, movingP.r, b); g.strokeStyle = 'rgba(10,16,8,.65)'; g.lineWidth = 7; g.stroke();
+    footprint(movingP.c, movingP.r, b); g.strokeStyle = '#f4ecd0'; g.lineWidth = 3.5; g.stroke();
+    g.restore();
+  }
   if (ghost && ghostKey()) {
     const b = B(ghostKey());
-    const top = tileToWorld(ghost.c, ghost.r), rt = tileToWorld(ghost.c + b.w - 1, ghost.r);
-    const bot = tileToWorld(ghost.c + b.w - 1, ghost.r + b.h - 1), lf = tileToWorld(ghost.c, ghost.r + b.h - 1);
-    const outline = () => { g.beginPath();
-      g.moveTo(top.x, top.y - TH / 2); g.lineTo(rt.x + TW / 2, rt.y);
-      g.lineTo(bot.x, bot.y + TH / 2); g.lineTo(lf.x - TW / 2, lf.y); g.closePath(); };
     g.save();
     g.lineJoin = 'round';
     if (!ghost.ok) g.setLineDash([14, 10]);
-    outline(); g.strokeStyle = 'rgba(10,16,8,.65)'; g.lineWidth = 7; g.stroke();
-    outline(); g.strokeStyle = ghost.ok ? '#b6f58a' : '#f0a583'; g.lineWidth = 3.5; g.stroke();
+    footprint(ghost.c, ghost.r, b); g.strokeStyle = 'rgba(10,16,8,.65)'; g.lineWidth = 7; g.stroke();
+    footprint(ghost.c, ghost.r, b); g.strokeStyle = ghost.ok ? '#b6f58a' : '#f0a583'; g.lineWidth = 3.5; g.stroke();
     g.restore();
   }
   /* Last of all. It was drawn before the frontier and the delivery pops, so
