@@ -3322,7 +3322,8 @@ function drawHUD() {
     if (full) sub(lost > 0.05
       ? (villageFinished() ? 'sharing ' : 'wasting ') + (lost >= 10 ? Math.round(lost) : lost.toFixed(1)) + '/s'
       : 'storage full', villageFinished() ? '#9fd6a0' : '#f0a583');
-    else sub(rate > 0.02 ? '+' + rate.toFixed(1) + ' / s' : 'idle',
+    // "/s", as every other rate in the game is written
+    else sub(rate > 0.02 ? '+' + rate.toFixed(1) + '/s' : 'idle',
       rate > 0.02 ? '#8fd06a' : DIM);
   };
   /* "idle" means nobody is making it -- not that the five second window has
@@ -4663,6 +4664,9 @@ const ptrMid = () => { const a = [...PTRS.values()];
 function ptrSweep() { const now = Date.now(); for (const [id, r] of PTRS) if (now - r.tLast > PTR_STALE) PTRS.delete(id); }
 
 cv.addEventListener('pointerdown', ev => {
+  /* A mouse's right or middle button is not a tap. It opened panels and armed
+     sales in the browser version, with the page's context menu on top. */
+  if (ev.pointerType === 'mouse' && ev.button !== 0) return;
   camTouched = true;
   audioOn();                          // must happen inside a gesture
   ptrSweep();
@@ -4750,6 +4754,7 @@ cv.addEventListener('wheel', ev => {
   if (selBuild || moving != null) updateGhost(p.x, p.y);
 }, { passive: false });
 cv.addEventListener('pointerup', ptrEnd);
+cv.addEventListener('contextmenu', ev => ev.preventDefault());
 cv.addEventListener('pointercancel', ptrEnd);
 cv.addEventListener('lostpointercapture', ev => PTRS.delete(ev.pointerId));
 window.addEventListener('blur', () => PTRS.clear());
