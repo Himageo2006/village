@@ -2731,6 +2731,11 @@ function drawStatus(p) {
   const up = !idle && !far && canUpgrade(p);
   if (!hall && !idle && !far && !up) return;
   const t = topOf(p), s = badgeScale();
+  const kind = (!hall && up) ? 'up' : far ? 'far' : hall ? 'hall' : resting ? 'rest' : 'idle';
+  g.save(); g.font = 'bold 20px Segoe UI, sans-serif';
+  const hw = kind === 'far' ? 30 : kind === 'hall' ? (g.measureText('Lv ' + hallLevel()).width + 22) / 2 + (up ? 30 : 0) : 17;
+  g.restore();
+  badgeQueue.push({ prio: BADGE_PRIO[kind], x: t.x, y: t.y - 14 * s, hw: hw * s, hh: 16 * s, paint: () => {
   g.save();
   g.translate(t.x, t.y - 14 * s); g.scale(s, s);
   g.textAlign = 'center'; g.textBaseline = 'middle';
@@ -2787,6 +2792,29 @@ function drawStatus(p) {
     g.fillText('!', 0, 1);
   }
   g.restore();
+  } });
+}
+/* Badges are queued during the depth pass and drawn after it, most important
+   first, skipping any that would land on one already drawn.
+
+   A built-up island at phone zoom drew thirty-odd of them into the same rows:
+   "−63%", "−65%", "−69%" and a carpet of ▲ printed over one another until
+   none could be read, and a badge on a building behind was covered by the
+   roof in front. The warnings are what the player must not miss, so they go
+   down first and an upgrade tick gives way to them; zooming in spreads the
+   village out and brings the others back. */
+let badgeQueue = [], lastBadges = [];
+const BADGE_PRIO = { hall: 0, idle: 1, far: 2, rest: 3, up: 4 };
+function flushBadges() {
+  const q = badgeQueue; badgeQueue = [];
+  q.sort((a, b) => a.prio - b.prio);
+  const kept = [];
+  for (const b of q) {
+    if (kept.some(k => Math.abs(k.x - b.x) < k.hw + b.hw && Math.abs(k.y - b.y) < k.hh + b.hh)) continue;
+    kept.push(b); b.paint();
+  }
+  lastBadges = kept;
+  return kept.length;
 }
 
 /* Decorations, drawn in code rather than from art. They are simple enough that
@@ -3049,7 +3077,9 @@ function drawWorld() {
     ents.push({ y: tileToWorld(o.c, o.r).y, d: () => drawScenery(o) }); }
   for (const v of villagers) ents.push({ y: v.y, d: () => drawVillager(v) });
   ents.sort((a, b2) => a.y - b2.y);
+  badgeQueue = [];
   for (const e of ents) e.d();
+  flushBadges();
   /* The well's reach again, outline only, so the far side of the circle is not
      lost behind whatever is standing in it. */
   const ringOf = p => p && B(p.key).boost ? p : null;
@@ -4778,7 +4808,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   get villagers() { return villagers; }, workersAt, boostAt, producers, stores,
   assignJobs, desiredJobs, computeJobs, invalidateJobs, established, lvlHeld, buildingAt, ensureHall, jobsOf, VILLAGER_MAX, rebuildStores, nearestStore,
   artRect, paintedAt, isDecor, decorCount, DECOR_MAX, charmTotal, charmMul, charmRoom, usefulCharm, CHARM_FULL,
-  tabRects, drawDecor, grant,
+  tabRects, drawDecor, grant, flushBadges, get lastBadges() { return lastBadges; },
   sparePeople, outOfRoom, noSpareHands, peopleComing, livedIn,
   sellBuilding, canSell, sellValue, investedIn, capsWithout, get moving() { return moving; }, set moving(v) { moving = v; },
   get armed() { return armed; }, set armed(v) { armed = v; },

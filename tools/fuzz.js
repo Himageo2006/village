@@ -1123,6 +1123,24 @@
     }
     return { cases: 3, fails };
   };
+  /* Building badges never print over one another. A built-up island at phone
+     zoom used to stack "−63%", "−65%" and rows of ▲ into an unreadable pile. */
+  window.badgeOverlapSweep = function () {
+    const V = window.__v, keepZ = V.CAM.z;
+    sweepVillage(true);
+    for (const p of V.placed) if (V.B(p.key).jobs && p.key !== 'hall') p.lvl = 3;   // leave room to upgrade
+    V.grant('wood', 1e6, 0, 0); V.grant('food', 1e6, 0, 0);
+    let frames = 0, drawn = 0; const bad = [];
+    for (const z of [0.35, 0.5, 0.8, 1.2]) {
+      V.CAM.z = z; V.step(0.001); V.draw(); frames++;
+      const k = V.lastBadges; drawn += k.length;
+      for (let i = 0; i < k.length; i++) for (let j = i + 1; j < k.length; j++)
+        if (Math.abs(k[i].x - k[j].x) < k[i].hw + k[j].hw && Math.abs(k[i].y - k[j].y) < k[i].hh + k[j].hh)
+          bad.push({ z, prio: [k[i].prio, k[j].prio] });
+    }
+    V.CAM.z = keepZ; V.step(0.001);
+    return { frames, drawn, overlaps: bad.length, worst: bad.slice(0, 5) };
+  };
   window.textSweep = function () {
     const cv = document.querySelector('canvas');
     const keepW = window.innerWidth, keepH = window.innerHeight;
