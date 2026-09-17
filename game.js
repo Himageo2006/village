@@ -2290,9 +2290,11 @@ function grantAway(secs) {
      first card a returning player reads. Only the time the village actually
      worked counts -- past AWAY_MAX it was not working, so it was not sharing. */
   const finished = villageFinished();
+  let fullAfter = Infinity;
   for (const k of ['wood', 'food']) {
     const room = caps[k] - res[k];
     const want = rate[k] * secs;
+    if (want - Math.max(0, room) > 1 && rate[k] > 0) fullAfter = Math.min(fullAfter, Math.max(0, room) / rate[k]);
     const earned = Math.max(0, Math.min(room, want));
     if (finished && want - earned > 1) {
       sharedTotal[k] += want - earned;
@@ -2306,7 +2308,8 @@ function grantAway(secs) {
     if (want - earned > 1) spilled = true;
     if (earned >= 1) { res[k] += earned; got[k] = Math.floor(earned); any = true; }
   }
-  if (any || spilled) away = { secs, got, capped, spilled, shared: finished ? shared : null };
+  if (any || spilled) away = { secs, got, capped, spilled, shared: finished ? shared : null,
+    fullAfter: isFinite(fullAfter) ? fullAfter : null };
 }
 // a cold start: measured from the save, which is where the last session ended
 function collectAway() {
@@ -3815,6 +3818,14 @@ function awayRect() {
   const u = US(), w = Math.min(W - 80 * u, 620 * u), h = 300 * u;
   return { u, x: W / 2, y: hudTop() + (hudBot() - hudTop()) / 2, w, h };
 }
+/* "6.0 hours" read like a stopwatch; a whole number of hours is just hours. */
+function duration(secs) {
+  const mins = secs / 60;
+  if (mins < 1) return 'moments';
+  if (mins < 60) return count(Math.round(mins), 'minute');
+  const hrs = Math.round(mins / 6) / 10;
+  return hrs % 1 === 0 ? count(hrs, 'hour') : hrs + ' hours';
+}
 function drawAway() {
   if (!away) return;
   const R = awayRect(), u = R.u;
@@ -3825,8 +3836,7 @@ function drawAway() {
   g.textAlign = 'center'; g.textBaseline = 'middle';
   g.font = `bold ${Math.round(34 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#fff';
   g.fillText('While you were away', R.x, R.y - R.h / 2 + 52 * u);
-  const mins = away.secs / 60;
-  const span = mins < 60 ? count(Math.round(mins), 'minute') : (mins / 60).toFixed(1) + ' hours';
+  const span = duration(away.secs);
   g.font = `${Math.round(22 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#a9bd9c';
   g.fillText('your villagers kept working for ' + span
     + (away.capped ? ', as long as a village can keep' : ''),
@@ -3844,8 +3854,16 @@ function drawAway() {
     g.font = `${Math.round(fit.px)}px Segoe UI, sans-serif`; g.fillStyle = '#9fd6a0';
     g.fillText(fit.lines[0], R.x, R.y + 46 * u);
   } else if (away.spilled) {
-    g.font = `${Math.round(20 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#f0a583';
-    g.fillText('the rest spilled — your stores were full', R.x, R.y + 46 * u);
+    /* WHEN the stores filled is the part a player can act on. "The rest spilled"
+       said the same thing about three minutes of loss as about five hours and
+       fifty-seven -- six hours away at 0.9 a second is nineteen thousand wood,
+       and three hundred of it was kept. */
+    const when = away.fullAfter != null && away.fullAfter < away.secs - 60
+      ? 'stores full after ' + duration(away.fullAfter) + ' — the rest spilled'
+      : 'the rest spilled — your stores were full';
+    const fit = fitLines(when, R.w - 56 * u, 20 * u, 14 * u, 1);
+    g.font = `${Math.round(fit.px)}px Segoe UI, sans-serif`; g.fillStyle = '#f0a583';
+    g.fillText(fit.lines[0], R.x, R.y + 46 * u);
   }
   g.font = `bold ${Math.round(24 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#9fe86b';
   g.fillText('tap to continue', R.x, R.y + R.h / 2 - 40 * u);
@@ -4873,7 +4891,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   get armed() { return armed; }, set armed(v) { armed = v; },
   get ghost() { return ghost; }, set ghost(v) { ghost = v; },
   get sellArm() { return sellArm; }, set sellArm(v) { sellArm = v; }, SELL_ARM,
-  collectAway, grantAway, potentialRate, expectedRate, currentHint, get away() { return away; }, set away(v) { away = v; },
+  collectAway, grantAway, duration, potentialRate, expectedRate, currentHint, get away() { return away; }, set away(v) { away = v; },
   get hiddenAt() { return hiddenAt; }, set hiddenAt(v) { hiddenAt = v; },
   get hiddenSim() { return hiddenSim; }, set hiddenSim(v) { hiddenSim = v; }, AWAY_MIN, AWAY_MAX,
   GOALS, currentGoal, get goalIdx() { return goalIdx; }, set goalIdx(v) { goalIdx = v; },

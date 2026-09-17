@@ -1261,6 +1261,8 @@
         placingDone: () => { V.ghost = null; },
         claim: () => { V.sel = null; V.claimAsk = true; },
         away: () => { V.claimAsk = false; V.away = { secs: 7200, got: { wood: 1234, food: 5678 } }; },
+        // the spilled line at its longest: hours of absence, full after a fractional hour
+        awaySpilled: () => { V.away = { secs: 43200, capped: true, spilled: true, got: { wood: 300, food: 300 }, fullAfter: 5580 }; },
         /* A finished village back after twelve hours: the shared line, with
            numbers as large as that path can produce. */
         awayShared: () => { V.away = { secs: 43200, capped: true, spilled: true,
