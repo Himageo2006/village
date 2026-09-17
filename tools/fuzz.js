@@ -1260,6 +1260,33 @@
     } finally { history.pushState = op; history.back = ob; }
     return { cases: 5, fails };
   };
+  /* Touches that are not taps must not tap. Two fingers down and up in place
+     fired a tap under each, and a cancelled touch (notification shade, back
+     swipe, a call) fired one where it began. Real pointer events on the canvas,
+     aimed at the hall's painting, where a tap opens its panel. */
+  window.gestureSweep = function () {
+    const V = window.__v, cv = document.querySelector('canvas'), b = cv.getBoundingClientRect();
+    const ev = (type, id, x, y) => cv.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: id,
+      clientX: x, clientY: y, pointerType: 'touch', isPrimary: id === 1, button: 0 }));
+    const aim = () => { const R = V.artRect(V.placed[0]); const s = V.camProject(R.left + R.wid / 2, R.top + R.hgt * 0.6);
+      return [b.left + s.x / 1024 * b.width, b.top + (s.y + (cv.height - 1536) / 2) / cv.height * b.height]; };
+    const fails = [];
+    const opens = gesture => { V.panel = null; V.sel = null; V.moving = null; gesture(); const o = V.panel != null; V.panel = null; return o; };
+    let [x, y] = aim();
+    if (!opens(() => { ev('pointerdown', 1, x, y); ev('pointerup', 1, x, y); })) fails.push('a plain tap did not open the hall');
+    if (opens(() => { ev('pointerdown', 1, x, y); ev('pointerdown', 2, x + 60, y + 40); ev('pointerup', 2, x + 60, y + 40); ev('pointerup', 1, x, y); }))
+      fails.push('two fingers down and up in place tapped');
+    if (opens(() => { ev('pointerdown', 1, x, y); ev('pointercancel', 1, x, y); })) fails.push('a cancelled touch tapped');
+    const z0 = V.CAM.z;
+    ev('pointerdown', 1, x - 40, y); ev('pointerdown', 2, x + 40, y);
+    for (let i = 1; i <= 10; i++) { ev('pointermove', 1, x - 40 - i * 8, y); ev('pointermove', 2, x + 40 + i * 8, y); }
+    ev('pointerup', 1, x - 120, y); ev('pointerup', 2, x + 120, y);
+    if (!(V.CAM.z > z0 + 0.01)) fails.push('a pinch did not zoom');
+    [x, y] = aim();
+    if (!opens(() => { ev('pointerdown', 3, x, y); ev('pointerup', 3, x, y); })) fails.push('a tap after a pinch did not open the hall');
+    V.CAM.z = z0; V.step(0.001);
+    return { cases: 5, fails };
+  };
   window.textSweep = function () {
     const cv = document.querySelector('canvas');
     const keepW = window.innerWidth, keepH = window.innerHeight;

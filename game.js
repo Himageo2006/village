@@ -4670,7 +4670,10 @@ cv.addEventListener('pointerdown', ev => {
   camGlide = null; camFling = null;      // the player's hand outranks the camera
   PTRS.set(ev.pointerId, { x: p.x, y: p.y, x0: p.x, y0: p.y, moved: 0, drag: false, pinch: false, tLast: Date.now() });
   try { cv.setPointerCapture(ev.pointerId); } catch (e) {}
-  if (PTRS.size >= 2) pinchBase();
+  /* A second finger makes it a gesture, whether or not anything moves. Only a
+     move used to mark a pinch, so two fingers down and up in place fired TWO
+     taps, one under each -- opening a panel, or arming a placement spot. */
+  if (PTRS.size >= 2) { for (const r of PTRS.values()) r.pinch = true; pinchBase(); }
 });
 cv.addEventListener('pointermove', ev => {
   const rec = PTRS.get(ev.pointerId); if (!rec) return;
@@ -4698,6 +4701,16 @@ cv.addEventListener('pointermove', ev => {
 });
 function ptrEnd(ev) {
   const rec = PTRS.get(ev.pointerId); if (!rec) return;
+  /* Cancelled is not lifted. The system takes a touch when the notification
+     shade comes down, a back swipe starts or a call arrives, and treating that
+     as a finger lifting fired a tap wherever the touch began -- a panel, a
+     placement, the second tap of a sale. */
+  if (ev.type === 'pointercancel') {
+    PTRS.delete(ev.pointerId);
+    try { cv.releasePointerCapture(ev.pointerId); } catch (e) {}
+    pinchBase();
+    return;
+  }
   PTRS.delete(ev.pointerId);
   try { cv.releasePointerCapture(ev.pointerId); } catch (e) {}
   /* Two fingers left after a third lifts is a different pair, and a stale
