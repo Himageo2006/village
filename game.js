@@ -3485,10 +3485,15 @@ function drawHUD() {
       side('give', r.o.giveK, r.o.giveN, -0.26, ok ? '#fff' : '#d8b3a6');
       g.font = `${Math.round(20 * u)}px Segoe UI, sans-serif`;
       // say WHY a card cannot be taken, rather than just greying it
-      const why = res[r.o.giveK] < r.o.giveN ? 'not enough' : !hasRoom(r.o) ? 'no room'
-        : best ? 'best rate' : 'tap to trade';
-      g.fillStyle = why === 'tap to trade' ? DIM : best ? '#f0d894' : '#e59a86';
-      g.fillText(why, r.x, r.y);
+      /* How much is missing, as everywhere else in the game says it. "not enough"
+         left the player to subtract 400 from 670 across a card and a chip. */
+      const short = Math.ceil(r.o.giveN - res[r.o.giveK]);
+      const why = short > 0 ? 'need ' + (r.o.giveK === 'wood' ? '🪵' : '🌾') + short
+        : !hasRoom(r.o) ? 'no room' : best ? 'best rate' : 'tap to trade';
+      g.fillStyle = why === 'tap to trade' ? DIM : best && short <= 0 && hasRoom(r.o) ? '#f0d894' : '#e59a86';
+      const whyFit = fitLines(why, r.w - 16 * u, 20 * u, 13 * u, 1);
+      g.font = `${Math.round(whyFit.px)}px Segoe UI, sans-serif`;
+      g.fillText(whyFit.lines[0], r.x, r.y);
       side('get', r.o.getK, r.o.getN, 0.26, ok ? '#9fe86b' : '#a2907f');
       g.restore();
     }

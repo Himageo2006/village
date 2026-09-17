@@ -1299,6 +1299,9 @@
         orders: () => { V.barMode = 'orders'; V.orders = [V.makeOrder(0), V.makeOrder(1), V.makeOrder(2)]; },
         /* An empty board says something the full one never does, and nothing
            had ever drawn it in a sweep. */
+        // offers the village cannot pay for, each saying how much is missing
+        ordersShort: () => { V.barMode = 'orders'; V.orders = [V.makeOrder(0), V.makeOrder(1), V.makeOrder(2)]; window.__keptRes = { w: V.res.wood, f: V.res.food }; V.res.wood = 3; V.res.food = 3; },
+        ordersShortDone: () => { V.res.wood = window.__keptRes.w; V.res.food = window.__keptRes.f; },
         noOrders: () => { V.orders = []; },
         // a purchase goal part-way saved: the longest strip there is, two short resources and a reward
         buyGoal: () => { window.__keptGoal = V.goalIdx; V.goalIdx = V.GOALS.findIndex(q => q.text === 'Claim the whole island'); V.res.wood = 1234; V.res.food = 567; },
@@ -1431,7 +1434,10 @@
               V.ghost = null; V.sel = null;
               // a half-empty board: its countdown and empty stalls, never measured before
               { const keepO = V.orders; V.barMode = 'orders'; V.orders = [V.makeOrder(1)]; V.orderT = 0;
-                V.step(0.001); take(); V.orders = keepO; }
+                V.step(0.001); take();
+                // and the same stalls when nothing can be paid for: the red "need" line
+                const kw = V.res.wood, kf = V.res.food; V.res.wood = 3; V.res.food = 3; V.step(0.001); take();
+                V.res.wood = kw; V.res.food = kf; V.orders = keepO; }
               for (const q of [V.placed[0], V.placed[5], V.placed[7]]) {
                 if (!q) continue; V.panel = q.id; V.step(0.001); take();
               }
