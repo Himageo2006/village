@@ -1164,6 +1164,9 @@
       // and big enough to read: the smallest badge text reaches the HUD floor on screen
       const onScreen = V.BADGE_TEXT_PX * V.badgeScale() * V.camScale();
       if (z >= 0.55 && onScreen < V.TEXT_MIN - 0.5) bad.push({ z, tooSmall: +onScreen.toFixed(1), floor: V.TEXT_MIN });
+      // delivery pops share the scale: POP_PX units drawn at badgeScale x BADGE_TEXT_PX / POP_PX
+      const pop = V.POP_PX * (V.badgeScale() * V.BADGE_TEXT_PX / V.POP_PX) * V.camScale();
+      if (z >= 0.55 && pop < V.TEXT_MIN - 0.5) bad.push({ z, popTooSmall: +pop.toFixed(1), floor: V.TEXT_MIN });
       const k = V.lastBadges; drawn += k.length;
       for (let i = 0; i < k.length; i++) for (let j = i + 1; j < k.length; j++)
         if (Math.abs(k[i].x - k[j].x) < k[i].hw + k[j].hw && Math.abs(k[i].y - k[j].y) < k[i].hh + k[j].hh)

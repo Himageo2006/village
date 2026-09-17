@@ -535,19 +535,26 @@ function stepFeedback(dt) {
     rateT = 0;
   }
 }
+/* Sized like the badges, so "+8" reaches the readable floor on screen. At a
+   fixed 21 units it came out near six CSS pixels on a zoomed-out phone -- and
+   these are the one sign of where goods are actually arriving, kept even when
+   reduce-motion takes the decoration away. */
+const POP_PX = 21;
 function drawPops() {
+  const k = badgeScale() * BADGE_TEXT_PX / POP_PX;
   for (const q of pops) {
     const t = q.age / POP_LIFE;
     g.save();
     g.globalAlpha = Math.min(1, (1 - t) * 2.2);
+    g.translate(q.x, q.y); g.scale(k, k);
     g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.font = 'bold 21px Segoe UI, sans-serif';
+    g.font = `bold ${POP_PX}px Segoe UI, sans-serif`;
     g.lineWidth = 4; g.strokeStyle = 'rgba(8,16,8,.75)';
     const txt = '+' + Math.round(q.n) + (q.k === 'wood' ? ' 🪵' : ' 🌾');
-    const y = q.y - 26 - t * 34;
-    g.strokeText(txt, q.x, y); 
+    const y = -26 - t * 34;
+    g.strokeText(txt, 0, y);
     g.fillStyle = q.k === 'wood' ? '#f0d49a' : '#cdeb9a';
-    g.fillText(txt, q.x, y);
+    g.fillText(txt, 0, y);
     g.restore();
   }
 }
@@ -5040,7 +5047,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   get villagers() { return villagers; }, workersAt, boostAt, producers, stores,
   assignJobs, desiredJobs, computeJobs, invalidateJobs, established, lvlHeld, buildingAt, ensureHall, jobsOf, VILLAGER_MAX, rebuildStores, nearestStore,
   artRect, paintedAt, isDecor, decorCount, DECOR_MAX, charmTotal, charmMul, charmGainFrom, decorGainAt, deliveredAtMul, charmRoom, usefulCharm, CHARM_FULL,
-  tabRects, drawDecor, grant, flushBadges, get lastBadges() { return lastBadges; }, badgeScale, BADGE_TEXT_PX, camScale,
+  tabRects, drawDecor, grant, flushBadges, get lastBadges() { return lastBadges; }, badgeScale, BADGE_TEXT_PX, POP_PX, camScale,
   sparePeople, outOfRoom, noSpareHands, peopleComing, livedIn,
   sellBuilding, canSell, sellValue, investedIn, capsWithout, get moving() { return moving; }, set moving(v) { moving = v; },
   get armed() { return armed; }, set armed(v) { armed = v; },
