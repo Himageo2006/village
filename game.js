@@ -2354,6 +2354,7 @@ function step(dt) {
   if (hiddenAt) hiddenSim += dt;      // what the throttled tick managed while away
   stepCam(dt);
   if (backOpen()) armBack();          // so the back button can close it again
+  else if (backArmed) disarmBack();   // closed some other way: take the entry back out
   if (sellArm) { sellArm.t -= dt; if (sellArm.t <= 0 || panel !== sellArm.id) sellArm = null; }
   /* Scaffolding comes down BEFORE the jobs are handed out. It used to be the
      last thing in the tick, so a building that finished had to wait a frame for
@@ -4734,9 +4735,21 @@ function armBack() {
   if (backArmed) return;
   try { history.pushState({ v: 1 }, ''); backArmed = true; } catch (e) {}
 }
+/* A panel closed with its own x, a card tapped away, a placement cancelled from
+   the tray: the entry pushed for it stayed behind, so the next back press
+   closed nothing -- a dead press that looked broken -- and only the one after
+   left the app. It is taken out as soon as nothing is open. The pop this
+   causes is ours, so it must not close whatever happens to be open by then. */
+let ownPop = false;
+function disarmBack() {
+  backArmed = false;
+  try { ownPop = true; history.back(); } catch (e) { ownPop = false; }
+}
 window.addEventListener('popstate', () => {
   backArmed = false;
-  if (backClose()) { SFX.tap(); armBack(); }
+  if (ownPop) { ownPop = false; return; }
+  // re-armed only while something is still open, or closing the last thing left a dead press
+  if (backClose()) { SFX.tap(); if (backOpen()) armBack(); }
 });
 
 function ghostKey() {
@@ -4999,4 +5012,4 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   get sharedTotal() { return sharedTotal; }, set sharedTotal(v) { sharedTotal = v; },
   villageFinished, compact,
   get barMode() { return barMode; }, set barMode(v) { barMode = v; },
-  backOpen, backClose, armBack, get backArmed() { return backArmed; } };
+  backOpen, backClose, armBack, disarmBack, get backArmed() { return backArmed; } };

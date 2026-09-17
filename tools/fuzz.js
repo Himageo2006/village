@@ -1212,6 +1212,37 @@
     }
     return { checks, mismatched: bad.length, worst: bad.slice(0, 4) };
   };
+  /* Back never needs a dead press. Every history entry pushed for something open
+     must be gone once nothing is, however it was closed -- or the next press of
+     Android's back closes nothing and looks broken. Async: popstate is. */
+  window.backSweep = async function () {
+    const V = window.__v, wait = ms => new Promise(r => setTimeout(r, ms));
+    let depth = 0; const op = history.pushState.bind(history), ob = history.back.bind(history);
+    history.pushState = (...a) => { depth++; return op(...a); };
+    history.back = () => { depth--; return ob(); };
+    const fails = [];
+    const settle = async () => { V.step(0.001); await wait(250); V.step(0.001); await wait(50); };
+    try {
+      V.panel = null; V.barMode = 'build'; V.sel = null; V.moving = null; V.away = null; V.claimAsk = false;
+      await settle(); depth = 0;
+      const cases = [
+        ['a panel closed with its x', () => { V.panel = V.placed[0].id; }, async () => { V.panel = null; }],
+        ['a panel closed with back', () => { V.panel = V.placed[0].id; }, async () => { history.back(); }],
+        ['the claim card tapped away', () => { V.claimAsk = true; }, async () => { V.claimAsk = false; }],
+        ['a placement cancelled from the tray', () => { V.sel = 'house'; }, async () => { V.sel = null; }],
+        ['two things closed with two backs', () => { V.barMode = 'orders'; V.panel = V.placed[0].id; },
+          async () => { history.back(); await settle(); history.back(); }],
+      ];
+      for (const [name, open, close] of cases) {
+        open(); await settle();
+        if (depth < 1) fails.push(name + ': nothing was pushed to close it');
+        await close(); await settle();
+        if (depth !== 0) fails.push(name + ': ' + depth + ' dead back press(es) left');
+        depth = 0;
+      }
+    } finally { history.pushState = op; history.back = ob; }
+    return { cases: 5, fails };
+  };
   window.textSweep = function () {
     const cv = document.querySelector('canvas');
     const keepW = window.innerWidth, keepH = window.innerHeight;
