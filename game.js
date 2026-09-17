@@ -1331,6 +1331,10 @@ const upTime = p => 4 + 2 * lvlOf(p);
 /* Everything the upgrade button needs to know, for the hall and for the rest. */
 function upInfo(p) {
   const l = lvlOf(p);
+  /* A decoration has no levels. Nothing about one grows with a level -- its
+     charm is fixed -- and upgrading a statue spent 330 wood and 175 food to
+     change nothing at all. The panel never offered it; the rule now agrees. */
+  if (isDecor(p.key)) return { max: true, cost: null, gate: 0 };
   if (p.key === 'hall') {
     const nx = HALL[l].up;
     return { max: !nx, cost: nx, gate: 0 };
@@ -4051,6 +4055,14 @@ function panelRects() {
    upgrade panel quoting rated output. This counts the delivered difference the
    well actually makes to everything in reach, which also says plainly when one
    has been put somewhere it helps nothing. */
+/* What this well would lift at another level. The well is set to that level
+   for the length of the sum and put back, so boostAt answers for it the way it
+   answers for every other well -- one formula, not a second copy of it. */
+function wellGainAtLevel(w, lvl) {
+  const keep = { lvl: w.lvl, t: w.t };
+  w.lvl = lvl; w.t = 1;
+  try { return wellGain(w); } finally { w.lvl = keep.lvl; w.t = keep.t; }
+}
 function wellGain(w) {
   let n = 0, gain = 0;
   for (const p of placed) {
@@ -4391,9 +4403,13 @@ function drawPanel() {
     if (nl > lvlOf(p)) line += '  →  ' + at(nl, popOf);
   } else if (b.boost) {
     const wg = wellGain(p);
+    /* And what the next level would lift. Every other panel says what an
+       upgrade buys; the well asked for its price with no number beside it. */
+    const nx = nl > lvlOf(p) && wg.gain > 0.005 ? wellGainAtLevel(p, nl).gain : 0;
     line = !wg.n ? 'Reaching no workplace — move it beside one'
       : 'Lifting ' + count(wg.n, 'workplace') + '   ·   '
         + (wg.gain > 0.005 ? '+' + wg.gain.toFixed(2) + '/s delivered'
+            + (nx > wg.gain + 0.005 ? '  →  +' + nx.toFixed(2) + '/s' : '')
           : 'none of them worked yet');
   } else if (b.charm) {
     /* The percentage was a rate figure, and the walk does not speed up with it.
@@ -5013,7 +5029,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   tap, CAM, save, load, get caps() { return caps; },
   HALL, hallOf, hallLevel, allowedOf, countOf, atLimit, unlocked, buildable,
   canUpgrade, upgradeBuilding, upInfo, upCostOf, lvlOf, popOf, capsOf, rateOf, outMul, LVL_MAX,
-  shortfall, shortText, remedy, villageStats, wellGain, wellGainAt, charmDelivered, deliveredOf, deliveredWith, travelSecondsOf, handsFor,
+  shortfall, shortText, remedy, villageStats, wellGain, wellGainAtLevel, wellGainAt, charmDelivered, deliveredOf, deliveredWith, travelSecondsOf, handsFor,
   bestDeliveredOf, reachOf, SNUG_WALK,
   panelRects, TOUCH_MIN, padHit, TEXT_MIN, get panel() { return panel; }, set panel(v) { panel = v; },
   get villagers() { return villagers; }, workersAt, boostAt, producers, stores,
