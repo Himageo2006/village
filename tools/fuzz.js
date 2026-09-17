@@ -701,7 +701,15 @@
           const b2 = pick(V.BUILDINGS.filter(x => x.key !== 'hall'));
           V.grant('wood', 300, 0, 0); V.grant('food', 300, 0, 0);
           const L = V.landBounds();
-          V.place(b2.key, L.lo + R(L.hi - L.lo + 1), L.lo + R(L.hi - L.lo + 1));
+          /* A decoration's label promises "+X/s delivered" before it is bought;
+             what the village delivers afterwards must move by exactly that. */
+          const charm = !!b2.charm, pc = L.lo + R(L.hi - L.lo + 1), pr = L.lo + R(L.hi - L.lo + 1);
+          const pred = charm ? V.decorGainAt(b2.key, pc, pr) : 0;
+          const was = charm ? V.deliveredAtMul(V.charmMul()) : 0;
+          if (V.place(b2.key, pc, pr) && charm) {
+            const got = V.deliveredAtMul(V.charmMul()) - was;
+            if (Math.abs(got - pred) > 1e-6) fails.push('a ' + b2.key + ' promised +' + pred.toFixed(4) + '/s and delivered +' + got.toFixed(4));
+          }
         }
         else if (act === 'sell') {
           const q = pick(V.placed.filter(x => V.canSell(x)));

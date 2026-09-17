@@ -1863,7 +1863,7 @@ const charmTotal = () => charmSum;
    having for the reason the tray was giving. */
 const charmRoom = () => Math.max(0, CHARM_FULL - charmSum);
 const usefulCharm = key => Math.min(B(key).charm || 0, charmRoom());
-const charmMul = () => 1 + Math.min(CHARM_CAP, charmSum / CHARM_FULL * CHARM_CAP);
+const charmMul = () => mulFor(charmSum);        // one formula, shared with charmGainFrom
 
 const occupied = (exceptId) => {
   const set = new Set();
@@ -3033,7 +3033,8 @@ function drawWorld() {
       /* A storehouse has no reach figure and is not a well, so it never got a
          label at all -- and it is one of the two most expensive things in the
          tray. It gets one now when the only thing to say is the price. */
-      if (eff !== null || isWell || (selBuild && !affordable(selKey))) {
+      const isCharm = !!B(selKey).charm && moving == null;
+      if (eff !== null || isWell || isCharm || (selBuild && !affordable(selKey))) {
         const a = tileToWorld(ghost.c, ghost.r), d2 = tileToWorld(ghost.c + b.w - 1, ghost.r + b.h - 1);
         const cx = (a.x + d2.x) / 2, cy = (a.y + d2.y) / 2;
         const sc = badgeScale();
@@ -3074,6 +3075,13 @@ function drawWorld() {
           txt = !wg.n ? 'reaches no workplace'
             : 'lifts ' + count(wg.n, 'workplace') + '   ·   '
               + (wg.gain > 0.005 ? '+' + wg.gain.toFixed(2) + '/s' : 'none of them worked yet');
+        } else if (isCharm) {
+          const add = usefulCharm(selKey), gain = decorGainAt(selKey, ghost.c, ghost.r);
+          const working = placed.some(q => established(q) && B(q.key).makes && B(q.key).jobs && workersAt(q.id));
+          txt = add <= 0 && gain <= 0.005 ? 'charm is full — this one is for the look'
+            : (add > 0 ? '✨+' + add + ' charm   ·   ' : 'charm full   ·   ')
+              + (gain > 0.005 ? '+' + gain.toFixed(2) + '/s delivered'
+                : working ? 'too little to count yet' : 'nothing is being worked yet');
         } else txt = empty ? 'no one spare — ' + remedy('people') + ' first'
           /* For the whole building, as its panel counts it -- the hands it would
              have times what each delivers. The label quoted one worker's share,
@@ -3084,12 +3092,13 @@ function drawWorld() {
               : eff > 0.85 ? '' : '   ·   best ' + (hands * bestDeliveredOf(probe)).toFixed(2));
         const w2 = g.measureText(txt).width + 26;
         g.fillStyle = 'rgba(14,22,12,.9)';
-        const good = isWell ? wellGainAt(ghost.c, ghost.r, 1).n > 0 : !empty && eff > 0.66;
-        g.strokeStyle = cantAfford ? '#e59a86' : isWell ? (good ? '#9fe86b' : '#e59a86')
+        const good = isWell ? wellGainAt(ghost.c, ghost.r, 1).n > 0
+          : isCharm ? (usefulCharm(selKey) > 0 || selKey === 'path') : !empty && eff > 0.66;
+        g.strokeStyle = cantAfford ? '#e59a86' : (isWell || isCharm) ? (good ? '#9fe86b' : '#e59a86')
           : empty ? '#e59a86' : eff > 0.66 ? '#9fe86b' : eff > 0.42 ? '#e8c98a' : '#e59a86';
         g.lineWidth = 2.5;
         g.beginPath(); g.roundRect(-w2 / 2, -17, w2, 34, 17); g.fill(); g.stroke();
-        g.fillStyle = cantAfford ? '#f0a583' : isWell ? (good ? '#b6f58a' : '#f0a583')
+        g.fillStyle = cantAfford ? '#f0a583' : (isWell || isCharm) ? (good ? '#b6f58a' : '#f0a583')
           : empty ? '#f0a583' : eff > 0.66 ? '#b6f58a' : eff > 0.42 ? '#f0d89a' : '#f0a583';
         g.fillText(txt, 0, 1);
         g.restore();
@@ -4046,19 +4055,45 @@ function drawWellReach(c, r, alpha) {
 
 /* What charm is really adding, in goods per second rather than as a percentage
    of a rate nobody receives. Same treatment as the well: with minus without. */
-function charmDelivered() {
-  const m = charmMul();
-  if (m <= 1) return 0;
-  let gain = 0;
+/* What the working village delivers with charm multiplying its rates by m. */
+function deliveredAtMul(m) {
+  let total = 0;
   for (const p of placed) {
     const b = B(p.key);
     if (!established(p) || !b.makes || !b.jobs) continue;
     const hands = workersAt(p.id);
     if (!hands) continue;
-    const base = rateOf(p, Object.keys(b.makes)[0]) * boostAt(p);
-    gain += hands * (deliveredWith(p, base * m) - deliveredWith(p, base));
+    total += hands * deliveredWith(p, rateOf(p, Object.keys(b.makes)[0]) * boostAt(p) * m);
   }
-  return gain;
+  return total;
+}
+const mulFor = sum => 1 + Math.min(CHARM_CAP, sum / CHARM_FULL * CHARM_CAP);
+function charmDelivered() {
+  const m = charmMul();
+  return m <= 1 ? 0 : deliveredAtMul(m) - deliveredAtMul(1);
+}
+/* And what ONE more decoration would add, before it is bought. The placement
+   label said nothing at all for a decoration -- a 150-wood statue went down
+   with no number over it, where every building showed what its spot was worth,
+   and the only reason to buy one is that number. */
+function charmGainFrom(extra) {
+  const now = charmMul(), then = mulFor(charmSum + extra);
+  return then <= now ? 0 : deliveredAtMul(then) - deliveredAtMul(now);
+}
+/* Everything placing this decoration HERE would add: its charm, and for a path
+   the quicker walk over it as well -- charm alone understated a path by half or
+   more, and the path is the one decoration whose spot matters. The tile is
+   tried in the route calculation and then taken out again. */
+function decorGainAt(key, c, r) {
+  const add = usefulCharm(key);
+  if (key !== 'path') return charmGainFrom(add);
+  const now = deliveredAtMul(charmMul());
+  const keepSet = pathSet, keepCache = travelCache;
+  pathSet = new Set(pathSet); pathSet.add(c + ',' + r); travelCache = new Map();
+  let then;
+  try { then = deliveredAtMul(mulFor(charmSum + add)); }
+  finally { pathSet = keepSet; travelCache = keepCache; }
+  return Math.max(0, then - now);
 }
 
 /* How the village is doing as a whole, shown on the hall.
@@ -4896,7 +4931,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   panelRects, TOUCH_MIN, padHit, TEXT_MIN, get panel() { return panel; }, set panel(v) { panel = v; },
   get villagers() { return villagers; }, workersAt, boostAt, producers, stores,
   assignJobs, desiredJobs, computeJobs, invalidateJobs, established, lvlHeld, buildingAt, ensureHall, jobsOf, VILLAGER_MAX, rebuildStores, nearestStore,
-  artRect, paintedAt, isDecor, decorCount, DECOR_MAX, charmTotal, charmMul, charmRoom, usefulCharm, CHARM_FULL,
+  artRect, paintedAt, isDecor, decorCount, DECOR_MAX, charmTotal, charmMul, charmGainFrom, decorGainAt, deliveredAtMul, charmRoom, usefulCharm, CHARM_FULL,
   tabRects, drawDecor, grant, flushBadges, get lastBadges() { return lastBadges; },
   sparePeople, outOfRoom, noSpareHands, peopleComing, livedIn,
   sellBuilding, canSell, sellValue, investedIn, capsWithout, get moving() { return moving; }, set moving(v) { moving = v; },
