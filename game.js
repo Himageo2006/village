@@ -3079,7 +3079,7 @@ function drawWorld() {
             : 'lifts ' + count(wg.n, 'workplace') + '   ·   '
               + (wg.gain > 0.005 ? '+' + wg.gain.toFixed(2) + '/s' : 'none of them worked yet');
         } else if (isCharm) {
-          const add = usefulCharm(selKey), gain = decorGainAt(selKey, ghost.c, ghost.r);
+          const add = usefulCharm(selKey), gain = decorGainCached(selKey, ghost.c, ghost.r);
           const working = placed.some(q => established(q) && B(q.key).makes && B(q.key).jobs && workersAt(q.id));
           txt = add <= 0 && gain <= 0.005 ? 'charm is full — this one is for the look'
             : (add > 0 ? '✨+' + add + ' charm   ·   ' : 'charm full   ·   ')
@@ -4104,6 +4104,17 @@ function charmGainFrom(extra) {
    the quicker walk over it as well -- charm alone understated a path by half or
    more, and the path is the one decoration whose spot matters. The tile is
    tried in the route calculation and then taken out again. */
+/* The label asks every frame, and for a path the answer re-walks every
+   workplace's route: 1.6 ms of a 5 ms frame on a desktop, several times that on
+   a phone, for a number that only changes when the finger moves to another tile
+   or the village changes under it. Held for a quarter of a second per tile. */
+let decorMemo = null;
+function decorGainCached(key, c, r) {
+  const now = performance.now(), id = key + ',' + c + ',' + r;
+  if (decorMemo && decorMemo.id === id && now - decorMemo.at < 250) return decorMemo.v;
+  decorMemo = { id, at: now, v: decorGainAt(key, c, r) };
+  return decorMemo.v;
+}
 function decorGainAt(key, c, r) {
   const add = usefulCharm(key);
   if (key !== 'path') return charmGainFrom(add);
