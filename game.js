@@ -3149,6 +3149,18 @@ function drawWorld() {
   };
   /* And which building is being moved. "Tap where it should go" named nothing:
      the building looked like every other one until a destination was tapped. */
+  /* The building whose panel is open. Nothing on the map said which one it
+     was: in a row of farms and camps, or with a mill tucked behind the hall,
+     the panel described a building the player could not find. Solid, where a
+     move is dashed. */
+  const panelP = panel != null && moving == null ? byId(panel) : null;
+  if (panelP) {
+    const b = B(panelP.key);
+    g.save(); g.lineJoin = 'round';
+    footprint(panelP.c, panelP.r, b); g.strokeStyle = 'rgba(10,16,8,.65)'; g.lineWidth = 7; g.stroke();
+    footprint(panelP.c, panelP.r, b); g.strokeStyle = '#f4ecd0'; g.lineWidth = 3.5; g.stroke();
+    g.restore();
+  }
   const movingP = moving != null ? byId(moving) : null;
   if (movingP) {
     const b = B(movingP.key);
