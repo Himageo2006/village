@@ -31,6 +31,12 @@
      one mid-cycle. */
   const INVARIANTS = [
     ['no negative resources', () => V.res.wood >= 0 && V.res.food >= 0],
+    // the goal strip's "ready" must be a purchase the game will actually make
+    ['a goal that says ready can be bought', () => {
+      if (V.buyProgress('hall').startsWith('ready') && !V.canUpgrade(V.hallOf())) return false;
+      if (V.buyProgress('land').startsWith('ready') && !V.canClaim()) return false;
+      return true;
+    }],
     /* An offer stays in its stall until it is gone: filling one used to slide the
        rest left under the player's finger. Remembers each id's stall between
        checks; a reload issues new ids, so it cannot be fooled across one. */
@@ -328,9 +334,12 @@
                    'well', 'mill', 'house', 'store', 'market'];
     const budget = maxMinutes * 60 * 30;
     const afford = c => (c.wood || 0) <= V.res.wood && (c.food || 0) <= V.res.food;
+    // when each goal was reached, in simulated minutes -- where the dead stretches are
+    const goalTimes = []; let lastGoal = V.goalIdx;
     for (let i = 0; i < budget; i++) {
       carriedBefore = new Set(V.villagers.filter(g => g.carry));
       V.step(1 / 30);
+      if (V.goalIdx !== lastGoal) { goalTimes.push([lastGoal, +(i / 1800).toFixed(1)]); lastGoal = V.goalIdx; }
       note(check('step'));
       if (i % 15) continue;
       let acted = false;
@@ -406,7 +415,7 @@
     return { goals: V.goalIdx + '/' + V.GOALS.length, hall: V.hallLevel(), land: V.landTier,
       placed: V.placed.length, villagers: V.villagers.length,
       res: { wood: Math.round(V.res.wood), food: Math.round(V.res.food) },
-      caps: { ...V.caps }, trades: V.ordersDone, fails };
+      caps: { ...V.caps }, trades: V.ordersDone, goalTimes, fails };
   };
 
   /* What a damaged save does.
@@ -1260,6 +1269,9 @@
         /* An empty board says something the full one never does, and nothing
            had ever drawn it in a sweep. */
         noOrders: () => { V.orders = []; },
+        // a purchase goal part-way saved: the longest strip there is, two short resources and a reward
+        buyGoal: () => { window.__keptGoal = V.goalIdx; V.goalIdx = V.GOALS.findIndex(q => q.text === 'Claim the whole island'); V.res.wood = 1234; V.res.food = 567; },
+        buyGoalDone: () => { V.goalIdx = window.__keptGoal; },
         // one offer, the countdown at its longest (minutes) and an empty stall
         halfOrders: () => { V.orders = [V.makeOrder(2)]; V.orderT = 0; },
         placing: () => { V.barMode = 'build'; V.sel = 'mill'; V.orders = [V.makeOrder(1)]; },

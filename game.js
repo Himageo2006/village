@@ -1593,24 +1593,24 @@ const GOALS = [
   { text: 'House four villagers',          done: () => villagers.length >= 4,  give: { wood: 25 },
     at: () => [villagers.length, 4] },
   { text: 'Build a farm',                  done: () => countOf('farm') >= 1,   give: { wood: 30, food: 20 } },
-  { text: 'Raise the town hall to level 2', done: () => hallLevel() >= 2,      give: { wood: 60, food: 40 } },
+  { text: 'Raise the town hall to level 2', buy: 'hall', done: () => hallLevel() >= 2,      give: { wood: 60, food: 40 } },
   { text: 'Build a storehouse',            done: () => countOf('store') >= 1,  give: { wood: 70 } },
   // not "at the market": trading needs no market, and naming one sends the
   // player looking for a building the hall will not allow for another two levels
   { text: 'Fill three trade orders',        done: () => ordersDone >= 3,        give: { wood: 100, food: 60 },
     at: () => [ordersDone, 3] },
-  { text: 'Claim land beyond your border', done: () => landTier >= 1,          give: { wood: 120, food: 70 } },
+  { text: 'Claim land beyond your border', buy: 'land', done: () => landTier >= 1,          give: { wood: 120, food: 70 } },
   { text: 'Upgrade any building to level 2', done: () => anyAtLevel(2),        give: { wood: 90, food: 50 } },
   { text: 'Dig a well',                    done: () => countOf('well') >= 1,   give: { wood: 110 } },
-  { text: 'Raise the town hall to level 3', done: () => hallLevel() >= 3,      give: { wood: 180, food: 120 } },
-  { text: 'Claim a third ring of land',    done: () => landTier >= 2,          give: { wood: 350, food: 220 } },
+  { text: 'Raise the town hall to level 3', buy: 'hall', done: () => hallLevel() >= 3,      give: { wood: 180, food: 120 } },
+  { text: 'Claim a third ring of land',    buy: 'land', done: () => landTier >= 2,          give: { wood: 350, food: 220 } },
   { text: 'Place five decorations',        done: () => decorCount() >= 5,      give: { wood: 150, food: 90 },
     at: () => [decorCount(), 5] },
   { text: 'Upgrade any building to level 3', done: () => anyAtLevel(3),        give: { wood: 250, food: 160 } },
   { text: 'Build a mill',                  done: () => countOf('mill') >= 1,   give: { wood: 350, food: 220 } },
-  { text: 'Raise the town hall to level 4', done: () => hallLevel() >= 4,      give: { wood: 550, food: 360 } },
+  { text: 'Raise the town hall to level 4', buy: 'hall', done: () => hallLevel() >= 4,      give: { wood: 550, food: 360 } },
   { text: 'Open a market',                 done: () => countOf('market') >= 1, give: { wood: 800, food: 500 } },
-  { text: 'Raise the town hall to level 5', done: () => hallLevel() >= 5,      give: { wood: 1400, food: 900 } },
+  { text: 'Raise the town hall to level 5', buy: 'hall', done: () => hallLevel() >= 5,      give: { wood: 1400, food: 900 } },
   /* The fourth ring, which was never asked for.
 
      Goals name land at the second ring and then at the whole island, and
@@ -1618,7 +1618,7 @@ const GOALS = [
      the one before it and the largest single purchase in the game. Measured on
      a full playthrough, that left a 33-minute stretch with one unchanging line
      on the strip, the longest silence in the game by a wide margin. */
-  { text: 'Claim a fourth ring of land',  done: () => landTier >= LAND_MAX - 1,
+  { text: 'Claim a fourth ring of land',  buy: 'land', done: () => landTier >= LAND_MAX - 1,
     give: { wood: 1200, food: 800 } },
   /* The village outlasts its goals by about an hour.
 
@@ -1665,7 +1665,7 @@ const GOALS = [
     at: () => { const w = placed.filter(p => B(p.key).jobs && p.key !== 'hall');
                 return [w.filter(p => lvlHeld(p) >= LVL_MAX).length, w.length]; } },
   /* The finale, and the one the completion card names. */
-  { text: 'Claim the whole island',        done: () => landTier >= LAND_MAX,
+  { text: 'Claim the whole island',        buy: 'land', done: () => landTier >= LAND_MAX,
     give: { wood: 5000, food: 3200 } },
 ];
 const currentGoal = () => GOALS[goalIdx] || null;
@@ -3588,6 +3588,22 @@ function drawSaveState() {
   g.restore();
 }
 
+/* For a goal that is one purchase -- a hall level, a ring of land -- how close
+   it is. Measured on a full playthrough, raising the hall to five is eighteen
+   minutes of saving and the fourth ring thirteen, and the strip showed only the
+   reward for all of it: no sense of progress, and no signal that the moment to
+   act had come. Now it counts the resources still short, says when it can be
+   bought and where, and says so when the price is more than the stores hold. */
+function buyProgress(kind) {
+  const h = hallOf();
+  if (kind === 'hall' && h && h.t < 1) return 'building…';          // the upgrade is already paid for
+  const cost = kind === 'hall' ? (h ? upInfo(h).cost : null) : landNext();
+  if (!cost) return '';
+  if (Object.entries(cost).some(([k, v]) => v > caps[k])) return 'needs more storage';
+  if (canAfford(cost)) return kind === 'hall' ? 'ready — tap the town hall' : 'ready — tap the dark ground';
+  return Object.entries(cost).filter(([k, v]) => res[k] < v)
+    .map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + Math.floor(res[k]) + '/' + v).join(' ');
+}
 function drawGoal() {
   if (away) return;
   const u = US(), y = hudTop() + 132 * u;
@@ -3652,6 +3668,7 @@ function drawGoal() {
   const prog = gl.at ? gl.at() : null;
   const txt = gl.text
     + (prog && prog[0] < prog[1] ? '   ·   ' + prog[0] + '/' + prog[1] : '')
+    + (gl.buy ? '   ·   ' + buyProgress(gl.buy) : '')
     + '   ·   ' + reward;
   const fit = fitLines(txt, W - 108 * u, 22 * u, 13 * u, 2);
   const tw = Math.max(...fit.lines.map(l => g.measureText(l).width));
@@ -4941,7 +4958,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   collectAway, grantAway, duration, potentialRate, expectedRate, currentHint, get away() { return away; }, set away(v) { away = v; },
   get hiddenAt() { return hiddenAt; }, set hiddenAt(v) { hiddenAt = v; },
   get hiddenSim() { return hiddenSim; }, set hiddenSim(v) { hiddenSim = v; }, AWAY_MIN, AWAY_MAX,
-  GOALS, currentGoal, get goalIdx() { return goalIdx; }, set goalIdx(v) { goalIdx = v; },
+  GOALS, currentGoal, buyProgress, get goalIdx() { return goalIdx; }, set goalIdx(v) { goalIdx = v; },
   get orders() { return orders; }, set orders(v) { orders = v; },
   makeOrder, fillOrder, canFill, orderRects, orderSlotRects, nextTraderIn, seatOrders, freeStall, ORDER_EVERY, ORDER_SLOTS, orderSlots, orderEvery, marketCount, TRAY_ICON, TRAY_NAME, TRAY_ONE, TRAY_ROWS,
   get ordersDone() { return ordersDone; }, set ordersDone(v) { ordersDone = v; },
