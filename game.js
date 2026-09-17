@@ -989,6 +989,16 @@ function builtBounds() {
   const L = landBounds();
   const core = { x0: Infinity, x1: -Infinity, y0: Infinity, y1: -Infinity };
   for (const p of placed) {
+    /* By the painting where there is one. A tile either side of the centre is
+       narrower than a mill's sails or a farm's fence, and on a full island that
+       put a farm 37 and a mill 41 logical pixels off the screen edges -- the
+       very crop the paragraph above says this fit exists to prevent. */
+    const R = artRect(p);
+    if (R) {
+      core.x0 = Math.min(core.x0, R.left); core.x1 = Math.max(core.x1, R.left + R.wid);
+      core.y0 = Math.min(core.y0, R.top); core.y1 = Math.max(core.y1, R.top + R.hgt);
+      continue;
+    }
     const c = centreOf(p);
     core.x0 = Math.min(core.x0, c.x - TW); core.x1 = Math.max(core.x1, c.x + TW);
     core.y0 = Math.min(core.y0, c.y - TH); core.y1 = Math.max(core.y1, c.y + TH);
@@ -999,7 +1009,9 @@ function builtBounds() {
   const minHalfW = 3.2 * TW, minHalfH = 3.2 * TH;
   core.x0 = Math.min(core.x0, mid.x - minHalfW); core.x1 = Math.max(core.x1, mid.x + minHalfW);
   core.y0 = Math.min(core.y0, mid.y - minHalfH); core.y1 = Math.max(core.y1, mid.y + minHalfH);
-  const b = landWorldBounds();
+  /* Held inside the whole grid, not the claimed diamond: a painting on the
+     edge of the claim stands out past it, and clamping to the claim cropped it. */
+  const b = worldBounds();
   return { x0: Math.max(core.x0, b.x0), x1: Math.min(core.x1, b.x1),
            y0: Math.max(core.y0, b.y0), y1: Math.min(core.y1, b.y1) };
 }
@@ -1058,6 +1070,7 @@ function camFit(instant, wide) {
 /* An eased move rather than a jump. A cut makes the player re-find their own
    village; a glide of about half a second carries the eye with it. */
 let camGlide = null;
+let camTouched = false;                 // the player has moved the camera since boot
 /* Where a flick is still going after the finger has gone.
 
    The camera stopped dead the instant a drag ended, which is the one thing a
@@ -4458,6 +4471,7 @@ const ptrMid = () => { const a = [...PTRS.values()];
 function ptrSweep() { const now = Date.now(); for (const [id, r] of PTRS) if (now - r.tLast > PTR_STALE) PTRS.delete(id); }
 
 cv.addEventListener('pointerdown', ev => {
+  camTouched = true;
   audioOn();                          // must happen inside a gesture
   ptrSweep();
   const p = evPos(ev);
@@ -4522,6 +4536,7 @@ function ptrEnd(ev) {
    and the zoom barely moves. passive:false because this has to preventDefault,
    or the page scrolls behind the canvas. */
 cv.addEventListener('wheel', ev => {
+  camTouched = true;
   ev.preventDefault();
   camGlide = null; camFling = null;     // the player's hand outranks the camera
   const step = ev.deltaY * (ev.deltaMode === 1 ? 16 : ev.deltaMode === 2 ? 100 : 1);
@@ -4792,6 +4807,23 @@ setInterval(() => {
    with a rock in it. They all ship inside the app; there is nothing to save by
    waiting. The stand-in stays for a file that genuinely will not load. */
 for (const b of BUILDINGS) artFor(b.key);
+/* And frame the village again once its paintings are in. The opening fit runs
+   before any image has loaded, so it measured every building as a tile either
+   side of its centre -- narrower than the art -- and a returning player's first
+   view cropped the buildings on the edges. Once, and only if they have not
+   already taken hold of the camera. */
+{
+  const keys = [...new Set(placed.map(p => p.key))].filter(k => !isDecor(k));
+  let left = 0;
+  const done = () => { if (--left === 0 && !camTouched) camFit(true); };
+  for (const k of keys) {
+    const im = ART[k];
+    if (!im || ready(im)) continue;
+    left++;
+    im.addEventListener('load', done, { once: true });
+    im.addEventListener('error', done, { once: true });
+  }
+}
 for (const v of VILLAGERS) artFor(v);
 for (const k of ['ground', 'water', 'tree_pine', 'tree_oak', 'rock', 'bush']) artFor(k);
 

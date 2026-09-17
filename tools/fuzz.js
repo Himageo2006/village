@@ -1141,6 +1141,34 @@
     V.CAM.z = keepZ; V.step(0.001);
     return { frames, drawn, overlaps: bad.length, worst: bad.slice(0, 5) };
   };
+  /* The village fit never crops a building, unless the zoom is already at its
+     floor. It measured buildings as a tile either side of the centre and held
+     the frame inside the claim, so paintings on the edge ran off the screen. */
+  window.framingSweep = function () {
+    const V = window.__v, keepW = window.innerWidth, keepH = window.innerHeight, bad = [];
+    let checks = 0;
+    for (const [sw, sh] of [[375, 812], [360, 640], [768, 1024]]) {
+      asScreen(sw, sh); V.step(0.001);
+      for (const tier of [1, 2, 3, V.LAND_MAX]) {
+        V.placed.length = 0; V.villagers.length = 0; V.landTier = tier; V.ensureHall(); V.placed[0].lvl = 5;
+        const L = V.landBounds();
+        const put = k => { V.grant('wood', 1e6, 0, 0); V.grant('food', 1e6, 0, 0);
+          for (let c = L.lo; c <= L.hi; c++) for (let r = L.lo; r <= L.hi; r++) if (V.place(k, c, r)) return V.placed[V.placed.length - 1]; };
+        const allow = V.HALL[V.HALL.length - 1].allow;
+        for (let round = 0; round < 4; round++) for (const k of Object.keys(allow)) { const q = put(k); if (q) q.t = 1; }
+        V.step(0.001); V.camFit(true);
+        const atFloor = V.CAM.z <= 0.5501;
+        for (const p of V.placed) {
+          const R = V.artRect(p); if (!R) continue;
+          checks++;
+          const a = V.camProject(R.left, R.top), b = V.camProject(R.left + R.wid, R.top + R.hgt);
+          if (!atFloor && (a.x < -1 || b.x > 1025)) bad.push({ screen: sw + 'x' + sh, tier, key: p.key, x: [Math.round(a.x), Math.round(b.x)] });
+        }
+      }
+    }
+    asScreen(keepW, keepH); V.step(0.001);
+    return { checks, cropped: bad.length, worst: bad.slice(0, 5) };
+  };
   window.textSweep = function () {
     const cv = document.querySelector('canvas');
     const keepW = window.innerWidth, keepH = window.innerHeight;
