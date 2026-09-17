@@ -2730,7 +2730,12 @@ function topOf(p) {
 }
 /* Badges are counter-scaled so they stay readable when the camera pulls back.
    Clamped, or at minimum zoom they swell over the buildings they label. */
-const badgeScale = () => Math.max(0.55, Math.min(1.25, 1 / camScale()));
+/* Counter-scaled against the camera, and sized so the smallest badge text --
+   19 of these units -- lands at TEXT_MIN on screen, the floor every HUD label
+   is held to. It was held to nothing: "−63%" and "Lv 3" came out near 7 CSS
+   pixels on a phone, the warnings a player most needs to read. */
+const BADGE_TEXT_PX = 19;
+const badgeScale = () => Math.max(0.55, Math.min(2, 1 / camScale())) * (TEXT_MIN / BADGE_TEXT_PX);
 
 function drawStatus(p) {
   if (p.t < 1) return;
@@ -5035,7 +5040,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   get villagers() { return villagers; }, workersAt, boostAt, producers, stores,
   assignJobs, desiredJobs, computeJobs, invalidateJobs, established, lvlHeld, buildingAt, ensureHall, jobsOf, VILLAGER_MAX, rebuildStores, nearestStore,
   artRect, paintedAt, isDecor, decorCount, DECOR_MAX, charmTotal, charmMul, charmGainFrom, decorGainAt, deliveredAtMul, charmRoom, usefulCharm, CHARM_FULL,
-  tabRects, drawDecor, grant, flushBadges, get lastBadges() { return lastBadges; },
+  tabRects, drawDecor, grant, flushBadges, get lastBadges() { return lastBadges; }, badgeScale, BADGE_TEXT_PX, camScale,
   sparePeople, outOfRoom, noSpareHands, peopleComing, livedIn,
   sellBuilding, canSell, sellValue, investedIn, capsWithout, get moving() { return moving; }, set moving(v) { moving = v; },
   get armed() { return armed; }, set armed(v) { armed = v; },

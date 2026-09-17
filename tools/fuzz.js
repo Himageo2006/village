@@ -1159,8 +1159,11 @@
     for (const p of V.placed) if (V.B(p.key).jobs && p.key !== 'hall') p.lvl = 3;   // leave room to upgrade
     V.grant('wood', 1e6, 0, 0); V.grant('food', 1e6, 0, 0);
     let frames = 0, drawn = 0; const bad = [];
-    for (const z of [0.35, 0.5, 0.8, 1.2]) {
+    for (const z of [0.35, 0.5, 0.55, 0.8, 1.2, 2.2]) {
       V.CAM.z = z; V.step(0.001); V.draw(); frames++;
+      // and big enough to read: the smallest badge text reaches the HUD floor on screen
+      const onScreen = V.BADGE_TEXT_PX * V.badgeScale() * V.camScale();
+      if (z >= 0.55 && onScreen < V.TEXT_MIN - 0.5) bad.push({ z, tooSmall: +onScreen.toFixed(1), floor: V.TEXT_MIN });
       const k = V.lastBadges; drawn += k.length;
       for (let i = 0; i < k.length; i++) for (let j = i + 1; j < k.length; j++)
         if (Math.abs(k[i].x - k[j].x) < k[i].hw + k[j].hw && Math.abs(k[i].y - k[j].y) < k[i].hh + k[j].hh)
