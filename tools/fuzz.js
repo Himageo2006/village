@@ -1104,6 +1104,25 @@
     if (maxed) { V.res.wood = V.caps.wood; V.res.food = V.caps.food; }
     V.tutSeen.length = 0;
   }
+  /* A hint's twenty seconds are twenty seconds ON SCREEN. The clock used to run
+     behind the goal banner and the away card, so a hint could expire unseen. */
+  window.hintSweep = function () {
+    const V = window.__v, fails = [];
+    for (const [name, cover, clear] of [
+      ['away card', () => { V.away = { secs: 7200, got: { wood: 1, food: 1 } }; }, () => { V.away = null; }],
+      ['goal banner', () => { V.goalDone = { g: V.GOALS[0], got: {}, age: -1e9 }; }, () => { V.goalDone = null; }],
+      ['finished card', () => { V.finished = { villagers: 1, buildings: 1, trades: 0, charm: 0 }; }, () => { V.finished = null; }]]) {
+      V.placed.length = 0; V.villagers.length = 0; V.ensureHall(); V.tutSeen.length = 0;
+      V.away = null; V.goalDone = null; V.finished = null;
+      cover();
+      for (let i = 0; i < 40 * 30; i++) { if (V.goalDone) V.goalDone.age = -1e9; V.step(1 / 30); }
+      if (V.tutSeen.includes('house')) fails.push('the first hint expired behind the ' + name);
+      clear();
+      for (let i = 0; i < 21 * 30; i++) V.step(1 / 30);
+      if (!V.tutSeen.includes('house')) fails.push('the first hint never finished once the ' + name + ' closed');
+    }
+    return { cases: 3, fails };
+  };
   window.textSweep = function () {
     const cv = document.querySelector('canvas');
     const keepW = window.innerWidth, keepH = window.innerHeight;

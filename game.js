@@ -1740,10 +1740,27 @@ const TUT = [
      the rate it makes wood, while nearly everything it buys costs more wood
      than food. Converting the one into the other is the answer the game is
      built around, and "build a storehouse" only postpones it. */
+  /* The one core action no hint taught. The goal strip says "Claim land beyond
+     your border" and nothing on screen says how: the answer is to tap the dark
+     ground, which the player has had no reason to try since placements there
+     were refused. Shown when a goal asks for land, or when the village has
+     simply run out of room for anything it is allowed to build. */
+  { id: 'land',  text: 'Tap the darker ground past your border to claim more land',
+    when: () => !!landNext() && (/land|island/i.test((currentGoal() || {}).text || '') || outOfRoom()) },
   { id: 'full',  text: 'Your stores are full — what villagers bring in now is thrown away. Spend it, trade it away, or build a storehouse',
     when: () => placed.some(p => p.key !== 'hall' && B(p.key).jobs && p.t >= 1)
                 && (isFull('wood') || isFull('food')) },
 ];
+// nowhere left on the claim for any building the hall still allows
+function outOfRoom() {
+  const want = BUILDINGS.filter(b => b.key !== 'hall' && !b.decor && unlocked(b.key) && !atLimit(b.key));
+  if (!want.length) return false;
+  const L = landBounds(), occ = occupied();
+  for (const b of want)
+    for (let c = L.lo; c <= L.hi; c++) for (let r = L.lo; r <= L.hi; r++)
+      if (canPlace(b.key, c, r, occ)) return false;
+  return true;
+}
 function currentHint() {
   for (const h of TUT) if (!tutSeen.includes(h.id) && h.when()) return h;
   return null;
@@ -1759,7 +1776,12 @@ function stepHints(dt) {
   }
   tutNow = id;
   if (!h) { tutT = 0; return; }
-  tutT += dt;
+  /* Only time it is actually on screen counts. The goal banner, the welcome-back
+     card and the finished card all hide it, and the clock ran on behind them:
+     a hint that arrived with a goal lost four and a half of its twenty seconds
+     to the "Goal complete!" banner, and one that came up while the away card
+     was open could expire without ever being drawn. */
+  if (hintVisible()) tutT += dt;
   if (tutT >= TUT_SHOW) { tutSeen.push(h.id); tutT = 0; tutNow = null; save(); }
 }
 
@@ -3635,8 +3657,9 @@ function pillLines(fit, cx, cy) {
   const top = cy - (fit.lines.length - 1) * lh / 2;
   fit.lines.forEach((l, i) => g.fillText(l, cx, top + i * lh));
 }
+const hintVisible = () => !(away || finished || goalDone);   // one thing at a time
 function drawHint() {
-  if (away || finished || goalDone) return;   // one thing at a time
+  if (!hintVisible()) return;
   const h = currentHint(); if (!h) return;
   const u = US(), y = hudTop() + 132 * u;
   g.save();
@@ -4756,7 +4779,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   assignJobs, desiredJobs, computeJobs, invalidateJobs, established, lvlHeld, buildingAt, ensureHall, jobsOf, VILLAGER_MAX, rebuildStores, nearestStore,
   artRect, paintedAt, isDecor, decorCount, DECOR_MAX, charmTotal, charmMul, charmRoom, usefulCharm, CHARM_FULL,
   tabRects, drawDecor, grant,
-  sparePeople, noSpareHands, peopleComing, livedIn,
+  sparePeople, outOfRoom, noSpareHands, peopleComing, livedIn,
   sellBuilding, canSell, sellValue, investedIn, capsWithout, get moving() { return moving; }, set moving(v) { moving = v; },
   get armed() { return armed; }, set armed(v) { armed = v; },
   get ghost() { return ghost; }, set ghost(v) { ghost = v; },
