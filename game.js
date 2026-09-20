@@ -1459,17 +1459,24 @@ function makeOrder(tier) {
   const giveK = richWood ? 'wood' : 'food', getK = richWood ? 'food' : 'wood';
   /* Prefer a size that is not already on the board, so the stalls stay
      distinct even though they are filled one at a time. */
-  if (tier === undefined) {
-    const taken = new Set(orders.map(o => o.tier));
-    const free = ORDER_TIERS.map((_, i) => i).filter(i => !taken.has(i));
-    const from = free.length ? free : ORDER_TIERS.map((_, i) => i);
-    tier = from[(Math.random() * from.length) | 0];
-  }
-  const T = ORDER_TIERS[tier];
   /* Round to fives once the numbers are big enough to look untidy otherwise --
      at an early cap of 300 the small stall is asking for twenty, and rounding
      THAT to a five turns a 12% spread into a 25% one. */
   const snap = n => n >= 100 ? Math.max(5, Math.round(n / 5) * 5) : Math.max(1, Math.round(n));
+  if (tier === undefined) {
+    const taken = new Set(orders.map(o => o.tier));
+    const all = ORDER_TIERS.map((_, i) => i), free = all.filter(i => !taken.has(i));
+    /* And a size the village can pay for NOW, where there is one. The size was
+       picked at random, so with both stores low the big stall asked for more
+       than the village held -- and the board only swaps an offer out when none
+       can be taken, one per trader, so a board of those sat there for minutes.
+       A size it can pay comes first, a size not already on the board among those. */
+    const payable = i => snap(caps[giveK] * ORDER_TIERS[i].size) <= res[giveK];
+    const pools = [free.filter(payable), all.filter(payable), free, all];
+    const from = pools.find(p => p.length);
+    tier = from[(Math.random() * from.length) | 0];
+  }
+  const T = ORDER_TIERS[tier];
   const giveN = snap(caps[giveK] * T.size);
   /* Both sides as a share of the SAME cap, so the rate means what it says even
      when the two ceilings differ. */
