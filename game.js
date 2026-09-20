@@ -1676,7 +1676,7 @@ const GOALS = [
   { text: 'Fill the village with charm',   done: () => charmTotal() >= CHARM_FULL,
     give: { wood: 2600, food: 1700 },
     at: () => [Math.min(charmTotal(), CHARM_FULL), CHARM_FULL] },
-  { text: 'Raise every workplace to level 5',
+  { text: 'Raise every workplace to level 5', buy: 'workplace',
     /* Counted at the level each has REACHED: one still under scaffolding on its
        way to five is not there yet, and leaving it out finished the goal the
        moment the last upgrade was paid for. */
@@ -3627,9 +3627,26 @@ function drawSaveState() {
    reward for all of it: no sense of progress, and no signal that the moment to
    act had come. Now it counts the resources still short, says when it can be
    bought and where, and says so when the price is more than the stores hold. */
+// one number to compare two prices by, so "cheapest" means something
+const upSum = c => (c.wood || 0) + (c.food || 0);
 function buyProgress(kind) {
   const h = hallOf();
   if (kind === 'hall' && h && h.t < 1) return 'building…';          // the upgrade is already paid for
+  /* The cheapest workplace still to raise. Thirty-one building levels and
+     twenty-seven minutes of saving, and the strip said only how many were
+     done: the player had to open panels to find what the next step costs. */
+  if (kind === 'workplace') {
+    let best = null;
+    for (const p of placed) {
+      if (!B(p.key).jobs || p.key === 'hall' || lvlHeld(p) >= LVL_MAX) continue;
+      const i = upInfo(p);
+      if (i.max || i.gate || p.t < 1) continue;
+      if (!best || upSum(i.cost) < upSum(best)) best = i.cost;
+    }
+    if (!best) return '';
+    if (canAfford(best)) return 'ready — tap a workplace';
+    return 'cheapest next ' + Object.entries(best).map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join(' ');
+  }
   const cost = kind === 'hall' ? (h ? upInfo(h).cost : null) : landNext();
   if (!cost) return '';
   if (Object.entries(cost).some(([k, v]) => v > caps[k])) return 'needs more storage';
