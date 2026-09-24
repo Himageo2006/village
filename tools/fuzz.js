@@ -2211,6 +2211,59 @@
     if (checked < 4) fails.push('only ' + checked + ' upgrades kept their hands, so the sweep proved almost nothing');
     return { checked, skipped, fails };
   };
+  /* A figure on a build card is the price -- unless it is marked, and then it
+     is what is still missing. The two sit in the same place in the same shape,
+     and used to be told apart only by being gold or salmon: unreadable to
+     anyone who cannot separate those hues, and actively misleading, because a
+     shortfall is always smaller than the price and so made a building the
+     player could not afford look cheaper than it is.
+
+     Read off the canvas by position -- each drawn row assigned to the card
+     whose centre it sits under -- so it checks what a player sees rather than
+     what the drawing code meant. */
+  window.traySweep = function () {
+    const V = window.__v, cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
+    const fails = [];
+    V.placed.length = 0; V.villagers.length = 0; V.landTier = 2; V.coverPlaced();
+    V.away = null; V.goalDone = null; V.finished = null; V.panel = null; V.sel = null;
+    V.ensureHall(); V.placed[0].lvl = 5; V.placed[0].t = 1;
+    V.res.wood = 5e4; V.res.food = 5e4;
+    const LB = V.landBounds();
+    V.place('house', LB.lo + 1, LB.lo + 1); V.place('house', LB.lo + 1, LB.lo + 3);
+    for (let i = 0; i < 60 * 30; i++) V.step(1 / 30);
+    V.barMode = 'build';
+    const rowsFor = () => {
+      const seen = [], orig = ctx.fillText;
+      ctx.fillText = function (t, x, y) { seen.push({ t: String(t), x, y }); return orig.apply(this, arguments); };
+      try { V.step(0.001); V.draw(); } finally { ctx.fillText = orig; }
+      const cards = V.barRects(), u = V.US ? V.US() : 1;
+      return cards.map(c => ({ key: c.b.key, cost: c.b.cost,
+        rows: seen.filter(s2 => Math.abs(s2.x - c.x) < c.w / 2 && s2.y > c.y && /[🪵🌾]/.test(s2.t))
+                  .map(s2 => s2.t) }));
+    };
+    let checked = 0;
+    for (const [tag, res] of [['a full purse', 5e4], ['an empty one', 3]]) {
+      V.res.wood = res; V.res.food = res;
+      for (const card of rowsFor()) {
+        if (!card.rows.length) continue;                 // locked, or nobody spare
+        const afford = Object.entries(card.cost).every(([k, v]) => V.res[k] >= v);
+        for (const row of card.rows) {
+          checked++;
+          const marked = row.indexOf('−') === 0;
+          const n = +(row.match(/([\d.]+)/) || [])[1];
+          const kind = row.indexOf('🪵') >= 0 ? 'wood' : 'food';
+          if (afford && marked) fails.push(card.key + ' with ' + tag + ' marks its price as a shortfall: ' + row);
+          if (!afford && !marked) fails.push(card.key + ' with ' + tag + ' shows "' + row
+            + '", which is what it still needs, in the shape of a price');
+          const want = afford ? card.cost[kind] : Math.ceil(card.cost[kind] - V.res[kind]);
+          if (Number.isFinite(want) && Math.abs(n - want) > 0.51)
+            fails.push(card.key + ' with ' + tag + ' shows ' + n + ' where ' + want + ' is true');
+        }
+      }
+    }
+    if (checked < 6) fails.push('only ' + checked + ' rows were read, so the sweep proved almost nothing');
+    return { rowsRead: checked, fails };
+  };
   /* The whole battery, in one call, in an order that puts the quick answers
      first and the two long simulations last.
 
@@ -2240,6 +2293,7 @@
       ['framing', () => window.framingSweep()],
       ['badgeOverlap', () => window.badgeOverlapSweep()],
       ['badge', () => window.badgeSweep()],
+      ['tray', () => window.traySweep()],
       ['tap', () => window.tapSweep()],
       ['text', () => window.textSweep()],
       ['contrast', () => window.contrastSweep()],

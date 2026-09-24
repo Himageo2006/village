@@ -3572,8 +3572,8 @@ function drawHUD() {
     /* Charm goes on the LAST cost line. It was beside the name for a while and
        "Flowerbed ✨5" is 193 logical pixels in a 139 pixel button -- one
        overflow traded for another. The cost lines have the room. */
-    const costRows = (entries, colour, tail) => {
-      const parts = entries.map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v);
+    const costRows = (entries, colour, tail, lead) => {
+      const parts = entries.map(([k, v]) => (lead || '') + (k === 'wood' ? '🪵' : '🌾') + v);
       if (tail) parts[parts.length - 1] += ' ' + tail;   // one space: two put it 3px over
       if (parts.length < 2) { trayRow(parts.join(''), colour, TRAY_ONE); return; }
       trayRow(parts[0], colour, TRAY_ROWS[0]);
@@ -3593,10 +3593,23 @@ function drawHUD() {
       costRows(Object.entries(r.b.cost), '#e8c98a',
         r.b.charm ? (charmRoom() > 0 ? '✨' + usefulCharm(r.b.key) : '✨full') : '');
     } else {
-      // what is still missing, not what it costs
+      /* What is still missing, not what it costs -- and marked as such, because
+         the two were the same shape in the same place and told apart only by
+         being gold or salmon. A player who cannot separate those two hues, or
+         is outdoors, read the shortfall as the price; and since a shortfall is
+         always SMALLER than the price, the card made a building it could not
+         afford look cheaper than it is.
+
+         Everywhere else that names a shortfall says the word: "Need X more" on
+         the upgrade button, "need 🪵40" on a trade card, "need N more" on the
+         claim card. The tray cannot have the word -- measured at the phone
+         aspect, "need 🪵195" is 147.6 logical pixels in a 118.4 budget, while
+         "no spare" already sits at 103.1 -- so it takes the mark the game
+         already uses for a figure being taken away: a leading minus, 99.2, the
+         same width class as the label beside it. Colour as well, not instead. */
       const short = Object.entries(r.b.cost)
         .map(([k, v]) => [k, Math.max(0, Math.ceil(v - res[k]))]).filter(([, v]) => v > 0);
-      costRows(short, '#f0a583', '');   // #e59a86 measured 4.45 on a selected card
+      costRows(short, '#f0a583', '', '−');   // #e59a86 measured 4.45 on a selected card
     }
     g.restore();
   }
