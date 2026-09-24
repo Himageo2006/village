@@ -700,7 +700,29 @@ function syncVillagers(){
     villagers.push({x:t.x,y:t.y,tx:t.x,ty:t.y,ph:Math.random()*7,wait:Math.random()*2,face:1,
       k:(Math.random()*VILLAGERS.length)|0, job:null, st:'idle', carry:null});
   }
-  while(villagers.length>want) villagers.pop();
+  /* Whoever leaves hands in what they were carrying.
+
+     It used to pop the end of the list, load and all. Selling a level five
+     house lets six villagers go at once, and with a load each that is
+     forty-eight goods gone -- measured, with three thousand of room in the
+     stores, so it was not the full-barn rule doing it. Nothing was said, and
+     nothing could be: the goods simply stopped existing.
+
+     sellBuilding already worried about exactly this for a workplace -- "a
+     villager wandering the village holding eight food that would never be
+     delivered" -- and let them finish the trip. They cannot finish it if they
+     are not there any more, so the load goes in through deliver(), the same
+     path a carried load always takes, which means the stores can still refuse
+     it if they are full and a finished village still shares the overflow.
+
+     Someone empty-handed goes first, so most of the time there is nothing to
+     hand in at all. */
+  while(villagers.length>want){
+    let i=villagers.findIndex(v=>!v.carry);
+    if(i<0) i=villagers.length-1;
+    const gone=villagers.splice(i,1)[0];
+    if(gone.carry){ deliver(gone.carry.k, gone.carry.n, gone.x, gone.y); gone.carry=null; }
+  }
 }
 
 /* Hand out posts. A villager keeps its workplace until that workplace is gone,

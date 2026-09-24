@@ -2057,5 +2057,42 @@
     if (upgrades && !changed) fails.push('not one of the ' + upgrades + ' upgrades changed anything once finished');
     return { upgrades, workplaces: produced, changedOnceFinished: changed, fails };
   };
-  console.log('textSweep ready: window.textSweep(), window.contrastSweep(), window.backingSweep(), window.saveSweep(), window.hiddenSweep(), window.paintSweep(), window.soundSweep(), window.unitSweep(), window.reachSweep(), window.scaffoldSweep()');
+  /* Nothing the villagers are carrying disappears when they leave.
+
+     Selling a house lets its residents go, and the village's goods are its
+     stores PLUS whatever is in transit. Checked as a conservation law: what
+     the village holds afterwards is what it held before, plus the refund, with
+     room in the stores for all of it. */
+  window.handoverSweep = function () {
+    const V = window.__v, fails = [];
+    const held = () => V.res.wood + V.res.food + V.villagers.reduce((n, g) => n + (g.carry ? g.carry.n : 0), 0);
+    const checked = [];
+    for (const lvl of [1, 2, 3, 4, 5]) {
+      V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
+      V.away = null; V.goalDone = null; V.finished = null; V.goalIdx = 0;
+      V.ensureHall(); V.placed[0].lvl = 5; V.placed[0].t = 1;
+      V.res.wood = 5e4; V.res.food = 5e4;
+      const LB = V.landBounds();
+      for (const [k, c, r] of [['house',1,1],['house',1,3],['house',1,5],['farm',5,1],
+        ['store',9,1],['store',9,4],['store',9,7],['store',5,7]]) V.place(k, LB.lo + c, LB.lo + r);
+      for (const p of V.placed) { p.t = 1; if (p.key === 'house') p.lvl = lvl; if (p.key === 'store') p.lvl = 5; }
+      V.rebuildStores();
+      for (let i = 0; i < 90; i++) V.step(1 / 30);           // villagers appear and take posts
+      V.res.wood = 100; V.res.food = 100;                     // room to spare for refund and loads
+      for (const g of V.villagers) g.carry = { k: 'wood', n: 8 };
+      const house = V.placed.filter(p => p.key === 'house').pop();
+      const refund = V.sellValue(house), before = held(), pop = V.villagers.length;
+      V.sellBuilding(house);
+      V.step(1 / 30);
+      const want = before + (refund.wood || 0) + (refund.food || 0), got = held();
+      const room = Math.min(V.caps.wood - V.res.wood, V.caps.food - V.res.food);
+      checked.push({ lvl, left: pop - V.villagers.length, lost: +(want - got).toFixed(2) });
+      if (room < 0) { fails.push('level ' + lvl + ': the sweep filled the stores, so it proved nothing'); continue; }
+      if (Math.abs(want - got) > 1e-6)
+        fails.push('selling a level ' + lvl + ' house lost ' + (want - got).toFixed(1)
+          + ' goods that its ' + (pop - V.villagers.length) + ' villagers were carrying');
+    }
+    return { cases: checked, fails };
+  };
+  console.log('textSweep ready: window.textSweep(), window.contrastSweep(), window.backingSweep(), window.saveSweep(), window.hiddenSweep(), window.paintSweep(), window.soundSweep(), window.unitSweep(), window.reachSweep(), window.scaffoldSweep(), window.handoverSweep()');
 })();
