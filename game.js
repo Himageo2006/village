@@ -2160,6 +2160,21 @@ const simNow = () => hiddenAt ? Math.min(Date.now(), hiddenAt + hiddenSim * 1000
    roughly double what they actually deliver, because villagers spend half
    their time walking, and paying out the rated figure would make being away
    better than playing. */
+/* What the villagers are holding, by kind.
+
+   A workplace's shelf is written into the save and comes back with it; the
+   loads in villagers' hands were not, because villagers are not saved at all --
+   they are rebuilt from the houses on the next boot, empty-handed. So the same
+   goods survived a restart or did not, depending only on whether somebody
+   happened to be carrying them at the moment the game was written down.
+
+   Measured in a thirty-eight building village: 34.6 goods in hands on average,
+   peaking at 72, thrown away on every start. */
+const inTransit = () => {
+  const out = { wood: 0, food: 0 };
+  for (const v of villagers) if (v.carry) out[v.carry.k] += v.carry.n;
+  return out;
+};
 function save() {
   try {
     // promote the last known-good primary before overwriting it
@@ -2169,7 +2184,7 @@ function save() {
     }
   } catch (e) {}
   try { localStorage.setItem(KEY, JSON.stringify({
-    v: SAVE_V, res, placed, t: simNow(), rate: rateNow, seen: tutSeen, mute: muted,
+    v: SAVE_V, res, placed, t: simNow(), rate: rateNow, seen: tutSeen, mute: muted, transit: inTransit(),
     goal: goalIdx, land: landTier, orders, ordersDone, shared: sharedTotal }));
     saveFailed = false; savedMs = Date.now();
   } catch (e) {
@@ -2200,6 +2215,13 @@ function load() {
          reject a damaged save, so it belongs well clear of honest play. */
       rateNow[k] = Math.min(200, s.rate[k]);
   if (Number.isFinite(s.t)) savedAt = s.t;
+  /* Held until the village exists to receive it: caps are not known until the
+     hall and the storehouses are back, and a load cannot arrive into a barn
+     that has not been read yet. */
+  pendingTransit = { wood: 0, food: 0 };
+  if (s.transit && typeof s.transit === 'object') for (const k of ['wood', 'food'])
+    if (typeof s.transit[k] === 'number' && isFinite(s.transit[k]) && s.transit[k] >= 0)
+      pendingTransit[k] = Math.min(VILLAGER_MAX * CARRY, s.transit[k]);
   if (Array.isArray(s.seen)) tutSeen = s.seen.filter(x => typeof x === 'string');
   if (typeof s.mute === 'boolean') muted = s.mute;
   if (Number.isFinite(s.goal)) goalIdx = Math.max(0, Math.min(GOALS.length, s.goal | 0));
@@ -2329,6 +2351,20 @@ function load() {
    back after an hour and you find full storehouses, which is the honest result
    and quietly makes upgrading storage worth more. Anything under a minute is
    ignored so a reload is not a reward. */
+let pendingTransit = { wood: 0, food: 0 };
+/* The loads that were in villagers' hands when the game was last written down,
+   put back into the village once it is standing again.
+
+   Through grant rather than deliver: these goods were made and counted long
+   ago, and running them through the delivery path would have them arrive twice
+   in the rate the HUD reports -- once when they were carried, once when the app
+   reopened. The stores can still be too full to take them, which is the same
+   answer a carrier would have got. */
+function landTransit() {
+  const c = hallOf() ? centreOf(hallOf()) : { x: 0, y: 0 };
+  for (const k of ['wood', 'food']) if (pendingTransit[k] > 0) grant(k, pendingTransit[k], c.x, c.y);
+  pendingTransit = { wood: 0, food: 0 };
+}
 const AWAY_MIN = 60, AWAY_MAX = 12 * 3600;
 let savedAt = 0;
 let away = null;                      // {secs, got:{wood,food}} until dismissed
@@ -5163,6 +5199,7 @@ function tap(sx, sy) {
 load();
 ensureHall();
 coverPlaced();
+landTransit();                        // what the villagers were holding, back where it was going
 collectAway();
 fitCanvas();
 CAM.x = W / 2; CAM.y = tileToWorld(GW / 2, GH / 2).y; camFit(true); camClamp();
@@ -5230,7 +5267,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   get armed() { return armed; }, set armed(v) { armed = v; },
   get ghost() { return ghost; }, set ghost(v) { ghost = v; },
   get sellArm() { return sellArm; }, set sellArm(v) { sellArm = v; }, SELL_ARM,
-  collectAway, grantAway, duration, saleCost, get actx() { return actx; }, potentialRate, expectedRate, currentHint, get away() { return away; }, set away(v) { away = v; },
+  collectAway, grantAway, landTransit, duration, saleCost, get actx() { return actx; }, potentialRate, expectedRate, currentHint, get away() { return away; }, set away(v) { away = v; },
   get hiddenAt() { return hiddenAt; }, set hiddenAt(v) { hiddenAt = v; },
   get hiddenSim() { return hiddenSim; }, set hiddenSim(v) { hiddenSim = v; }, AWAY_MIN, AWAY_MAX,
   GOALS, currentGoal, buyProgress, get goalIdx() { return goalIdx; }, set goalIdx(v) { goalIdx = v; },

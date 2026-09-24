@@ -1728,7 +1728,18 @@
 
        saveSweep()  -> { diffs, worst, detects }
   --------------------------------------------------------------------------- */
-  const SAVE_VOLATILE = new Set(['t', 'rate', 'id']);
+  const SAVE_VOLATILE = new Set(['t', 'rate', 'id', 'transit']);
+  /* What the village HOLDS, which is its stores plus whatever is in villagers'
+     hands. A round trip through the save moves goods from the second to the
+     first -- the villagers are rebuilt empty and what they were carrying is
+     put back into the stores -- so comparing the raw res field would report a
+     village that lost nothing as a village that changed. */
+  function foldTransit(o) {
+    const out = JSON.parse(JSON.stringify(o));
+    if (out && out.res && out.transit) for (const k of ['wood', 'food'])
+      out.res[k] = (out.res[k] || 0) + (out.transit[k] || 0);
+    return out;
+  }
   function stripVolatile(o) {
     const go = x => {
       if (Array.isArray(x)) return x.map(go);
@@ -1780,13 +1791,17 @@
                  shared: { wood: 0, food: 0 } };
   window.saveSweep = function () {
     const real = (() => { try { return localStorage.getItem(V.KEY); } catch (e) { return null; } })();
-    const reload = () => { V.placed.length = 0; V.villagers.length = 0; V.orders = []; V.load(); };
-    buildVillage(RICH); V.save();
+    // the same order boot uses: load, then put back what was in transit
+    const reload = () => { V.placed.length = 0; V.villagers.length = 0; V.orders = []; V.load(); V.landTransit(); };
+    buildVillage(RICH);
+    // with goods genuinely in hand, so the transit field is exercised rather than zero
+    for (const g of V.villagers) g.carry = { k: 'wood', n: 8 };
+    V.save();
     const written = localStorage.getItem(V.KEY);
-    const want = stripVolatile(JSON.parse(written));
+    const want = stripVolatile(foldTransit(JSON.parse(written)));
     buildVillage(POOR);                       // the poison
     localStorage.setItem(V.KEY, written); reload(); V.save();
-    const got = stripVolatile(JSON.parse(localStorage.getItem(V.KEY)));
+    const got = stripVolatile(foldTransit(JSON.parse(localStorage.getItem(V.KEY))));
     const diffs = saveDiff(want, got);
     /* And prove the sweep can fail, every time it runs: drop each top-level
        field in turn and insist the diff notices. A checker that only ever
@@ -1797,7 +1812,7 @@
       const mangled = JSON.parse(written); delete mangled[field];
       buildVillage(POOR);
       localStorage.setItem(V.KEY, JSON.stringify(mangled)); reload(); V.save();
-      const bad = stripVolatile(JSON.parse(localStorage.getItem(V.KEY)));
+      const bad = stripVolatile(foldTransit(JSON.parse(localStorage.getItem(V.KEY))));
       detects[field] = saveDiff(want, bad).length > 0;
     }
     try { if (real !== null) localStorage.setItem(V.KEY, real); } catch (e) {}
@@ -2114,7 +2129,25 @@
       p.stock = 16;                                           // STOCK_MAX: two loads waiting
       law('selling a ' + key + ' holding two loads', { refund: () => V.sellValue(p), go: () => V.sellBuilding(p) });
     }
-    return { houseLevels: 5, workplaceKinds: kinds, fails };
+    /* And a restart hands back what the villagers were holding. A workplace's
+       shelf is written into the save; the loads in hands are not, because
+       villagers are rebuilt from the houses rather than restored, so without
+       somebody putting them back they are the one part of the village's goods
+       that a restart quietly costs. */
+    const realSave = (() => { try { return localStorage.getItem(V.KEY); } catch (e) { return null; } })();
+    scene(3, 'farm');
+    const inHand = V.villagers.reduce((n, g) => n + (g.carry ? g.carry.n : 0), 0);
+    const beforeRestart = held();
+    V.save();
+    V.placed.length = 0; V.villagers.length = 0; V.orders = [];
+    V.load(); V.landTransit();                       // the order boot uses
+    const afterRestart = held();
+    if (inHand <= 0) fails.push('the restart case had nothing in hand, so it proved nothing');
+    else if (beforeRestart - afterRestart > 0.01)
+      fails.push('a restart lost ' + (beforeRestart - afterRestart).toFixed(1)
+        + ' of the ' + inHand + ' goods the villagers were carrying');
+    try { if (realSave !== null) localStorage.setItem(V.KEY, realSave); } catch (e) {}
+    return { houseLevels: 5, workplaceKinds: kinds, carriedAcrossRestart: inHand, fails };
   };
   console.log('textSweep ready: window.textSweep(), window.contrastSweep(), window.backingSweep(), window.saveSweep(), window.hiddenSweep(), window.paintSweep(), window.soundSweep(), window.unitSweep(), window.reachSweep(), window.scaffoldSweep(), window.handoverSweep()');
 })();
