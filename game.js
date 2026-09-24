@@ -242,19 +242,6 @@ function deliveredWith(p, rate) {
 const ratedOf = (p, kind, mul) =>
   rateOf(p, kind) * boostAt(p) * (mul === undefined ? charmMul() : mul);
 
-/* The share of its own rate a workplace actually delivers. This is the honest
-   multiplier for what the village produces -- offline earnings are built on it
-   -- but it is NOT shown to the player any more, because it is not comparable
-   between levels and was being read as a placement score. reachOf is what the
-   interface uses for that. */
-function efficiencyOf(p) {
-  const b = B(p.key);
-  if (!b.makes || !b.jobs) return null;
-  if (hasStore(p) === null) return 1;
-  const rate = ratedOf(p, Object.keys(b.makes)[0]);
-  if (rate <= 0) return 1;
-  return Math.max(0.05, Math.min(1, deliveredWith(p, rate) / rate));
-}
 /* The round trip a workplace gets standing as close to a storehouse as the
    grid will LET it -- searched over every legal relative placement, for this
    footprint against each footprint a load can be carried to.
@@ -5211,7 +5198,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, ART, villagerArt,
   hudTop, hudBot, screenTop, screenBot, readSafeArea, get SAFE() { return SAFE; }, set SAFE(v) { SAFE = v; },
   fitLines, TUT, GOALS, get finished() { return finished; }, set finished(v) { finished = v; },
-  efficiencyOf, hasStore, onPath, PATH_SPEED, rebuildPaths, routeOf, get pathSet() { return pathSet; },
+  hasStore, onPath, PATH_SPEED, rebuildPaths, routeOf, get pathSet() { return pathSet; },
   LAND, LAND_MAX, inLand, landNext, canClaim, claimLand, landBounds, coverPlaced,
   get landTier() { return landTier; }, set landTier(v) { landTier = v; },
   get claimAsk() { return claimAsk; }, set claimAsk(v) { claimAsk = v; }, claimRects,
