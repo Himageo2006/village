@@ -2085,6 +2085,18 @@ function sellBuilding(p) {
   if (moving === p.id) moving = null;
   recomputeCaps();
   for (const [k, v] of Object.entries(sellValue(p))) grant(k, v, c.x, c.y);
+  /* And whatever it had already made. A workplace holds up to two loads waiting
+     for a carrier, and selling it binned them: sixteen goods, measured, with
+     two thousand four hundred of room in the stores. Those are finished goods
+     in exactly the same state as a load in a villager's hands, which the
+     village now hands in rather than losing, and they go the same way -- so a
+     full store can still refuse them and a finished village still shares them.
+
+     After the refund, for the same reason the refund comes after the building
+     is taken down: selling a storehouse must not deliver into capacity that is
+     leaving with it. */
+  const b = B(p.key);
+  if (b.makes && p.stock > 0.01) { deliver(Object.keys(b.makes)[0], p.stock, c.x, c.y); p.stock = 0; }
   /* Anyone who worked here is out of a job this instant, not on the next tick.
      assignJobs does clear it, but until it ran the village held villagers
      posted to a building that no longer existed.

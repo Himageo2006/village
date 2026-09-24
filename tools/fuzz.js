@@ -2057,42 +2057,64 @@
     if (upgrades && !changed) fails.push('not one of the ' + upgrades + ' upgrades changed anything once finished');
     return { upgrades, workplaces: produced, changedOnceFinished: changed, fails };
   };
-  /* Nothing the villagers are carrying disappears when they leave.
+  /* Nothing the village has already made disappears without being handed in.
 
-     Selling a house lets its residents go, and the village's goods are its
-     stores PLUS whatever is in transit. Checked as a conservation law: what
-     the village holds afterwards is what it held before, plus the refund, with
-     room in the stores for all of it. */
+     Its goods are not only what is in the stores: they are also the loads in
+     villagers' hands and the stock a workplace has finished and is holding for
+     a carrier. Both of those are destroyed by ordinary actions unless somebody
+     hands them in -- selling a house sends its residents away mid-journey, and
+     selling a workplace takes its shelf with it.
+
+     Checked as a conservation law over every destructive action: what the
+     village holds afterwards is what it held before, plus the refund, with
+     room in the stores for all of it. The sweep refuses to conclude anything
+     if its own stores filled up, because then losing goods would be correct. */
   window.handoverSweep = function () {
     const V = window.__v, fails = [];
-    const held = () => V.res.wood + V.res.food + V.villagers.reduce((n, g) => n + (g.carry ? g.carry.n : 0), 0);
-    const checked = [];
-    for (const lvl of [1, 2, 3, 4, 5]) {
+    const held = () => V.res.wood + V.res.food
+      + V.villagers.reduce((n, g) => n + (g.carry ? g.carry.n : 0), 0)
+      + V.placed.reduce((n, p) => n + (p.stock || 0), 0);
+    const scene = (houseLvl, extra) => {
       V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
       V.away = null; V.goalDone = null; V.finished = null; V.goalIdx = 0;
       V.ensureHall(); V.placed[0].lvl = 5; V.placed[0].t = 1;
       V.res.wood = 5e4; V.res.food = 5e4;
       const LB = V.landBounds();
-      for (const [k, c, r] of [['house',1,1],['house',1,3],['house',1,5],['farm',5,1],
-        ['store',9,1],['store',9,4],['store',9,7],['store',5,7]]) V.place(k, LB.lo + c, LB.lo + r);
-      for (const p of V.placed) { p.t = 1; if (p.key === 'house') p.lvl = lvl; if (p.key === 'store') p.lvl = 5; }
+      for (const [k, c, r] of [['house',0,0],['house',0,3],[extra,3,0],
+        ['store',9,0],['store',9,3],['store',9,6],['store',3,9]]) V.place(k, LB.lo + c, LB.lo + r);
+      for (const p of V.placed) { p.t = 1; if (p.key === 'house') p.lvl = houseLvl; if (p.key === 'store') p.lvl = 5; }
       V.rebuildStores();
-      for (let i = 0; i < 90; i++) V.step(1 / 30);           // villagers appear and take posts
-      V.res.wood = 100; V.res.food = 100;                     // room to spare for refund and loads
+      for (let i = 0; i < 120; i++) V.step(1 / 30);          // villagers appear and take posts
+      V.res.wood = 200; V.res.food = 200;                     // room to spare for refund and loads
       for (const g of V.villagers) g.carry = { k: 'wood', n: 8 };
-      const house = V.placed.filter(p => p.key === 'house').pop();
-      const refund = V.sellValue(house), before = held(), pop = V.villagers.length;
-      V.sellBuilding(house);
+    };
+    const law = (name, act) => {
+      const before = held(), refund = act.refund ? act.refund() : { wood: 0, food: 0 };
+      act.go();
       V.step(1 / 30);
       const want = before + (refund.wood || 0) + (refund.food || 0), got = held();
-      const room = Math.min(V.caps.wood - V.res.wood, V.caps.food - V.res.food);
-      checked.push({ lvl, left: pop - V.villagers.length, lost: +(want - got).toFixed(2) });
-      if (room < 0) { fails.push('level ' + lvl + ': the sweep filled the stores, so it proved nothing'); continue; }
-      if (Math.abs(want - got) > 1e-6)
-        fails.push('selling a level ' + lvl + ' house lost ' + (want - got).toFixed(1)
-          + ' goods that its ' + (pop - V.villagers.length) + ' villagers were carrying');
+      if (Math.min(V.caps.wood - V.res.wood, V.caps.food - V.res.food) < 0)
+        { fails.push(name + ': the sweep filled its own stores, so it proved nothing'); return; }
+      // one frame of the village's own work is allowed in the other direction
+      if (want - got > 0.01) fails.push(name + ' lost ' + (want - got).toFixed(1) + ' goods the village had already made');
+    };
+    // the residents of a house, mid-journey, at every size of house
+    for (const lvl of [1, 2, 3, 4, 5]) {
+      scene(lvl, 'farm');
+      const house = V.placed.filter(p => p.key === 'house').pop();
+      law('selling a level ' + lvl + ' house', { refund: () => V.sellValue(house), go: () => V.sellBuilding(house) });
     }
-    return { cases: checked, fails };
+    // and the shelf a workplace is holding for its carriers
+    let kinds = 0;
+    for (const key of V.BUILDINGS.filter(b => b.makes && b.jobs && b.key !== 'hall').map(b => b.key)) {
+      scene(3, key);
+      const p = V.placed.find(q => q.key === key);
+      if (!p) continue;
+      kinds++;
+      p.stock = 16;                                           // STOCK_MAX: two loads waiting
+      law('selling a ' + key + ' holding two loads', { refund: () => V.sellValue(p), go: () => V.sellBuilding(p) });
+    }
+    return { houseLevels: 5, workplaceKinds: kinds, fails };
   };
   console.log('textSweep ready: window.textSweep(), window.contrastSweep(), window.backingSweep(), window.saveSweep(), window.hiddenSweep(), window.paintSweep(), window.soundSweep(), window.unitSweep(), window.reachSweep(), window.scaffoldSweep(), window.handoverSweep()');
 })();
