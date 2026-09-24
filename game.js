@@ -3965,7 +3965,12 @@ function awayRect() {
 function duration(secs) {
   const mins = secs / 60;
   if (mins < 1) return 'moments';
-  if (mins < 60) return count(Math.round(mins), 'minute');
+  /* The unit is chosen from the ROUNDED figure, the same rule compact() keeps.
+     Choosing it from the raw one printed "60 minutes" for anything from 59.5
+     minutes up, which is not a thing anybody says about an hour -- on the
+     welcome-back card, which is the one screen a returning player reads. */
+  const m = Math.round(mins);
+  if (m < 60) return count(m, 'minute');
   const hrs = Math.round(mins / 6) / 10;
   return hrs % 1 === 0 ? count(hrs, 'hour') : hrs + ' hours';
 }

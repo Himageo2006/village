@@ -1857,5 +1857,45 @@
     }
     return { hidden: quiet, visible: loud, fails };
   };
-  console.log('textSweep ready: window.textSweep(), window.contrastSweep(), window.backingSweep(), window.saveSweep(), window.hiddenSweep(), window.paintSweep(), window.soundSweep()');
+  /* Every figure the game prints carries a unit, and the unit has to belong to
+     the figure as ROUNDED, not as calculated. Checked as rules rather than as
+     a table of expected strings, over every second a welcome-back card can
+     name and twelve decades of resource: a table only ever knows the cases
+     somebody thought of. */
+  window.unitSweep = function () {
+    const V = window.__v, bad = new Map();
+    const note = (why, eg) => { if (!bad.has(why)) bad.set(why, eg); };
+    for (let s = 0; s <= V.AWAY_MAX; s++) {
+      const t = V.duration(s);
+      if (t === 'moments') { if (s >= 60) note('moments, past a minute', s + 's -> ' + t); continue; }
+      const m = /^(\d+(?:\.\d+)?) (minute|minutes|hour|hours)$/.exec(t);
+      if (!m) { note('not a figure and a unit', s + 's -> "' + t + '"'); continue; }
+      const n = +m[1], unit = m[2], isMin = unit.indexOf('minute') === 0;
+      if (isMin && n >= 60) note('sixty minutes is an hour', s + 's -> "' + t + '"');
+      if (!isMin && n < 1) note('under an hour, said in hours', s + 's -> "' + t + '"');
+      // minutes round to the minute, hours to a tenth of one: half a step either way
+      const err = Math.abs((isMin ? n * 60 : n * 3600) - s);
+      if (err > (isMin ? 30 : 180) + 0.01) note('the figure is wrong', s + 's -> "' + t + '" (' + err.toFixed(0) + 's out)');
+      if (/s$/.test(unit) !== (n !== 1)) note('plural disagrees with the figure', s + 's -> "' + t + '"');
+    }
+    const MUL = { '': 1, k: 1e3, M: 1e6, B: 1e9, T: 1e12, Q: 1e15 };
+    /* Twelve decades geometrically, PLUS a dense band either side of every
+       boundary between units. The rounding mistakes all live within a tenth of
+       a per cent of a boundary -- "999999" printed as "1000k" -- and a
+       geometric walk steps straight over them. */
+    const amounts = [];
+    for (let i = 0; i <= 4000; i++) amounts.push(Math.round(Math.pow(10, i / 4000 * 12)));
+    for (const mul of [1e3, 1e6, 1e9, 1e12]) for (let k = -1000; k <= 1000; k++)
+      amounts.push(Math.max(0, Math.round(mul * (1 + k / 1e6))));
+    for (const v of amounts) {
+      const t = V.compact(v), m = /^(\d+(?:\.\d+)?)([kMBTQ]?)$/.exec(t);
+      if (!m) { note('not a figure and a unit', v + ' -> "' + t + '"'); continue; }
+      const mant = +m[1];
+      if (mant >= 1000) note('the figure outgrew its unit', v + ' -> "' + t + '"');
+      const rel = Math.abs(mant * MUL[m[2]] - v) / Math.max(1, v);
+      if (rel > 0.06) note('the figure is wrong', v + ' -> "' + t + '" (' + (rel * 100).toFixed(1) + '% out)');
+    }
+    return { seconds: V.AWAY_MAX + 1, amounts: amounts.length, fails: [...bad].map(([w, eg]) => w + ': ' + eg) };
+  };
+  console.log('textSweep ready: window.textSweep(), window.contrastSweep(), window.backingSweep(), window.saveSweep(), window.hiddenSweep(), window.paintSweep(), window.soundSweep(), window.unitSweep()');
 })();
