@@ -255,11 +255,42 @@ function efficiencyOf(p) {
   if (rate <= 0) return 1;
   return Math.max(0.05, Math.min(1, deliveredWith(p, rate) / rate));
 }
-/* The round trip a workplace gets when it stands right beside a storehouse.
-   Measured on the real grid rather than assumed: the tightest legal placements
-   come out at 2.2 to 2.5 seconds, so one tile-step is a figure the player can
-   actually achieve and not an aspiration. */
-const SNUG_WALK = 2 * Math.hypot(TW / 2, TH / 2) / VIL_SPD;
+/* The round trip a workplace gets standing as close to a storehouse as the
+   grid will LET it -- searched over every legal relative placement, for this
+   footprint against each footprint a load can be carried to.
+
+   It used to be one constant, 2 * hypot(TW/2, TH/2) / VIL_SPD: the walk between
+   two buildings whose centres are one tile apart. No two buildings in the game
+   can stand that way. Every store is 2x2 and so is the hall, and the smallest
+   workplace is 2x1, so the closest two centres can come is 2 tiles for a 2x2
+   and 1.5 for a 2x1 -- and in isometric world units the shortest of those is a
+   diagonal step, not a straight one, which no closed form catches. Searched
+   instead.
+
+   Measured, with a farm at the tightest placement the grid allows beside a
+   storehouse: the walk is 3.98s against the constant's 2.47, the panel offered
+   1.15/s for moving there, and five minutes of counting the storehouse gave
+   1.01. An offer the game could not keep, on the one row that exists to tell a
+   player whether moving a building is worth it. The same gap capped reach at
+   0.90 for a perfectly placed farm, so "well placed" and the "far" warning were
+   both measured against a spot that does not exist. */
+const snugCache = new Map();
+function snugWalkOf(b) {
+  const hit = snugCache.get(b.key);
+  if (hit !== undefined) return hit;
+  let best = Infinity;
+  const here = tileToWorld((b.w - 1) / 2, (b.h - 1) / 2);
+  for (const s of BUILDINGS) {
+    if (!s.caps && s.key !== 'hall') continue;        // the same test rebuildStores uses
+    for (let dc = -s.w; dc <= b.w; dc++) for (let dr = -s.h; dr <= b.h; dr++) {
+      if (dc < b.w && dc + s.w > 0 && dr < b.h && dr + s.h > 0) continue;   // they would overlap
+      const t = tileToWorld(dc + (s.w - 1) / 2, dr + (s.h - 1) / 2);
+      best = Math.min(best, 2 * Math.hypot(t.x - here.x, t.y - here.y) / VIL_SPD);
+    }
+  }
+  snugCache.set(b.key, best);
+  return best;
+}
 /* What this workplace would deliver in that spot -- the yardstick a placement
    should be judged against.
 
@@ -277,7 +308,7 @@ function bestDeliveredOf(p, lvl) {
   if (!b.makes || !b.jobs) return 0;
   const q = lvl === undefined ? p : { ...p, lvl };
   const rate = ratedOf(q, Object.keys(b.makes)[0]);
-  return rate <= 0 ? 0 : CARRY / (CARRY / rate + SNUG_WALK);
+  return rate <= 0 ? 0 : CARRY / (CARRY / rate + snugWalkOf(b));
 }
 // 0..1: the share of its potential this building is actually delivering
 function reachOf(p) {
@@ -5152,7 +5183,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   HALL, hallOf, hallLevel, allowedOf, countOf, atLimit, unlocked, buildable,
   canUpgrade, upgradeBuilding, upInfo, upCostOf, lvlOf, popOf, capsOf, rateOf, outMul, LVL_MAX,
   shortfall, shortText, remedy, villageStats, wellGain, wellGainAtLevel, wellGainAt, charmDelivered, deliveredOf, deliveredWith, travelSecondsOf, handsFor,
-  bestDeliveredOf, reachOf, SNUG_WALK,
+  bestDeliveredOf, reachOf, snugWalkOf,
   panelRects, TOUCH_MIN, padHit, TEXT_MIN, get panel() { return panel; }, set panel(v) { panel = v; },
   get villagers() { return villagers; }, workersAt, boostAt, producers, stores,
   assignJobs, desiredJobs, computeJobs, invalidateJobs, established, lvlHeld, buildingAt, ensureHall, jobsOf, VILLAGER_MAX, rebuildStores, nearestStore,

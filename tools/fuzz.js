@@ -1897,5 +1897,53 @@
     }
     return { seconds: V.AWAY_MAX + 1, amounts: amounts.length, fails: [...bad].map(([w, eg]) => w + ': ' + eg) };
   };
-  console.log('textSweep ready: window.textSweep(), window.contrastSweep(), window.backingSweep(), window.saveSweep(), window.hiddenSweep(), window.paintSweep(), window.soundSweep(), window.unitSweep()');
+  /* The yardstick a placement is judged against has to be a placement that can
+     exist. reachOf divides what a workplace delivers by what it would deliver
+     "beside a store", the panel offers that figure as the reward for moving it,
+     and both are worthless if no spot on the island reaches it.
+
+     Found here by brute force -- every legal offset of a storehouse around the
+     workplace, using only travelSecondsOf and reachOf -- so the checker never
+     asks the game to confirm its own arithmetic. */
+  window.reachSweep = function () {
+    const V = window.__v, fails = [];
+    V.placed.length = 0; V.villagers.length = 0; V.ensureHall();
+    V.landTier = V.LAND_MAX; V.coverPlaced();
+    const LB = V.landBounds(), LO = LB.lo, HI = LB.hi;
+    V.placed[0].c = HI - 1; V.placed[0].r = HI - 1;          // the hall counts as a store: park it away
+    const sb = V.B('store');
+    const store = { id: 91001, key: 'store', c: LO, r: LO, t: 1, lvl: 1, stock: 0, build: 3 };
+    V.placed.push(store);
+    const checked = [];
+    for (const bk of V.BUILDINGS) {
+      if (!bk.makes || !bk.jobs || bk.key === 'hall' || bk.caps) continue;
+      for (const lvl of [1, V.LVL_MAX]) {
+        const work = { id: 91002, key: bk.key, c: LO + 4, r: LO + 4, t: 1, lvl, stock: 0, build: 3 };
+        V.placed.push(work);
+        let best = 0, at = null, walk = 0;
+        for (let dc = -sb.w - 1; dc <= bk.w + 1; dc++) for (let dr = -sb.h - 1; dr <= bk.h + 1; dr++) {
+          if (dc < bk.w && dc + sb.w > 0 && dr < bk.h && dr + sb.h > 0) continue;   // overlapping
+          store.c = work.c + dc; store.r = work.r + dr;
+          V.rebuildStores();
+          /* The RAW ratio, not reachOf: reachOf clamps to 1, so a yardstick
+             that is too easy to hit reads as a perfect score and the checker
+             sees nothing. reachOf is checked against it separately. */
+          const ideal = V.bestDeliveredOf(work);
+          const rr = ideal > 0 ? V.deliveredOf(work) / ideal : 0;
+          if (Math.abs(Math.max(0, Math.min(1, rr)) - V.reachOf(work)) > 1e-9)
+            fails.push(bk.key + ': reachOf disagrees with delivered over best');
+          if (rr > best) { best = rr; at = [dc, dr]; walk = V.travelSecondsOf(work); }
+        }
+        V.placed.pop();
+        checked.push({ key: bk.key, lvl, best: +best.toFixed(4), at, walk: +walk.toFixed(3) });
+        if (best < 0.999) fails.push(bk.key + ' lvl ' + lvl + ': the best spot on the island reaches only '
+          + (best * 100).toFixed(1) + '% of what the panel offers for moving there');
+        if (best > 1.001) fails.push(bk.key + ' lvl ' + lvl + ': a real spot beats the yardstick by '
+          + ((best - 1) * 100).toFixed(1) + '%');
+      }
+    }
+    V.placed.length = 0; V.ensureHall(); V.rebuildStores();
+    return { checked, fails };
+  };
+  console.log('textSweep ready: window.textSweep(), window.contrastSweep(), window.backingSweep(), window.saveSweep(), window.hiddenSweep(), window.paintSweep(), window.soundSweep(), window.unitSweep(), window.reachSweep()');
 })();
