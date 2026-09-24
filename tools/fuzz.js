@@ -2211,5 +2211,80 @@
     if (checked < 4) fails.push('only ' + checked + ' upgrades kept their hands, so the sweep proved almost nothing');
     return { checked, skipped, fails };
   };
-  console.log('textSweep ready: window.textSweep(), window.contrastSweep(), window.backingSweep(), window.saveSweep(), window.hiddenSweep(), window.paintSweep(), window.soundSweep(), window.unitSweep(), window.reachSweep(), window.scaffoldSweep(), window.handoverSweep(), window.promiseSweep()');
+  /* The whole battery, in one call, in an order that puts the quick answers
+     first and the two long simulations last.
+
+     It existed only as a job list typed out by hand each time, which is a
+     checker you can forget to run: a sweep added and not added to the list is
+     a sweep that silently never runs again. So the list is here, beside the
+     sweeps, and it checks ITSELF -- anything on window matching *Sweep that is
+     not in the list is reported as unrun rather than quietly skipped.
+
+     await it: three of these are async. */
+  window.allSweeps = async function (opts) {
+    const o = opts || {}, rounds = o.rounds === undefined ? 12000 : o.rounds;
+    const arcMinutes = o.arcMinutes === undefined ? 90 : o.arcMinutes;
+    const jobs = [
+      ['unit', () => window.unitSweep()],
+      ['hidden', () => window.hiddenSweep()],
+      ['paint', () => window.paintSweep()],
+      ['sound', () => window.soundSweep()],
+      ['hint', () => window.hintSweep()],
+      ['gesture', () => window.gestureSweep()],
+      ['back', () => window.backSweep()],
+      ['reach', () => window.reachSweep()],
+      ['scaffold', () => window.scaffoldSweep()],
+      ['handover', () => window.handoverSweep()],
+      ['promise', () => window.promiseSweep()],
+      ['moveLabel', () => window.moveLabelSweep()],
+      ['framing', () => window.framingSweep()],
+      ['badgeOverlap', () => window.badgeOverlapSweep()],
+      ['badge', () => window.badgeSweep()],
+      ['tap', () => window.tapSweep()],
+      ['text', () => window.textSweep()],
+      ['contrast', () => window.contrastSweep()],
+      ['backing', () => window.backingSweep()],
+      ['corrupt', () => window.corruptSweep()],
+      ['save', () => window.saveSweep()],
+      ['fuzz', () => window.fuzz(rounds, false)],
+      ['fuzzPop', () => window.fuzz(rounds, true)],
+      ['arc', () => window.arcSweep(arcMinutes)],
+    ];
+    /* Anything that counts as a complaint, whatever the sweep calls it. A new
+       sweep reporting failures under a name nobody listed here would be read
+       as clean, so the shape is checked too. */
+    const complaints = r => {
+      if (typeof r === 'string') return r;
+      const n = (r.fails && r.fails.length) || r.overflowing || r.failing || r.overlaps
+        || r.cropped || r.mismatched || r.conflicts || r.unplayable || r.diffs || 0;
+      return n || 0;
+    };
+    const detail = {}, failed = [];
+    for (const [name, fn] of jobs) {
+      try { detail[name] = await fn(); } catch (e) { detail[name] = 'THREW ' + (e && e.message); }
+      const bad = complaints(detail[name]);
+      if (bad) failed.push(name + ': ' + (typeof bad === 'string' ? bad : bad));
+      await new Promise(r => setTimeout(r, 20));
+    }
+    /* Every checker in the harness is in the list above. The game itself has a
+       top-level ptrSweep() -- stale pointer records, nothing to do with
+       testing -- and script-level function declarations land on window, so it
+       is named here rather than silently matched away. Anything else ending in
+       Sweep is a checker somebody added and forgot to list, which is the whole
+       point of asking. */
+    const NOT_CHECKERS = new Set(['ptr', 'all']);
+    const listed = new Set(jobs.map(j => j[0]));
+    const unrun = Object.keys(window)
+      .filter(k => /Sweep$/.test(k) && typeof window[k] === 'function')
+      .map(k => k.replace(/Sweep$/, ''))
+      .filter(k => !listed.has(k) && !NOT_CHECKERS.has(k));
+    if (unrun.length) failed.push('never run by allSweeps: ' + unrun.join(', '));
+    // and the reverse: a name in the list that no longer exists
+    const missing = jobs.map(j => j[0]).filter(k => k !== 'fuzz' && k !== 'fuzzPop'
+      && typeof window[k + 'Sweep'] !== 'function');
+    if (missing.length) failed.push('listed but gone: ' + missing.join(', '));
+    return { ran: jobs.length, failed, arc: detail.arc && detail.arc.goals,
+      fuzzRounds: rounds * 2, detail };
+  };
+  console.log('textSweep ready: window.textSweep(), window.contrastSweep(), window.backingSweep(), window.saveSweep(), window.allSweeps(), window.paintSweep(), window.soundSweep(), window.unitSweep(), window.reachSweep(), window.scaffoldSweep(), window.handoverSweep(), window.promiseSweep()');
 })();
