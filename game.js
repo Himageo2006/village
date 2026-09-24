@@ -3755,19 +3755,35 @@ function drawHUD() {
 function drawSaveState() {
   if (!saveFailed && !loadedFromBackup) return;
   const u = US(), y = hudTop() + 190 * u;
+  /* Not "storage", which in this village means the barns. The resource bar
+     says "storage full" when a barn is at its ceiling and the trade card says
+     "no room" for the same reason, and both have an answer the player can act
+     on -- build a storehouse, spend something. This has nothing to do with any
+     of that and no answer inside the game, so it must not arrive wearing the
+     same words. Measured together on one screen: "storage full" over the bar
+     and "storage is full or blocked" across the middle, which reads as one
+     problem with one fix and is two problems with none. */
   const txt = saveFailed
-    ? 'The village cannot be saved — storage is full or blocked'
+    ? 'The village cannot be saved — this device is full or blocking it'
     : 'Restored from a backup — the last minute of play was lost';
   g.save();
-  g.font = `bold ${Math.round(21 * u)}px Segoe UI, sans-serif`;
-  const w = Math.min(W - 40 * u, g.measureText(txt).width + 52 * u), h = 50 * u;
+  /* Through the fitter, like every other pill. This one clamped its own WIDTH
+     to the screen and then drew the text at a fixed size regardless, which is
+     the failure the goal strip and the hint pills were fixed for: the box stops
+     at the edge and the sentence carries on past it. It fitted only because the
+     sentence was short enough, which is not a property anybody can rely on
+     while editing the sentence. */
+  const fit = fitLines(txt, W - 96 * u, 21 * u, 13 * u, 2, 'bold ');
+  g.font = `bold ${Math.round(fit.px)}px Segoe UI, sans-serif`;
+  const tw = Math.max(...fit.lines.map(l => g.measureText(l).width));
+  const w = Math.min(W - 40 * u, tw + 52 * u), h = Math.max(50 * u, fit.lines.length * fit.px * 1.24 + 22 * u);
   g.fillStyle = saveFailed ? 'rgba(58,20,16,.94)' : 'rgba(46,38,14,.94)';
   g.strokeStyle = saveFailed ? 'rgba(240,140,110,.9)' : 'rgba(230,200,110,.85)';
   g.lineWidth = 2.5;
   g.beginPath(); g.roundRect(W / 2 - w / 2, y - h / 2, w, h, h / 2); g.fill(); g.stroke();
   g.textAlign = 'center'; g.textBaseline = 'middle';
   g.fillStyle = saveFailed ? '#ffb9a0' : '#f0d89a';
-  g.fillText(txt, W / 2, y);
+  pillLines(fit, W / 2, y);
   g.restore();
 }
 
