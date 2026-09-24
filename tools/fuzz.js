@@ -998,21 +998,42 @@
        every painting, points where it is the one on top and which lie ABOVE its
        own plot must still open it. */
     let paintingChecks = 0;
+    /* Its own camera, and a range of them. Which pixels a painting covers on
+       screen depends entirely on the zoom, and this used whatever camera the
+       sweep before it had left -- so a disagreement that only shows at the
+       zoom floor sat unfound until a battery happened to run it from the right
+       place. Seven zooms from floor to ceiling now, every time. */
+    const keepZ = V2.CAM.z, keepX = V2.CAM.x, keepY = V2.CAM.y;
+    for (const z of [0.35, 0.5, 0.7, 1, 1.5, 2.2, 3]) {
+    V2.CAM.z = z; V2.CAM.x = 512; V2.CAM.y = 746; V2.step(0.001);
     for (const p of V2.placed) {
       const R = V2.artRect(p); if (!R) continue;
       const b = V2.B(p.key), dep = q => { const bq = V2.B(q.key); return V2.tileToWorld(q.c + bq.w - 1, q.r + bq.h - 1).y; };
       for (let fy = 0.08; fy < 0.6; fy += 0.07) for (let fx = 0.2; fx <= 0.8; fx += 0.1) {
-        const wx = R.left + fx * R.wid, wy = R.top + fy * R.hgt;
+        /* Asked at the point the GAME will see, not the ideal one. buildingAt
+           unprojects the screen point it is given, and that round trip is not
+           bit exact -- about two thousandths of a world pixel. Normally
+           harmless; here it is not, because these sample fractions land
+           squarely on the boundaries of the hit mask's cells (0.15 of an
+           800-pixel sprite at four pixels a cell is cell 30.0000 exactly), so
+           the drift decides the cell and the checker reported the game wrong
+           for disagreeing with a point it was never given. Project first,
+           unproject back, and ask both sides about the same point. */
+        const ideal = V2.camProject(R.left + fx * R.wid, R.top + fy * R.hgt);
+        const seen = V2.camUnproject(ideal.x, ideal.y);
+        const wx = seen.x, wy = seen.y;
         if (!V2.paintedAt(p, wx, wy)) continue;
         const t = V2.tileAt(wx, wy);
         if (t.c >= p.c && t.c < p.c + b.w && t.r >= p.r && t.r < p.r + b.h) continue;   // over its own plot
         const later = q => dep(q) > dep(p) || (dep(q) === dep(p) && V2.placed.indexOf(q) > V2.placed.indexOf(p));
         if (V2.placed.some(q => q !== p && !V2.B(q.key).flat && later(q) && V2.paintedAt(q, wx, wy))) continue;   // drawn over here
-        const sc = V2.camProject(wx, wy), got = V2.buildingAt(sc.x, sc.y);
+        const got = V2.buildingAt(ideal.x, ideal.y);
         paintingChecks++;
-        if (got !== p) bad.push({ drawn_as: p.key + ' painting', taken_by: got ? got.key : 'the ground' });
+        if (got !== p) bad.push({ drawn_as: p.key + ' painting', taken_by: got ? got.key : 'the ground', zoom: z });
       }
     }
+    }
+    V2.CAM.z = keepZ; V2.CAM.x = keepX; V2.CAM.y = keepY; V2.step(0.001);
     return { controls: drawn.length, paintingChecks, conflicts: bad.length, worst: bad.slice(0, 6) };
   };
 
