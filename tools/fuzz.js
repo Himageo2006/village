@@ -1985,5 +1985,77 @@
     V.placed.length = 0; V.ensureHall(); V.rebuildStores();
     return { checked, fails };
   };
-  console.log('textSweep ready: window.textSweep(), window.contrastSweep(), window.backingSweep(), window.saveSweep(), window.hiddenSweep(), window.paintSweep(), window.soundSweep(), window.unitSweep(), window.reachSweep()');
+  /* An upgrade gives the village nothing until the scaffolding comes down.
+     The complement of the older invariant that an upgrade never TAKES anything
+     away: between them, nothing about what the village is given may change
+     between paying for an upgrade and the work finishing.
+
+     "Given" is read back through the game's own answers -- capacities, what the
+     hall allows, what the tray offers, who lives in the houses, what the wells
+     boost -- so the check does not depend on knowing which of them an upgrade
+     was meant to touch.
+
+     deliveredOf is deliberately NOT in that list. It is what a workplace would
+     hand over per pair of hands, a capability rather than a gift, and a
+     building under scaffolding hands over nothing at all whatever its level
+     says. That is checked directly instead, on the stock it accrues. */
+  window.scaffoldSweep = function () {
+    const V = window.__v, fails = [];
+    const give = () => ({
+      caps: V.caps.wood + '/' + V.caps.food,
+      allow: V.BUILDINGS.map(b => b.key + ':' + V.allowedOf(b.key)).join(' '),
+      tray: V.barList().map(b => b.key).join(','),
+      lives: V.placed.map(p => V.livedIn(p)).join(','),
+      boost: V.placed.map(p => +V.boostAt(p).toFixed(6)).join(','),
+    });
+    const diff = (x, y) => Object.keys(x).filter(k => x[k] !== y[k]);
+    V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
+    V.goalIdx = 0; V.tutSeen.length = 0; V.away = null; V.goalDone = null; V.finished = null;
+    V.ensureHall(); V.placed[0].lvl = 4; V.placed[0].t = 1;
+    V.res.wood = 1e5; V.res.food = 1e5;
+    const LB = V.landBounds();
+    let c = LB.lo + 1, r = LB.lo + 1;
+    for (const key of ['house', 'farm', 'lumber', 'store', 'well', 'mill', 'market']) {
+      if (!V.place(key, c, r)) { c += 3; if (c > LB.hi - 3) { c = LB.lo + 1; r += 3; } V.place(key, c, r); }
+      c += 3; if (c > LB.hi - 3) { c = LB.lo + 1; r += 3; }
+    }
+    for (let i = 0; i < 60 * 30; i++) V.step(1 / 30);       // everything finishes and settles
+    let upgrades = 0, changed = 0, produced = 0;
+    for (const p of [...V.placed]) {
+      if (V.isDecor(p.key)) continue;
+      V.res.wood = 1e5; V.res.food = 1e5;
+      for (let i = 0; i < 30; i++) V.step(1 / 30);
+      const before = give();
+      if (!V.canUpgrade(p)) continue;
+      V.upgradeBuilding(p);
+      upgrades++;
+      let d = diff(before, give());
+      if (d.length) fails.push(p.key + ' handed the village ' + d.join(' and ') + ' the instant its upgrade was paid for');
+      /* And a workplace under scaffolding makes nothing. Its stock is emptied
+         first, so anything that appears was made while the work was going on. */
+      const makes = !!(V.B(p.key).makes && V.B(p.key).jobs);
+      if (makes) p.stock = 0;
+      /* One frame at a time, and only asked while the scaffolding is genuinely
+         still up: the frame that finishes the work also applies everything the
+         upgrade gives, so a coarser loop compares the finished building against
+         the state before it started and reports every upgrade as broken. */
+      let grew = 0, guard = 0;
+      while (p.t < 1 && guard++ < 60 * 30) {
+        V.step(1 / 30);
+        if (p.t >= 1) break;
+        if (makes && p.stock > grew) grew = p.stock;
+        d = diff(before, give());
+        if (d.length) { fails.push(p.key + ' handed the village ' + d.join(' and ') + ' while it was still scaffolded'); break; }
+      }
+      if (grew > 0.0001) fails.push(p.key + ' made ' + grew.toFixed(2) + ' while the scaffolding was up');
+      if (makes) produced++;
+      for (let i = 0; i < 20 * 30; i++) V.step(1 / 30);
+      if (diff(before, give()).length) changed++;
+    }
+    /* And it must give something in the end, or "nothing changed" would be a
+       pass for a game whose upgrades did nothing at all. */
+    if (upgrades && !changed) fails.push('not one of the ' + upgrades + ' upgrades changed anything once finished');
+    return { upgrades, workplaces: produced, changedOnceFinished: changed, fails };
+  };
+  console.log('textSweep ready: window.textSweep(), window.contrastSweep(), window.backingSweep(), window.saveSweep(), window.hiddenSweep(), window.paintSweep(), window.soundSweep(), window.unitSweep(), window.reachSweep(), window.scaffoldSweep()');
 })();

@@ -1851,7 +1851,22 @@ function stepHints(dt) {
 }
 
 const hallOf = () => placed.find(p => p.key === 'hall');
-const hallLevel = () => { const h = hallOf(); return h ? Math.min(HALL_MAX, Math.max(1, h.lvl | 0)) : 1; };
+/* The level the hall HOLDS -- what it is actually giving the village right
+   now, which during its own upgrade is the level it has not left yet.
+
+   Every other building in the game earns an upgrade when the scaffolding comes
+   down: a storehouse keeps the capacity it had, a house keeps the residents it
+   had, a well keeps its old reach. The hall read its lvl field directly and so
+   handed over everything the instant the work STARTED. Measured on a hall
+   going from one to two: the moment the upgrade began, storage jumped from 300
+   to 800, the storehouse appeared unlocked in the tray, and every building in
+   the village could be sent to level two -- six seconds before the hall that
+   permits any of it existed. A storehouse upgraded at the same moment held its
+   800 until it was done, which is the rule this now keeps too.
+
+   The panel's title still names the level being built, the way it does for
+   every building under scaffolding. This is what the village is given. */
+const hallLevel = () => { const h = hallOf(); return h ? Math.min(HALL_MAX, Math.max(1, lvlHeld(h))) : 1; };
 const allowedOf = key => (HALL[hallLevel()].allow[key] || 0);
 const countOf = key => placed.reduce((n, p) => n + (p.key === key ? 1 : 0), 0);
 // a building type you cannot have yet is hidden entirely; one you have run out
