@@ -1782,5 +1782,32 @@
     }
     return { hidden: blind, visible: seen, fails };
   };
-  console.log('textSweep ready: window.textSweep(), window.contrastSweep(), window.backingSweep(), window.saveSweep(), window.hiddenSweep(), window.paintSweep()');
+  /* And nothing is SOUNDED while nobody is listening. Worse than wasted: the
+     context is suspended while the page is hidden, a suspended context stops
+     its clock, and so every tone the working village makes is scheduled for
+     the same frozen instant and fires in one clipped bang on the first touch
+     after coming back. */
+  window.soundSweep = function () {
+    const V = window.__v, fails = [];
+    V.audioOn();
+    const actx = V.actx;
+    if (!actx) return { skipped: 'this browser gave no audio context', fails };
+    const keepMute = V.muted; V.muted = false;
+    const co = actx.createOscillator.bind(actx);
+    let made = 0, quiet = -1, loud = -1;
+    actx.createOscillator = () => { made++; return co(); };
+    const say = v => Object.defineProperty(document, 'hidden', { configurable: true, get: () => v });
+    const ring = () => { V.SFX.tap(); V.SFX.place(); V.SFX.deny(); V.SFX.upgrade(); V.SFX.done(); };
+    try {
+      say(true);  made = 0; ring(); quiet = made;
+      say(false); made = 0; ring(); loud = made;
+      if (quiet > 0) fails.push('a hidden page queued ' + quiet + ' sounds nobody can hear');
+      if (loud < 5) fails.push('a visible page made only ' + loud + ' sounds of the nine it should');
+    } finally {
+      delete document.hidden;
+      actx.createOscillator = co; V.muted = keepMute;
+    }
+    return { hidden: quiet, visible: loud, fails };
+  };
+  console.log('textSweep ready: window.textSweep(), window.contrastSweep(), window.backingSweep(), window.saveSweep(), window.hiddenSweep(), window.paintSweep(), window.soundSweep()');
 })();

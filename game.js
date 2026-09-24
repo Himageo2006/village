@@ -419,7 +419,18 @@ function audioOn() {
 /* One shaped tone. type/freq/dur describe it; slide bends the pitch, which is
    what separates a rising "that worked" from a falling "that did not". */
 function tone({ f = 440, to = 0, type = 'sine', dur = 0.14, vol = 0.5, delay = 0 }) {
-  if (!actx || muted) return;
+  /* Nothing is sounded while nobody is listening, for the same reason nothing
+     is painted while nobody is watching -- and here it does not merely go to
+     waste, it piles up. The village keeps working in the background, its
+     deliveries keep ringing, and the context is suspended: a suspended context
+     stops its clock, so every one of those tones is scheduled for the SAME
+     frozen instant, and none of them can be collected while it waits to play.
+
+     They all fire together on the first touch after coming back. Measured: one
+     tap peaks at 9 of 128 full scale, two hundred queued tones peak at 128 --
+     hard clipped, fourteen times a tap. A night on the home screen queues
+     about fourteen hundred. The player's welcome back was a bang. */
+  if (!actx || muted || document.hidden) return;
   const t0 = actx.currentTime + delay;
   const o = actx.createOscillator(), gn = actx.createGain();
   o.type = type;
@@ -5146,7 +5157,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   get ordersDone() { return ordersDone; }, set ordersDone(v) { ordersDone = v; },
   get orderT() { return orderT; }, set orderT(v) { orderT = v; },
   get goalDone() { return goalDone; }, set goalDone(v) { goalDone = v; },
-  SFX, muteRect, audioOn, get muted() { return muted; }, set muted(v) { muted = v; },
+  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; },
   KEY, KEY_BAK, BACKUP_EVERY,
   get saveFailed() { return saveFailed; }, set saveFailed(v) { saveFailed = v; },
   get loadedFromBackup() { return loadedFromBackup; }, set loadedFromBackup(v) { loadedFromBackup = v; },
