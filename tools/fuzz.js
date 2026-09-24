@@ -1261,8 +1261,20 @@
     const fails = [];
     const settle = async () => { V.step(0.001); await wait(250); V.step(0.001); await wait(50); };
     try {
+      /* Its own scene, like gestureSweep's. It inherited the previous sweep's
+         village, and a finished one raises its card again the moment the card
+         is cleared -- so back was already armed before the first case and
+         nothing was pushed to close anything, five times over. Everything the
+         back button can close is cleared, and the goals are wound back so the
+         village cannot be finished and cannot complete one mid-run. */
+      V.placed.length = 0; V.villagers.length = 0; V.ensureHall();
+      V.goalIdx = 0; V.tutSeen.length = 0;
       V.panel = null; V.barMode = 'build'; V.sel = null; V.moving = null; V.away = null; V.claimAsk = false;
+      V.finished = null; V.goalDone = null;
       await settle(); depth = 0;
+      /* And say so if any of that did not take: five "nothing was pushed"
+         failures are a puzzle, "something was already open" is an answer. */
+      if (V.backOpen()) fails.push('the sweep began with something already open, so nothing could be armed');
       const cases = [
         ['a panel closed with its x', () => { V.panel = V.placed[0].id; }, async () => { V.panel = null; }],
         ['a panel closed with back', () => { V.panel = V.placed[0].id; }, async () => { history.back(); }],
