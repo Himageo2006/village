@@ -1758,5 +1758,29 @@
     }
     return { cases: cases.length, hiddenNow: document.hidden, fails };
   };
-  console.log('textSweep ready: window.textSweep(), window.contrastSweep(), window.backingSweep(), window.saveSweep(), window.hiddenSweep()');
+  /* Nothing is painted while nobody is watching, and painting resumes the
+     moment somebody is. Counted on the canvas context itself, so it measures
+     what the tick really asks the GPU for rather than what the code looks
+     like it does. */
+  window.paintSweep = function () {
+    const V = window.__v, ctx = document.querySelector('canvas').getContext('2d');
+    const names = ['fillRect', 'drawImage', 'fillText', 'stroke', 'fill', 'clearRect', 'strokeText'];
+    const orig = {}; let ops = 0;
+    for (const k of names) { orig[k] = ctx[k]; ctx[k] = function (...a) { ops++; return orig[k].apply(this, a); }; }
+    const say = v => Object.defineProperty(document, 'hidden', { configurable: true, get: () => v });
+    const keepAt = V.hiddenAt, keepSim = V.hiddenSim;
+    const fails = []; let blind = -1, seen = -1;
+    try {
+      say(true);  ops = 0; V.tick(); blind = ops;
+      say(false); ops = 0; V.tick(); seen = ops;
+      if (blind > 0) fails.push('a hidden page painted ' + blind + ' times in one tick');
+      if (seen < 10) fails.push('a visible page painted only ' + seen + ' times in one tick');
+    } finally {
+      delete document.hidden;                       // back to the real accessor
+      for (const k of names) ctx[k] = orig[k];
+      V.hiddenAt = keepAt; V.hiddenSim = keepSim;   // the fake hiding started an away clock
+    }
+    return { hidden: blind, visible: seen, fails };
+  };
+  console.log('textSweep ready: window.textSweep(), window.contrastSweep(), window.backingSweep(), window.saveSweep(), window.hiddenSweep(), window.paintSweep()');
 })();

@@ -5073,11 +5073,19 @@ coverPlaced();
 collectAway();
 fitCanvas();
 CAM.x = W / 2; CAM.y = tileToWorld(GW / 2, GH / 2).y; camFit(true); camClamp();
+/* The village keeps working while the page is hidden; nobody watches it do
+   it. Painting a frame no one can see costs 2.1ms of a built-up village on
+   this machine and rather more on a phone, several times a second, for as
+   long as the app sits on the home screen -- and buys nothing, because the
+   canvas is not composited and the first visible tick repaints it within a
+   thirtieth of a second anyway. The simulation still runs: what it manages is
+   counted, and the rest is credited as time away. */
 let last = performance.now();
-setInterval(() => {
+function tick() {
   const now = performance.now(), dt = Math.min(0.1, Math.max(0, (now - last) / 1000)); last = now;
-  try { step(dt); draw(); } catch (e) { console.error(e); }
-}, 1000 / 30);
+  try { step(dt); if (!document.hidden) draw(); } catch (e) { console.error(e); }
+}
+setInterval(tick, 1000 / 30);
 
 /* Ask for every sprite at once, rather than the first time each is drawn.
 
@@ -5156,4 +5164,4 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   get sharedTotal() { return sharedTotal; }, set sharedTotal(v) { sharedTotal = v; },
   villageFinished, compact,
   get barMode() { return barMode; }, set barMode(v) { barMode = v; },
-  backOpen, backClose, armBack, disarmBack, get backArmed() { return backArmed; } };
+  tick, backOpen, backClose, armBack, disarmBack, get backArmed() { return backArmed; } };
