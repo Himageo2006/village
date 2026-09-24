@@ -2052,6 +2052,28 @@ const KEY_BAK = 'vil_save_bak';
 const BACKUP_EVERY = 12;              // saves between backups; saves are ~5s apart
 let saveN = 0, saveFailed = false, loadedFromBackup = false;
 const SAVE_V = 4;      // 2: house 2x1. 3: hall and jobs. 4: every building levels
+/* The moment the simulation has reached, which is not always now.
+
+   A backgrounded page is throttled, not stopped: the tick still runs, a few
+   times a second, with its dt capped at a tenth -- so the village simulates a
+   fraction of the time that passes. The unsimulated remainder is what being
+   away is worth, and the resume path credits it.
+
+   But the throttled tick also kept saving, and every save stamped the wall
+   clock: the file claimed the village had been simulated right up to the
+   moment it was written, when it had not. Harmless while the page lives long
+   enough to come back -- which is exactly what does not happen on a phone,
+   where Android kills the backgrounded WebView and the next start is a cold
+   one reading that stamp. Whatever the background lasts, all of it is lost
+   except the last save interval. Measured in this throttled page: 69 seconds
+   hidden simulated 34, owed 35, and a cold start would have credited 7.8 --
+   under the one-minute floor, so nothing at all. A night on a phone, the way
+   an idle game is actually played, came back to an empty card.
+
+   So the stamp is where the simulation got to, and a cold start credits the
+   rest: the same arithmetic the resume path does. Never ahead of the wall
+   clock, so a device whose clock steps back cannot mint time. */
+const simNow = () => hiddenAt ? Math.min(Date.now(), hiddenAt + hiddenSim * 1000) : Date.now();
 /* The measured delivery rate is saved along with the time, so a village can
    carry on working while the game is shut. Saving the RATE rather than
    recomputing it on load matters: the rate the buildings are rated for is
@@ -2067,9 +2089,9 @@ function save() {
     }
   } catch (e) {}
   try { localStorage.setItem(KEY, JSON.stringify({
-    v: SAVE_V, res, placed, t: Date.now(), rate: rateNow, seen: tutSeen, mute: muted,
+    v: SAVE_V, res, placed, t: simNow(), rate: rateNow, seen: tutSeen, mute: muted,
     goal: goalIdx, land: landTier, orders, ordersDone, shared: sharedTotal }));
-    saveFailed = false;
+    saveFailed = false; savedMs = Date.now();
   } catch (e) {
     /* Storage can be full, or blocked outright in a private window. Swallowing
        this means the player keeps playing a village that is not being written
@@ -2367,8 +2389,15 @@ function ensureHall() {
 /* ---------- simulation ---------- */
 const BUILD_TIME = 3.0;
 const SAVE_EVERY = 5;                 // seconds
-let saveT = 0;
+let saveT = 0, savedMs = 0;
 function step(dt) {
+  /* The away clock runs whenever the page is hidden, however it got that way.
+     visibilitychange only fires on a CHANGE, so a page that STARTED hidden --
+     a WebView restored into the background, a tab opened behind the one being
+     read -- was throttled from its first frame with nothing counting. Asked
+     every tick rather than once at boot, so there is one answer to 'is this
+     page being watched' and it cannot drift out of step. */
+  if (document.hidden && !hiddenAt) { hiddenAt = Date.now(); hiddenSim = 0; }
   if (hiddenAt) hiddenSim += dt;      // what the throttled tick managed while away
   stepCam(dt);
   if (backOpen()) armBack();          // so the back button can close it again
@@ -2395,9 +2424,14 @@ function step(dt) {
   stepGoals(dt);
   stepOrders(dt);
   /* Everything the villagers carry in changes res without going through place(),
-     so without this a session's whole harvest is lost on reload. */
+     so without this a session's whole harvest is lost on reload.
+
+     Every five SIMULATED seconds, which while hidden is far longer in real
+     ones -- and the stamp is only ever as fresh as the last write, so the
+     stretch between two writes comes back credited as time away although the
+     village worked it. Real seconds count too, once nobody is watching. */
   saveT += dt;
-  if (saveT >= SAVE_EVERY) { saveT = 0; save(); }
+  if (saveT >= SAVE_EVERY || (hiddenAt && Date.now() - savedMs >= SAVE_EVERY * 1000)) { saveT = 0; save(); }
 }
 
 /* ---------- drawing ---------- */

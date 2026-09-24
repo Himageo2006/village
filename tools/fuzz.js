@@ -1716,5 +1716,47 @@
     const blind = Object.entries(detects).filter(([, ok]) => !ok).map(([k]) => k);
     return { diffs: diffs.length, worst: diffs.slice(0, 8), fieldsChecked: Object.keys(detects).length, blindTo: blind };
   };
-  console.log('textSweep ready: window.textSweep(), window.contrastSweep(), window.backingSweep(), window.saveSweep()');
+  /* A save's timestamp is where the SIMULATION got to, not when the file was
+     written. The two part company the moment the page is hidden, because the
+     tick is throttled and the village then simulates a fraction of the time
+     that passes -- and on Android the hidden page is usually the one that gets
+     killed, so that stale stamp is what the next start reads.
+
+     Checked as the player feels it: how much time a cold start right now would
+     credit, against how much the village genuinely did not work. */
+  window.hiddenSweep = function () {
+    const V = window.__v, fails = [];
+    const real = localStorage.getItem(V.KEY);
+    const keepAt = V.hiddenAt, keepSim = V.hiddenSim;
+    const cases = [
+      ['watched all along',            0,        0,    0],
+      ['a minute backgrounded',        60,       30,   30],
+      ['an hour at a tenth speed',     3600,     360,  3240],
+      ['a night on the home screen',   8 * 3600, 2880, 8 * 3600 - 2880],
+      ['a clock that stepped back',    100,      500,  0],   // never mint time
+    ];
+    try {
+      for (const [name, hid, sim, owed] of cases) {
+        const now = Date.now();
+        V.hiddenAt = hid ? now - hid * 1000 : 0;
+        V.hiddenSim = sim;
+        V.save();
+        const t = JSON.parse(localStorage.getItem(V.KEY)).t;
+        const credit = (Date.now() - t) / 1000;
+        if (!(credit >= -0.5)) fails.push(name + ': the save is stamped ' + (-credit).toFixed(1) + 's in the future');
+        else if (Math.abs(credit - owed) > 1)
+          fails.push(name + ': a cold start would credit ' + credit.toFixed(1) + 's, owed ' + owed + 's');
+      }
+      /* And a hidden page always has an away clock running, whether it was
+         hidden by the handler, by starting that way, or by anything that
+         cleared the clock while nobody was watching. */
+      V.hiddenAt = 0; V.hiddenSim = 0; V.step(0.001);
+      if (document.hidden && !V.hiddenAt) fails.push('the page is hidden and nothing is counting the time away');
+    } finally {
+      V.hiddenAt = keepAt; V.hiddenSim = keepSim;
+      try { if (real !== null) localStorage.setItem(V.KEY, real); } catch (e) {}
+    }
+    return { cases: cases.length, hiddenNow: document.hidden, fails };
+  };
+  console.log('textSweep ready: window.textSweep(), window.contrastSweep(), window.backingSweep(), window.saveSweep(), window.hiddenSweep()');
 })();
