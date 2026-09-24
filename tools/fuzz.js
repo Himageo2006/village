@@ -485,6 +485,12 @@
       landShrunkUnderTheVillage: JSON.stringify({ ...o, land: 0 }),
       sharedGarbage: JSON.stringify({ ...o, shared: { wood: -5, food: 'lots' } }),
       sharedHuge: JSON.stringify({ ...o, shared: { wood: 1e300, food: NaN } }),
+      /* The goods that were in villagers' hands. Read at boot and handed back,
+         so a damaged figure here is a damaged figure added straight to the
+         stores -- the one save field that pays out on load. */
+      transitGarbage: JSON.stringify({ ...o, transit: { wood: -500, food: 'lots' } }),
+      transitHuge: JSON.stringify({ ...o, transit: { wood: 1e12, food: Infinity } }),
+      transitNotAnObject: JSON.stringify({ ...o, transit: [1, 2, 3] }),
     };
     const bad = [], kept = {};
     for (const [name, raw] of Object.entries(cases)) {
@@ -493,7 +499,8 @@
         V.placed.length = 0; V.villagers.length = 0; V.orders = [];
         V.res.wood = 60; V.res.food = 40; V.landTier = 0; V.goalIdx = 0; V.ordersDone = 0;
         V.sharedTotal = { wood: 0, food: 0 };
-        V.load(); V.ensureHall(); V.collectAway();
+        // the order boot uses, so every field a damaged save carries is applied
+        V.load(); V.ensureHall(); V.landTransit(); V.collectAway();
         for (let i = 0; i < 5 * 30; i++) V.step(1 / 30);
         V.draw();
         const occ = new Set(); let shared = 0, off = 0;
