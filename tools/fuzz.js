@@ -1266,6 +1266,21 @@
      aimed at the hall's painting, where a tap opens its panel. */
   window.gestureSweep = function () {
     const V = window.__v, cv = document.querySelector('canvas'), b = cv.getBoundingClientRect();
+    /* Its own scene, its own camera. It aimed at placed[0] through whatever
+       camera the sweep before it happened to leave behind, so its answer
+       depended on the running order: after badgeOverlapSweep, which ends on a
+       built-up island at z 0.66, the plain tap landed on open ground and the
+       checker reported a broken tap. A checker that agrees with its
+       neighbours is not measuring the game. */
+    V.placed.length = 0; V.villagers.length = 0; V.ensureHall();
+    V.panel = null; V.sel = null; V.moving = null; V.claimAsk = false;
+    V.away = null; V.goalDone = null; V.finished = null;
+    /* camFit sets the zoom, not the centre -- boot pans first and fits after --
+       so the camera had to be pointed at the hall as well, or the tap was
+       dispatched at a point off the edge of the canvas. */
+    V.camFit(true);
+    { const R = V.artRect(V.placed[0]); V.CAM.x = R.left + R.wid / 2; V.CAM.y = R.top + R.hgt / 2; }
+    V.step(0.001);
     const ev = (type, id, x, y) => cv.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: id,
       clientX: x, clientY: y, pointerType: 'touch', isPrimary: id === 1, button: 0 }));
     const aim = () => { const R = V.artRect(V.placed[0]); const s = V.camProject(R.left + R.wid / 2, R.top + R.hgt * 0.6);
