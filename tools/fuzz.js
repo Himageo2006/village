@@ -308,6 +308,15 @@
     V.placed.length = 0; V.villagers.length = 0; V.landTier = 0;
     V.goalIdx = 0; V.ordersDone = 0; V.orders = []; V.tutSeen.length = 0;
     V.res.wood = 60; V.res.food = 40; V.ensureHall();
+    /* An arc is a playthrough with somebody AT the screen, so it says so rather
+       than reading its surroundings -- the harness usually runs in a hidden
+       pane, where a goal banner correctly never ages, stepGoals waits behind it
+       forever and not one goal can complete. Inheriting a banner from the sweep
+       before was enough to do it: this run built a maxed village, hall five,
+       seventy-two villagers, fifty-seven trades, and recorded 0 of 23 goals
+       while reporting no failures at all. */
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
+    V.goalDone = null; V.away = null; V.finished = null;
     const fails = [], seen = new Set();
     const note = bad => { if (bad && !seen.has(bad)) { seen.add(bad); fails.push(bad); } };
     /* Nearest free spot to the middle, so the village grows as a village rather
@@ -412,6 +421,16 @@
       }
     }
     try { if (realSave !== null) localStorage.setItem(V.KEY, realSave); } catch (e) {}
+    delete document.hidden;                       // back to what the browser says
+    /* A pacing run that got stuck measured nothing, and said so by reporting no
+       failures at all. A good run reaches all twenty-three inside ninety
+       simulated minutes, so a long run that reached a handful was BLOCKED, not
+       slow -- an un-ageing goal banner stops the strip dead, and the first
+       version of this checker sat behind one and called it a pass. Well clear
+       of any honest pacing, which is what the goalTimes list is for. */
+    const floor = maxMinutes >= 30 ? 5 : 1;
+    if (goalTimes.length < floor) fails.push('the run reached only ' + goalTimes.length
+      + ' goal(s) in ' + maxMinutes + ' simulated minutes, so it was blocked rather than slow');
     return { goals: V.goalIdx + '/' + V.GOALS.length, hall: V.hallLevel(), land: V.landTier,
       placed: V.placed.length, villagers: V.villagers.length,
       res: { wood: Math.round(V.res.wood), food: Math.round(V.res.food) },
