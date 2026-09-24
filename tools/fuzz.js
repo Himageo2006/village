@@ -1136,10 +1136,19 @@
      behind the goal banner and the away card, so a hint could expire unseen. */
   window.hintSweep = function () {
     const V = window.__v, fails = [];
+    /* Pinned, not read: the harness itself often runs in a hidden pane, and a
+       checker that agrees with its surroundings checks nothing. Put back at
+       the end. */
+    const hide = v => Object.defineProperty(document, 'hidden', { configurable: true, get: () => v });
+    hide(false);
     for (const [name, cover, clear] of [
       ['away card', () => { V.away = { secs: 7200, got: { wood: 1, food: 1 } }; }, () => { V.away = null; }],
       ['goal banner', () => { V.goalDone = { g: V.GOALS[0], got: {}, age: -1e9 }; }, () => { V.goalDone = null; }],
-      ['finished card', () => { V.finished = { villagers: 1, buildings: 1, trades: 0, charm: 0 }; }, () => { V.finished = null; }]]) {
+      ['finished card', () => { V.finished = { villagers: 1, buildings: 1, trades: 0, charm: 0 }; }, () => { V.finished = null; }],
+      /* The plainest way of not being on screen: the phone is showing something
+         else. The tick runs on in the background and used to run the hints out
+         with it. */
+      ['home screen', () => hide(true), () => { hide(false); V.hiddenAt = 0; V.hiddenSim = 0; }]]) {
       V.placed.length = 0; V.villagers.length = 0; V.ensureHall(); V.tutSeen.length = 0;
       V.away = null; V.goalDone = null; V.finished = null;
       cover();
@@ -1149,7 +1158,19 @@
       for (let i = 0; i < 21 * 30; i++) V.step(1 / 30);
       if (!V.tutSeen.includes('house')) fails.push('the first hint never finished once the ' + name + ' closed');
     }
-    return { cases: 3, fails };
+    /* The goal banner's four and a half seconds are the same seconds. It is the
+       only record of which goal finished and what it paid. */
+    V.goalDone = { g: V.GOALS[0], got: {}, age: 0 };
+    const banner = V.goalDone;
+    hide(true);
+    for (let i = 0; i < 20 * 30; i++) V.step(1 / 30);
+    if (V.goalDone !== banner) fails.push('the goal banner expired while the page was hidden');
+    hide(false); V.hiddenAt = 0; V.hiddenSim = 0;
+    for (let i = 0; i < 20 * 30; i++) V.step(1 / 30);
+    if (V.goalDone === banner) fails.push('the goal banner never expired once the page came back');
+    V.goalDone = null;
+    delete document.hidden;                     // back to what the browser says
+    return { cases: 5, fails };
   };
   /* Building badges never print over one another. A built-up island at phone
      zoom used to stack "−63%", "−65%" and rows of ▲ into an unreadable pile. */

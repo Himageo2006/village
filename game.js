@@ -1711,7 +1711,9 @@ function stepGoals(dt) {
      next one waits for the banner in front of it. */
   const next = currentGoal();
   if (goalDone) {
-    goalDone.age += dt;
+    // and it is shown for four and a half seconds of somebody looking at it,
+    // by the same rule the hints keep: a banner is not read from a home screen
+    if (!document.hidden) goalDone.age += dt;
     const hold = (next && next.done()) ? GOAL_SHOW_QUEUED : GOAL_SHOW;
     if (goalDone.age <= hold) return;
     goalDone = null;
@@ -3863,7 +3865,15 @@ function pillLines(fit, cx, cy) {
   const top = cy - (fit.lines.length - 1) * lh / 2;
   fit.lines.forEach((l, i) => g.fillText(l, cx, top + i * lh));
 }
-const hintVisible = () => !(away || finished || goalDone);   // one thing at a time
+/* One thing at a time -- and somebody there to read it.
+
+   "On screen" was taken to mean "not covered by something else", which left
+   out the plainest way of not being on screen: the app is not the thing the
+   phone is showing. The village works on in the background and the tick works
+   on with it, so the hints ran out behind the home screen. Measured on a fresh
+   village: forty seconds hidden marked "tap", "house" and "hall" as seen, all
+   three of them never drawn once. Those are the three that teach the game. */
+const hintVisible = () => !(away || finished || goalDone || document.hidden);
 function drawHint() {
   if (!hintVisible()) return;
   const h = currentHint(); if (!h) return;
