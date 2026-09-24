@@ -2149,5 +2149,60 @@
     try { if (realSave !== null) localStorage.setItem(V.KEY, realSave); } catch (e) {}
     return { houseLevels: 5, workplaceKinds: kinds, carriedAcrossRestart: inHand, fails };
   };
-  console.log('textSweep ready: window.textSweep(), window.contrastSweep(), window.backingSweep(), window.saveSweep(), window.hiddenSweep(), window.paintSweep(), window.soundSweep(), window.unitSweep(), window.reachSweep(), window.scaffoldSweep(), window.handoverSweep()');
+  /* The arrow on a workplace panel is a promise: "0.39/s delivered -> 0.44/s"
+     is what this building will hand over once the work is done. Checked
+     end to end, by reading the row the player reads and then buying the
+     upgrade -- not by recomputing it, which would only prove the panel agrees
+     with itself.
+
+     It is a promise about THIS building with the hands it has. An upgrade can
+     also open a job slot, and a villager arriving to fill it lifts the figure
+     further; the workforce moving is a separate thing the same row reports as
+     "workers 1 / 2". So cases where the hand count changed across the upgrade
+     are not evidence either way and are skipped -- with a floor on how many
+     must survive, or a run in which the workforce churned throughout would
+     pass while checking nothing. */
+  window.promiseSweep = function () {
+    const V = window.__v, cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
+    const fails = [], orig = ctx.fillText;
+    const rateRow = p => {
+      V.panel = p.id; V.step(0.001);
+      const lines = [];
+      ctx.fillText = function (t, ...a) { lines.push(String(t)); return orig.call(this, t, ...a); };
+      try { V.draw(); } finally { ctx.fillText = orig; }
+      V.panel = null;
+      return lines.find(x => /\/s delivered/.test(x)) || '';
+    };
+    V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
+    V.away = null; V.goalDone = null; V.finished = null; V.goalIdx = 0; V.tutSeen.length = 0;
+    V.ensureHall(); V.placed[0].lvl = 5; V.placed[0].t = 1;
+    V.res.wood = 5e4; V.res.food = 5e4;
+    const LB = V.landBounds();
+    for (const [k, c, r] of [['house',0,0],['house',0,3],['house',0,6],['farm',3,0],['lumber',3,3],
+      ['mill',3,6],['store',9,0],['store',9,3],['store',9,6],['store',6,9]]) V.place(k, LB.lo + c, LB.lo + r);
+    for (let i = 0; i < 90 * 30; i++) V.step(1 / 30);
+    let checked = 0, skipped = 0;
+    for (const key of ['farm', 'lumber', 'mill']) {
+      const p = V.placed.find(q => q.key === key);
+      if (!p) continue;
+      for (let lvl = 1; lvl <= 4; lvl++) {
+        for (let i = 0; i < 60 * 30; i++) V.step(1 / 30);
+        V.res.wood = 5e3; V.res.food = 5e3;
+        const m = /([\d.]+)\/s delivered\s+→\s+([\d.]+)\/s/.exec(rateRow(p));
+        if (!m) { skipped++; continue; }
+        const promised = +m[2], hands = V.workersAt(p.id);
+        if (!V.upgradeBuilding(p)) { skipped++; continue; }
+        for (let i = 0; i < 60 * 30; i++) V.step(1 / 30);
+        if (V.workersAt(p.id) !== hands) { skipped++; continue; }   // the workforce moved: not evidence
+        const m2 = /([\d.]+)\/s delivered/.exec(rateRow(p));
+        if (!m2) { skipped++; continue; }
+        checked++;
+        if (Math.abs(+m2[1] - promised) > 0.011)
+          fails.push('a level ' + lvl + ' ' + key + ' promised ' + promised + '/s and delivers ' + m2[1] + '/s');
+      }
+    }
+    if (checked < 4) fails.push('only ' + checked + ' upgrades kept their hands, so the sweep proved almost nothing');
+    return { checked, skipped, fails };
+  };
+  console.log('textSweep ready: window.textSweep(), window.contrastSweep(), window.backingSweep(), window.saveSweep(), window.hiddenSweep(), window.paintSweep(), window.soundSweep(), window.unitSweep(), window.reachSweep(), window.scaffoldSweep(), window.handoverSweep(), window.promiseSweep()');
 })();
