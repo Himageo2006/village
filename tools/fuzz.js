@@ -2069,17 +2069,25 @@
       boost: V.placed.map(p => +V.boostAt(p).toFixed(6)).join(','),
     });
     const diff = (x, y) => Object.keys(x).filter(k => x[k] !== y[k]);
-    V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
-    V.goalIdx = 0; V.tutSeen.length = 0; V.away = null; V.goalDone = null; V.finished = null;
-    V.ensureHall(); V.placed[0].lvl = 4; V.placed[0].t = 1;
-    V.res.wood = 1e5; V.res.food = 1e5;
-    const LB = V.landBounds();
-    let c = LB.lo + 1, r = LB.lo + 1;
-    for (const key of ['house', 'farm', 'lumber', 'store', 'well', 'mill', 'market']) {
-      if (!V.place(key, c, r)) { c += 3; if (c > LB.hi - 3) { c = LB.lo + 1; r += 3; } V.place(key, c, r); }
-      c += 3; if (c > LB.hi - 3) { c = LB.lo + 1; r += 3; }
-    }
-    for (let i = 0; i < 60 * 30; i++) V.step(1 / 30);       // everything finishes and settles
+    /* houseLvl is the whole workforce: the first block wants the village as it
+       comes, the second wants more hands than one post can take, so that a
+       scaffolded building can be seen pulling them over. */
+    const scene = houseLvl => {
+      V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
+      V.goalIdx = 0; V.tutSeen.length = 0; V.away = null; V.goalDone = null; V.finished = null;
+      V.ensureHall(); V.placed[0].lvl = 4; V.placed[0].t = 1;
+      V.res.wood = 1e5; V.res.food = 1e5;
+      const LB = V.landBounds();
+      let c = LB.lo + 1, r = LB.lo + 1;
+      for (const key of ['house', 'farm', 'lumber', 'store', 'well', 'mill', 'market']) {
+        if (!V.place(key, c, r)) { c += 3; if (c > LB.hi - 3) { c = LB.lo + 1; r += 3; } V.place(key, c, r); }
+        c += 3; if (c > LB.hi - 3) { c = LB.lo + 1; r += 3; }
+      }
+      for (const q of V.placed) if (q.key === 'house') q.lvl = houseLvl;
+      V.rebuildStores();
+      for (let i = 0; i < 60 * 30; i++) V.step(1 / 30);     // everything finishes and settles
+    };
+    scene(1);
     let upgrades = 0, changed = 0, produced = 0;
     for (const p of [...V.placed]) {
       if (V.isDecor(p.key)) continue;
@@ -2115,7 +2123,58 @@
     /* And it must give something in the end, or "nothing changed" would be a
        pass for a game whose upgrades did nothing at all. */
     if (upgrades && !changed) fails.push('not one of the ' + upgrades + ' upgrades changed anything once finished');
-    return { upgrades, workplaces: produced, changedOnceFinished: changed, fails };
+
+    /* And the rate the game REPORTS while the scaffolding is up is the rate the
+       village is really delivering.
+
+       The chips quote expectedRate whenever the measured window is too sparse to
+       trust, which is exactly the small village where one upgrade is most of the
+       economy. A ten second scaffold is far too short to measure a rate against
+       -- wood arrives eight at a time -- so the work is held up instead, and the
+       comparison is the plain one the pacing sweep uses: stock gained over two
+       minutes with the stores kept half empty so nothing is refused.
+
+       Taken to level three, because that is the step that opens another post:
+       the interesting failure is not just a higher rate quoted early, it is the
+       workforce walking onto a building that makes nothing and every arriving
+       hand being counted. */
+    let measured = 0, staffed = 0;
+    for (const key of ['farm', 'lumber', 'mill', 'market']) {
+      scene(3);
+      const p = V.placed.find(q => q.key === key);
+      if (!p) continue;
+      p.lvl = 2; V.rebuildStores();
+      for (let i = 0; i < 30 * 30; i++) V.step(1 / 30);
+      V.res.wood = 1e5; V.res.food = 1e5;
+      if (!V.canUpgrade(p)) continue;
+      V.upgradeBuilding(p);
+      p.build = 1e7;                     // the scaffolding stays up to be measured against
+      V.goalIdx = V.GOALS.length;        // no reward may arrive and be counted as production
+      const half = () => { for (const k of ['wood', 'food']) V.res[k] = V.caps[k] / 2; };
+      half(); for (let i = 0; i < 20 * 30; i++) V.step(1 / 30); half();
+      const secs = 120, got = { wood: 0, food: 0 }, rep = { wood: 0, food: 0 };
+      for (let s2 = 0; s2 < secs; s2++) {
+        const was = { wood: V.res.wood, food: V.res.food }, e = V.expectedRate();
+        for (const k of ['wood', 'food']) rep[k] += e[k];
+        for (let i = 0; i < 30; i++) V.step(1 / 30);
+        for (const k of ['wood', 'food']) got[k] += V.res[k] - was[k];
+        half();
+      }
+      if (p.t >= 1) { fails.push('the ' + key + ' finished building while it was meant to be held under scaffolding'); continue; }
+      measured++;
+      if (V.workersAt(p.id)) staffed++;
+      for (const k of ['wood', 'food']) {
+        const real = got[k] / secs, want = rep[k] / secs;
+        if (Math.abs(real - want) > 0.15 * Math.max(real, want))
+          fails.push('with the ' + key + ' under scaffolding the reported ' + k + ' rate is not what arrives: '
+            + want.toFixed(2) + '/s reported, ' + real.toFixed(2) + '/s delivered');
+      }
+    }
+    /* Nothing was proved by a run where the scaffolded building had nobody on
+       it: an empty post contributes nothing either way. */
+    if (!staffed) fails.push('not one of the ' + measured + ' scaffolded workplaces had anybody working it');
+
+    return { upgrades, workplaces: produced, changedOnceFinished: changed, ratesMeasured: measured, fails };
   };
   /* Nothing the village has already made disappears without being handed in.
 

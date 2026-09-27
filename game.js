@@ -2406,6 +2406,21 @@ function expectedRate() {
   for (const p of producers()) {
     const b = B(p.key);
     if (!b.makes) continue;
+    /* Not while the scaffolding is up. The one gate stepVillagers produces
+       through is p.t >= 1, and an upgrade is PAID FOR before the work is done:
+       the level lands at once, so the post is counted at its new, bigger rate
+       from the instant the player taps, on a building that makes nothing until
+       the scaffolding comes down. And the new level opens another post, so the
+       workforce walks onto the dead building -- the phantom figure grows with
+       every hand that arrives.
+
+       Measured on a village whose only farm was being improved, with the
+       scaffolding held up for two minutes: the food chip read +1.45/s while
+       0.00/s reached the granary, and the wood chip beside it was right to
+       within 4%. capsSum and livedIn already answer this question with the
+       level a building is HOLDING, for the same reason -- a thing paid for is
+       not a thing finished. */
+    if (p.t < 1) continue;
     const n = workersAt(p.id);
     if (n) out[Object.keys(b.makes)[0]] += n * deliveredOf(p);
   }
