@@ -1346,6 +1346,15 @@
      aimed at the hall's painting, where a tap opens its panel. */
   window.gestureSweep = function () {
     const V = window.__v, cv = document.querySelector('canvas'), b = cv.getBoundingClientRect();
+    /* This is the one sweep that needs the page to be on screen. It dispatches
+       real pointer events, and the game reads them against the canvas's real
+       size -- so in a window laid out at nothing every gesture lands on the same
+       point and none of them mean anything. It says that, rather than reporting
+       the game broken: run headless it claimed a plain tap did not open the
+       hall, and before the camera learned to refuse a sizeless canvas it threw a
+       PointerEvent error instead, which reads as neither a pass nor a finding. */
+    if (!(b.width > 0) || !(b.height > 0))
+      return { cases: 0, fails: ['the canvas has no size on screen, so not one gesture could be measured'] };
     /* Its own scene, its own camera. It aimed at placed[0] through whatever
        camera the sweep before it happened to leave behind, so its answer
        depended on the running order: after badgeOverlapSweep, which ends on a
@@ -1379,8 +1388,37 @@
     if (!(V.CAM.z > z0 + 0.01)) fails.push('a pinch did not zoom');
     [x, y] = aim();
     if (!opens(() => { ev('pointerdown', 3, x, y); ev('pointerup', 3, x, y); })) fails.push('a tap after a pinch did not open the hall');
+    /* And a canvas with no size cannot destroy the camera.
+
+       The page is laid out at nothing more often than it looks: a WebView still
+       being measured at launch, a container not displayed yet, a split-screen
+       divider mid-drag. A touch arriving then used to divide by a zero width,
+       and the wreckage did not stay in the event -- the pinch midpoint came out
+       NaN and its distance Infinity, which passes the pinch's own sanity check,
+       so CAM.z went to NaN and stayed there. Every clamp preserves a NaN, so the
+       camera scaled by NaN and the game drew an empty screen for the rest of the
+       session. Squeezed to nothing here, pinched, and put back. */
+    {
+      const keepW = cv.style.width, keepH = cv.style.height;
+      const z1 = V.CAM.z, cx = V.CAM.x, cy = V.CAM.y;
+      cv.style.width = '0px'; cv.style.height = '0px'; void cv.offsetWidth;
+      /* Straddling where the canvas now is, because that is where a pinch
+         lands: with no width its left edge IS its centre. It has to straddle.
+         Two fingers on the SAME side both come out at minus infinity, their
+         separation is NaN, and the pinch's own check throws that away -- it is
+         the pair either side, infinity apart, that gets through. */
+      const e = cv.getBoundingClientRect(), mx = e.left, my = e.top;
+      ev('pointerdown', 7, mx - 40, my); ev('pointerdown', 8, mx + 40, my);
+      for (let i = 1; i <= 10; i++) { ev('pointermove', 7, mx - 40 - i * 8, my); ev('pointermove', 8, mx + 40 + i * 8, my); }
+      ev('pointerup', 7, mx - 120, my); ev('pointerup', 8, mx + 120, my);
+      cv.style.width = keepW; cv.style.height = keepH; void cv.offsetWidth;
+      if (!Number.isFinite(V.CAM.z) || !Number.isFinite(V.CAM.x) || !Number.isFinite(V.CAM.y))
+        fails.push('a pinch on a canvas with no size left the camera at z ' + V.CAM.z
+          + ', centred on ' + V.CAM.x + ',' + V.CAM.y);
+      V.CAM.z = z1; V.CAM.x = cx; V.CAM.y = cy;
+    }
     V.CAM.z = z0; V.step(0.001);
-    return { cases: 5, fails };
+    return { cases: 6, fails };
   };
   window.textSweep = function () {
     const cv = document.querySelector('canvas');

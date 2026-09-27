@@ -4873,7 +4873,24 @@ function pinchBase() {
   const m = ptrMid();
   pinchD0 = m.d; pinchZ0 = CAM.z; pinchW = camUnproject(m.x, m.y);
 }
+/* Where on the board a touch landed -- or nothing, because a canvas with no
+   size has no positions in it.
+
+   b.width is zero whenever the page is laid out at nothing: a WebView still
+   being measured at launch, a container that is not displayed yet, the moment
+   a split-screen divider is dragged. The division then gives NaN or Infinity,
+   and that does not stay in the event -- it poisons the CAMERA, permanently.
+   Measured, with two fingers on a 0x0 canvas: the midpoint comes out NaN and
+   the pinch distance Infinity, so the pinch passes its own sanity check
+   (Infinity > 4), asks for a zoom of Infinity/Infinity, and CAM.z goes from
+   1.25 to NaN. Every clamp afterwards preserves it -- Math.min(ZMAX, NaN) is
+   NaN -- so camApply scales by NaN and the game draws an empty screen for the
+   rest of the session, with no tap able to fix it because every tap is NaN too.
+
+   A touch with no position is not a touch. The three handlers that read one
+   drop the event rather than carry the poison inwards. */
 const evPos = ev => { const b = cv.getBoundingClientRect();
+  if (!(b.width > 0) || !(b.height > 0)) return null;
   return { x: (ev.clientX - b.left) / b.width * W, y: (ev.clientY - b.top) / b.height * VH - OY }; };
 const ptrMid = () => { const a = [...PTRS.values()];
   return { x: (a[0].x + a[1].x) / 2, y: (a[0].y + a[1].y) / 2, d: Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y) }; };
@@ -4883,10 +4900,10 @@ cv.addEventListener('pointerdown', ev => {
   /* A mouse's right or middle button is not a tap. It opened panels and armed
      sales in the browser version, with the page's context menu on top. */
   if (ev.pointerType === 'mouse' && ev.button !== 0) return;
+  const p = evPos(ev); if (!p) return;
   camTouched = true;
   audioOn();                          // must happen inside a gesture
   ptrSweep();
-  const p = evPos(ev);
   camGlide = null; camFling = null;      // the player's hand outranks the camera
   PTRS.set(ev.pointerId, { x: p.x, y: p.y, x0: p.x, y0: p.y, moved: 0, drag: false, pinch: false, tLast: Date.now() });
   try { cv.setPointerCapture(ev.pointerId); } catch (e) {}
@@ -4897,7 +4914,8 @@ cv.addEventListener('pointerdown', ev => {
 });
 cv.addEventListener('pointermove', ev => {
   const rec = PTRS.get(ev.pointerId); if (!rec) return;
-  const p = evPos(ev), dx = p.x - rec.x, dy = p.y - rec.y;
+  const p = evPos(ev); if (!p) return;
+  const dx = p.x - rec.x, dy = p.y - rec.y;
   rec.x = p.x; rec.y = p.y; rec.tLast = Date.now();
   rec.moved = Math.max(rec.moved, Math.hypot(p.x - rec.x0, p.y - rec.y0));
   if (PTRS.size >= 2) { const m = ptrMid(); for (const r of PTRS.values()) r.pinch = true;
@@ -4965,7 +4983,7 @@ cv.addEventListener('wheel', ev => {
   ev.preventDefault();
   camGlide = null; camFling = null;     // the player's hand outranks the camera
   const step = ev.deltaY * (ev.deltaMode === 1 ? 16 : ev.deltaMode === 2 ? 100 : 1);
-  const p = evPos(ev);
+  const p = evPos(ev); if (!p) return;
   zoomHolding(CAM.z * Math.exp(-step * 0.0015), p.x, p.y, camUnproject(p.x, p.y));
   if (selBuild || moving != null) updateGhost(p.x, p.y);
 }, { passive: false });
