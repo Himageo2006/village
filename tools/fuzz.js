@@ -1526,8 +1526,14 @@
         fromBackup: () => { V.saveFailed = false; V.loadedFromBackup = true; },
         /* A panel on something still under scaffolding: a different set of rows
            from a finished building, and never swept. */
+        /* A staffed WORKPLACE for choice: its row is the long one -- what it
+           delivers, why that is nothing, what it will be when the work is done,
+           and its posts -- and taking whatever came first in the list drew a
+           house's two-clause row instead. */
         building: () => { V.loadedFromBackup = false;
-          const q = V.placed.find(x => x.key !== 'hall'); if (q) { q.t = 0.4; V.panel = q.id; } },
+          const q = V.placed.find(x => x.key !== 'hall' && V.B(x.key).makes && V.B(x.key).jobs && V.workersAt(x.id))
+            || V.placed.find(x => x.key !== 'hall');
+          if (q) { q.t = 0.4; V.panel = q.id; } },
         /* Seen once, at the end of a two-hour game, which is exactly the kind of
            screen that never gets looked at again after it is written. */
         finished: () => { V.goalDone = null; V.away = null;
@@ -2358,6 +2364,22 @@
         if (!m) { skipped++; continue; }
         const promised = +m[2], hands = V.workersAt(p.id);
         if (!V.upgradeBuilding(p)) { skipped++; continue; }
+        /* The same row WHILE the scaffolding is up. A level is paid for before
+           the work is done, so the row quoted the new one as though it were
+           already arriving: '1.42/s delivered' on the card whose own button
+           read 'Building...', with nothing reaching the stores for the next ten
+           seconds. Two claims to check -- that it is delivering nothing, and
+           that the figure it gives for when the work is done is the figure the
+           finished building actually delivers. Written without backslashes on
+           purpose; these patterns have been eaten twice on the way into this
+           file. */
+        const upRow = rateRow(p), upHands = V.workersAt(p.id);
+        const mUp = new RegExp('([0-9.]+)/s delivered').exec(upRow);
+        if (!mUp) fails.push('a ' + key + ' under scaffolding says nothing about what it delivers');
+        else if (+mUp[1] !== 0)
+          fails.push('a ' + key + ' under scaffolding says it is delivering ' + mUp[1] + '/s');
+        const mWhen = upHands ? new RegExp('([0-9.]+)/s when it is done').exec(upRow) : null;
+        if (upHands && !mWhen) fails.push('a worked ' + key + ' under scaffolding does not say what it will deliver');
         for (let i = 0; i < 60 * 30; i++) V.step(1 / 30);
         if (V.workersAt(p.id) !== hands) { skipped++; continue; }   // the workforce moved: not evidence
         const m2 = /([\d.]+)\/s delivered/.exec(rateRow(p));
@@ -2365,6 +2387,8 @@
         checked++;
         if (Math.abs(+m2[1] - promised) > 0.011)
           fails.push('a level ' + lvl + ' ' + key + ' promised ' + promised + '/s and delivers ' + m2[1] + '/s');
+        if (mWhen && upHands === V.workersAt(p.id) && Math.abs(+mWhen[1] - +m2[1]) > 0.011)
+          fails.push('a ' + key + ' under scaffolding said ' + mWhen[1] + '/s when it is done and delivers ' + m2[1] + '/s');
       }
     }
     if (checked < 4) fails.push('only ' + checked + ' upgrades kept their hands, so the sweep proved almost nothing');

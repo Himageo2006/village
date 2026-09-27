@@ -4578,7 +4578,27 @@ function drawPanel() {
        delivering nearly three times the figure. The next level is quoted with
        the hands it would REALLY get -- the ones it has plus whoever is idle --
        so a new post is never priced in before anyone can fill it. */
-    line = icon + ' ' + (n * deliveredOf(p)).toFixed(2) + '/s delivered';
+    /* Nothing is delivered while the scaffolding is up, and this row said
+       otherwise -- on the same card whose button reads "Building…".
+
+       An upgrade is paid for before the work is done, so the new level is in
+       force the moment the player taps, and the row quoted it as though it
+       were already arriving. Measured on a farm one frame after the tap:
+       "🌾 1.42/s delivered", with 0.00/s reaching the granary for the next ten
+       seconds. The resource chip had the same fault and was fixed; this is the
+       one place the player goes to ASK what a building is doing, so it is the
+       worse of the two.
+
+       The figure the row was showing is not wasted: it is exactly what the
+       building WILL deliver, which is the reason the player paid. It moves to
+       the end and says so.
+
+       And the level after this one is not quoted while this one is unbuilt.
+       The row already refuses to quote a next level for an idle building --
+       nought to nought is noise -- and a building that has not finished the
+       step it is on has no business being sold the step beyond it. */
+    const up = p.t < 1;
+    line = icon + ' ' + (up ? 0 : n * deliveredOf(p)).toFixed(2) + '/s delivered';
     /* Why it is zero comes SECOND, not last.
 
        panelRow drops clauses from the end when the row will not fit, and on a
@@ -4589,7 +4609,10 @@ function drawPanel() {
 
        The next level is not quoted for an idle building either. Nought becomes
        nought, and the arrow between them is noise dressed as information. */
-    if (!n) {
+    if (up) {
+      line += '   ·   under scaffolding'
+        + (n ? '   ·   ' + (n * deliveredOf(p)).toFixed(2) + '/s when it is done' : '');
+    } else if (!n) {
       line += '   ·   ' + (!hasRoomFor(k) ? 'stores full, nobody working it'
         : 'no villagers');
     } else if (nl > lvlOf(p)) {
