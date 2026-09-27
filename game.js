@@ -2455,6 +2455,30 @@ function grantAway(secs) {
   const capped = secs > AWAY_MAX;              // away longer than the village can bank
   secs = Math.min(AWAY_MAX, secs);
   if (secs < AWAY_MIN) return;
+  /* Building is work too, and the builders were the one trade that stopped.
+
+     Everything else in the village carried on unwatched -- the harvest, the
+     hour of the day, the traders -- but a house left going up and an upgrade
+     left half paid for came back at exactly the progress they were at.
+     Measured over twelve hours: a three second house in at t 0.333 and out at
+     t 0.333, an eight second upgrade in at 0.125 and out at 0.125, on a
+     village credited 800 food for the same stretch. And the upgrade was
+     counted at its NEW level for every second of that credit, so the
+     scaffolding was paid for twice over and then still standing when the
+     player looked at it.
+
+     This is the line step() already runs; it is only that a cold start never
+     gets to run it. A page merely hidden does still tick, so the two ways of
+     being away disagreed with each other as well.
+
+     Before the earnings rather than after, because what finished changes what
+     the village was worth: a storehouse has to raise the ceiling before the
+     haul is clamped to it, a house has to take its residents in before the
+     workforce is worked out, and a hall has to reach its new level before
+     either. recomputeCaps does all three. */
+  let built = false;
+  for (const p of placed) if (p.t < 1) { p.t = Math.min(1, p.t + secs / (p.build || BUILD_TIME)); built = true; }
+  if (built) recomputeCaps();
   const got = {}, shared = {};
   let any = false, spilled = false;
   const rate = potentialRate();

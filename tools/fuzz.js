@@ -711,23 +711,37 @@
           const before = { wood: V.res.wood, food: V.res.food };
           V.grantAway(gone - simmed);
           V.away = null; V.hiddenAt = 0; V.hiddenSim = 0;
+          /* The village can be worth more coming out than going in -- anything
+             left half built finishes across the gap -- so the bound is whichever
+             rate is the larger. It is still a bound on TIME, which is the rule
+             this is here for. */
+          const after = V.potentialRate();
           for (const k of ['wood', 'food']) {
             const got = V.res[k] - before[k];
             if (got < -1e-6) fails.push('coming back took resources away (' + k + ')');
             // the grant may only pay for the time the throttled tick did NOT
-            const owed = rate[k] * Math.max(0, gone - simmed) + 2;
+            const owed = Math.max(rate[k], after[k]) * Math.max(0, gone - simmed) + 2;
             if (got > owed) fails.push('coming back paid for time twice (' + k + ')');
           }
         }
         else if (act === 'away') {
           const before = { wood: V.res.wood, food: V.res.food };
-          const room = { wood: V.caps.wood - V.res.wood, food: V.caps.food - V.res.food };
+          /* Stated as where the village ENDS UP, not as how much room there was
+             when it left. The ceiling is not fixed across a stretch away: a
+             storehouse left half built finishes while nobody is watching and
+             raises it, and the haul is rightly clamped to the new one. Against
+             the old figure this reported 96 failures on a village doing exactly
+             what it should. The rule worth guarding is unchanged -- being away
+             may not leave the stores over their ceiling, nor further over than
+             it found them, which a sold storehouse can. */
+          const over = k => V.res[k] - V.caps[k];
+          const wasOver = { wood: over('wood'), food: over('food') };
           V.grantAway(Math.random() * V.AWAY_MAX * 1.5);
           V.away = null;
           for (const k of ['wood', 'food']) {
             const got = V.res[k] - before[k];
             if (got < -1e-6) fails.push('being away took resources away (' + k + ')');
-            if (got > room[k] + 1e-6) fails.push('being away paid past the ceiling (' + k + ')');
+            if (over(k) > Math.max(0, wasOver[k]) + 1e-6) fails.push('being away paid past the ceiling (' + k + ')');
           }
         }
         else if (act === 'reload') { const bad = roundTrip(); if (bad) fails.push(bad + ' (after ' + act + ')'); }
@@ -1900,6 +1914,54 @@
          cleared the clock while nobody was watching. */
       V.hiddenAt = 0; V.hiddenSim = 0; V.step(0.001);
       if (document.hidden && !V.hiddenAt) fails.push('the page is hidden and nothing is counting the time away');
+
+      /* And the village LIVES through the time it is credited for. Knowing how
+         many seconds are owed is only half of it: the builders are part of the
+         village too, and they were the one trade that stopped. A three second
+         house went into twelve hours of absence at a third built and came out
+         at a third built, on a village paid 800 food for the same stretch.
+
+         The ceiling is checked with it, because the order matters: a storehouse
+         that finished while nobody was watching has to raise the ceiling BEFORE
+         the haul is clamped to it, or the village comes back to a night's work
+         cut off at the old limit. Started at the ceiling exactly, so anything
+         above it can only have come from the storehouse finishing first. */
+      {
+        V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
+        V.goalIdx = V.GOALS.length; V.tutSeen.length = 0; V.away = null; V.goalDone = null; V.finished = null;
+        V.ensureHall(); V.placed[0].lvl = 4; V.placed[0].t = 1;
+        V.res.wood = 1e5; V.res.food = 1e5;
+        const LB = V.landBounds();
+        for (const [key, dc, dr] of [['house', 1, 1], ['farm', 4, 1], ['lumber', 7, 1], ['store', 1, 10]])
+          V.place(key, LB.lo + dc, LB.lo + dr);
+        for (const q of V.placed) { q.t = 1; q.build = 0; }
+        V.placed.find(q => q.key === 'house').lvl = 3;             // hands enough to work both posts
+        V.rebuildStores();
+        for (let i = 0; i < 120 * 30; i++) V.step(1 / 30);
+        /* One of each kind of unfinished work: a building going up for the
+           first time, and a building being improved. */
+        V.res.wood = 1e5; V.res.food = 1e5;
+        V.place('house', LB.lo + 4, LB.lo + 10);
+        const fresh = V.placed[V.placed.length - 1];
+        V.place('store', LB.lo + 10, LB.lo + 10);
+        const shed = V.placed[V.placed.length - 1];
+        const farm = V.placed.find(q => q.key === 'farm');
+        V.upgradeBuilding(farm);
+        for (let i = 0; i < 30; i++) V.step(1 / 30);
+        const ceiling = { wood: V.caps.wood, food: V.caps.food };
+        V.res.wood = ceiling.wood; V.res.food = ceiling.food;      // nothing more fits as things stand
+        const gone = 12 * 3600;
+        const started = V.placed.filter(q => q.t < 1).map(q => q.key + ' (' + (q.build || 3) + 's)');
+        if (started.length < 3) fails.push('the away check set up only ' + started.length + ' unfinished buildings, so it proves nothing');
+        V.grantAway(gone); V.away = null;
+        const stuck = V.placed.filter(q => q.t < 1);
+        for (const q of stuck)
+          fails.push('a ' + q.key + ' needing ' + (q.build || 3) + 's was still unbuilt after ' + (gone / 3600) + ' hours away');
+        if (!stuck.length && !(V.res.wood > ceiling.wood || V.res.food > ceiling.food))
+          fails.push('a storehouse finished while away but the haul was still clamped to the old ceiling of '
+            + ceiling.wood + '/' + ceiling.food);
+        void shed; void fresh;
+      }
     } finally {
       V.hiddenAt = keepAt; V.hiddenSim = keepSim;
       try { if (real !== null) localStorage.setItem(V.KEY, real); } catch (e) {}
