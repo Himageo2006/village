@@ -2242,6 +2242,55 @@
        it: an empty post contributes nothing either way. */
     if (!staffed) fails.push('not one of the ' + measured + ' scaffolded workplaces had anybody working it');
 
+    /* And charm adds nothing to a village that is delivering nothing.
+
+       The charm figure is a difference of two sums over the workplaces, and
+       the sums counted anything ESTABLISHED -- which a building being upgraded
+       is, though it makes nothing until the scaffolding comes down. So charm
+       was credited with a share of goods that never arrived. Measured over 900
+       simulated seconds with one of two workplaces held scaffolded: +0.0798/s
+       claimed against a real 0.0533/s, charm on minus charm off.
+
+       Put as a hard zero rather than as a tolerance, because it can be: with
+       EVERY workplace under scaffolding -- the hall's woodpile too, which is
+       the one that catches a village with nothing else left -- the village
+       delivers nothing at all, so charm's share of it is exactly nothing. The
+       delivering-nothing half is measured rather than assumed, or the zero
+       would be a pass for a checker that set nothing up. */
+    {
+      scene(3);
+      const LB2 = V.landBounds();
+      V.res.wood = 1e5; V.res.food = 1e5;
+      for (let i = 0; i < 8; i++) V.place('statue', LB2.lo + 3 + i, LB2.lo + 12);
+      for (const q of V.placed) if (q.key === 'statue') { q.t = 1; q.build = 0; }
+      V.rebuildStores();
+      for (let i = 0; i < 60 * 30; i++) V.step(1 / 30);
+      const charm = V.charmTotal();
+      let pinned = 0;
+      for (const q of [...V.placed]) {
+        if (!(V.B(q.key).makes && V.B(q.key).jobs)) continue;
+        V.res.wood = 1e5; V.res.food = 1e5;
+        if (!V.canUpgrade(q)) continue;
+        V.upgradeBuilding(q); q.build = 1e7; pinned++;
+      }
+      V.goalIdx = V.GOALS.length;
+      const half = () => { for (const k of ['wood', 'food']) V.res[k] = V.caps[k] / 2; };
+      half(); for (let i = 0; i < 10 * 30; i++) V.step(1 / 30); half();
+      let arrived = 0;
+      for (let s2 = 0; s2 < 60; s2++) {
+        const was = V.res.wood + V.res.food;
+        for (let i = 0; i < 30; i++) V.step(1 / 30);
+        arrived += (V.res.wood + V.res.food) - was; half();
+      }
+      const said = V.charmDelivered();
+      if (!charm) fails.push('the charm check placed no decorations, so it proves nothing');
+      else if (!pinned) fails.push('the charm check scaffolded no workplaces, so it proves nothing');
+      else if (arrived > 0.01) fails.push('the charm check meant to stop the village and ' + arrived.toFixed(2)
+        + ' still arrived over a minute, so its zero proves nothing');
+      else if (said > 1e-9) fails.push('every workplace was under scaffolding and nothing arrived, yet charm claimed +'
+        + said.toFixed(4) + '/s');
+    }
+
     return { upgrades, workplaces: produced, changedOnceFinished: changed, ratesMeasured: measured, fails };
   };
   /* Nothing the village has already made disappears without being handed in.

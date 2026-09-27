@@ -4392,7 +4392,20 @@ function deliveredAtMul(m) {
   let total = 0;
   for (const p of placed) {
     const b = B(p.key);
-    if (!established(p) || !b.makes || !b.jobs) continue;
+    /* p.t, not established. established asks whether a building has ever
+       finished, which is the right question for a storehouse keeping its
+       capacity and the wrong one here: a workplace under scaffolding delivers
+       nothing, first build or upgrade alike, and counting it put a bonus on
+       goods that never arrive.
+
+       Measured over 900 simulated seconds with one of a village's two
+       workplaces held under scaffolding: the charm chip read +0.0798/s against
+       a real 0.0533/s -- charm on minus charm off -- overstating by half. The
+       same sum is behind the figure over a decoration before it is bought and
+       the one on the panel when it is sold, so all three were out by the same
+       amount. p.t >= 1 implies established, so this is the narrower test and
+       the whole of the old one. */
+    if (p.t < 1 || !b.makes || !b.jobs) continue;
     const hands = workersAt(p.id);
     if (!hands) continue;
     total += hands * deliveredWith(p, rateOf(p, Object.keys(b.makes)[0]) * boostAt(p) * m);
