@@ -84,6 +84,20 @@
       }
       return true;
     }],
+    /* Every offer the village is holding is one the player can see.
+
+       A market adds a trading stall, so selling one takes a stall away, and
+       the offer standing at it had nowhere to go: it kept its place in the
+       list with a slot past the end of the board, never drawn and never
+       cleared. That is not just an offer lost. orders.length is what decides
+       whether a new trader is due, so a board holding five and showing three
+       reported itself full for ever -- and the replacement path stands down
+       the moment ANY offer can be filled, including one nobody can see.
+
+       Asked through orderRects, which is the draw path's own view of the
+       board and the thing that seats it. Anything the village holds that
+       that does not return is a card the player has no way to reach. */
+    ['no trade offer is hidden from the board', () => V.orders.length === V.orderRects().length],
     // nothing in the game can build a second one, which is exactly why the
     // save loader never checked
     ['exactly one town hall', () => V.placed.filter(p => p.key === 'hall').length === 1],

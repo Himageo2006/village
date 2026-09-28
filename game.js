@@ -1611,6 +1611,27 @@ function seatOrders() {
     let i = 0; while (seen.has(i)) i++;
     o.slot = i; seen.add(i);
   }
+  /* And the board cannot hold more offers than it has stalls.
+
+     A market adds a stall, so selling one takes a stall away -- and the offer
+     standing at it had nowhere to go. It kept its place in the list with a
+     slot past the end of the board: never drawn, because orderRects only
+     lays out the stalls that exist, and never cleared, because nothing looked.
+
+     It is not merely invisible, it jams the board. orders.length is what
+     decides whether a new trader is due, so a board of three showing three
+     and holding five reports itself full for ever -- no countdown, no new
+     offer. And the replacement path stands down the moment ANY offer can be
+     filled, including one nobody can see, so three unfillable cards could sit
+     there permanently behind a fourth that was fillable and invisible.
+     Measured: two markets sold on a full board left five offers on three
+     stalls, and ten simulated minutes later it was still five on three.
+
+     The surplus goes. The player loses nothing they could have acted on --
+     they could not see it -- and the board starts breathing again. Those that
+     were already standing at a stall keep it; it is the ones that spilled past
+     the end that are dropped. */
+  if (orders.length > n) orders = orders.filter(o => o.slot < n);
 }
 function stepOrders(dt) {
   orderT += dt;
