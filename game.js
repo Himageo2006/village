@@ -3307,6 +3307,35 @@ function drawWorld() {
             + (from && from.key === selKey ? '   ·   now ' + (hands * deliveredOf(from)).toFixed(2)
               : eff > 0.85 ? '' : '   ·   best ' + (hands * bestDeliveredOf(probe)).toFixed(2));
         const w2 = g.measureText(txt).width + 26;
+        /* Held on the screen. Everything else drawn in the world is allowed to
+           wander off it -- a badge belongs to a building, and a building the
+           camera is not looking at has no business painting over one it is.
+           This label belongs to the player's FINGER, which is by definition on
+           the screen, and it carries the only number the placement decision is
+           made on.
+
+           Measured at full zoom: a statue's label spanning -213 to 406, so
+           '✨+45 char' was simply gone, and a well's running to 1198 on a 1024
+           screen. Worse upwards, where it does not clip but disappears: with
+           the tile near the top of the view the whole pill sat at -274, off the
+           screen entirely, and the player was choosing a forty wood spot with
+           nothing to read at all.
+
+           Shifted rather than shrunk, because the text is already as short as
+           it can be said. It is pushed the least it can be and only at the
+           edges; in the middle of the screen, which is where a finger usually
+           is, nothing moves. Downwards it stops at the tabs rather than at the
+           bottom of the screen, since the tray is open whenever this is drawn. */
+        {
+          const at = camProject(cx, cy - 96 * sc), k = sc * camScale();
+          const hw = w2 / 2 * k, hh = 17 * k, pad = 10;
+          const tabs = tabRects()[0];
+          const loX = hw + pad, hiX = W - hw - pad;
+          const loY = hudTop() + hh + pad, hiY = tabs.y - tabs.h / 2 - hh - pad;
+          const x0 = loX > hiX ? W / 2 : Math.max(loX, Math.min(hiX, at.x));
+          const y0 = loY > hiY ? (loY + hiY) / 2 : Math.max(loY, Math.min(hiY, at.y));
+          g.translate((x0 - at.x) / k, (y0 - at.y) / k);
+        }
         g.fillStyle = 'rgba(14,22,12,.9)';
         const good = isWell ? wellGainAt(ghost.c, ghost.r, 1).n > 0
           : isCharm ? (usefulCharm(selKey) > 0 || selKey === 'path') : !empty && eff > 0.66;

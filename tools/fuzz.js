@@ -1323,6 +1323,82 @@
         }
       }
     }
+
+    /* And the label under the player's finger.
+
+       Everything else drawn in the world may wander off the screen: a badge
+       belongs to a building, and a building the camera is not looking at has
+       no business painting over one it is. The text sweep exempts world-drawn
+       text for exactly that reason, and the exemption is right -- but it also
+       covered the one piece of world text that is anchored to the FINGER,
+       which is by definition on the screen, and which carries the only number
+       a placement decision is made on.
+
+       Measured at full zoom before it was held: a statue's label spanning -213
+       to 406, and, with the tile near the top of the view, a well's sitting
+       entirely at -274 -- not clipped, gone.
+
+       Driven the way a finger drives it: the ghost on a tile, the camera moved
+       so that tile sits near each edge in turn, at both ends of the zoom. */
+    for (const [sw, sh] of [[375, 812], [768, 1024]]) {
+      asScreen(sw, sh); V.step(0.001);
+      V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
+      V.away = null; V.goalDone = null; V.finished = null; V.panel = null; V.claimAsk = false;
+      V.goalIdx = V.GOALS.length;
+      V.ensureHall(); V.placed[0].lvl = 5; V.placed[0].t = 1;
+      V.grant('wood', 1e6, 0, 0); V.grant('food', 1e6, 0, 0);
+      const L = V.landBounds();
+      for (const [k, dc, dr] of [['house', 1, 1], ['house', 1, 3], ['farm', 4, 1], ['lumber', 4, 4],
+                                 ['mill', 7, 1], ['store', 7, 5], ['market', 10, 1]])
+        V.place(k, L.lo + dc, L.lo + dr);
+      for (const q of V.placed) { q.t = 1; q.build = 0; }
+      V.rebuildStores();
+      for (let i = 0; i < 120 * 30; i++) V.step(1 / 30);
+      const cv2 = document.querySelector('canvas'), ctx2 = cv2.getContext('2d');
+      /* The pill, not the words: the words are centred in it and the pill is
+         what has to fit. Taken with the transform in force, since it is drawn
+         in the world under a scale. */
+      const pill = (key, c, r) => {
+        V.sel = key; V.ghost = { c, r, fits: true, why: null, ok: true };
+        let hit = null, last = null;
+        const oF = ctx2.fillText, oR = ctx2.roundRect;
+        ctx2.roundRect = function (x, y, w, h) { last = { x, y, w, h, m: this.getTransform() }; return oR.apply(this, arguments); };
+        ctx2.fillText = function (t) {
+          if (last && !hit && new RegExp('lifts|reaches|charm|/s here|no one spare|need ').test(String(t)))
+            hit = { t: String(t), r: last };
+          return oF.apply(this, arguments); };
+        try { V.draw(); } finally { ctx2.fillText = oF; ctx2.roundRect = oR; }
+        V.sel = null; V.ghost = null;
+        if (!hit) return null;
+        const m = hit.r.m;
+        /* Out of canvas pixels and into the coordinates the HUD is laid out
+           in. The canvas is VH tall and the letterbox puts logical zero OY
+           pixels down it, so a transform read straight off the context is OY
+           lower than hudTop and hudBot are counted from -- 341 pixels of it on
+           a 375x812 phone. Compared raw, this reported twelve labels off the
+           bottom that were sitting exactly on the bound they had been held to,
+           and very nearly had me 'fix' a clamp that was already right. */
+        const oy = -V.screenTop();
+        return { t: hit.t, L: m.a * hit.r.x + m.e, R: m.a * (hit.r.x + hit.r.w) + m.e,
+          T: m.d * hit.r.y + m.f - oy, B: m.d * (hit.r.y + hit.r.h) + m.f - oy };
+      };
+      for (const z of [0.55, 2.2]) for (const key of ['well', 'statue', 'mill', 'path', 'store']) {
+        for (const [dc, dr] of [[4, 3], [2, 2], [11, 11]]) {
+          const c = L.lo + dc, r = L.lo + dr, wpt = V.tileToWorld(c, r);
+          for (const [ox, oy] of [[0, 0], [-420, 0], [420, 0], [0, -600], [0, 600]]) {
+            V.CAM.z = z;
+            V.CAM.x = wpt.x + ox / (V.CAM.base * V.CAM.z); V.CAM.y = wpt.y + oy;
+            V.step(0.001);
+            const q = pill(key, c, r);
+            if (!q) continue;
+            checks++;
+            if (q.L < -1 || q.R > 1025 || q.T < V.hudTop() - 1 || q.B > V.hudBot() + 1)
+              bad.push({ screen: sw + 'x' + sh, z, key, label: q.t.slice(0, 28),
+                x: [Math.round(q.L), Math.round(q.R)], y: [Math.round(q.T), Math.round(q.B)] });
+          }
+        }
+      }
+    }
     asScreen(keepW, keepH); V.step(0.001);
     return { checks, cropped: bad.length, worst: bad.slice(0, 5) };
   };
