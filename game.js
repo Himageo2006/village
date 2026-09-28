@@ -4339,7 +4339,12 @@ function wellGain(w) {
     if (withIt === without) continue;
     n++;
     const hands = workersAt(p.id);
-    if (!hands) continue;                  // boosting an unstaffed shed adds nothing
+    /* Nor a shed standing in scaffolding, which produces nothing to speed up.
+       It still counts towards the reach above -- the spot will lift it once the
+       work is done, and that is what the count is about -- but it adds nothing
+       to the figure. Measured with a farm in reach mid-upgrade: the well's
+       panel claimed +0.158/s where the village gained 0.100. */
+    if (!hands || p.t < 1) continue;       // boosting an unstaffed shed adds nothing
     const k = Object.keys(B(p.key).makes)[0], r = rateOf(p, k) * charmMul();
     gain += hands * (deliveredWith(p, r * withIt) - deliveredWith(p, r * without));
   }
@@ -4364,7 +4369,9 @@ function wellGainAt(c, r, lvl) {
     if (Math.hypot(dx, dy) > bw.boostR) continue;
     n++;
     const hands = workersAt(p.id);
-    if (!hands) continue;              // in reach, but nobody there to speed up
+    // in reach, but nobody there to speed up -- or nothing yet to speed up,
+    // because the scaffolding is still on it. Same rule as wellGain above.
+    if (!hands || p.t < 1) continue;
     const without = boostAt(p), withIt = without + bw.boost * outMul(lvl);
     const base = rateOf(p, Object.keys(b.makes)[0]) * charmMul();
     gain += hands * (deliveredWith(p, base * withIt) - deliveredWith(p, base * without));

@@ -711,13 +711,25 @@
           const before = { wood: V.res.wood, food: V.res.food };
           V.grantAway(gone - simmed);
           V.away = null; V.hiddenAt = 0; V.hiddenSim = 0;
-          /* The village can be worth more coming out than going in -- anything
-             left half built finishes across the gap -- so the bound is whichever
-             rate is the larger. It is still a bound on TIME, which is the rule
-             this is here for. */
+          /* The rate the grant actually used, reconstructed rather than
+             guessed at. Two things move it and both are the grant's own doing:
+             anything left half built finishes across the gap, which raises it,
+             and the goods that arrive can fill a store, which sends the
+             workforce elsewhere and lowers it. Taking whichever of the before
+             and after figures was larger covered the first and not the second,
+             and the soak found it -- once in six thousand rounds, which is
+             exactly the kind of flake that gets written off as noise.
+
+             So: the village as it now stands, with the stores put back to what
+             they were, which is the state grantAway asked the question in. The
+             cached plan keys off whether each store has room, so restoring the
+             stores restores the plan with them. */
+          const paid = { wood: V.res.wood - before.wood, food: V.res.food - before.food };
+          V.res.wood = before.wood; V.res.food = before.food;
           const after = V.potentialRate();
+          V.res.wood = before.wood + paid.wood; V.res.food = before.food + paid.food;
           for (const k of ['wood', 'food']) {
-            const got = V.res[k] - before[k];
+            const got = paid[k];
             if (got < -1e-6) fails.push('coming back took resources away (' + k + ')');
             // the grant may only pay for the time the throttled tick did NOT
             const owed = Math.max(rate[k], after[k]) * Math.max(0, gone - simmed) + 2;
@@ -754,10 +766,39 @@
              what the village delivers afterwards must move by exactly that. */
           const charm = !!b2.charm, pc = L.lo + R(L.hi - L.lo + 1), pr = L.lo + R(L.hi - L.lo + 1);
           const pred = charm ? V.decorGainAt(b2.key, pc, pr) : 0;
-          const was = charm ? V.deliveredAtMul(V.charmMul()) : 0;
-          if (V.place(b2.key, pc, pr) && charm) {
+          /* A WELL's label promises the same kind of figure, and for the same
+             reason: its whole worth is which workplaces happen to fall inside a
+             radius the player cannot see, so the number over the ghost is the
+             entire basis of a forty wood decision. Nothing had ever held it to
+             that, and it was counting workplaces standing in scaffolding, which
+             produce nothing to speed up -- measured at +0.158/s promised
+             against 0.100 delivered.
+
+             A well is not instant the way a decoration is, so it is finished
+             for the length of the comparison and put back under its scaffolding
+             afterwards: the promise is about a built well, and the soak keeps
+             the state it would have had. */
+          const well = !!b2.boost;
+          const wPred = well ? V.wellGainAt(pc, pr, 1).gain : 0;
+          const was = (charm || well) ? V.deliveredAtMul(V.charmMul()) : 0;
+          const put = V.place(b2.key, pc, pr);
+          if (put && charm) {
             const got = V.deliveredAtMul(V.charmMul()) - was;
             if (Math.abs(got - pred) > 1e-6) fails.push('a ' + b2.key + ' promised +' + pred.toFixed(4) + '/s and delivered +' + got.toFixed(4));
+          }
+          if (put && well) {
+            const w2 = V.placed[V.placed.length - 1];
+            const keepT = w2.t, keepB = w2.build;
+            w2.t = 1; w2.build = 0; V.rebuildStores();
+            const got = V.deliveredAtMul(V.charmMul()) - was;
+            /* And the well's OWN panel, once it exists, must say the same thing
+               its label said -- they are two answers to one question. */
+            const mine = V.wellGain(w2).gain;
+            w2.t = keepT; w2.build = keepB; V.rebuildStores();
+            if (Math.abs(got - wPred) > 1e-6)
+              fails.push('a well promised +' + wPred.toFixed(4) + '/s and added +' + got.toFixed(4));
+            if (Math.abs(mine - wPred) > 1e-6)
+              fails.push('a well was sold at +' + wPred.toFixed(4) + '/s and then says it gives +' + mine.toFixed(4));
           }
         }
         else if (act === 'sell') {
@@ -2289,6 +2330,55 @@
         + ' still arrived over a minute, so its zero proves nothing');
       else if (said > 1e-9) fails.push('every workplace was under scaffolding and nothing arrived, yet charm claimed +'
         + said.toFixed(4) + '/s');
+    }
+
+    /* And a well is sold on the same arithmetic, from a spot the player is
+       choosing blind: the number over the ghost is the whole basis of the
+       decision, and the well's own panel repeats it ever after. It counted a
+       workplace standing in scaffolding, which has nothing to speed up.
+
+       Set up so a well certainly lands in reach of one: the farm is put under
+       scaffolding and pinned there, the well goes on the tile beside it, and
+       the promise is measured against what the village really gains. The
+       promise is about a BUILT well, so it is finished for the comparison.
+       The count of workplaces it lifts is deliberately not touched -- reach is
+       a property of the spot, and a scaffolded shed will be lifted once it is
+       done, exactly as an unstaffed one will be once somebody works it. */
+    {
+      scene(3);
+      const farm = V.placed.find(q => q.key === 'farm');
+      const well = V.placed.find(q => q.key === 'well');
+      if (well) { V.placed = V.placed.filter(q => q !== well); V.rebuildStores(); }
+      V.res.wood = 1e5; V.res.food = 1e5;
+      if (!farm || !V.canUpgrade(farm)) fails.push('the well check could not put a farm under scaffolding');
+      else {
+        V.upgradeBuilding(farm); farm.build = 1e7;
+        for (let i = 0; i < 20 * 30; i++) V.step(1 / 30);
+        const hands = V.workersAt(farm.id);
+        let spot = null;
+        for (let dc = -1; dc <= 2 && !spot; dc++) for (let dr = -1; dr <= 2 && !spot; dr++) {
+          const c = farm.c + dc, r = farm.r + dr;
+          if (V.canPlace('well', c, r, V.occupied()) && V.wellGainAt(c, r, 1).n > 0) spot = [c, r];
+        }
+        if (!hands) fails.push('the well check left nobody on the scaffolded farm, so it proves nothing');
+        else if (!spot) fails.push('the well check found nowhere beside the farm to put a well');
+        else {
+          V.res.wood = 1e5; V.res.food = 1e5;
+          const said = V.wellGainAt(spot[0], spot[1], 1);
+          const was = V.deliveredAtMul(V.charmMul());
+          V.place('well', spot[0], spot[1]);
+          const w2 = V.placed[V.placed.length - 1];
+          w2.t = 1; w2.build = 0; V.rebuildStores();
+          const got = V.deliveredAtMul(V.charmMul()) - was;
+          const mine = V.wellGain(w2).gain;
+          if (!said.n) fails.push('the well check put a well in reach of nothing');
+          else if (Math.abs(got - said.gain) > 1e-6)
+            fails.push('a well beside a scaffolded workplace promised +' + said.gain.toFixed(4)
+              + '/s and added +' + got.toFixed(4));
+          else if (Math.abs(mine - said.gain) > 1e-6)
+            fails.push('a well was sold at +' + said.gain.toFixed(4) + '/s and then says it gives +' + mine.toFixed(4));
+        }
+      }
     }
 
     return { upgrades, workplaces: produced, changedOnceFinished: changed, ratesMeasured: measured, fails };
