@@ -143,6 +143,15 @@ const villagers=[];
    the game in transit rather than working -- the first delivery landed a minute
    in. Fast enough to look purposeful, slow enough to watch. */
 const VIL_SPD=58;
+/* The last few steps of any journey, which used to be three magic numbers in
+   three functions. A worker does not stand at the centre of the building they
+   work at, they do not walk to the centre of the store either, and they stop
+   short rather than landing on the spot. For every ordinary walk that is a
+   rounding error on eight seconds. For a building that is its OWN store it is
+   the entire journey -- see SELF_TRIP. */
+const POST_SPREAD = { x: 34, y: 18 };   // how far off centre a worker stands
+const DROP_Y = 10;                      // where a load is set down, below the store's centre
+const ARRIVE = 6;                       // close enough: the walk ends here
 /* Paths are not decoration any more. A villager on one moves more than twice as
    fast, which makes laying a road from a farm to the storehouse a real economic
    act with a real cost -- and gives the cheapest decoration in the game a reason
@@ -197,6 +206,41 @@ function hasStore(p) {
    path that speeds a villager up more than twice over, changed no number the
    player could see. Nothing taught them roads did anything at all. Now laying
    one makes the delivery figure on the panel go up, which is the whole lesson. */
+/* The round trip a worker makes WITHOUT LEAVING the building they work at.
+
+   routeOf measures centre to centre, and for every ordinary workplace that is
+   right to within a fifth of a per cent -- measured, over fifteen simulated
+   minutes: a farm quoted 0.7981/s delivered 0.8000, a mill 3.0563 delivered
+   3.0667. The worker's post is scattered either side of the centre and the
+   scatter cancels over a long walk.
+
+   It does not cancel when the distance is zero. A market is its own store, so
+   nearestStore returns the market itself, the centres coincide and the walk
+   comes out as nothing at all -- while the worker really does step out to a
+   post, fill a load, carry it back to the drop point and go again. Measured,
+   that cost the market up to a tenth of what its panel promised: 3.9600/s
+   quoted against 3.6089 delivered at level five, 1.8700 against 1.7511 at
+   level three. The error grows with the level because the fill time shrinks
+   and the walk does not.
+
+   A floor rather than a term added to every route, because the measurements
+   say so at both ends: at distance zero the walk is entirely this, and at
+   eight seconds it is already accounted for. Integrated over the post
+   scatter, with the same arrival slack the walk itself uses -- a worker stops
+   ARRIVE short of each target, which is two thirds of a second across a
+   journey this size and the reason a plain expectation came out 0.78 against
+   the 0.57 the village actually runs at. Deterministic quadrature, so it is
+   the same number on every machine and every run. */
+const SELF_TRIP = (() => {
+  const N = 64;
+  let sum = 0;
+  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+    const dx = ((i + 0.5) / N * 2 - 1) * POST_SPREAD.x;
+    const dy = ((j + 0.5) / N * 2 - 1) * POST_SPREAD.y;
+    sum += Math.max(0, Math.hypot(dx, dy - DROP_Y) - ARRIVE);
+  }
+  return 2 * (sum / (N * N)) / VIL_SPD;
+})();
 function routeOf(p) {
   const key = p.id;
   if (key !== undefined && key !== -1) {
@@ -223,7 +267,8 @@ function routeOf(p) {
       }
       frac = hits / n;
     }
-    out = { secs: 2 * dist * (frac / (VIL_SPD * PATH_SPEED) + (1 - frac) / VIL_SPD), paved: frac };
+    // never less than the trip a worker makes inside their own building
+    out = { secs: Math.max(SELF_TRIP, 2 * dist * (frac / (VIL_SPD * PATH_SPEED) + (1 - frac) / VIL_SPD)), paved: frac };
   }
   if (key !== undefined && key !== -1) travelCache.set(key, out);
   return out;
@@ -667,7 +712,7 @@ function wanderTarget(){
   return { x:c.x+(Math.random()*2-1)*46, y:c.y+(Math.random()*2-1)*26 };
 }
 const postNear = p => { const c=centreOf(p);
-  return { x:c.x+(Math.random()*2-1)*34, y:c.y+(Math.random()*2-1)*18 }; };
+  return { x:c.x+(Math.random()*2-1)*POST_SPREAD.x, y:c.y+(Math.random()*2-1)*POST_SPREAD.y }; };
 
 /* The most villagers a village will ever hold.
 
@@ -908,7 +953,7 @@ function assignJobs(){
 function stepVillagers(dt){
   for(const v of villagers){
     const step1=()=>{ const dx=v.tx-v.x, dy=v.ty-v.y, d=Math.hypot(dx,dy);
-      if(d<6) return true;
+      if(d<ARRIVE) return true;
       const spd = VIL_SPD * (onPath(v.x, v.y) ? PATH_SPEED : 1);
       /* Never step PAST the target. A frame is up to 0.1s, and on a road that
          is a 12.8px stride against a 6px arrival window -- so a villager
@@ -951,7 +996,7 @@ function stepVillagers(dt){
         const kind=Object.keys(b.makes)[0];
         p.stock-=CARRY; v.carry={k:kind,n:CARRY};
         const s=nearestStore(v.x,v.y);
-        if(s){ const c=centreOf(s); v.tx=c.x; v.ty=c.y+10; v.st='toStore'; }
+        if(s){ const c=centreOf(s); v.tx=c.x; v.ty=c.y+DROP_Y; v.st='toStore'; }
         else { deliver(kind, CARRY, v.x, v.y); v.carry=null; }
       }
       continue;

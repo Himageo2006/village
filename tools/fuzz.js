@@ -2607,7 +2607,66 @@
       }
     }
     if (checked < 4) fails.push('only ' + checked + ' upgrades kept their hands, so the sweep proved almost nothing');
-    return { checked, skipped, fails };
+
+    /* And the figure a panel gives for a building RIGHT NOW is what that
+       building really delivers.
+
+       The block above holds an upgrade to its promise, which is a comparison
+       between two of the panel's own figures and the village's behaviour
+       across the step between them. This asks the simpler question that was
+       never asked: stand one workplace on its own and count what comes off its
+       shelf.
+
+       It found the market out by a tenth. routeOf measured centre to centre,
+       and a market is its own store, so its walk came out as nothing at all
+       while its worker really does step out to a post and carry a load back.
+
+       Counted off the building's OWN shelf, not out of the stores: the hall
+       keeps a woodpile, so wood arriving in a village is not evidence about
+       any particular building -- measured against the stores, a market at
+       level one appeared to deliver three times its figure. A pickup takes
+       exactly CARRY off the shelf, so a drop of more than one unit is one
+       load and nothing else can cause it. */
+    let counted = 0;
+    for (const [key, lvl] of [['farm', 5], ['lumber', 5], ['mill', 5], ['market', 1], ['market', 5]]) {
+      V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
+      V.away = null; V.goalDone = null; V.finished = null; V.panel = null; V.sel = null;
+      V.goalIdx = V.GOALS.length; V.tutSeen.length = 0;
+      V.ensureHall(); V.placed[0].lvl = 5; V.placed[0].t = 1;
+      V.res.wood = 1e6; V.res.food = 1e6;
+      const LB = V.landBounds();
+      V.place('house', LB.lo + 1, LB.lo + 1);
+      V.place('store', LB.lo + 10, LB.lo + 10);
+      V.place(key, LB.lo + 2, LB.lo + 5);
+      const q = V.placed.find(x => x.key === key);
+      if (!q) { fails.push('the delivery check could not place a ' + key); continue; }
+      for (const x of V.placed) { x.t = 1; x.build = 0; }
+      q.lvl = lvl; V.placed.find(x => x.key === 'house').lvl = 3;
+      V.rebuildStores();
+      for (let i = 0; i < 240 * 30; i++) V.step(1 / 30);
+      const hands = V.workersAt(q.id), said = hands * V.deliveredOf(q);
+      const half = () => { for (const k of ['wood', 'food']) V.res[k] = V.caps[k] / 2; };
+      half();
+      const secs = 600;
+      let loads = 0, prev = q.stock;
+      for (let i = 0; i < secs * 30; i++) {
+        V.step(1 / 30);
+        if (q.stock < prev - 1) loads++;
+        prev = q.stock;
+        if (i % 30 === 0) half();
+      }
+      const real = loads * 8 / secs;
+      /* A handful of loads is not a rate. Anything under twenty and one load
+         either way is worth more than the tolerance, so the case is thrown
+         away rather than believed. */
+      if (!hands || loads < 20) { fails.push('the delivery check got only ' + loads + ' loads out of a level '
+        + lvl + ' ' + key + ' with ' + hands + ' hands, so it proves nothing'); continue; }
+      counted++;
+      if (Math.abs(said - real) > 0.05 * Math.max(said, real))
+        fails.push('a level ' + lvl + ' ' + key + ' is quoted at ' + said.toFixed(4)
+          + '/s and delivers ' + real.toFixed(4) + '/s');
+    }
+    return { checked, skipped, delivering: counted, fails };
   };
   /* A figure on a build card is the price -- unless it is marked, and then it
      is what is still missing. The two sit in the same place in the same shape,
