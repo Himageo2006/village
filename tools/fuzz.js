@@ -1285,8 +1285,70 @@
     for (let i = 0; i < 20 * 30; i++) V.step(1 / 30);
     if (V.goalDone === banner) fails.push('the goal banner never expired once the page came back');
     V.goalDone = null;
+
+    /* A hint pushed off the strip by an earlier one has not been read.
+
+       currentHint returns the earliest unseen hint whose condition holds, so a
+       hint EARLIER in the list becoming true takes the strip from a later one.
+       That used to count as the player having done the thing, and the later
+       hint went into tutSeen unread, never to be shown again.
+
+       Built as it happens in play. The goal asks for a third ring of land and
+       the land hint is up -- the only thing in the game that says the way to
+       claim it is to tap the dark ground. The village then affords a hall
+       upgrade, which turns the hall hint true, and the hall hint is earlier.
+       The land hint must survive that and come back when the hall hint is
+       done, with the goal still asking for land the whole way through. */
+    {
+      V.placed.length = 0; V.villagers.length = 0; V.landTier = 1; V.coverPlaced();
+      V.away = null; V.goalDone = null; V.finished = null; V.panel = null; V.sel = null; V.barMode = 'build';
+      V.ensureHall(); V.placed[0].lvl = 3; V.placed[0].t = 1;
+      V.res.wood = 400; V.res.food = 400;
+      const L2 = V.landBounds();
+      /* Two storehouses, because the hall's next level costs more than a bare
+         village can physically hold: res is clamped to the ceiling by the first
+         delivery, so without them the upgrade never becomes affordable and the
+         earlier hint never turns true. */
+      const put = [V.place('house', L2.lo + 1, L2.lo + 1), V.place('lumber', L2.lo + 3, L2.lo + 1),
+                   V.place('farm', L2.lo + 1, L2.lo + 3), V.place('store', L2.lo + 5, L2.lo + 1),
+                   V.place('store', L2.lo + 5, L2.lo + 4)];
+      for (const q of V.placed) { q.t = 1; q.build = 0; }
+      V.rebuildStores();
+      V.goalIdx = V.GOALS.findIndex(x => x.text === 'Claim a third ring of land');
+      V.res.wood = 0; V.res.food = 0;
+      /* One step to let whatever the case before left on the strip settle out,
+         and only then the seeding. The hint on the strip is not reset by
+         building a new village, and its condition will have gone false under
+         it -- which now correctly marks it read, and it was marking 'hall'
+         read, so the hall hint could never take the strip and the check tested
+         nothing. A sweep builds its own scene, and the strip is part of it. */
+      V.step(1 / 30);
+      /* The three before it are already read, or one of them holds the strip
+         and there is nothing to displace. */
+      V.tutSeen.length = 0; V.tutSeen.push('house', 'work', 'tap');
+      for (let i = 0; i < 6 * 30; i++) V.step(1 / 30);
+      const first = V.currentHint() && V.currentHint().id;
+      if (!put.every(Boolean) || first !== 'land') {
+        fails.push('the displacement check could not get the land hint on the strip (got ' + first + ')');
+      } else {
+        // a hall upgrade is now affordable; held there, since a delivery clamps
+        // whatever is over the ceiling back down to it
+        for (let i = 0; i < 30; i++) { V.res.wood = 1e5; V.res.food = 1e5; V.step(1 / 30); }
+        const now = V.currentHint() && V.currentHint().id;
+        if (now !== 'hall') fails.push('the earlier hint did not take the strip (got ' + now + '; canUpgrade ' + V.canUpgrade(V.hallOf()) + ', res ' + Math.round(V.res.wood) + '/' + Math.round(V.res.food) + ', cost ' + JSON.stringify(V.upInfo(V.hallOf()).cost) + ', gate ' + V.upInfo(V.hallOf()).gate + ', seen ' + V.tutSeen.join('|') + ')');
+        else if (V.tutSeen.includes('land'))
+          fails.push('a hint pushed off the strip by an earlier one was written off as read');
+        else {
+          // the hall hint runs its course, with the upgrade still affordable
+          for (let i = 0; i < 25 * 30; i++) { V.res.wood = 1e5; V.res.food = 1e5; V.step(1 / 30); }
+          const back = V.currentHint() && V.currentHint().id;
+          if (back !== 'land') fails.push('the displaced hint never came back (got ' + back + ')');
+        }
+      }
+    }
+
     delete document.hidden;                     // back to what the browser says
-    return { cases: 5, fails };
+    return { cases: 6, fails };
   };
   /* Building badges never print over one another. A built-up island at phone
      zoom used to stack "−63%", "−65%" and rows of ▲ into an unreadable pile. */
@@ -2364,7 +2426,15 @@
       if (V.workersAt(p.id)) staffed++;
       for (const k of ['wood', 'food']) {
         const real = got[k] / secs, want = rep[k] / secs;
-        if (Math.abs(real - want) > 0.15 * Math.max(real, want))
+        /* Goods arrive a whole load at a time, so a window this long cannot
+           resolve a rate finer than one load across it -- 8/120 is 0.067/s,
+           which at the slow wood rates here is a fifth of the figure. A share
+           alone therefore reported a market at 0.40 against 0.33, one load's
+           difference, about once in five runs while four runs in a row were
+           clean. A checker whose answer depends on when you ran it is not a
+           checker, and the original fault was ten times this wide, so nothing
+           is given up by saying what the measurement can actually see. */
+        if (Math.abs(real - want) > Math.max(0.15 * Math.max(real, want), V.CARRY / secs))
           fails.push('with the ' + key + ' under scaffolding the reported ' + k + ' rate is not what arrives: '
             + want.toFixed(2) + '/s reported, ' + real.toFixed(2) + '/s delivered');
       }
@@ -2669,14 +2739,17 @@
         prev = q.stock;
         if (i % 30 === 0) half();
       }
-      const real = loads * 8 / secs;
+      const real = loads * V.CARRY / secs;
       /* A handful of loads is not a rate. Anything under twenty and one load
          either way is worth more than the tolerance, so the case is thrown
          away rather than believed. */
       if (!hands || loads < 20) { fails.push('the delivery check got only ' + loads + ' loads out of a level '
         + lvl + ' ' + key + ' with ' + hands + ' hands, so it proves nothing'); continue; }
       counted++;
-      if (Math.abs(said - real) > 0.05 * Math.max(said, real))
+      /* Never tighter than one load across the window, for the same reason the
+         scaffold sweep cannot be: that is the finest difference this way of
+         measuring can see. */
+      if (Math.abs(said - real) > Math.max(0.05 * Math.max(said, real), V.CARRY / secs))
         fails.push('a level ' + lvl + ' ' + key + ' is quoted at ' + said.toFixed(4)
           + '/s and delivers ' + real.toFixed(4) + '/s');
     }

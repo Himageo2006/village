@@ -1921,13 +1921,34 @@ function currentHint() {
 function stepHints(dt) {
   const h = currentHint();
   const id = h ? h.id : null;
-  /* It was on screen and now it is not, which can only mean its own condition
-     stopped being true -- currentHint always returns the earliest unseen one, so
-     nothing else can displace it. The player did the thing. */
-  if (tutNow && tutNow !== id && !tutSeen.includes(tutNow)) {
-    tutSeen.push(tutNow); tutT = 0; save();
+  if (tutNow !== id) {
+    /* A hint is finished when the player does the thing it asked for, and the
+       only evidence of that is its OWN condition going false.
+
+       This used to mark it done whenever it left the strip, on the reasoning
+       that currentHint returns the earliest unseen hint and so nothing can
+       displace it. That is exactly backwards: an EARLIER hint becoming true
+       displaces a later one, and the later one was then written off as read.
+
+       Measured, and it is not a corner: the goal says "Claim a third ring of
+       land" and the land hint -- the one thing in the game that says HOW, by
+       tapping the dark ground -- is on the strip. Five seconds later the
+       village can afford a hall upgrade, which turns the hall hint true. The
+       hall hint is earlier in the list, so it takes the strip, and the land
+       hint goes into tutSeen unread and never comes back. The goal still asks
+       for land and nothing will ever say how again. The same thing loses the
+       full-stores hint, which is the one state whose cost is invisible, to the
+       hall hint that the full stores just made affordable.
+
+       Now it stays unread and comes back when the hint in front of it is done. */
+    const gone = tutNow == null ? null : TUT.find(t => t.id === tutNow);
+    if (gone && !tutSeen.includes(tutNow) && !gone.when()) { tutSeen.push(tutNow); save(); }
+    /* And whatever is on the strip now gets its own twenty seconds. The timer
+       was only reset when a hint was marked read, so a hint that displaced
+       another inherited however long that one had already been up. */
+    tutT = 0;
+    tutNow = id;
   }
-  tutNow = id;
   if (!h) { tutT = 0; return; }
   /* Only time it is actually on screen counts. The goal banner, the welcome-back
      card and the finished card all hide it, and the clock ran on behind them:
@@ -5485,6 +5506,8 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   get villagers() { return villagers; }, workersAt, boostAt, producers, stores,
   assignJobs, desiredJobs, computeJobs, invalidateJobs, established, lvlHeld, buildingAt, ensureHall, jobsOf, VILLAGER_MAX, rebuildStores, nearestStore,
   artRect, paintedAt, isDecor, decorCount, DECOR_MAX, charmTotal, charmMul, charmGainFrom, decorGainAt, deliveredAtMul, charmRoom, usefulCharm, CHARM_FULL,
+  // the size of a load: the finest difference any delivery measurement can see
+  CARRY,
   tabRects, drawDecor, grant, flushBadges, get lastBadges() { return lastBadges; }, badgeScale, BADGE_TEXT_PX, POP_PX, camScale,
   sparePeople, outOfRoom, noSpareHands, peopleComing, livedIn,
   sellBuilding, canSell, sellValue, investedIn, capsWithout, get moving() { return moving; }, set moving(v) { moving = v; },
