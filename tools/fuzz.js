@@ -1544,8 +1544,81 @@
         if (depth !== 0) fails.push(name + ': ' + depth + ' dead back press(es) left');
         depth = 0;
       }
+
+      /* And nothing closes a card that is not on the screen.
+
+         The completion card yields: the goal banner, the welcome-back card and
+         the claim dialogue all come first, so being set is not the same as
+         being up. A tap and a back press both acted on it being SET, and the
+         two came apart at the only moment that matters -- the last goal
+         completing is what raises this card, and it also raises the banner
+         announcing that goal. For those four and a half seconds the card was
+         deliberately not drawn and a tap threw it away, unseen and for good,
+         since it is shown once a playthrough and remembered in tutSeen.
+
+         Driven the way it happens: claim the last ring, then try to dismiss
+         the card while the banner is still up, then wait for the banner and
+         try again. document.hidden is pinned, because a banner does not age
+         while nobody is watching and the harness often is not. */
+      {
+        const cv2 = document.querySelector('canvas'), ctx2 = cv2.getContext('2d');
+        const hide = v => Object.defineProperty(document, 'hidden', { configurable: true, get: () => v });
+        const drawn = () => { let saw = false; const o = ctx2.fillText;
+          ctx2.fillText = function (t) { if (String(t) === 'Your village is finished') saw = true; return o.apply(this, arguments); };
+          try { V.draw(); } finally { ctx2.fillText = o; } return saw; };
+        hide(false);
+        try {
+          V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX - 1; V.coverPlaced();
+          V.away = null; V.goalDone = null; V.finished = null; V.panel = null; V.sel = null;
+          V.claimAsk = false; V.barMode = 'build'; V.moving = null;
+          V.ensureHall(); V.placed[0].lvl = 5; V.placed[0].t = 1;
+          V.res.wood = 1e6; V.res.food = 1e6; V.tutSeen.length = 0;
+          V.goalIdx = V.GOALS.length - 1;
+          V.step(1 / 30);
+          V.landTier = V.LAND_MAX; V.coverPlaced();          // the last goal is done
+          V.step(1 / 30);
+          if (!V.finished) fails.push('claiming the island did not raise the completion card');
+          else if (!V.goalDone) fails.push('the last goal completed without its banner, so nothing was covering the card');
+          else if (drawn()) fails.push('the completion card drew over the goal banner');
+          else {
+            V.tap(512, 900);
+            if (!V.finished) fails.push('a tap threw away the completion card while the banner was covering it');
+            /* That tap may have landed on the tray or on a building, and
+               backClose answers true for anything at all being open -- it
+               reported the card closed when what had actually happened was a
+               build card being selected, which is the checker blaming the game
+               for the checker's own mess. Cleared first, so the card is the
+               only thing either question can be about, and both are asked of
+               the card rather than of a return value. */
+            V.sel = null; V.panel = null; V.moving = null; V.ghost = null;
+            V.sellArm = null; V.barMode = 'build';
+            V.backClose();
+            if (!V.finished) fails.push('a back press closed the completion card while the banner was covering it');
+            /* And the gesture does not count it as something to close. Armed
+               on merely being set, a press would be pushed for a card that
+               backClose then refuses to touch, and the player's next back
+               press does nothing at all. */
+            else if (V.backOpen()) fails.push('the back gesture counted the covered completion card as something to close');
+            if (V.finished) {
+              for (let i = 0; i < 7 * 30; i++) V.step(1 / 30);   // the banner ages out
+              if (!drawn()) fails.push('the completion card never appeared once the banner had gone');
+              else {
+                V.sel = null; V.panel = null; V.moving = null; V.ghost = null;
+                V.sellArm = null; V.barMode = 'build';
+                if (!V.backOpen()) fails.push('the completion card was on screen and the back gesture had nothing to close');
+                V.tap(512, 900);
+                if (V.finished) fails.push('the completion card could not be tapped away once it was up');
+              }
+            }
+          }
+        } finally {
+          delete document.hidden;
+          V.hiddenAt = 0; V.hiddenSim = 0;
+          V.finished = null; V.goalDone = null; V.goalIdx = 0; V.tutSeen.length = 0;
+        }
+      }
     } finally { history.pushState = op; history.back = ob; }
-    return { cases: 5, fails };
+    return { cases: 6, fails };
   };
   /* Touches that are not taps must not tap. Two fingers down and up in place
      fired a tap under each, and a cancelled touch (notification shade, back

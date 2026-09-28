@@ -2464,6 +2464,21 @@ let away = null;                      // {secs, got:{wood,food}} until dismissed
    is exactly what tutSeen is: the list of things this player has been told
    once. */
 let finished = null;                  // {villagers, buildings, trades, charm} until dismissed
+/* Whether the completion card is actually ON SCREEN -- one rule, because the
+   thing that paints it and the things that dismiss it have to agree.
+
+   The card yields to the goal banner, the welcome-back card and the claim
+   dialogue, so being set is not the same as being up. A tap and the back
+   gesture both cleared it on being set, and the two came apart at exactly the
+   worst moment: the LAST goal completing is what raises this card, and it also
+   raises the banner announcing that goal. For those four and a half seconds
+   the card is set and deliberately not drawn -- and a tap, which is the
+   natural thing to do with a banner on screen, threw it away. It is shown
+   once in a playthrough and remembered in tutSeen, so it never came back.
+
+   Measured: claim the island, step one frame, and the card is set and not
+   painted; one tap and it is gone for good, two hours of village unmarked. */
+const finishedUp = () => !!finished && !goalDone && !away && !claimAsk;
 const FINISH_ID = 'complete';
 
 /* What the village is CAPABLE of producing per second, worked out from its
@@ -4348,7 +4363,7 @@ function drawFinished() {
      finished, the away card says what was missed while you were gone, and the
      claim dialogue is a question waiting for an answer. This is the one that
      will still be true afterwards. */
-  if (!finished || goalDone || away || claimAsk) return;
+  if (!finishedUp()) return;
   const R = awayRect(), u = R.u;
   g.save();
   g.fillStyle = 'rgba(6,10,6,.66)'; g.fillRect(0, screenTop(), W, screenBot() - screenTop());
@@ -5236,12 +5251,17 @@ window.addEventListener('orientationchange', () => setTimeout(() => { fitCanvas(
    Deliberately NOT a stack. Back closes the top-most thing and the next press
    closes the next one down, in the order they overlap on screen. */
 let backArmed = false;
+/* What the back gesture has to close, which is the same list backClose
+   works through. The completion card counts only while it is actually up:
+   armed on merely being set, the gesture had a press pushed for a card that
+   backClose then refused to touch, and the player's next back press did
+   nothing at all. */
 function backOpen() {
-  return !!(away || finished || claimAsk || panel != null || moving != null || selBuild || barMode !== 'build');
+  return !!(away || finishedUp() || claimAsk || panel != null || moving != null || selBuild || barMode !== 'build');
 }
 function backClose() {
   if (away) { away = null; return true; }
-  if (finished) { finished = null; return true; }
+  if (finishedUp()) { finished = null; return true; }
   if (claimAsk) { claimAsk = false; return true; }
   if (panel != null) { panel = null; sellArm = null; return true; }
   if (moving != null) { moving = null; ghost = null; armed = null; return true; }
@@ -5344,7 +5364,7 @@ function buildingAt(sx, sy) {
 }
 function tap(sx, sy) {
   if (away) { away = null; return; }
-  if (finished) { finished = null; return; }
+  if (finishedUp()) { finished = null; return; }
   if (claimAsk) {
     const R = claimRects();
     if (Math.hypot(sx - R.no.x, sy - R.no.y) < Math.max(R.no.r * 1.3, TOUCH_MIN / 2)) { claimAsk = false; return; }
