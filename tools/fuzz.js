@@ -1267,6 +1267,13 @@
       ['home screen', () => hide(true), () => { hide(false); V.hiddenAt = 0; V.hiddenSim = 0; }]]) {
       V.placed.length = 0; V.villagers.length = 0; V.ensureHall(); V.tutSeen.length = 0;
       V.away = null; V.goalDone = null; V.finished = null;
+      /* And an UNFINISHED village. The completion card is raised from the
+         state of the village and cleared from tutSeen -- so a sweep that
+         wipes tutSeen while a previous one left goalIdx past the last goal
+         raises the card on the next tick, and a card on screen stops the hint
+         clock. That is the game behaving correctly; it is this scene that was
+         half built. All four cases reported the first hint never finishing. */
+      V.goalIdx = 0;
       cover();
       for (let i = 0; i < 40 * 30; i++) { if (V.goalDone) V.goalDone.age = -1e9; V.step(1 / 30); }
       if (V.tutSeen.includes('house')) fails.push('the first hint expired behind the ' + name);
@@ -1348,6 +1355,7 @@
     }
 
     delete document.hidden;                     // back to what the browser says
+    V.goalIdx = 0;                              // left as it was found, unfinished
     return { cases: 6, fails };
   };
   /* Building badges never print over one another. A built-up island at phone
@@ -1545,76 +1553,84 @@
         depth = 0;
       }
 
-      /* And nothing closes a card that is not on the screen.
+      /* The card for finishing the village: raised when it can be seen, shown
+         once, and never lost.
 
-         The completion card yields: the goal banner, the welcome-back card and
-         the claim dialogue all come first, so being set is not the same as
-         being up. A tap and a back press both acted on it being SET, and the
-         two came apart at the only moment that matters -- the last goal
-         completing is what raises this card, and it also raises the banner
-         announcing that goal. For those four and a half seconds the card was
-         deliberately not drawn and a tap threw it away, unseen and for good,
-         since it is shown once a playthrough and remembered in tutSeen.
+         It is transient -- not in the save -- so what has to carry across a
+         cold start is the fact that it has not been seen YET. Two separate
+         faults lost it. tutSeen was written the moment the card was raised,
+         so shutting the app during the goal banner left a finished village
+         with 'complete' already recorded and no card ever again. And a tap or
+         a back press acted on the card being SET rather than being up, so it
+         could be thrown away while another card covered it.
 
-         Driven the way it happens: claim the last ring, then try to dismiss
-         the card while the banner is still up, then wait for the banner and
-         try again. document.hidden is pinned, because a banner does not age
-         while nobody is watching and the harness often is not. */
+         Driven the way it happens: claim the last ring, which raises the
+         banner announcing that goal, and follow it through.
+      */
       {
         const cv2 = document.querySelector('canvas'), ctx2 = cv2.getContext('2d');
         const hide = v => Object.defineProperty(document, 'hidden', { configurable: true, get: () => v });
         const drawn = () => { let saw = false; const o = ctx2.fillText;
           ctx2.fillText = function (t) { if (String(t) === 'Your village is finished') saw = true; return o.apply(this, arguments); };
           try { V.draw(); } finally { ctx2.fillText = o; } return saw; };
+        /* A cold start, as a fresh page makes one: the transient cards gone
+           and the file read back. */
+        const restart = () => { V.finished = null; V.goalDone = null; V.away = null; V.claimAsk = false;
+          V.placed.length = 0; V.villagers.length = 0; V.orders = [];
+          V.load(); V.landTransit(); for (let i = 0; i < 2 * 30; i++) V.step(1 / 30); };
+        const realSave = localStorage.getItem(V.KEY);
         hide(false);
         try {
           V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX - 1; V.coverPlaced();
           V.away = null; V.goalDone = null; V.finished = null; V.panel = null; V.sel = null;
           V.claimAsk = false; V.barMode = 'build'; V.moving = null;
           V.ensureHall(); V.placed[0].lvl = 5; V.placed[0].t = 1;
-          V.res.wood = 1e6; V.res.food = 1e6; V.tutSeen.length = 0;
+          V.res.wood = 1e5; V.res.food = 1e5; V.tutSeen.length = 0;
           V.goalIdx = V.GOALS.length - 1;
           V.step(1 / 30);
           V.landTier = V.LAND_MAX; V.coverPlaced();          // the last goal is done
           V.step(1 / 30);
-          if (!V.finished) fails.push('claiming the island did not raise the completion card');
-          else if (!V.goalDone) fails.push('the last goal completed without its banner, so nothing was covering the card');
+          if (!V.goalDone) fails.push('the last goal completed without its banner');
           else if (drawn()) fails.push('the completion card drew over the goal banner');
+          else if (V.tutSeen.includes('complete'))
+            fails.push('the completion card was recorded as seen before it had been shown');
           else {
-            V.tap(512, 900);
-            if (!V.finished) fails.push('a tap threw away the completion card while the banner was covering it');
-            /* That tap may have landed on the tray or on a building, and
-               backClose answers true for anything at all being open -- it
-               reported the card closed when what had actually happened was a
-               build card being selected, which is the checker blaming the game
-               for the checker's own mess. Cleared first, so the card is the
-               only thing either question can be about, and both are asked of
-               the card rather than of a return value. */
-            V.sel = null; V.panel = null; V.moving = null; V.ghost = null;
-            V.sellArm = null; V.barMode = 'build';
-            V.backClose();
-            if (!V.finished) fails.push('a back press closed the completion card while the banner was covering it');
-            /* And the gesture does not count it as something to close. Armed
-               on merely being set, a press would be pushed for a card that
-               backClose then refuses to touch, and the player's next back
-               press does nothing at all. */
-            else if (V.backOpen()) fails.push('the back gesture counted the covered completion card as something to close');
+            /* Shut the game while the banner is still up, which is the case
+               that used to lose it outright. */
+            V.save(); restart();
+            if (!drawn()) fails.push('the completion card was lost by shutting the game during the goal banner');
+            else {
+              /* Covered by another card, it is neither drawn nor dismissable. */
+              V.away = { secs: 7200, got: { wood: 1, food: 1 } };
+              if (drawn()) fails.push('the completion card drew over the welcome-back card');
+              V.tap(512, 900);                                // dismisses the away card
+              if (V.away) fails.push('the tap did not reach the welcome-back card');
+              if (!V.finished) fails.push('a tap threw away the completion card while another card covered it');
+              V.claimAsk = true;
+              if (drawn()) fails.push('the completion card drew over the claim dialogue');
+              V.backClose();
+              if (V.claimAsk) fails.push('the back press did not reach the claim dialogue');
+              if (!V.finished) fails.push('a back press closed the completion card while another card covered it');
+              else if (V.backOpen() && !V.claimAsk && !V.away && !V.goalDone && !drawn())
+                fails.push('the back gesture counted a card nobody can see as something to close');
+            }
+            /* And once it is dismissed it stays dismissed, over a cold start. */
             if (V.finished) {
-              for (let i = 0; i < 7 * 30; i++) V.step(1 / 30);   // the banner ages out
-              if (!drawn()) fails.push('the completion card never appeared once the banner had gone');
-              else {
-                V.sel = null; V.panel = null; V.moving = null; V.ghost = null;
-                V.sellArm = null; V.barMode = 'build';
-                if (!V.backOpen()) fails.push('the completion card was on screen and the back gesture had nothing to close');
-                V.tap(512, 900);
-                if (V.finished) fails.push('the completion card could not be tapped away once it was up');
-              }
+              if (!drawn()) fails.push('the completion card was not on screen when it should have been');
+              V.tap(512, 900);
+              if (V.finished) fails.push('the completion card could not be tapped away once it was up');
+              else if (!V.tutSeen.includes('complete'))
+                fails.push('dismissing the completion card did not record it as seen');
+              else { V.save(); restart();
+                if (drawn()) fails.push('the completion card came back after it had been dismissed'); }
             }
           }
         } finally {
           delete document.hidden;
           V.hiddenAt = 0; V.hiddenSim = 0;
-          V.finished = null; V.goalDone = null; V.goalIdx = 0; V.tutSeen.length = 0;
+          V.finished = null; V.goalDone = null; V.away = null; V.claimAsk = false;
+          V.goalIdx = 0; V.tutSeen.length = 0;
+          try { if (realSave !== null) localStorage.setItem(V.KEY, realSave); } catch (e) {}
         }
       }
     } finally { history.pushState = op; history.back = ob; }

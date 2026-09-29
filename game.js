@@ -1824,6 +1824,25 @@ function stepGoals(dt) {
     if (goalDone.age <= hold) return;
     goalDone = null;
   }
+  /* The card for finishing is raised from the STATE of the village, not from
+     the frame a goal happened to complete on.
+
+     Raised there, it was gone on a reload. tutSeen recorded it the instant it
+     was put up, and nothing puts it up twice -- so a player who finished the
+     village and closed the app during the four and a half second banner came
+     back to a finished village, 'complete' already in tutSeen, and no card,
+     ever. Measured: set, saved, reloaded, and sixty simulated seconds later
+     still not drawn.
+
+     Here instead, where it is asked every tick: finished, not yet dismissed,
+     not already up. And after the banner rather than before it, because that
+     is the moment it could be shown -- the player reads what they finished
+     before being told they finished, which is what the old placement was
+     for. */
+  if (!finished && villageFinished() && !tutSeen.includes(FINISH_ID))
+    finished = { villagers: villagers.length,
+                 buildings: placed.filter(q => !isDecor(q.key)).length,
+                 trades: ordersDone, charm: charmTotal() };
   const g2 = next;
   if (!g2 || !g2.done()) return;
   /* Bank what will actually fit and report THAT. Announcing the offered amount
@@ -1842,14 +1861,6 @@ function stepGoals(dt) {
   goalDone = { g: g2, got, age: 0 };
   goalIdx++;
   SFX.goal();
-  /* The last one is not just another goal. It waits for the banner, so the
-     player reads what they finished before being told they finished. */
-  if (goalIdx >= GOALS.length && !tutSeen.includes(FINISH_ID)) {
-    tutSeen.push(FINISH_ID);
-    finished = { villagers: villagers.length,
-                 buildings: placed.filter(q => !isDecor(q.key)).length,
-                 trades: ordersDone, charm: charmTotal() };
-  }
   save();
 }
 
@@ -2479,6 +2490,17 @@ let finished = null;                  // {villagers, buildings, trades, charm} u
    Measured: claim the island, step one frame, and the card is set and not
    painted; one tap and it is gone for good, two hours of village unmarked. */
 const finishedUp = () => !!finished && !goalDone && !away && !claimAsk;
+/* Putting it away is what records it as seen, and the only thing that does.
+
+   tutSeen used to be written the moment the card was RAISED, which is the
+   same mistake the hints made: a thing is not read because it was offered.
+   It cost the whole card to a reload during the goal banner. Now the village
+   being finished is what raises it, every tick until it is dismissed, so a
+   cold start puts it back up. */
+function closeFinished() {
+  finished = null;
+  if (!tutSeen.includes(FINISH_ID)) { tutSeen.push(FINISH_ID); save(); }
+}
 const FINISH_ID = 'complete';
 
 /* What the village is CAPABLE of producing per second, worked out from its
@@ -5261,7 +5283,7 @@ function backOpen() {
 }
 function backClose() {
   if (away) { away = null; return true; }
-  if (finishedUp()) { finished = null; return true; }
+  if (finishedUp()) { closeFinished(); return true; }
   if (claimAsk) { claimAsk = false; return true; }
   if (panel != null) { panel = null; sellArm = null; return true; }
   if (moving != null) { moving = null; ghost = null; armed = null; return true; }
@@ -5364,7 +5386,7 @@ function buildingAt(sx, sy) {
 }
 function tap(sx, sy) {
   if (away) { away = null; return; }
-  if (finishedUp()) { finished = null; return; }
+  if (finishedUp()) { closeFinished(); return; }
   if (claimAsk) {
     const R = claimRects();
     if (Math.hypot(sx - R.no.x, sy - R.no.y) < Math.max(R.no.r * 1.3, TOUCH_MIN / 2)) { claimAsk = false; return; }
