@@ -2290,8 +2290,15 @@
                  shared: { wood: 0, food: 0 } };
   window.saveSweep = function () {
     const real = (() => { try { return localStorage.getItem(V.KEY); } catch (e) { return null; } })();
-    // the same order boot uses: load, then put back what was in transit
-    const reload = () => { V.placed.length = 0; V.villagers.length = 0; V.orders = []; V.load(); V.landTransit(); };
+    /* The same order boot uses, all of it. It said so and ran two of the four
+       lines: ensureHall and coverPlaced were missing, so the harness reloaded a
+       village the game would never produce -- and coverPlaced is the line that
+       REPAIRS a save whose land field is gone, by widening the claim until it
+       covers what is built. Without it landTier simply kept whatever the module
+       already held, which is why the field check reported itself blind to land
+       and could not say whether that was the game or itself. */
+    const reload = () => { V.placed.length = 0; V.villagers.length = 0; V.orders = [];
+      V.landTier = 0; V.load(); V.ensureHall(); V.coverPlaced(); V.landTransit(); };
     buildVillage(RICH);
     // with goods genuinely in hand, so the transit field is exercised rather than zero
     for (const g of V.villagers) g.carry = { k: 'wood', n: 8 };
@@ -2314,9 +2321,88 @@
       const bad = stripVolatile(foldTransit(JSON.parse(localStorage.getItem(V.KEY))));
       detects[field] = saveDiff(want, bad).length > 0;
     }
+    /* And the backup is never replaced by something that will not load.
+
+       The backup is the whole answer to a browser killed mid-write, and save()
+       promoted whatever byte string happened to be in the primary without
+       reading it -- so the one string it must never take was exactly the one
+       the mechanism exists for. Worse after a restart than during one: saveN
+       begins at nought, so the FIRST autosave after the crash promotes the
+       truncated primary over the backup that had just rescued the village.
+
+       Five ways of being unloadable, because "unloadable" is not only
+       truncation: a save stamped with a later version and one with no
+       buildings in it both parse perfectly and neither is a village. Run
+       across more than two promotion cycles, because a promotion happens once
+       in BACKUP_EVERY saves and a check that never reaches one proves nothing
+       -- which is why a good primary is run through the same loop and has to
+       be promoted at least twice. */
+    const bakFails = [];
+    {
+      const realBak = (() => { try { return localStorage.getItem(V.KEY_BAK); } catch (e) { return null; } })();
+      buildVillage(RICH);
+      V.save();
+      const good = localStorage.getItem(V.KEY);
+      var spoilNames = {};
+      const spoil = {
+        'cut off mid-write': good.slice(0, Math.floor(good.length * 0.6)),
+        'empty': '',
+        'not json at all': 'village',
+        'stamped with a later version': JSON.stringify({ ...JSON.parse(good), v: 99 }),
+        'carrying no buildings': JSON.stringify({ ...JSON.parse(good), placed: 'none' }),
+      };
+      spoilNames = spoil;
+      const rounds = V.BACKUP_EVERY * 2 + 2;
+      for (const [how, bad] of Object.entries(spoil)) {
+        localStorage.setItem(V.KEY, good);
+        localStorage.setItem(V.KEY_BAK, good);
+        for (let i = 0; i < rounds; i++) {
+          localStorage.setItem(V.KEY, bad);          // the primary is mid-write garbage
+          V.save();                                  // one ordinary autosave tick
+          const bak = localStorage.getItem(V.KEY_BAK);
+          if (bak === bad || !V.usableSave(V.readSave(bak))) {
+            bakFails.push('a primary ' + how + ' was promoted over the backup');
+            break;
+          }
+        }
+      }
+      localStorage.setItem(V.KEY, good);
+      localStorage.setItem(V.KEY_BAK, 'nothing');
+      let promoted = 0, last = 'nothing';
+      for (let i = 0; i < rounds; i++) {
+        V.res.wood += 1; V.save();
+        const bak = localStorage.getItem(V.KEY_BAK);
+        if (bak !== last) { last = bak; promoted++; }
+      }
+      if (promoted < 2) bakFails.push('a good primary was promoted only ' + promoted
+        + ' time(s) in ' + rounds + ' saves, so no backup is being kept at all');
+      else if (!V.usableSave(V.readSave(localStorage.getItem(V.KEY_BAK))))
+        bakFails.push('the backup left after a run of good saves will not load');
+      try { if (realBak !== null) localStorage.setItem(V.KEY_BAK, realBak); else localStorage.removeItem(V.KEY_BAK); } catch (e) {}
+    }
+
     try { if (real !== null) localStorage.setItem(V.KEY, real); } catch (e) {}
     const blind = Object.entries(detects).filter(([, ok]) => !ok).map(([k]) => k);
-    return { diffs: diffs.length, worst: diffs.slice(0, 8), fieldsChecked: Object.keys(detects).length, blindTo: blind };
+    /* Reported where allSweeps can see it. It counts r.fails, and nothing
+       else this sweep returns -- so a round where the field check had gone
+       blind, or the backup was being eaten, came back as a clean battery. */
+    const fails = bakFails.slice();
+    /* Except land, and that is the repair working rather than the check going
+       blind: coverPlaced widens the claim until it covers what is built, so a
+       village built out to its border comes back on the same ring with the
+       field gone. Measured both ways -- built out, tier 4 saved and tier 4
+       after; a village that had claimed the island and built one house, tier 4
+       saved and tier 0 after. So the field is invisible to the diff exactly
+       when losing it costs nothing, and naming it here rather than in the
+       failures is the difference between a known answer and an unasked
+       question. */
+    const REPAIRED = new Set(['land']);
+    const reallyBlind = blind.filter(k => !REPAIRED.has(k));
+    if (reallyBlind.length) fails.push('the field check no longer notices a missing ' + reallyBlind.join(', '));
+    for (const k of REPAIRED) if (!blind.includes(k))
+      fails.push('a missing ' + k + ' is no longer repaired on load, and nothing else puts it back');
+    return { diffs: diffs.length, worst: diffs.slice(0, 8), fieldsChecked: Object.keys(detects).length,
+      blindTo: blind, backupCases: Object.keys(spoilNames).length + 1, fails };
   };
   /* A save's timestamp is where the SIMULATION got to, not when the file was
      written. The two part company the moment the page is hidden, because the
@@ -3484,22 +3570,42 @@
 
     /* An offer the player can act on is never pulled out from under them --
        and nor is the one they are saving up for, which is the half that was
-       not kept. Set up so nothing can be filled and the player is one unit
-       short of the offer at the FRONT of the list, which is the one the old
-       code always took. */
+       not kept.
+
+       Saving up means one unit short, and it has to mean that for the WHOLE
+       run. The first version of this started the player at ten and added one a
+       second, so for the first several hundred seconds they were nowhere near
+       the offer being protected -- and the replacement picks the offer the
+       player is furthest from, by share of what it asks. Whenever the biggest
+       tier happened to land in slot 0 the trader took it, correctly, and the
+       checker called it a failure: measured at 57s with 67 food against the
+       435 the offer wanted, 85 per cent short and the worst on a board of
+       four. One run in five, decided by which tier the board dealt first.
+
+       So: the SMALLEST offer on the board is the one saved for, because that
+       is the one a player is realistically closest to, and the purse is put
+       one short of it at the start and held there. Nothing else is affordable,
+       so the board cannot stand down and the replacement really runs; and the
+       offer is moved to the front of the list as well, because the front is
+       what the old code always took and the case has to be able to catch
+       that. */
     {
       const n = scene();
       if (n < 3) fails.push('the saving-up check could only get ' + n + ' offers onto the board');
       else {
-        const giveK = V.orders[0].giveK, getK = V.orders[0].getK;
-        V.res[giveK] = 10; V.res[getK] = V.caps[getK] / 2;
-        const savingFor = V.orders[0], startIds = V.orders.map(o => o.id);
+        let savingFor = V.orders[0];
+        for (const o of V.orders) if (o.giveN < savingFor.giveN) savingFor = o;
+        V.orders = [savingFor, ...V.orders.filter(o => o !== savingFor)];
+        const giveK = savingFor.giveK, getK = savingFor.getK;
+        const purse = () => { V.res[giveK] = savingFor.giveN - 1; V.res[getK] = V.caps[getK] / 2; };
+        purse();
+        const startIds = V.orders.map(o => o.id);
+        if (V.orders.some(o => V.canFill(o)))
+          fails.push('the saving-up check left an offer fillable, so the board stands down and nothing is proved');
         let gone = null;
         for (let s2 = 0; s2 < 600 && gone === null; s2++) {
           for (let i = 0; i < 30; i++) V.step(1 / 30);
-          // always just short: saving up, never quite there
-          V.res[giveK] = Math.min(V.res[giveK] + 1, savingFor.giveN - 1);
-          V.res[getK] = V.caps[getK] / 2;
+          purse();                       // one short, and held there: saving up
           if (!V.orders.includes(savingFor)) gone = s2;
         }
         if (gone !== null) fails.push('the offer the player was saving for was taken by a trader after ' + gone + 's');

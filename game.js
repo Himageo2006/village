@@ -2314,6 +2314,12 @@ const KEY_BAK = 'vil_save_bak';
 const BACKUP_EVERY = 12;              // saves between backups; saves are ~5s apart
 let saveN = 0, saveFailed = false, loadedFromBackup = false;
 const SAVE_V = 4;      // 2: house 2x1. 3: hall and jobs. 4: every building levels
+/* Whether a string in storage is a save this game would actually load. load()
+   has always asked it of what it reads; save() did not ask it of what it
+   PROMOTES, which is the other half of the same question and the half the
+   backup exists for. */
+const readSave = str => { try { return JSON.parse(str); } catch (e) { return null; } };
+const usableSave = x => !!x && typeof x === 'object' && x.v === SAVE_V && Array.isArray(x.placed);
 /* The moment the simulation has reached, which is not always now.
 
    A backgrounded page is throttled, not stopped: the tick still runs, a few
@@ -2359,10 +2365,25 @@ const inTransit = () => {
 };
 function save() {
   try {
-    // promote the last known-good primary before overwriting it
+    /* Promote the last KNOWN-GOOD primary before overwriting it -- known-good
+       by reading it, which is what the note above the backup claims happens
+       and what nothing actually did. It promoted whatever byte string was
+       sitting in KEY.
+
+       That is the one string it must never promote. The whole mechanism is for
+       a primary truncated by a browser killed mid-write, and after such a kill
+       the page starts again with saveN back at nought -- so the FIRST autosave,
+       five seconds in, copied the truncated primary over the good backup that
+       had just rescued the village. The fallback was destroyed by the recovery
+       it had performed, and a second kill inside the next minute took the lot.
+
+       Measured: truncate the primary to sixty per cent and save, and the
+       backup comes back unparseable. Keeping the older backup instead means it
+       lags by more than the usual minute, which is the right way round: a
+       minute is the price, a village is not. */
     if (saveN++ % BACKUP_EVERY === 0) {
       const prev = localStorage.getItem(KEY);
-      if (prev) localStorage.setItem(KEY_BAK, prev);
+      if (prev && usableSave(readSave(prev))) localStorage.setItem(KEY_BAK, prev);
     }
   } catch (e) {}
   try { localStorage.setItem(KEY, JSON.stringify({
@@ -2377,8 +2398,8 @@ function save() {
   }
 }
 function load() {
-  const parse = k => { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } };
-  const usable = x => x && typeof x === 'object' && x.v === SAVE_V && Array.isArray(x.placed);
+  const parse = k => readSave(localStorage.getItem(k));
+  const usable = usableSave;
   let s = parse(KEY);
   // same defensive shape as Gatestorm's loadProg: never trust what comes back
   if (!usable(s)) {
@@ -5671,7 +5692,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   get orderT() { return orderT; }, set orderT(v) { orderT = v; },
   get goalDone() { return goalDone; }, set goalDone(v) { goalDone = v; },
   SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; },
-  KEY, KEY_BAK, BACKUP_EVERY,
+  KEY, KEY_BAK, BACKUP_EVERY, usableSave, readSave,
   get saveFailed() { return saveFailed; }, set saveFailed(v) { saveFailed = v; },
   get loadedFromBackup() { return loadedFromBackup; }, set loadedFromBackup(v) { loadedFromBackup = v; },
   sky, dayPhase, DAY_MS, camFit, get camFling() { return camFling; },
