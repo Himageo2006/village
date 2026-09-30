@@ -1052,7 +1052,34 @@
     }
     for (let i = 0; i < 120 * 30; i++) V2.step(1 / 30);
     V2.panel = V2.placed[1].id; V2.barMode = 'build';
+    /* At every shape of screen, not at whichever one the harness is running in.
+
+       This is the same lesson asScreen was written for -- "the loop that
+       claimed to test every shape of screen the HUD scale can take tested
+       exactly one" -- and it had been applied to the text and never to the
+       taps, which is the more expensive half: a string that overflows is ugly,
+       a control that cannot be pressed is a game you cannot play. Every
+       position and every hit region on the HUD is US() times something, and
+       US() is clamped between 1 and 1.34 by the canvas height alone, so a
+       conflict that only appears at the top of that range is invisible in a
+       pane laid out at the bottom of it. Measured across these seven: US runs
+       1.000 to 1.340 and the canvas 1536 to 3072, and the pane the harness
+       usually sits in is at one end of both.
+
+       The painting hit-masks below are left at one shape. They depend on the
+       camera rather than on the HUD scale, and they already sweep seven zooms,
+       which is the axis that matters for them. */
+    const shapes = [[1200, 800], [360, 640], [375, 667], [390, 844], [344, 882], [360, 1040], [400, 1200]];
+    const keepScreen = [window.innerWidth, window.innerHeight];
+    const bad = [];
+    let shapesSeen = 0, scales = new Set();
+    let controls = 0;
+    for (const [sw, sh] of shapes) {
+    asScreen(sw, sh);
+    V2.draw();                       // fitCanvas reads the faked size and resizes
+    shapesSeen++; scales.add(us().toFixed(3));
     const R = V2.panelRects(), tabs = V2.tabRects(), bars = V2.barRects(), M = V2.muteRect();
+    const where = ' (on a ' + sw + 'x' + sh + ' screen)';
     const drawn = [
       { n: 'close', x: R.close.x, y: R.close.y, w: R.close.r * 2, h: R.close.r * 2 },
       { n: 'move', x: R.move.x, y: R.move.y, w: R.move.w, h: R.move.h },
@@ -1080,17 +1107,30 @@
       }
       return 'world';
     };
-    const bad = [];
     for (const d of drawn) {
-      if (claim(d.x, d.y) !== d.n) bad.push({ control: d.n, its_middle_went_to: claim(d.x, d.y) });
+      if (claim(d.x, d.y) !== d.n) bad.push({ control: d.n + where, its_middle_went_to: claim(d.x, d.y) });
       for (const o of drawn) {
         if (o === d) continue;
         for (const [fx, fy] of [[0, 0], [-0.4, 0], [0.4, 0], [0, -0.4], [0, 0.4]]) {
           const px = o.x + fx * o.w, py = o.y + fy * o.h;
-          if (claim(px, py) === d.n) bad.push({ drawn_as: o.n, taken_by: d.n });
+          if (claim(px, py) === d.n) bad.push({ drawn_as: o.n + where, taken_by: d.n });
         }
       }
+      /* And drawn where a thumb can reach it. A control laid out past the
+         bottom of the canvas answers taps nobody can make. */
+      controls++;
+      if (d.x - d.w / 2 < -0.5 || d.x + d.w / 2 > 1024.5
+        || d.y - d.h / 2 < V2.screenTop() - 0.5 || d.y + d.h / 2 > V2.screenBot() + 0.5)
+        bad.push({ control: d.n + where, off_screen: [Math.round(d.x - d.w / 2), Math.round(d.y - d.h / 2),
+          Math.round(d.x + d.w / 2), Math.round(d.y + d.h / 2)] });
     }
+    }
+    asScreen(keepScreen[0], keepScreen[1]);
+    V2.draw();
+    /* Both ends of the clamp, or the sweep is back to testing one shape under a
+       longer list. */
+    if (shapesSeen !== shapes.length) bad.push({ shapes: 'only ' + shapesSeen + ' of ' + shapes.length + ' were laid out' });
+    if (scales.size < 2) bad.push({ scales: 'every shape came out at the same HUD scale, so the list proves nothing' });
     V2.panel = null;
     /* A building is what you see, not the ground under it. Taps used to be
        matched to plots only, so the roof and tower of the hall -- the top half
@@ -1134,7 +1174,7 @@
     }
     }
     V2.CAM.z = keepZ; V2.CAM.x = keepX; V2.CAM.y = keepY; V2.step(0.001);
-    return { controls: drawn.length, paintingChecks, conflicts: bad.length, worst: bad.slice(0, 6) };
+    return { controls, shapes: shapesSeen, scales: [...scales], paintingChecks, conflicts: bad.length, worst: bad.slice(0, 6) };
   };
 
   /* ---------------------------------------------------------------------------
