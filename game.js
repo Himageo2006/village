@@ -1977,13 +1977,21 @@ const TUT = [
      simply run out of room for anything it is allowed to build. */
   { id: 'land',  text: 'Tap the darker ground past your border to claim more land',
     when: () => !!landNext() && (/land|island/i.test((currentGoal() || {}).text || '') || outOfRoom()) },
-  { id: 'full',  text: 'Your stores are full — what villagers bring in now is thrown away. Spend it, trade it away, or build a storehouse',
+  /* The last clause is only true when the hall allows another storehouse.
+     Measured at hall level one, three villagers and a full three hundred: the
+     strip read "or build a storehouse" with the storehouse not yet unlocked and
+     no such card on the tray, and the hint is shown ONCE, so that was the whole
+     of what the player was ever told about the state. Raising the hall is not
+     named here because the hint above this one is about exactly that, and it
+     comes first in the list. */
+  { id: 'full', text: () => 'Your stores are full — what villagers bring in now is thrown away. '
+      + (permitted('store') ? 'Spend it, trade it away, or build a storehouse' : 'Spend it or trade it away'),
     when: () => placed.some(p => p.key !== 'hall' && B(p.key).jobs && p.t >= 1)
                 && (isFull('wood') || isFull('food')) },
 ];
 // nowhere left on the claim for any building the hall still allows
 function outOfRoom() {
-  const want = BUILDINGS.filter(b => b.key !== 'hall' && !b.decor && unlocked(b.key) && !atLimit(b.key));
+  const want = BUILDINGS.filter(b => b.key !== 'hall' && !b.decor && permitted(b.key));
   if (!want.length) return false;
   const L = landBounds(), occ = occupied();
   for (const b of want)
@@ -1991,6 +1999,9 @@ function outOfRoom() {
       if (canPlace(b.key, c, r, occ)) return false;
   return true;
 }
+/* A hint's words. All but one are fixed; the one about full stores has to look
+   at the village, because half of what it said was advice the tray refuses. */
+const hintText = h => typeof h.text === 'function' ? h.text() : h.text;
 function currentHint() {
   for (const h of TUT) if (!tutSeen.includes(h.id) && h.when()) return h;
   return null;
@@ -2066,6 +2077,15 @@ const DECOR_MAX = 60;
 const decorCount = () => placed.reduce((n, p) => n + (isDecor(p.key) ? 1 : 0), 0);
 const unlocked = key => key === 'hall' || isDecor(key) || allowedOf(key) > 0;
 const atLimit = key => isDecor(key) ? decorCount() >= DECOR_MAX : countOf(key) >= allowedOf(key);
+/* Whether "build one of these" is advice the player can actually take: the hall
+   allows another, and the card is on the tray to be tapped. Three places asked
+   it and a fourth -- the hint that fires when the stores fill -- did not, and
+   told a player at hall level one to build a storehouse, which at that level is
+   not merely unaffordable but not in the tray at all. Advice the tray refuses
+   is worse than none; it is the same fault the hall panel was fixed for, and it
+   was still loose here because the words were written into a table rather than
+   worked out from the village. */
+const permitted = key => unlocked(key) && !atLimit(key);
 /* Villagers with no post. A workplace built with none of these standing about
    produces NOTHING -- nobody moves house to staff it -- and the village is short
    of people at every hall level: eleven posts go begging at hall five with
@@ -4256,7 +4276,7 @@ function drawHint() {
   const h = currentHint(); if (!h) return;
   const u = US(), y = hudTop() + 132 * u;
   g.save();
-  const fit = fitLines(h.text, W - 108 * u, 23 * u, 13 * u, 2);
+  const fit = fitLines(hintText(h), W - 108 * u, 23 * u, 13 * u, 2);
   const tw = Math.max(...fit.lines.map(l => g.measureText(l).width));
   const w = Math.min(W - 40 * u, tw + 56 * u);
   const hh = Math.max(58 * u, fit.lines.length * fit.px * 1.22 + 30 * u);
@@ -4683,7 +4703,7 @@ function remedy(short) {
   const kinds = BUILDINGS.filter(b => b.key !== 'hall' && !b.decor
     && (short === 'people' ? b.pop : b.jobs && b.makes));
   const noun = short === 'people' ? 'a house' : 'a workplace';
-  if (kinds.some(b => unlocked(b.key) && !atLimit(b.key))) return 'build ' + noun;
+  if (kinds.some(b => permitted(b.key))) return 'build ' + noun;
   const gains = p => { const i = upInfo(p);
     if (i.max || i.gate || p.t < 1) return false;
     const next = { ...p, lvl: lvlOf(p) + 1 };
@@ -5017,7 +5037,7 @@ function drawPanel() {
       ? '🪵' + compact(sharedTotal.wood) + ' 🌾' + compact(sharedTotal.food) + ' shared with neighbours'
       : 'every goal done');
     else if (full.length) s2 += '  ·  ' + (full.length === 2 ? 'stores' : full[0] === 'wood' ? '🪵 store' : '🌾 store')
-      + ' full — ' + (atLimit('store') ? 'spend or trade' : 'build a storehouse');
+      + ' full — ' + (permitted('store') ? 'build a storehouse' : 'spend or trade');
     else if (st.idle) s2 += '  ·  ' + st.idle + ' idle — ' + remedy('jobs');
     else if (empty) s2 += '  ·  ' + count(empty, 'post') + ' empty — ' + remedy('people');
     else s2 += '  ·  every post filled';
@@ -5615,7 +5635,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   camProject, camUnproject, canPlace, placeProblem, occupied, place, step, draw, barRects, barList, tileAt,
   get sel() { return selBuild; }, set sel(v) { selBuild = v; },
   tap, CAM, save, load, get caps() { return caps; },
-  HALL, hallOf, hallLevel, allowedOf, countOf, atLimit, unlocked, buildable,
+  HALL, hallOf, hallLevel, allowedOf, countOf, atLimit, unlocked, buildable, permitted, hintText,
   canUpgrade, upgradeBuilding, upInfo, upCostOf, lvlOf, popOf, capsOf, capsHeld, rateOf, outMul, LVL_MAX,
   shortfall, shortText, remedy, villageStats, wellGain, wellGainAtLevel, wellGainAt, charmDelivered, deliveredOf, deliveringNow, deliveredWith, travelSecondsOf, handsFor,
   bestDeliveredOf, reachOf, snugWalkOf,

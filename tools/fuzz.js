@@ -1378,9 +1378,87 @@
       }
     }
 
+    /* And no hint names a building the player cannot build.
+
+       "Advice the tray refuses is worse than none" is a rule the hall panel and
+       remedy() both keep, and the hints did not, because their words are
+       written into a table rather than worked out from the village. The
+       full-stores hint ended "or build a storehouse" whatever the hall allowed:
+       at level one, measured, the storehouse is not merely unaffordable but not
+       unlocked and not on the tray at all -- and this hint is shown ONCE, so
+       that was the whole of what the player was ever told about the state.
+
+       Stated over every building rather than over that one clause, because the
+       fault is in how the words were written and the next hint will be written
+       the same way. Names are stripped longest first, or "storehouse" would be
+       read as asking for a house. */
+    {
+      const named = V.BUILDINGS.filter(b => b.key !== 'hall')
+        .map(b => ({ key: b.key, word: b.name.toLowerCase() }))
+        .sort((a, b) => b.word.length - a.word.length);
+      const namesIn = text => {
+        let rest = ' ' + text.toLowerCase() + ' ', out = [];
+        for (const n of named) {
+          let hit = false;
+          while (rest.includes(n.word)) { hit = true; rest = rest.replace(n.word, ' '); }
+          while (rest.includes(' ' + n.key + ' ')) { hit = true; rest = rest.replace(' ' + n.key + ' ', '  '); }
+          if (hit) out.push(n.key);
+        }
+        return out;
+      };
+      /* A matrix of villages, because which hints can fire and which buildings
+         are permitted both turn on the hall. Every hint that CAN take the strip
+         in a village is walked past by marking it read and asking again.
+
+         stage is how far the village has got: the first two hints only speak to
+         a village that has not built the thing they are asking for, and the
+         land hint only to one with a border left to push out and a goal asking
+         for it. Every hint in the table has to be seen by the end, or the check
+         is only looking at the ones that happen to be easy to reach. */
+      const LAND_GOAL = V.GOALS.findIndex(g => /land|island/i.test(g.text));
+      let looked = 0, hintsSeen = new Set();
+      for (const hallLvl of [1, 2, 3, 4, 5]) for (const stores of [0, 1, 2, 4])
+      for (const stage of [0, 1, 2]) {
+        V.placed.length = 0; V.villagers.length = 0;
+        V.landTier = stage === 2 ? V.LAND_MAX : 0; V.coverPlaced();
+        V.goalIdx = stage === 2 ? 0 : LAND_GOAL;
+        V.away = null; V.goalDone = null; V.finished = null; V.panel = null;
+        V.tutSeen.length = 0;
+        V.ensureHall(); V.placed[0].lvl = hallLvl;
+        V.res.wood = 1e6; V.res.food = 1e6;
+        const LB = V.landBounds();
+        const put = k => { for (let r2 = LB.lo; r2 <= LB.hi; r2++) for (let c2 = LB.lo; c2 <= LB.hi; c2++)
+          if (V.canPlace(k, c2, r2, V.occupied())) return V.place(k, c2, r2); return false; };
+        if (stage >= 1) put('house');
+        if (stage >= 2) { put('farm'); put('lumber'); }
+        for (let i = 0; i < stores; i++) put('store');
+        for (let i = 0; i < 40 * 30; i++) V.step(1 / 30);
+        /* Both halves of the matrix: stores at the ceiling, which is what the
+           last hint is about, and stores with room, which is every other one. */
+        for (const full of [true, false]) {
+          V.tutSeen.length = 0;
+          if (full) { V.res.wood = V.caps.wood; V.res.food = V.caps.food; }
+          else { V.res.wood = 0; V.res.food = 0; }
+          for (let guard = 0; guard < V.TUT.length + 1; guard++) {
+            const h = V.currentHint();
+            if (!h) break;
+            hintsSeen.add(h.id); looked++;
+            for (const key of namesIn(V.hintText(h)))
+              if (!V.permitted(key))
+                fails.push('the "' + h.id + '" hint names the ' + key
+                  + ', which the hall does not allow: "' + V.hintText(h) + '"');
+            V.tutSeen.push(h.id);
+          }
+        }
+      }
+      if (!looked) fails.push('the hint-advice check got no hint onto the strip, so it proves nothing');
+      for (const id of V.TUT.map(h => h.id))
+        if (!hintsSeen.has(id)) fails.push('the hint-advice check never saw the "' + id + '" hint');
+    }
+
     delete document.hidden;                     // back to what the browser says
     V.goalIdx = 0;                              // left as it was found, unfinished
-    return { cases: 6, fails };
+    return { cases: 7, fails };
   };
   /* Building badges never print over one another. A built-up island at phone
      zoom used to stack "−63%", "−65%" and rows of ▲ into an unreadable pile. */
