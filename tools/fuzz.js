@@ -217,6 +217,30 @@
       for (const [id, n] of fresh.want) if (cached.want.get(id) !== n) return false;
       return true;
     }],
+    /* Nobody is posted to scaffolding while a post that can actually deliver
+       has room for them. Spare hands ARE welcome in the scaffolding -- the pass
+       that places them ignores what a post is worth, on purpose, so that a
+       villager with nowhere better to be stands somewhere rather than loitering
+       -- so this only asks the question when somewhere better has an empty slot.
+
+       "Can actually deliver" has to mean what computeJobs means by it, which is
+       finished AND with room in the barn it produces into: a shed filling a full
+       granary is worth exactly as little as a shed in scaffolding, and the game
+       ranks the two together deliberately. Counting the full one as somewhere
+       better reported 9 failures in 12,000 rounds on a village doing nothing
+       wrong -- the checker being wrong rather than the game, and a reminder that
+       a rule restated in the harness is a second definition that can drift. */
+    ['no hand is held on a post that delivers nothing', () => {
+      const room = k => V.caps[k] - V.res[k] >= V.CARRY;
+      const canDeliver = q => {
+        const b = V.B(q.key);
+        return !!(b.jobs && b.makes) && q.t >= 1 && room(Object.keys(b.makes)[0]);
+      };
+      const want = V.desiredJobs().want;
+      const short = V.placed.some(q => canDeliver(q) && (want.get(q.id) || 0) < V.jobsOf(q));
+      if (!short) return true;
+      return V.placed.every(q => !(V.B(q.key).jobs && q.t < 1 && (want.get(q.id) || 0) > 0));
+    }],
     /* And a store the cache still believes in must be where it says it is:
        moving one changes no membership at all, only a position. */
     ['a cached store is where it stands', () => V.stores().every(p => {
@@ -2456,6 +2480,8 @@
      says. That is checked directly instead, on the stock it accrues. */
   window.scaffoldSweep = function () {
     const V = window.__v, fails = [];
+    const count = (n, w) => n + ' ' + w + (n === 1 ? '' : 's');
+    const held = {};                     // what holding a hand in the scaffolding costs
     const give = () => ({
       caps: V.caps.wood + '/' + V.caps.food,
       allow: V.BUILDINGS.map(b => b.key + ':' + V.allowedOf(b.key)).join(' '),
@@ -2466,19 +2492,40 @@
     const diff = (x, y) => Object.keys(x).filter(k => x[k] !== y[k]);
     /* houseLvl is the whole workforce: the first block wants the village as it
        comes, the second wants more hands than one post can take, so that a
-       scaffolded building can be seen pulling them over. */
-    const scene = houseLvl => {
+       scaffolded building can be seen pulling them over.
+
+       workLvl grows the workplaces with it, for the block that needs an upgrade
+       to be worth something: at level one a shed's whole output is under a load
+       a minute, which no rate measured over two minutes can separate from
+       nothing, and the step it is on opens no extra post. The hall goes to five
+       with them, or every upgrade is refused by the gate that keeps a building
+       from passing the hall.
+
+       houses is the surplus. One house at its best is six villagers against ten
+       posts, so every hand has a working post to go to and nothing stands in
+       the scaffolding at all -- which is the right behaviour, and leaves the
+       reported-rate block and the well block below with nothing to look at. The
+       workforce block wants the opposite and asks for one house. Three overfill
+       the village,
+       and the hands with nowhere better to be are the ones the game puts in the
+       scaffolding on purpose. */
+    const scene = (houseLvl, workLvl, houses = 1) => {
       V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
       V.goalIdx = 0; V.tutSeen.length = 0; V.away = null; V.goalDone = null; V.finished = null;
-      V.ensureHall(); V.placed[0].lvl = 4; V.placed[0].t = 1;
+      V.ensureHall(); V.placed[0].lvl = workLvl ? 5 : 4; V.placed[0].t = 1;
       V.res.wood = 1e5; V.res.food = 1e5;
       const LB = V.landBounds();
       let c = LB.lo + 1, r = LB.lo + 1;
-      for (const key of ['house', 'farm', 'lumber', 'store', 'well', 'mill', 'market']) {
+      const order = ['house', 'farm', 'lumber', 'store', 'well', 'mill', 'market'];
+      for (let h = 1; h < houses; h++) order.push('house');
+      for (const key of order) {
         if (!V.place(key, c, r)) { c += 3; if (c > LB.hi - 3) { c = LB.lo + 1; r += 3; } V.place(key, c, r); }
         c += 3; if (c > LB.hi - 3) { c = LB.lo + 1; r += 3; }
       }
       for (const q of V.placed) if (q.key === 'house') q.lvl = houseLvl;
+      if (workLvl) for (const q of V.placed) if (q.key !== 'hall' && q.key !== 'house') {
+        q.lvl = workLvl; q.t = 1; q.build = 0;
+      }
       V.rebuildStores();
       for (let i = 0; i < 60 * 30; i++) V.step(1 / 30);     // everything finishes and settles
     };
@@ -2535,7 +2582,7 @@
        hand being counted. */
     let measured = 0, staffed = 0;
     for (const key of ['farm', 'lumber', 'mill', 'market']) {
-      scene(3);
+      scene(5, undefined, 3);
       const p = V.placed.find(q => q.key === key);
       if (!p) continue;
       p.lvl = 2; V.rebuildStores();
@@ -2558,6 +2605,20 @@
       if (p.t >= 1) { fails.push('the ' + key + ' finished building while it was meant to be held under scaffolding'); continue; }
       measured++;
       if (V.workersAt(p.id)) staffed++;
+      /* And the sell button quotes this same figure, from the same place, to a
+         player one tap from losing the building. Armed on a scaffolded workplace
+         it read "Selling it stops 0.70/s arriving" with 0.00/s arriving -- and
+         at a level the building had not reached yet. Asked here rather than in
+         the workforce block below because the row needs somebody at the post to
+         say anything at all, and the whole point of that block is that nobody
+         is. */
+      if (V.workersAt(p.id)) {
+        const row = V.saleCost(p);
+        const quoted = row && row.match(new RegExp('([0-9.]+)/s arriving'));
+        if (quoted && +quoted[1] > 0.005)
+          fails.push('the sell button says a scaffolded ' + key + ' stops ' + quoted[1]
+            + '/s arriving, and nothing is arriving from it');
+      }
       for (const k of ['wood', 'food']) {
         const real = got[k] / secs, want = rep[k] / secs;
         /* Goods arrive a whole load at a time, so a window this long cannot
@@ -2639,7 +2700,7 @@
        a property of the spot, and a scaffolded shed will be lifted once it is
        done, exactly as an unstaffed one will be once somebody works it. */
     {
-      scene(3);
+      scene(5, undefined, 3);
       const farm = V.placed.find(q => q.key === 'farm');
       const well = V.placed.find(q => q.key === 'well');
       if (well) { V.placed = V.placed.filter(q => q !== well); V.rebuildStores(); }
@@ -2675,7 +2736,82 @@
       }
     }
 
-    return { upgrades, workplaces: produced, changedOnceFinished: changed, ratesMeasured: measured, fails };
+    /* And the WORKFORCE does not stand in the scaffolding while a working post
+       goes short.
+
+       This is the expensive half of the same fault, and the note in
+       expectedRate named it a round before it was fixed: "the new level opens
+       another post, so the workforce walks onto the dead building". computeJobs
+       ranks posts by what they deliver and fills them in that order, and it
+       asked that figure of a LEVEL rather than of what is arriving -- so paying
+       for an upgrade made the village's best-paying post the one that pays
+       nothing, and kept its hands there for the whole build.
+
+       Few hands on purpose, because that is what makes a held post a lost one:
+       with spare villagers about, whoever stands in the scaffolding was going
+       to stand somewhere, and the game puts them there deliberately. The post
+       picked is the one the village leans on MOST, because that is the one the
+       ranking held on to -- the weakest post loses its hand to the queue anyway
+       and proves nothing either way.
+
+       Asked of the plan and of the settled village both. The plan is the thing
+       that was wrong, and it answers exactly -- "how many does it want there"
+       -- where a rate summed over two minutes cannot: the difference between a
+       hand held and a hand moved is one hand's output, and the bound that would
+       catch it is a threshold picked to catch it. The cost is measured all the
+       same and reported, because a rule nobody can price is a rule nobody will
+       keep: on this village 2.93/s before the tap, 1.87/s with a hand held, and
+       2.47 to 2.53 with it released, which is the spread of where the hand ends
+       up rather than noise. */
+    {
+      scene(2, 4);
+      V.goalIdx = V.GOALS.length;           // no reward may arrive and be counted as production
+      const staffed = V.placed.filter(q => q.key !== 'hall' && V.B(q.key).makes && V.B(q.key).jobs
+        && V.workersAt(q.id) > 0);
+      staffed.sort((a, b) => V.deliveringNow(b) - V.deliveringNow(a));
+      const p = staffed[0];
+      const half2 = () => { for (const k of ['wood', 'food']) V.res[k] = V.caps[k] / 2; };
+      const secs2 = 120;
+      const rate2 = () => {
+        half2(); for (let i = 0; i < 10 * 30; i++) V.step(1 / 30); half2();
+        let got = 0;
+        for (let s2 = 0; s2 < secs2; s2++) {
+          const was = V.res.wood + V.res.food;
+          for (let i = 0; i < 30; i++) V.step(1 / 30);
+          got += (V.res.wood + V.res.food) - was; half2();
+        }
+        return got / secs2;
+      };
+      if (!p) fails.push('the workforce check found no staffed workplace to upgrade');
+      else {
+        const hands0 = V.workersAt(p.id), mine = hands0 * V.deliveringNow(p);
+        held.before = +rate2().toFixed(3);
+        V.res.wood = 1e5; V.res.food = 1e5;
+        const up = V.canUpgrade(p) && V.upgradeBuilding(p);
+        p.build = 1e7;                      // the scaffolding stays up to be measured against
+        for (let i = 0; i < 30 * 30; i++) V.step(1 / 30);
+        const want = V.desiredJobs().want;
+        const short = V.placed.filter(q => q !== p && q.t >= 1 && V.deliveringNow(q) > 0
+          && (want.get(q.id) || 0) < V.jobsOf(q));
+        short.sort((x, y) => (x.key === 'hall') - (y.key === 'hall'));   // name a real workplace, as the plan ranks them
+        held.during = +rate2().toFixed(3);
+        held.key = p.key; held.hands = hands0; held.wasWorth = +mine.toFixed(3);
+        if (!up) fails.push('the workforce check could not upgrade the ' + p.key);
+        else if (p.t >= 1) fails.push('the ' + p.key + ' finished building while the workforce was being watched');
+        else if (!short.length)
+          fails.push('the workforce check left no working post short of a hand, so it proves nothing');
+        else if (!(mine > 0))
+          fails.push('the workforce check upgraded a ' + p.key + ' that was delivering nothing anyway');
+        else if ((want.get(p.id) || 0) > 0)
+          fails.push('the workforce plan puts ' + (want.get(p.id) || 0) + ' on a ' + p.key
+            + ' under scaffolding while the ' + short[0].key + ' has an empty post');
+        else if (V.workersAt(p.id) > 0)
+          fails.push(count(V.workersAt(p.id), 'villager') + ' still standing in the '
+            + p.key + "'s scaffolding while the " + short[0].key + ' has an empty post');
+      }
+    }
+
+    return { upgrades, workplaces: produced, changedOnceFinished: changed, ratesMeasured: measured, held, fails };
   };
   /* Nothing the village has already made disappears without being handed in.
 

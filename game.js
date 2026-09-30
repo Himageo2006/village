@@ -361,6 +361,34 @@ function deliveredOf(p, lvl) {
   const q = lvl === undefined ? p : { ...p, lvl };
   return deliveredWith(q, ratedOf(q, Object.keys(b.makes)[0]));
 }
+/* And what it is handing over RIGHT NOW, which is nothing at all while the
+   scaffolding is up.
+
+   deliveredOf is a question about a LEVEL -- what a building of this kind at
+   this level delivers per pair of hands -- and four places asked it when what
+   they meant was "what is arriving". The one gate stepVillagers produces
+   through is p.t >= 1, and an upgrade is PAID FOR before the work is done: the
+   level lands the instant the player taps, so those four counted the new,
+   bigger rate on a building that makes nothing until the scaffolding comes
+   down. capsSum and livedIn already answer their own questions with the level a
+   building is HOLDING, for the same reason -- a thing paid for is not a thing
+   finished.
+
+   The resource chips were fixed where they stood, and the note left there said
+   the rest of it out loud without following it up: "the new level opens another
+   post, so the workforce walks onto the dead building". It does, and that is
+   the expensive half. computeJobs ranks posts by this figure and staffs them in
+   that order, so paying for an upgrade made the village's best-paying post the
+   one that pays nothing, and left a pair of hands standing in the scaffolding
+   while a working post went short. Measured on a four-villager village with the
+   farm's upgrade held open: 3.17/s arriving before the tap, 2.47/s after, one
+   hand of four parked on nothing for as long as the work took.
+
+   Asked without a level, so every caller that wants the hypothetical -- the
+   panel's "when it is done", a ghost's badge, the next level's quote, the walk
+   penalty measured against a perfect spot -- still names the level it means and
+   is untouched by this. */
+const deliveringNow = p => p.t < 1 ? 0 : deliveredOf(p);
 // how many pairs of hands a level would really get: the staff it has, plus
 // whoever is loitering, and never more posts than the level opens
 /* Hands a post could actually get, which is not the same as hands with no job
@@ -851,7 +879,12 @@ function computeJobs(handsIn) {
     const b = B(p.key);
     if (!b.makes) return 0;
     if (anyRoom && !hasRoomFor(Object.keys(b.makes)[0])) return 0;
-    return deliveredOf(p);
+    /* And a post under scaffolding is worth nothing for the same reason a post
+       filling a full barn is: whatever the hands do there reaches nobody. They
+       are not turned out of it -- the pass that places spare hands ignores this
+       figure, so an idle villager still stands in the scaffolding rather than
+       loitering -- but they no longer hold the post against a working one. */
+    return deliveringNow(p);
   };
   posts.sort((a, b) => (a.key === 'hall') - (b.key === 'hall') || worth(b) - worth(a));
   const want = new Map(posts.map(p => [p.id, 0]));
@@ -2557,23 +2590,12 @@ function expectedRate() {
   for (const p of producers()) {
     const b = B(p.key);
     if (!b.makes) continue;
-    /* Not while the scaffolding is up. The one gate stepVillagers produces
-       through is p.t >= 1, and an upgrade is PAID FOR before the work is done:
-       the level lands at once, so the post is counted at its new, bigger rate
-       from the instant the player taps, on a building that makes nothing until
-       the scaffolding comes down. And the new level opens another post, so the
-       workforce walks onto the dead building -- the phantom figure grows with
-       every hand that arrives.
-
-       Measured on a village whose only farm was being improved, with the
-       scaffolding held up for two minutes: the food chip read +1.45/s while
-       0.00/s reached the granary, and the wood chip beside it was right to
-       within 4%. capsSum and livedIn already answer this question with the
-       level a building is HOLDING, for the same reason -- a thing paid for is
-       not a thing finished. */
-    if (p.t < 1) continue;
+    /* Nothing while the scaffolding is up -- deliveringNow says why. Measured
+       on a village whose only farm was being improved, with the scaffolding
+       held up for two minutes: the food chip read +1.45/s while 0.00/s reached
+       the granary, and the wood chip beside it was right to within 4%. */
     const n = workersAt(p.id);
-    if (n) out[Object.keys(b.makes)[0]] += n * deliveredOf(p);
+    if (n) out[Object.keys(b.makes)[0]] += n * deliveringNow(p);
   }
   return out;
 }
@@ -2593,7 +2615,7 @@ function potentialRate(withoutHome) {
   for (const p of posts) {
     const hands = want.get(p.id) || 0;
     if (!hands) continue;
-    out[Object.keys(B(p.key).makes)[0]] += hands * deliveredOf(p);
+    out[Object.keys(B(p.key).makes)[0]] += hands * deliveringNow(p);
   }
   return out;
 }
@@ -3455,7 +3477,7 @@ function drawWorld() {
              so a lumber camp whose panel said "0.92/s delivered" was "now 0.46"
              here: the same camp, two numbers, a factor of two apart. */
           : (hands * deliveredOf(probe)).toFixed(2) + '/s here'
-            + (from && from.key === selKey ? '   ·   now ' + (hands * deliveredOf(from)).toFixed(2)
+            + (from && from.key === selKey ? '   ·   now ' + (hands * deliveringNow(from)).toFixed(2)
               : eff > 0.85 ? '' : '   ·   best ' + (hands * bestDeliveredOf(probe)).toFixed(2));
         const w2 = g.measureText(txt).width + 26;
         /* Held on the screen. Everything else drawn in the world is allowed to
@@ -4338,7 +4360,7 @@ function saleCost(p) {
       + (lost.length ? lost.map(([k, v]) => perSec(k, v)).join('  ') : 'none of them were working');
   }
   if (b.jobs && b.makes && p.key !== 'hall') {
-    const k = Object.keys(b.makes)[0], v = workersAt(p.id) * deliveredOf(p);
+    const k = Object.keys(b.makes)[0], v = workersAt(p.id) * deliveringNow(p);
     return v > 0.005 ? 'Selling it stops ' + perSec(k, v).replace('−', '') + ' arriving' : null;
   }
   if (b.boost) {
@@ -5569,7 +5591,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   tap, CAM, save, load, get caps() { return caps; },
   HALL, hallOf, hallLevel, allowedOf, countOf, atLimit, unlocked, buildable,
   canUpgrade, upgradeBuilding, upInfo, upCostOf, lvlOf, popOf, capsOf, rateOf, outMul, LVL_MAX,
-  shortfall, shortText, remedy, villageStats, wellGain, wellGainAtLevel, wellGainAt, charmDelivered, deliveredOf, deliveredWith, travelSecondsOf, handsFor,
+  shortfall, shortText, remedy, villageStats, wellGain, wellGainAtLevel, wellGainAt, charmDelivered, deliveredOf, deliveringNow, deliveredWith, travelSecondsOf, handsFor,
   bestDeliveredOf, reachOf, snugWalkOf,
   panelRects, TOUCH_MIN, padHit, TEXT_MIN, get panel() { return panel; }, set panel(v) { panel = v; },
   get villagers() { return villagers; }, workersAt, boostAt, producers, stores,
