@@ -1762,6 +1762,16 @@
     V.placed.length = 0; V.villagers.length = 0; V.ensureHall();
     V.panel = null; V.sel = null; V.moving = null; V.claimAsk = false;
     V.away = null; V.goalDone = null; V.finished = null;
+    /* And an UNFINISHED village, or clearing the completion card achieves
+       nothing: it is raised from the STATE of the village, every tick until it
+       is dismissed, so a sweep that leaves goalIdx past the last goal has the
+       card back on the first step and the plain tap lands on it. Reproduced
+       deterministically -- set goalIdx to the end and this sweep reports a
+       broken tap twice running. It passes in the battery only because the hint
+       sweep before it puts goalIdx back, which is the running order deciding
+       the answer, and the note above is about exactly that. hintSweep needed
+       the same line for the same reason. */
+    V.goalIdx = 0; V.tutSeen.length = 0;
     /* camFit sets the zoom, not the centre -- boot pans first and fits after --
        so the camera had to be pointed at the hall as well, or the tap was
        dispatched at a point off the edge of the canvas. */
@@ -3011,7 +3021,14 @@
         V.res.wood = 5e3; V.res.food = 5e3;
         const m = /([\d.]+)\/s delivered\s+→\s+([\d.]+)\/s/.exec(rateRow(p));
         if (!m) { skipped++; continue; }
-        const promised = +m[2], hands = V.workersAt(p.id);
+        /* The hands the PROMISE was quoted for, not the hands there now.
+           The panel quotes the next level with the staff it would really get --
+           the ones it has plus whoever is idle -- so holding the result against
+           an unchanged staff count passes a case where the idle villager never
+           came and the figure was always going to be missed by half. Seen once,
+           on a level one lumber camp quoted 0.93/s that delivered 0.47/s, and a
+           checker whose answer depends on when you ran it is not a checker. */
+        const promised = +m[2], hands = V.handsFor(p, Math.min(V.LVL_MAX, V.lvlOf(p) + 1));
         if (!V.upgradeBuilding(p)) { skipped++; continue; }
         /* The same row WHILE the scaffolding is up. A level is paid for before
            the work is done, so the row quoted the new one as though it were
@@ -3227,7 +3244,85 @@
       }
     }
 
-    return { checked, skipped, delivering: counted, holding: rooms, housing: people, fails };
+    /* And what the sell button quotes is what the village receives.
+
+       The panel makes two promises about taking a building down and they are
+       written in two places: the button says what comes back, clamped to the
+       room the village will have AFTER the sale, and the warning that appears
+       once the button is armed says what will not fit. Nothing held the pair of
+       them against what actually happens, and the file has form here -- there
+       was a second removeDecor once, and until this round a dead branch of the
+       upgrade button still carried "Remove 75 back", half the price with no
+       clamp on it, disagreeing with the button beside it.
+
+       Both figures are read the way a player meets them: the refund before
+       arming, because arming replaces it with "Tap again to sell", and the
+       warning after. Stock is emptied first -- a workplace hands in what it had
+       made as well, which is a bonus the button never promised and would swamp
+       the arithmetic. */
+    let quotes = 0;
+    {
+      const isBtn = new RegExp('^(Sell|Remove)($|[  \u00b7])');
+      const pick = text => { const o = { wood: 0, food: 0 };
+        for (const m of text.matchAll(new RegExp('(🪵|🌾)[^0-9]*([0-9]+)', 'g')))
+          o[m[1] === '🪵' ? 'wood' : 'food'] += +m[2];
+        return o; };
+      const rowsArmed = (p, armed) => {
+        V.panel = p.id; V.sellArm = armed ? { id: p.id, t: V.SELL_ARM } : null;
+        V.step(0.001);
+        const lines = [];
+        ctx.fillText = function (t, ...a) { lines.push(String(t)); return orig.call(this, t, ...a); };
+        try { V.draw(); } finally { ctx.fillText = orig; }
+        V.panel = null; V.sellArm = null;
+        return lines;
+      };
+      for (const key of ['store', 'statue', 'farm', 'market', 'house'])
+      for (const where of ['empty', 'half', 'full', 'short'])
+      for (const lvl of [1, 3]) {
+        V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
+        V.goalIdx = V.GOALS.length; V.tutSeen.length = 0;
+        V.away = null; V.goalDone = null; V.finished = null; V.panel = null;
+        V.ensureHall(); V.placed[0].lvl = 5;
+        V.res.wood = 1e6; V.res.food = 1e6;
+        const LB = V.landBounds();
+        for (const k of ['store', 'statue', 'farm', 'house', 'market'])
+          for (let r2 = LB.lo; r2 <= LB.hi; r2++) { let done = false;
+            for (let c2 = LB.lo; c2 <= LB.hi && !done; c2++)
+              if (V.canPlace(k, c2, r2, V.occupied())) done = V.place(k, c2, r2);
+            if (done) break; }
+        for (let i = 0; i < 20 * 30; i++) V.step(1 / 30);
+        for (const q of V.placed) if (q.key !== 'hall' && !V.isDecor(q.key)) q.lvl = lvl;
+        /* Let the levels land through a real finish, which is what rebuilds the
+           ceiling: caps is a cache and this block sets levels by hand. */
+        V.res.wood = 1e6; V.res.food = 1e6;
+        for (let i = 0; i < 20 * 30; i++) V.step(1 / 30);
+        const p = V.placed.find(q => q.key === key);
+        if (!p) { fails.push('the refund check could not place a ' + key); continue; }
+        const cap = V.caps;
+        const at = { empty: 0, half: Math.floor(cap.wood / 2), full: cap.wood, short: cap.wood - 40 }[where];
+        V.res.wood = at; V.res.food = where === 'empty' ? 0 : Math.min(at, cap.food);
+        p.stock = 0;
+        const btn = rowsArmed(p, false).find(t => isBtn.test(t)) || '';
+        const warn = rowsArmed(p, true).find(t => /would spoil/.test(t)) || '';
+        if (!btn) { fails.push('a ' + key + ' panel has no sell button to read'); continue; }
+        const said = /nothing|none/.test(btn) ? { wood: 0, food: 0 } : pick(btn);
+        const spoiled = warn ? pick(warn.split('—')[1] || '') : { wood: 0, food: 0 };
+        const before = { wood: V.res.wood, food: V.res.food };
+        p.stock = 0;
+        if (!V.sellBuilding(p)) { fails.push('the refund check could not sell a ' + key); continue; }
+        quotes++;
+        for (const k of ['wood', 'food']) {
+          const got = Math.round(V.res[k] - before[k]), want = said[k] - spoiled[k];
+          if (Math.abs(got - want) > 1)
+            fails.push('a level ' + lvl + ' ' + key + ' sold with the stores ' + where
+              + ' was quoted ' + said[k] + ' ' + k + ' back and ' + spoiled[k] + ' spoiling, and the village '
+              + (got < 0 ? 'lost ' + -got : 'gained ' + got));
+        }
+      }
+      if (quotes < 30) fails.push('only ' + quotes + ' sales were quoted and checked, so the block proved little');
+    }
+
+    return { checked, skipped, delivering: counted, holding: rooms, housing: people, quoted: quotes, fails };
   };
   /* A figure on a build card is the price -- unless it is marked, and then it
      is what is still missing. The two sit in the same place in the same shape,

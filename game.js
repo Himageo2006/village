@@ -4911,7 +4911,7 @@ function drawPanel() {
       panelRow(saleRow, lx, R.y - R.h / 2 + 148 * u, R.w - 56 * u, 20 * u, '#e59a86', '');
     else if (reach !== null) {
       const walk = travelSecondsOf(p);
-      const here = n * deliveredOf(p), snug = n * bestDeliveredOf(p);
+      const snug = n * bestDeliveredOf(p);
       /* Roads are the other half of the answer and the cheapest one -- five
          wood a tile against a whole building moved -- so a badly served
          workplace on bare ground is told about them. */
@@ -5055,8 +5055,11 @@ function drawPanel() {
   g.font = `bold ${Math.round(26 * u)}px Segoe UI, sans-serif`; g.fillText('×', R.close.x, R.close.y);
 
   const dec = isDecor(p.key);
-  const i = dec ? { max: true, cost: null, gate: 0 } : upInfo(p);
-  const ok = dec ? true : canUpgrade(p);
+  /* Not a second answer to "can this be upgraded". upInfo settles the
+     decoration case itself -- "a decoration has no levels" -- and canUpgrade is
+     built on upInfo, so asking dec here only gave the two a way to disagree. */
+  const i = upInfo(p);
+  const ok = canUpgrade(p);
   const busy = p.t < 1;
 
   const btnFace = (r2, on, text, small, warn) => {
@@ -5105,16 +5108,23 @@ function drawPanel() {
     : (dec ? 'Remove  ' : 'Sell  ') + Object.entries(netSell)
         .filter(([, v]) => v > 0).map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join(' '),
     true, armedHere);
+  /* A decoration has no third button -- panelRects gives it a wider Move and
+     Remove instead -- so everything below this line is about an upgrade.
+
+     There used to be a decoration branch down there: a "Remove 🪵75 back"
+     label, quoting HALF THE PRICE with no clamp on it, on a button the layout
+     has never created and which would have denied the tap if it had. A second
+     answer to "what do I get back", differing from the one beside it -- the
+     Remove button clamps to the room the village will have, and says "Remove ·
+     none" when that is nothing. It is the second removeDecor: unreachable, and
+     wrong where it was reachable from. */
   if (!R.up) { g.restore(); return; }
   /* A late upgrade can cost more than the village can physically hold, and then
      the button would sit grey for ever with no hint why. Storage being a real
      constraint is the point -- it just has to say so. */
   const overCap = !!i.cost && !canAfford(i.cost)
     && Object.entries(i.cost).some(([k, v]) => v > caps[k]);
-  const back = dec ? Object.entries(B(p.key).cost)
-    .map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + Math.floor(v / 2)).join('  ') : '';
-  const label = dec ? 'Remove   ' + back + ' back'
-    : busy ? 'Building…'
+  const label = busy ? 'Building…'
     : i.max ? 'Highest level'
     : i.gate ? 'Needs town hall level ' + i.gate
     /* Which of the two is actually open to them. A player with all four
