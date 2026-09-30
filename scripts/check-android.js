@@ -62,6 +62,35 @@ if (!/^#[0-9a-f]{6}$/.test(want)) {
   say('the page background', bg ? bg[1].toLowerCase() : null, want, 'index.html');
 }
 
+/* The splash images that are never drawn.
+
+   capacitor-assets generates twenty-six of them and points the launch theme
+   at them with android:background -- which is not where a window gets its
+   background from, so they were shown on no version of Android. They were
+   5.51 MB on disk and 47% of a 10.78 MB debug APK. Running npm run assets
+   brings both back without a word, so the build stops here instead. */
+const splashes = [];
+const res = path.join(root, 'android/app/src/main/res');
+for (const dir of fs.readdirSync(res)) {
+  const f = path.join(res, dir, 'splash.png');
+  if (fs.existsSync(f)) splashes.push({ dir, bytes: fs.statSync(f).size });
+}
+if (splashes.length) {
+  const mb = (splashes.reduce((a2, s2) => a2 + s2.bytes, 0) / 1048576).toFixed(2);
+  fails.push(splashes.length + ' splash images are back (' + mb + ' MB) -- capacitor-assets regenerates them,'
+    + ' and nothing draws them. Delete res/drawable*/splash.png; the launch colour is'
+    + ' windowSplashScreenBackground, set above');
+}
+/* Written without escapes on purpose: backslashes have been eaten three times
+   now on the way into a file, and a pattern that quietly stops matching turns
+   a guard into something that always passes. [^] is any character, newlines
+   included, so the comment above does not count as a reference. */
+const themeCode = read('android/app/src/main/res/values/styles.xml')
+  .replace(new RegExp('<!--[^]*?-->', 'g'), '');
+if (themeCode.includes('@drawable' + '/' + 'splash'))
+  fails.push('the launch theme points at @drawable/splash again -- android:background is not a window'
+    + ' background, so it would ship the images without ever showing them');
+
 /* And the wrapper's own settings, which are easy to lose to a cap sync. */
 const man = read('android/app/src/main/AndroidManifest.xml');
 if (!/android:screenOrientation="portrait"/.test(man))

@@ -29,12 +29,19 @@
          white, in the light mode nearly everyone is in. There is no
          values-night here, so dark mode does not save it either.
 
-         android:background below is Capacitor own template and it is inert:
-         a window takes its background from android:windowBackground, not
-         from android:background, and on API 31 and up the platform draws the
-         splash itself from the attribute above. The generated drawable/splash
-         images are therefore not what is shown. The line is left because
-         capacitor-assets writes it, and removing it would only invite it back.
+         The android:background line Capacitor template writes here is gone,
+         and so are the twenty-six drawable/splash images it pointed at. They
+         were never drawn on any version -- a window takes its background from
+         android:windowBackground, which androidx Theme.SplashScreen.Common
+         sets to its own compat drawable, and on API 31 and up the platform
+         draws the splash from the attribute above. Nothing else referenced
+         them and the layout has no background attribute either. They cost
+         5.51 MB on disk and 5083 KB of a 10.78 MB debug APK: forty-seven per
+         cent of the app was a picture nobody could ever see. Half of them
+         were landscape variants, in an app locked to portrait.
+
+         npm run assets would put both back. check-android.js refuses the
+         build if they return, and says why.
 
          postSplashScreenTheme is deliberately NOT set. It is an androidx
          attribute, honoured only by installSplashScreen(), and this app uses
@@ -42,6 +49,5 @@
          that reads as configuration and does nothing. -->
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/splashBackground</item>
-        <item name="android:background">@drawable/splash</item>
     </style>
 </resources>
