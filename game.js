@@ -1668,8 +1668,32 @@ function stepOrders(dt) {
      them. The board now sits still, which is also the honest picture -- nothing
      is wrong with the offers, the village simply has nowhere to put anything. */
   if (orders.every(o => res[o.giveK] >= o.giveN)) return;
-  const oldest = 0;
-  orders.splice(oldest, 1, { ...makeOrder(), slot: orders[oldest].slot });
+  /* And it takes the offer the player is FURTHEST from being able to take,
+     not whichever happens to sit at the front of the list.
+
+     The promise above says an offer they can act on is never pulled out from
+     under them, even one they are saving up for. The first half was kept and
+     the second was not: saving up for something means you cannot fill it yet,
+     which is exactly what this path looks for, and it took orders[0] without
+     asking which one that was. Measured -- a board of four, the player one
+     unit short of the offer at the front and visibly climbing: gone after 57
+     seconds, replaced at the same stall by a trade pointing the other way.
+
+     Judged as a SHARE of what the offer asks, not as a bare shortfall. A bare
+     shortfall protects the small offers and feeds the big ones to the trader,
+     which is backwards -- the big one is the one with the best rate and the
+     only one worth saving for. As a share, ten short of five hundred is 2%
+     and beats a hundred and twenty short of a hundred and thirty-five at 89%,
+     whatever their sizes. An offer already affordable scores zero and is safe.
+
+     The board still moves: something is always replaced, so it can never sit
+     dead. It is just no longer the one being saved for. */
+  let worst = 0, worstShare = -Infinity;
+  orders.forEach((o, i) => {
+    const share = Math.max(0, o.giveN - res[o.giveK]) / Math.max(1, o.giveN);
+    if (share > worstShare) { worstShare = share; worst = i; }
+  });
+  orders.splice(worst, 1, { ...makeOrder(), slot: orders[worst].slot });
   save();
 }
 /* Room for the reward is part of the price. Without this an order filled while

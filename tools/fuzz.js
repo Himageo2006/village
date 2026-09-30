@@ -2952,6 +2952,107 @@
      not in the list is reported as unrun rather than quietly skipped.
 
      await it: three of these are async. */
+  /* The trade board.
+
+     It has produced two defects now -- offers stranded on stalls that no
+     longer existed after a market was sold, and the offer a player was saving
+     for being handed to the next trader -- and it is the one part of the game
+     where the village changes under the player's hand while they are looking
+     at it. Its rules are promises written above the code, and this holds it to
+     them.
+
+     Its own scene, its own board, its own stores. */
+  window.orderSweep = function () {
+    const V = window.__v, fails = [];
+    const scene = () => {
+      V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
+      V.goalIdx = V.GOALS.length; V.away = null; V.goalDone = null; V.finished = null;
+      V.panel = null; V.sel = null; V.barMode = 'build'; V.tutSeen.length = 0;
+      V.ensureHall(); V.placed[0].lvl = 5; V.placed[0].t = 1;
+      V.res.wood = 1e6; V.res.food = 1e6;
+      const L = V.landBounds();
+      for (const [k, dc, dr] of [['house', 1, 1], ['store', 10, 10], ['farm', 1, 5],
+                                 ['lumber', 4, 5], ['market', 7, 1]]) V.place(k, L.lo + dc, L.lo + dr);
+      for (let i = 0; i < 200 * 30; i++) V.step(1 / 30);
+      for (const k of ['wood', 'food']) V.res[k] = V.caps[k] / 2;
+      V.orders = [];
+      let guard = 0;
+      while (V.orders.length < V.orderSlots() && guard++ < 50) { V.orderT = 1e6; V.step(1 / 30); }
+      for (const k of ['wood', 'food']) V.res[k] = V.caps[k] / 2;
+      return V.orders.length;
+    };
+
+    /* Filling one leaves every other card exactly where it was, and leaves the
+       stall empty. They used to slide left, so a quick second tap where the
+       first card had been traded on a different offer. */
+    {
+      const n = scene();
+      if (n < 3) fails.push('the sweep could only get ' + n + ' offers onto the board');
+      else {
+        const before = V.orders.map(o => ({ id: o.id, slot: o.slot }));
+        const victim = V.orders.find(o => V.canFill(o));
+        if (!victim) fails.push('no offer on a half-full village could be filled, so nothing was proved');
+        else {
+          const slot = victim.slot;
+          V.fillOrder(victim);
+          V.orderRects();                       // the draw path, which reseats
+          for (const b of before) {
+            if (b.id === victim.id) continue;
+            const now = V.orders.find(o => o.id === b.id);
+            if (!now) fails.push('filling one offer removed another from the board');
+            else if (now.slot !== b.slot) fails.push('filling one offer moved another from stall ' + b.slot + ' to ' + now.slot);
+          }
+          if (V.orders.some(o => o.slot === slot)) fails.push('a filled stall was taken over instead of being left empty');
+        }
+      }
+    }
+
+    /* An offer the player can act on is never pulled out from under them --
+       and nor is the one they are saving up for, which is the half that was
+       not kept. Set up so nothing can be filled and the player is one unit
+       short of the offer at the FRONT of the list, which is the one the old
+       code always took. */
+    {
+      const n = scene();
+      if (n < 3) fails.push('the saving-up check could only get ' + n + ' offers onto the board');
+      else {
+        const giveK = V.orders[0].giveK, getK = V.orders[0].getK;
+        V.res[giveK] = 10; V.res[getK] = V.caps[getK] / 2;
+        const savingFor = V.orders[0], startIds = V.orders.map(o => o.id);
+        let gone = null;
+        for (let s2 = 0; s2 < 600 && gone === null; s2++) {
+          for (let i = 0; i < 30; i++) V.step(1 / 30);
+          // always just short: saving up, never quite there
+          V.res[giveK] = Math.min(V.res[giveK] + 1, savingFor.giveN - 1);
+          V.res[getK] = V.caps[getK] / 2;
+          if (!V.orders.includes(savingFor)) gone = s2;
+        }
+        if (gone !== null) fails.push('the offer the player was saving for was taken by a trader after ' + gone + 's');
+        /* And the board did not seize up instead: something else must have
+           turned over, or the fix would just be a dead board. */
+        const churn = V.orders.filter(o => !startIds.includes(o.id)).length;
+        if (!churn) fails.push('nothing on the board changed in ten minutes, so it is stuck rather than protected');
+      }
+    }
+
+    /* And a board with something fillable on it is never disturbed at all. */
+    {
+      const n = scene();
+      if (n < 3) fails.push('the settled-board check could only get ' + n + ' offers onto the board');
+      else if (!V.orders.some(o => V.canFill(o))) fails.push('the settled-board check had nothing fillable to protect');
+      else {
+        const ids = V.orders.map(o => o.id).join(',');
+        for (let s2 = 0; s2 < 600; s2++) {
+          for (let i = 0; i < 30; i++) V.step(1 / 30);
+          for (const k of ['wood', 'food']) V.res[k] = V.caps[k] / 2;
+        }
+        if (V.orders.map(o => o.id).join(',') !== ids)
+          fails.push('a board with an offer the player could take was changed under them');
+      }
+    }
+    return { cases: 3, fails };
+  };
+
   window.allSweeps = async function (opts) {
     const o = opts || {}, rounds = o.rounds === undefined ? 12000 : o.rounds;
     const arcMinutes = o.arcMinutes === undefined ? 90 : o.arcMinutes;
@@ -2972,6 +3073,7 @@
       ['badgeOverlap', () => window.badgeOverlapSweep()],
       ['badge', () => window.badgeSweep()],
       ['tray', () => window.traySweep()],
+      ['order', () => window.orderSweep()],
       ['tap', () => window.tapSweep()],
       ['text', () => window.textSweep()],
       ['contrast', () => window.contrastSweep()],
