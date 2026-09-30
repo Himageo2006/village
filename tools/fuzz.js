@@ -2345,6 +2345,51 @@
       const rel = Math.abs(mant * MUL[m[2]] - v) / Math.max(1, v);
       if (rel > 0.06) note('the figure is wrong', v + ' -> "' + t + '" (' + (rel * 100).toFixed(1) + '% out)');
     }
+
+    /* The numbers the source says out loud about its own economy.
+
+       They are written into the comments as the reason a constant is what it
+       is, and two of them had quietly stopped being true -- the house ladder
+       said 295 and 620 after UP_STEP and UP_GROWTH had moved it to 290 and
+       610, and the maxed job count said 67 after the hall's woodpile and the
+       market began growing with their level. A comment that is wrong about
+       the code is worse than no comment: it is the record of why, and it gets
+       believed. So the claims are asserted here, where they fail loudly.
+
+       Only the ones that are cheap and exact. The market being a third of all
+       wood at a full village is true -- 35.7% measured, production plus the
+       trade its stalls enable -- but it costs a thirty minute simulation and
+       a player who fills every offer, so it stays a note rather than a check. */
+    {
+      const houseLadder = [1, 2, 3, 4].map(l => V.upCostOf({ key: 'house', lvl: l }).wood);
+      const want = [65, 140, 290, 610];
+      if (houseLadder.join(',') !== want.join(','))
+        note('the house upgrade ladder is not what the source says',
+          houseLadder.join('/') + ' against ' + want.join('/'));
+
+      const allow = V.HALL[V.HALL.length - 1].allow;
+      let jobs = V.jobsOf({ key: 'hall', lvl: V.HALL.length - 1, t: 1 }), pop = 0, tiles = 4;
+      for (const [k, n] of Object.entries(allow)) {
+        const b2 = V.B(k); if (!b2) continue;
+        if (b2.jobs) jobs += n * V.jobsOf({ key: k, lvl: V.LVL_MAX, t: 1 });
+        if (b2.pop) pop += n * V.popOf({ key: k, lvl: V.LVL_MAX, t: 1 });
+        tiles += n * b2.w * b2.h;
+      }
+      if (pop !== 72 || jobs !== 69)
+        note('a maxed village is not the size the source says', pop + ' villagers and ' + jobs + ' jobs, against 72 and 69');
+      /* And the point those two numbers exist to make: the ceiling sits above
+         what a full village asks for, so no house is ever wasted. */
+      if (pop > V.VILLAGER_MAX) note('a maxed village wants more villagers than the game allows', pop + ' > ' + V.VILLAGER_MAX);
+      if (jobs > pop) note('a maxed village has more posts than people, so a house can never fill them', jobs + ' > ' + pop);
+      /* 38 buildings in 104 tiles -- the allowance plus the hall, which is what
+         makes them fit the fourth ring. Both counts have to include the hall or
+         neither: the source said 37 in 104, counting the hall's four tiles but
+         not the hall, and this check is what caught it. */
+      const count = 1 + Object.values(allow).reduce((x, y) => x + y, 0);
+      if (count !== 38 || tiles !== 104)
+        note('the hall-five allowance is not the footprint the source says', count + ' buildings in ' + tiles + ' tiles, against 38 in 104');
+    }
+
     return { seconds: V.AWAY_MAX + 1, amounts: amounts.length, fails: [...bad].map(([w, eg]) => w + ': ' + eg) };
   };
   /* The yardstick a placement is judged against has to be a placement that can

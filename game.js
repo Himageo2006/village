@@ -717,7 +717,7 @@ const postNear = p => { const c=centreOf(p);
 /* The most villagers a village will ever hold.
 
    This was 24, chosen as a performance guard, and it quietly broke the late
-   game: a maxed village WANTS 72 villagers and has 67 jobs, so eight of the
+   game: a maxed village WANTS 72 villagers and has 69 jobs, so eight of the
    twelve houses the hall allows did nothing at all -- still costing wood, still
    gated behind hall levels, still asked for by a goal. The ceiling now sits
    above what a full village asks for, so a house is never wasted. */
@@ -1418,7 +1418,9 @@ const capsOf = (p, k) => B(p.key).caps ? Math.round(B(p.key).caps[k] * outMul(lv
 const rateOf = (p, k) => (B(p.key).makes ? B(p.key).makes[k] || 0 : 0) * outMul(lvlOf(p));
 
 /* Upgrade prices climb steeply on purpose -- a gentle curve is exhausted in an
-   evening. A house runs 65, 140, 295, 620 wood across its four steps. */
+   evening. A house runs 65, 140, 290, 610 wood across its four steps, and
+   unitSweep holds the ladder to that so the note cannot drift off the
+   constants again -- it said 295 and 620 for a while after they moved. */
 const UP_STEP = 2.2, UP_GROWTH = 2.1;
 function upCostOf(p) {
   const b = B(p.key), f = UP_STEP * Math.pow(UP_GROWTH, lvlOf(p) - 1);
@@ -1780,10 +1782,11 @@ const GOALS = [
      player is actually spending that hour on.
 
      All three are reachable on the fourth ring, checked rather than assumed: a
-     twelve-tile island holds the whole hall-five allowance -- 37 buildings in
-     104 tiles -- with room left for the fourteen statues the charm ceiling
-     needs. On the third ring it does not, which is why the ring above comes
-     first. */
+     twelve-tile island holds the whole hall-five allowance and the hall -- 38
+     buildings in 104 tiles -- with room left for the fourteen statues the
+     charm ceiling needs. On the third ring it does not, which is why the ring
+     above comes first. (It said 37 in 104, which counted the hall's four tiles
+     but not the hall. unitSweep holds both numbers now.) */
   { text: 'Build everything your hall allows',
     done: () => Object.keys(HALL[HALL_MAX].allow).every(k => countOf(k) >= HALL[HALL_MAX].allow[k]),
     give: { wood: 2000, food: 1300 },
