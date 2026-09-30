@@ -16,7 +16,32 @@
     </style>
 
 
+    <!-- The launch screen.
+
+         windowSplashScreenBackground is the one line here that decides what
+         the player sees when they tap the icon. Without it the app opened
+         WHITE and then jumped to the dark teal of the game. The chain, read
+         out of the merged resources of a real build: androidx values-v31 maps
+         the platform attribute android:windowSplashScreenBackground onto this
+         compat one, and Theme.SplashScreen leaves the compat one at
+         ?android:colorBackground, whose theme resolves through
+         Base.Theme.SplashScreen.DayNight to Base.Theme.SplashScreen.Light --
+         white, in the light mode nearly everyone is in. There is no
+         values-night here, so dark mode does not save it either.
+
+         android:background below is Capacitor own template and it is inert:
+         a window takes its background from android:windowBackground, not
+         from android:background, and on API 31 and up the platform draws the
+         splash itself from the attribute above. The generated drawable/splash
+         images are therefore not what is shown. The line is left because
+         capacitor-assets writes it, and removing it would only invite it back.
+
+         postSplashScreenTheme is deliberately NOT set. It is an androidx
+         attribute, honoured only by installSplashScreen(), and this app uses
+         a plain BridgeActivity that never calls it -- so it would be a line
+         that reads as configuration and does nothing. -->
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splashBackground</item>
         <item name="android:background">@drawable/splash</item>
     </style>
 </resources>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- The colour the app opens in.
+
+         It is written in four places, because four different things have to be
+         told and none of them can read the others: here, for the Android launch
+         screen; capacitor.config.json's android.backgroundColor, for the
+         WebView; the page background in index.html, for the canvas letterbox;
+         and the flat field of the generated splash art in resources/. They are
+         checked against each other by scripts/check-android.js, which runs as
+         part of npm run sync. -->
+    <color name="splashBackground">#0a3940</color>
+</resources>
