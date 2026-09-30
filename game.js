@@ -1448,6 +1448,12 @@ const peopleComing = () => placed.reduce((n, p) =>
 const jobsOf = p => { const b = B(p.key); if (!b.jobs) return 0;
   const l = lvlOf(p); return b.jobs + (l >= 3 ? 1 : 0) + (l >= 5 ? 1 : 0); };
 const capsOf = (p, k) => B(p.key).caps ? Math.round(B(p.key).caps[k] * outMul(lvlOf(p))) : 0;
+/* What it is HOLDING for the village right now: nothing the first time it is
+   being built, and the room it already had while an upgrade is under way. The
+   same question livedIn answers about people, and for the same reason -- a
+   thing paid for is not a thing finished. capsSum worked it out inline and the
+   panel did not ask it at all. */
+const capsHeld = (p, k) => { const lvl = lvlHeld(p); return lvl < 1 ? 0 : capsOf({ key: p.key, lvl }, k); };
 const rateOf = (p, k) => (B(p.key).makes ? B(p.key).makes[k] || 0 : 0) * outMul(lvlOf(p));
 
 /* Upgrade prices climb steeply on purpose -- a gentle curve is exhausted in an
@@ -2188,9 +2194,7 @@ function capsSum(skip) {
        put the village instantly over it, and stopped every delivery until the
        work finished -- so improving your storage punished you for improving
        your storage. It earns the new capacity when it is done, not before. */
-    const lvl = lvlHeld(p);
-    if (lvl < 1) continue;                        // still being built the first time
-    for (const k of ['wood', 'food']) out[k] += capsOf({ key: p.key, lvl }, k);
+    for (const k of ['wood', 'food']) out[k] += capsHeld(p, k);
   }
   return out;
 }
@@ -4858,7 +4862,8 @@ function drawPanel() {
        the row will not fit, and a market is the one building whose row runs
        long. What it holds is most of what it costs; the well bonus is on the
        well's own panel. */
-    if (b.caps) line += '   ·   holds 🪵' + capsOf(p, 'wood') + ' 🌾' + capsOf(p, 'food');
+    // what it is holding, for the same reason -- and the row already says why
+    if (b.caps) line += '   ·   holds 🪵' + capsHeld(p, 'wood') + ' 🌾' + capsHeld(p, 'food');
     const boost = boostAt(p);
     if (boost > 1 && n) line += '   ·   +' + Math.round((boost - 1) * 100) + '% from wells';
     /* Skipped for a building that is its own store; otherwise the placement
@@ -4899,8 +4904,22 @@ function drawPanel() {
         reach > 0.7 ? '#8fd06a' : reach > 0.45 ? '#e8c98a' : '#e59a86', '');
     }
   } else if (b.caps) {
-    line = 'Holds 🪵' + capsOf(p, 'wood') + '  🌾' + capsOf(p, 'food');
-    if (nl > lvlOf(p)) line += '  →  🪵' + at(nl, q => capsOf(q, 'wood')) + '  🌾' + at(nl, q => capsOf(q, 'food'));
+    /* What it is holding, not what it has been paid to hold. An upgrade is
+       bought before the work is done, so the level lands the instant the player
+       taps -- and this row read "Holds 820" the moment a level three storehouse
+       was sent to four, with 680 of it counted towards the ceiling and the other
+       140 arriving when the scaffolding comes down. Measured, with the village's
+       own capsSum disagreeing with the panel by exactly that much.
+
+       The same fault the delivered row had, and the same shape of answer: what
+       it holds now, why that is low, and what the work will make it -- with no
+       arrow to the level beyond, because a building that has not finished the
+       step it is on has no business being sold the step after it. */
+    const up = p.t < 1;
+    line = 'Holds 🪵' + capsHeld(p, 'wood') + '  🌾' + capsHeld(p, 'food');
+    if (up) line += '   ·   under scaffolding   ·   🪵' + capsOf(p, 'wood')
+      + '  🌾' + capsOf(p, 'food') + ' when it is done';
+    else if (nl > lvlOf(p)) line += '  →  🪵' + at(nl, q => capsOf(q, 'wood')) + '  🌾' + at(nl, q => capsOf(q, 'food'));
     /* Selling storage takes its capacity with it, and anything the village is
        holding above the new ceiling is gone. That used to happen in silence --
        the goods sat there looking fine until the next delivery clamped them
@@ -4912,8 +4931,15 @@ function drawPanel() {
         + ' would spoil', lx, R.y - R.h / 2 + 148 * u, R.w - 56 * u, 20 * u, '#e59a86', '');
     }
   } else if (b.pop) {
-    line = 'Houses ' + count(popOf(p), 'villager');
-    if (nl > lvlOf(p)) line += '  →  ' + at(nl, popOf);
+    /* And who lives here, which livedIn has always answered correctly for the
+       village and this row asked popOf instead: a level three house sent to four
+       said "Houses 5 villagers" with four living in it and the fifth still to
+       arrive. The count is worth getting right on a first house too, where the
+       row used to promise three residents to a village that had none yet. */
+    const up = p.t < 1;
+    line = 'Houses ' + count(livedIn(p), 'villager');
+    if (up) line += '   ·   under scaffolding   ·   ' + popOf(p) + ' when it is done';
+    else if (nl > lvlOf(p)) line += '  →  ' + at(nl, popOf);
   } else if (b.boost) {
     const wg = wellGain(p);
     /* And what the next level would lift. Every other panel says what an
@@ -5590,7 +5616,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   get sel() { return selBuild; }, set sel(v) { selBuild = v; },
   tap, CAM, save, load, get caps() { return caps; },
   HALL, hallOf, hallLevel, allowedOf, countOf, atLimit, unlocked, buildable,
-  canUpgrade, upgradeBuilding, upInfo, upCostOf, lvlOf, popOf, capsOf, rateOf, outMul, LVL_MAX,
+  canUpgrade, upgradeBuilding, upInfo, upCostOf, lvlOf, popOf, capsOf, capsHeld, rateOf, outMul, LVL_MAX,
   shortfall, shortText, remedy, villageStats, wellGain, wellGainAtLevel, wellGainAt, charmDelivered, deliveredOf, deliveringNow, deliveredWith, travelSecondsOf, handsFor,
   bestDeliveredOf, reachOf, snugWalkOf,
   panelRects, TOUCH_MIN, padHit, TEXT_MIN, get panel() { return panel; }, set panel(v) { panel = v; },

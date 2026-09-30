@@ -2906,14 +2906,16 @@
   window.promiseSweep = function () {
     const V = window.__v, cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
     const fails = [], orig = ctx.fillText;
-    const rateRow = p => {
+    const rowsOf = p => {
       V.panel = p.id; V.step(0.001);
       const lines = [];
       ctx.fillText = function (t, ...a) { lines.push(String(t)); return orig.call(this, t, ...a); };
       try { V.draw(); } finally { ctx.fillText = orig; }
       V.panel = null;
-      return lines.find(x => /\/s delivered/.test(x)) || '';
+      return lines;
     };
+    const rowLike = (p, re) => rowsOf(p).find(x => re.test(x)) || '';
+    const rateRow = p => rowLike(p, new RegExp('/s delivered'));
     V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
     V.away = null; V.goalDone = null; V.finished = null; V.goalIdx = 0; V.tutSeen.length = 0;
     V.ensureHall(); V.placed[0].lvl = 5; V.placed[0].t = 1;
@@ -3023,7 +3025,131 @@
         fails.push('a level ' + lvl + ' ' + key + ' is quoted at ' + said.toFixed(4)
           + '/s and delivers ' + real.toFixed(4) + '/s');
     }
-    return { checked, skipped, delivering: counted, fails };
+    /* And the rows that are about ROOM and PEOPLE say what the village really
+       has, not what the player has paid for.
+
+       Every figure on this card is quoted off the building's level, and an
+       upgrade is bought before the work is done -- so the level lands the
+       instant the player taps and these two rows moved with it. A level three
+       storehouse sent to four read "Holds 820" while 680 of it counted towards
+       the ceiling; a level three house sent to four read "Houses 5 villagers"
+       with four living in it. capsSum and livedIn have always answered both
+       questions with the level a building is HOLDING, which is why the fault
+       showed as the panel disagreeing with the village rather than as anything
+       going wrong in the economy.
+
+       Both claims are checked against something other than the function that
+       draws them, or the check would only prove the panel agrees with itself.
+       The storehouse is held to the village's own ceiling, measured as what the
+       ceiling loses when the building is taken out of the sum. The house is held
+       to a head count: one house in the village, so whoever is walking about
+       lives in it. */
+    let rooms = 0, people = 0;
+    {
+      V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
+      V.away = null; V.goalDone = null; V.finished = null; V.panel = null; V.sel = null;
+      V.goalIdx = V.GOALS.length; V.tutSeen.length = 0;
+      V.ensureHall(); V.placed[0].lvl = 5; V.placed[0].t = 1;
+      V.res.wood = 1e6; V.res.food = 1e6;
+      const LB = V.landBounds();
+      V.place('house', LB.lo + 1, LB.lo + 1);
+      V.place('store', LB.lo + 5, LB.lo + 1);
+      for (const x of V.placed) { x.t = 1; x.build = 0; }
+      V.rebuildStores();
+      for (let i = 0; i < 60 * 30; i++) V.step(1 / 30);
+      const house = V.placed.find(q => q.key === 'house');
+      const store = V.placed.find(q => q.key === 'store');
+      const num = new RegExp('Holds [^0-9]*([0-9]+)');
+      const heads = new RegExp('Houses ([0-9]+) villager');
+      const when = new RegExp('([0-9]+) when it is done');
+      const whenWood = new RegExp('under scaffolding[^0-9]*([0-9]+)');
+      if (!house || !store) fails.push('the holding check could not place a house and a storehouse');
+      else for (let lvl = 1; lvl <= 4; lvl++) {
+        house.lvl = lvl; store.lvl = lvl;
+        for (const x of V.placed) { x.t = 1; x.build = 0; }
+        V.rebuildStores();
+        for (let i = 0; i < 40 * 30; i++) V.step(1 / 30);
+        /* Finished first: the row and the village must agree before an upgrade
+           is anywhere near it, or a failure below says nothing about the
+           scaffolding. */
+        /* Both figures from the same fresh sum, never from the cached caps:
+           this block pokes levels and build states directly, and the cache is
+           rebuilt by the game only when something is built, sold or finished.
+           Asking the stale one reported a level one storehouse holding 400
+           against a ceiling of 0 -- the checker being wrong rather than the
+           game. capsWithout(null) skips nothing, so it IS the whole sum. */
+        const ceiling = V.capsWithout(null).wood - V.capsWithout(store).wood;
+        const m0 = num.exec(rowLike(store, num));
+        const h0 = heads.exec(rowLike(house, heads));
+        if (!m0) { fails.push('a finished level ' + lvl + ' storehouse says nothing about what it holds'); continue; }
+        if (!h0) { fails.push('a finished level ' + lvl + ' house says nothing about who lives there'); continue; }
+        if (+m0[1] !== ceiling)
+          fails.push('a level ' + lvl + ' storehouse says it holds ' + m0[1]
+            + ' and the village ceiling counts ' + ceiling + ' of it');
+        if (+h0[1] !== V.villagers.length)
+          fails.push('the only house in the village says it houses ' + h0[1]
+            + ' villagers and ' + V.villagers.length + ' are walking about');
+        V.res.wood = 1e6; V.res.food = 1e6;
+        if (!V.canUpgrade(store) || !V.canUpgrade(house)) continue;
+        V.upgradeBuilding(store); V.upgradeBuilding(house);
+        store.build = 1e7; house.build = 1e7;
+        for (let i = 0; i < 10 * 30; i++) V.step(1 / 30);
+        const ceilUp = V.capsWithout(null).wood - V.capsWithout(store).wood;
+        const upStore = rowLike(store, num), upHouse = rowLike(house, heads);
+        const m1 = num.exec(upStore), h1 = heads.exec(upHouse);
+        const willHold = whenWood.exec(upStore), willHouse = when.exec(upHouse);
+        if (!m1 || +m1[1] !== ceilUp)
+          fails.push('a storehouse under scaffolding says it holds ' + (m1 ? m1[1] : 'nothing')
+            + ' and the village ceiling counts ' + ceilUp + ' of it');
+        if (!h1 || +h1[1] !== V.villagers.length)
+          fails.push('a house under scaffolding says it houses ' + (h1 ? h1[1] : 'nobody')
+            + ' and ' + V.villagers.length + ' are walking about');
+        rooms++; people++;
+        /* And what each says the work will make it is what the finished
+           building really is. */
+        store.build = 1; house.build = 1;
+        for (let i = 0; i < 60 * 30; i++) V.step(1 / 30);
+        if (store.t < 1 || house.t < 1) { fails.push('the holding check could not finish its upgrades'); continue; }
+        const ceilDone = V.capsWithout(null).wood - V.capsWithout(store).wood;
+        if (!willHold) fails.push('a storehouse under scaffolding did not say what it will hold');
+        else if (+willHold[1] !== ceilDone)
+          fails.push('a storehouse under scaffolding said it would hold ' + willHold[1]
+            + ' and the finished one adds ' + ceilDone);
+        if (!willHouse) fails.push('a house under scaffolding did not say who it will house');
+        else if (+willHouse[1] !== V.villagers.length)
+          fails.push('a house under scaffolding said it would house ' + willHouse[1]
+            + ' and ' + V.villagers.length + ' live there now');
+      }
+      if (rooms < 3) fails.push('only ' + rooms + ' storehouse upgrades were watched, so the block proved almost nothing');
+
+      /* And the first time, which is the one a new player meets: a building
+         going up has nothing in it and nobody in it yet, and both rows used to
+         promise a level nobody had reached on a plot that was still a hole in
+         the ground. */
+      V.res.wood = 1e6; V.res.food = 1e6;
+      const fresh = [];
+      for (const [key, c, r2] of [['store', 9, 1], ['house', 1, 4]])
+        if (V.place(key, LB.lo + c, LB.lo + r2)) fresh.push(V.placed[V.placed.length - 1]);
+      if (fresh.length !== 2) fails.push('the first-build check could not put up a store and a house');
+      else {
+        const [st, ho] = fresh;
+        st.build = 1e7; ho.build = 1e7;      // the scaffolding stays up to be read
+        for (let i = 0; i < 10 * 30; i++) V.step(1 / 30);
+        if (st.t >= 1 || ho.t >= 1) fails.push('the first-build check let its buildings finish');
+        else {
+          const m = num.exec(rowLike(st, num)), h = heads.exec(rowLike(ho, heads));
+          const gives = V.capsWithout(null).wood - V.capsWithout(st).wood;
+          if (!m || +m[1] !== gives)
+            fails.push('a storehouse going up for the first time says it holds ' + (m ? m[1] : 'nothing')
+              + ' and the village ceiling counts ' + gives + ' of it');
+          if (!h || +h[1] !== 0)
+            fails.push('a house going up for the first time says it houses ' + (h ? h[1] : 'nobody')
+              + ', and nobody has moved in');
+        }
+      }
+    }
+
+    return { checked, skipped, delivering: counted, holding: rooms, housing: people, fails };
   };
   /* A figure on a build card is the price -- unless it is marked, and then it
      is what is still missing. The two sit in the same place in the same shape,
