@@ -4263,6 +4263,93 @@
     }
     return { across, text, touch, floors: { text: TEXT_FLOOR, touch: TOUCH_FLOOR }, fails };
   };
+  /* ---------------------------------------------------------------------------
+     The clocks are real times.
+
+     floorSweep holds the two size constants to sizes a person can see and hit.
+     These are the same idea for the ones measured in seconds: constants whose
+     whole purpose is written down as something that happens quickly enough, or
+     stops happening soon enough, and which no sweep was asking after.
+
+     CARRY is not a number about carrying, it is a number about watching: "a
+     big load means the resource counter sits still for half a minute and then
+     jumps, which reads as a broken game; small ones keep something arriving
+     every few seconds". Every sweep that touches CARRY quotes it back, so the
+     one thing none of them can see is the counter going quiet.
+
+     SELL_ARM is the other. Selling is the one move the game says cannot be
+     undone, so it asks twice -- and then "disarms itself after a few seconds
+     so the panel is never left sitting there with a live demolish button on
+     it". Nothing in the harness ever asked whether it disarms; the one place
+     it appears, it is being set.
+
+     Both are held in seconds, so the constants cannot move the bar with them.
+
+       clockSweep()  -> { quiet, arrivals, armedFor, fails }
+  --------------------------------------------------------------------------- */
+  window.clockSweep = function () {
+    const V = window.__v, fails = [];
+    V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
+    V.tutSeen.length = 0; V.away = null; V.goalDone = null; V.finished = null;
+    V.panel = null; V.sel = null; V.sellArm = null;
+    V.ensureHall(); V.placed[0].lvl = 5;
+    V.res.wood = 1e6; V.res.food = 1e6;
+    const L = V.landBounds();
+    const put = k => { for (let r = L.lo; r <= L.hi; r++) for (let c = L.lo; c <= L.hi; c++)
+      if (V.canPlace(k, c, r, V.occupied())) return V.place(k, c, r); return false; };
+    for (const k of ['house', 'house', 'farm', 'lumber', 'store']) put(k);
+    for (const q of V.placed) if (q.key !== 'hall') q.lvl = 3;
+    V.res.wood = 1e6; V.res.food = 1e6;
+    for (let i = 0; i < 90 * 30; i++) V.step(1 / 30);     // the levels land through a real finish
+    parkGoals();
+
+    /* How long the counter is ever allowed to sit still. The stores are put
+       back to half every second so that nothing is refused and the only reason
+       for a quiet spell is that nobody has arrived. Measured on this village
+       at the real CARRY the longest spell is about five seconds; the bar is
+       fifteen, which is three times that and still half of the half-minute
+       the source calls broken. */
+    const QUIET = 15;
+    let t = 0, last = 0, quiet = 0, arrivals = 0, prev = V.res.wood + V.res.food;
+    for (let i = 0; i < 300 * 30; i++) {
+      if (i % 30 === 0) { for (const k of ['wood', 'food']) V.res[k] = V.caps[k] / 2; prev = V.res.wood + V.res.food; }
+      V.step(1 / 30); t += 1 / 30;
+      const now = V.res.wood + V.res.food;
+      if (now > prev + 0.001) { arrivals++; quiet = Math.max(quiet, t - last); last = t; }
+      prev = now;
+    }
+    quiet = Math.max(quiet, t - last);        // and the spell still running at the end
+    if (!arrivals) fails.push('nothing arrived at all in five minutes, so the cadence proves nothing');
+    else if (quiet > QUIET)
+      fails.push('the resource counter sat still for ' + quiet.toFixed(1)
+        + ' seconds, where a load is ' + V.CARRY + ' and the source wants something every few');
+
+    /* And the live demolish button does not sit there. Armed by hand rather
+       than by tapping, because this is about the clock and not about the hit
+       region -- tapSweep has that. */
+    const p = V.placed.find(q => q.key === 'farm');
+    let armedFor = null;
+    if (!p) fails.push('the clock check could not find a building to arm');
+    else {
+      V.panel = p.id; V.sellArm = { id: p.id, t: V.SELL_ARM };
+      V.step(1 / 30);
+      if (!(V.sellArm && V.sellArm.id === p.id))
+        fails.push('the sell button disarmed itself before the player could tap it again');
+      let s2 = 0;
+      for (; s2 < 30 && V.sellArm; s2++) for (let i = 0; i < 30; i++) V.step(1 / 30);
+      armedFor = V.sellArm ? null : s2;
+      if (V.sellArm) fails.push('the sell button was still live after 30 seconds on an open panel');
+      /* And looking at something else puts it away. */
+      const other = V.placed.find(q => q.key === 'lumber' || (q.key !== 'farm' && q.key !== 'hall'));
+      if (other) {
+        V.sellArm = { id: p.id, t: V.SELL_ARM };
+        V.panel = other.id; V.step(1 / 30);
+        if (V.sellArm) fails.push('the sell button stayed live while another building was opened');
+      }
+      V.panel = null; V.sellArm = null;
+    }
+    return { quiet: +quiet.toFixed(1), arrivals, armedFor, bars: { quiet: QUIET, disarm: 30 }, fails };
+  };
   window.traySweep = function () {
     const V = window.__v, cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
     const fails = [];
@@ -4462,6 +4549,7 @@
       ['road', () => window.roadSweep()],
       ['charm', () => window.charmSweep()],
       ['floor', () => window.floorSweep()],
+      ['clock', () => window.clockSweep()],
       ['order', () => window.orderSweep()],
       ['tap', () => window.tapSweep()],
       ['text', () => window.textSweep()],
