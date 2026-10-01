@@ -2378,6 +2378,24 @@
         + ' time(s) in ' + rounds + ' saves, so no backup is being kept at all');
       else if (!V.usableSave(V.readSave(localStorage.getItem(V.KEY_BAK))))
         bakFails.push('the backup left after a run of good saves will not load');
+      /* And the lag is the minute the note beside it promises -- "falling back
+         to it costs a minute rather than everything". Timed in simulated
+         seconds against the clock rather than counted in saves, because the
+         loop above counts in BACKUP_EVERY and so cannot see BACKUP_EVERY move:
+         set it to a thousand and the backup would lag an hour and a half while
+         every line above still passed. */
+      {
+        localStorage.setItem(V.KEY, good);
+        localStorage.setItem(V.KEY_BAK, 'nothing');
+        let t = 0, lag = null;
+        for (let i = 0; i < 400 * 30 && lag === null; i++) {
+          V.step(1 / 30); t += 1 / 30;
+          if (localStorage.getItem(V.KEY_BAK) !== 'nothing') lag = t;
+        }
+        if (lag === null) bakFails.push('the backup was not written once in ' + Math.round(t) + ' seconds of play');
+        else if (lag > 180) bakFails.push('the backup lags ' + Math.round(lag)
+          + ' seconds of play, where the note beside it promises about a minute');
+      }
       try { if (realBak !== null) localStorage.setItem(V.KEY_BAK, realBak); else localStorage.removeItem(V.KEY_BAK); } catch (e) {}
     }
 
@@ -2588,6 +2606,21 @@
           fails.push('the card for ' + name + ' says the stores filled after ' + card.fullAfter.toFixed(1)
             + 's of a ' + card.secs + 's stretch');
       }
+      /* "Anything under a minute is ignored so a reload is not a reward."
+         Said here in seconds rather than through AWAY_MIN, because the branch
+         above reads AWAY_MIN and so cannot see it move: drop the floor to ten
+         and a forty-five second case simply becomes a paying one, which that
+         branch is perfectly happy with. A reload is a few seconds. */
+      {
+        scene(false, 0.2);
+        const before = { wood: V.res.wood, food: V.res.food };
+        V.away = null;
+        V.grantAway(5);
+        if (V.away) fails.push('shutting the game and opening it again put a welcome-back card up');
+        if (V.res.wood - before.wood + (V.res.food - before.food) > 0.01)
+          fails.push('shutting the game and opening it again paid the village '
+            + ((V.res.wood - before.wood) + (V.res.food - before.food)).toFixed(1));
+      }
       if (cards < 4) fails.push('only ' + cards + ' welcome-back cards were read, so the block proved little');
       if (!banked) fails.push('not one card banked anything, so the figures prove nothing');
       if (!spilt) fails.push('not one card overflowed, so the overflow half proves nothing');
@@ -2710,6 +2743,15 @@
       if (houseLadder.join(',') !== want.join(','))
         note('the house upgrade ladder is not what the source says',
           houseLadder.join('/') + ' against ' + want.join('/'));
+      /* And what a level is WORTH, which is a figure in a comment with
+         nothing holding it: "level 5 is 2.4x level 1". outMul is named
+         nowhere else in this file, so moving the 0.35 beside it changes every
+         rate in the game and no sweep says a word -- they all quote figures
+         worked out through it. */
+      const worth = +(V.outMul(V.LVL_MAX) / V.outMul(1)).toFixed(4);
+      if (Math.abs(worth - 2.4) > 0.0005)
+        note('a level is not worth what the source says',
+          'level ' + V.LVL_MAX + ' is ' + worth + 'x level 1, against 2.4x');
 
       const allow = V.HALL[V.HALL.length - 1].allow;
       let jobs = V.jobsOf({ key: 'hall', lvl: V.HALL.length - 1, t: 1 }), pop = 0, tiles = 4;
