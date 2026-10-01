@@ -4152,6 +4152,75 @@
     return { placed: n, atFull: mulAtFull === null ? null : +mulAtFull.toFixed(4),
       mul: +V.charmMul().toFixed(4), charm: V.charmTotal(), fails };
   };
+  /* ---------------------------------------------------------------------------
+     The two floors are real sizes on a real phone.
+
+     TEXT_MIN and TOUCH_MIN are the game's answers to "how small is too small to
+     read" and "how small is too small to hit", and both are written down in
+     the source in CSS pixels on a handset -- 26 logical is "about 9.5 CSS on
+     that phone", 128 logical is "47 CSS px on a 375 screen, 45 on a 360 ...
+     against the 44 to 48 both platforms ask for".
+
+     Every sweep that keeps those floors measures against the constants
+     themselves, so the constants are the one thing none of them can see move.
+     Cut TEXT_MIN from 26 to 10 and twelve drawing sweeps pass while labels are
+     free to shrink to three and a half CSS pixels -- below the five and six the
+     source measured and called a smudge rather than a label. Halve TOUCH_MIN
+     and eight more pass, tapSweep and the gesture sweep among them, because
+     they ask whether controls collide and smaller ones collide less.
+
+     So this one does not ask the game. The canvas is a fixed number of logical
+     pixels across whatever the handset is, which is the whole reason a logical
+     pixel has a size in the first place, so the conversion is arithmetic on
+     the width of the narrowest phone the game is written for. The floors are
+     then held to the figures the source cites from outside itself: the 44 CSS
+     pixels both platforms ask of a touch target, and a text size clear of the
+     five and six that were found unreadable.
+
+       floorSweep()  -> { across, text, touch, fails }
+  --------------------------------------------------------------------------- */
+  window.floorSweep = function () {
+    const V = window.__v, fails = [];
+    /* How many logical pixels the canvas is across, asked of the game rather
+       than written down here: the middle tab sits at the middle of it. */
+    const tabs = V.tabRects();
+    const across = tabs.length >= 2 ? Math.round(tabs[1].x * 2) : 0;
+    if (across < 2) fails.push('the sweep could not work out how wide the canvas is in logical pixels');
+    /* The handsets the source names. The narrowest is what the floors have to
+       clear, and 375 is the one its figures are quoted on. */
+    const PHONES = [360, 375, 390, 412];
+    const narrow = Math.min(...PHONES);
+    const css = (logical, phone) => logical * phone / across;
+    /* Both platforms ask 44 to 48 of a touch target and the source says so. */
+    const TOUCH_FLOOR = 44;
+    /* Clear of the five and six CSS pixels the source measured and rejected.
+       Not the current value, so an honest retune has somewhere to go. */
+    const TEXT_FLOOR = 8;
+    const text = {}, touch = {};
+    for (const p of PHONES) {
+      text[p] = +css(V.TEXT_MIN, p).toFixed(2);
+      touch[p] = +css(V.TOUCH_MIN, p).toFixed(2);
+    }
+    if (across >= 2) {
+      if (css(V.TOUCH_MIN, narrow) < TOUCH_FLOOR)
+        fails.push('a control floor of ' + V.TOUCH_MIN + ' logical is ' + css(V.TOUCH_MIN, narrow).toFixed(1)
+          + ' CSS pixels on a ' + narrow + ' phone, against the ' + TOUCH_FLOOR + ' both platforms ask for');
+      if (css(V.TEXT_MIN, narrow) < TEXT_FLOOR)
+        fails.push('a text floor of ' + V.TEXT_MIN + ' logical is ' + css(V.TEXT_MIN, narrow).toFixed(1)
+          + ' CSS pixels on a ' + narrow + ' phone, which is the size the source calls a smudge');
+      /* And the floors are floors: what the game actually draws and actually
+         answers taps with must not go under them. padHit is the one that
+         grows a hit region, so it may never hand back less than it was given
+         or less than half the floor. */
+      for (const half of [4, 10, 30, 64, 200]) {
+        const got = V.padHit(half, 20);
+        if (got < half) fails.push('padHit shrank a control from ' + half + ' to ' + got);
+        if (got > Math.max(half, V.TOUCH_MIN / 2) + 0.001)
+          fails.push('padHit grew a control past the floor, ' + half + ' to ' + got);
+      }
+    }
+    return { across, text, touch, floors: { text: TEXT_FLOOR, touch: TOUCH_FLOOR }, fails };
+  };
   window.traySweep = function () {
     const V = window.__v, cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
     const fails = [];
@@ -4350,6 +4419,7 @@
       ['full', () => window.fullSweep()],
       ['road', () => window.roadSweep()],
       ['charm', () => window.charmSweep()],
+      ['floor', () => window.floorSweep()],
       ['order', () => window.orderSweep()],
       ['tap', () => window.tapSweep()],
       ['text', () => window.textSweep()],
