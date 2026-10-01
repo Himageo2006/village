@@ -3993,6 +3993,90 @@
       bareReal: bareReal == null ? null : +bareReal.toFixed(2),
       pavedReal: pavedReal == null ? null : +pavedReal.toFixed(2), fails };
   };
+  /* ---------------------------------------------------------------------------
+     Charm stays a bonus, and the number over a decoration is the number it adds.
+
+     "A pleasant village works a little harder, capped so it stays a bonus
+     rather than the main economy" -- and the cap is one Math.min in one line.
+     Take it out and nothing in the battery notices: twenty-three sweeps and
+     four thousand soak rounds pass while a village of sixty statues runs at
+     1.9 times its rate instead of 1.2, because every figure the interface
+     quotes about charm is worked out from the same multiplier and they all
+     grow together.
+
+     The ceiling is where the two halves of charm come apart, so that is where
+     this looks. Past it the tray is supposed to say "charm is full -- this one
+     is for the look", and it says so by way of usefulCharm, which is clamped
+     to the room left. With the cap gone the words stay the same and the
+     decoration quietly starts helping again: measured, the badge promised
+     nothing and the village gained 0.05/s from each of the next six statues.
+
+     So: walk a village from no charm to half again past the ceiling, and at
+     every step hold the badge's promise against what the village actually
+     gains, and the multiplier against itself. A cap is a thing that stops
+     moving, which is a shape a checker can hold without being told the number.
+
+       charmSweep()  -> { placed, atFull, mul, fails }
+  --------------------------------------------------------------------------- */
+  window.charmSweep = function () {
+    const V = window.__v, fails = [];
+    V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
+    V.tutSeen.length = 0; V.away = null; V.goalDone = null; V.finished = null; V.panel = null;
+    V.ensureHall(); V.placed[0].lvl = 5;
+    V.res.wood = 1e9; V.res.food = 1e9;
+    const L = V.landBounds();
+    const put = k => { for (let r = L.lo; r <= L.hi; r++) for (let c = L.lo; c <= L.hi; c++)
+      if (V.canPlace(k, c, r, V.occupied())) return V.place(k, c, r); return false; };
+    for (const k of ['house', 'house', 'house', 'farm', 'lumber', 'store', 'mill']) put(k);
+    for (const q of V.placed) if (q.key !== 'hall') q.lvl = 4;
+    V.res.wood = 1e9; V.res.food = 1e9;
+    for (let i = 0; i < 90 * 30; i++) V.step(1 / 30);     // the levels land through a real finish
+    parkGoals();
+    /* Statues, because they are the biggest step and so reach the ceiling
+       inside the decoration limit: fourteen of them pass six hundred. */
+    const need = Math.ceil(V.CHARM_FULL / V.B('statue').charm) + 6;
+    let n = 0, mulAtFull = null, mulBefore = V.charmMul(), rose = false;
+    let worst = 0, worstAt = null;
+    for (; n < need; n++) {
+      let spot = null;
+      for (let c = L.lo; c <= L.hi && !spot; c++) for (let r = L.lo; r <= L.hi && !spot; r++)
+        if (V.canPlace('statue', c, r, V.occupied())) spot = [c, r];
+      if (!spot) break;
+      V.res.wood = 1e9; V.res.food = 1e9;
+      const charmWas = V.charmTotal(), roomWas = V.charmRoom(), usefulWas = V.usefulCharm('statue');
+      const said = V.decorGainAt('statue', spot[0], spot[1]);
+      const was = V.deliveredAtMul(V.charmMul());
+      if (!V.place('statue', spot[0], spot[1])) break;
+      V.rebuildStores();
+      const got = V.deliveredAtMul(V.charmMul()) - was;
+      /* The badge against the village, at every step and not only below the
+         line: past it the promise is nothing, and nothing is what the village
+         must gain. */
+      if (Math.abs(said - got) > 1e-6 && Math.abs(said - got) > worst) { worst = Math.abs(said - got); worstAt = charmWas; }
+      /* And the tray's words and its arithmetic agree about what is left. */
+      if ((roomWas <= 0) !== (usefulWas <= 0))
+        fails.push('at ' + charmWas + ' charm the tray says ' + (roomWas <= 0 ? 'the village is full' : 'there is room')
+          + ' and offers ' + usefulWas + ' of charm');
+      const mulNow = V.charmMul();
+      if (mulNow > mulBefore + 1e-9) rose = true;
+      if (charmWas < V.CHARM_FULL && V.charmTotal() >= V.CHARM_FULL && mulAtFull === null) mulAtFull = mulNow;
+      /* Past the ceiling the multiplier is a cap, which is a thing that stops
+         moving. Stated that way, the number itself never has to be named. */
+      if (charmWas >= V.CHARM_FULL && mulNow > mulBefore + 1e-9)
+        fails.push('past the ceiling at ' + charmWas + ' charm another statue still raised the bonus from '
+          + mulBefore.toFixed(4) + ' to ' + mulNow.toFixed(4));
+      mulBefore = mulNow;
+    }
+    if (worst > 1e-6)
+      fails.push('a statue at ' + worstAt + ' charm promised a figure the village did not gain, out by ' + worst.toFixed(5) + '/s');
+    if (V.charmTotal() < V.CHARM_FULL)
+      fails.push('only ' + V.charmTotal() + ' charm was reached of ' + V.CHARM_FULL + ', so the ceiling was never tested');
+    if (!rose) fails.push('charm never raised the bonus at all, so the cap proves nothing');
+    if (mulAtFull !== null && !(mulAtFull > 1))
+      fails.push('a village at full charm gets no bonus at all');
+    return { placed: n, atFull: mulAtFull === null ? null : +mulAtFull.toFixed(4),
+      mul: +V.charmMul().toFixed(4), charm: V.charmTotal(), fails };
+  };
   window.traySweep = function () {
     const V = window.__v, cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
     const fails = [];
@@ -4190,6 +4274,7 @@
       ['strip', () => window.stripSweep()],
       ['full', () => window.fullSweep()],
       ['road', () => window.roadSweep()],
+      ['charm', () => window.charmSweep()],
       ['order', () => window.orderSweep()],
       ['tap', () => window.tapSweep()],
       ['text', () => window.textSweep()],
