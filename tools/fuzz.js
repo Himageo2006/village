@@ -3237,13 +3237,14 @@
     const rowLike = (p, re) => rowsOf(p).find(x => re.test(x)) || '';
     const rateRow = p => rowLike(p, new RegExp('/s delivered'));
     V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
-    V.away = null; V.goalDone = null; V.finished = null; V.goalIdx = 0; V.tutSeen.length = 0;
+    V.away = null; V.goalDone = null; V.finished = null; V.tutSeen.length = 0;
     V.ensureHall(); V.placed[0].lvl = 5; V.placed[0].t = 1;
     V.res.wood = 5e4; V.res.food = 5e4;
     const LB = V.landBounds();
     for (const [k, c, r] of [['house',0,0],['house',0,3],['house',0,6],['farm',3,0],['lumber',3,3],
       ['mill',3,6],['store',9,0],['store',9,3],['store',9,6],['store',6,9]]) V.place(k, LB.lo + c, LB.lo + r);
     for (let i = 0; i < 90 * 30; i++) V.step(1 / 30);
+    parkGoals();                   // no payout may land mid-measurement
     let checked = 0, skipped = 0;
     for (const key of ['farm', 'lumber', 'mill']) {
       const p = V.placed.find(q => q.key === key);
@@ -3755,6 +3756,27 @@
     if (ask('workplace') !== '') fails.push('the strip spoke for a workplace goal with every workplace finished: "' + ask('workplace') + '"');
     return { cases, fails };
   };
+  /* A goal parked where it cannot be finished, for the sweeps that measure a
+     rate or a plan over a long run.
+
+     A goal completing pays out, and a payout lands in the middle of whatever
+     was being measured: it moves res, which moves fullMask, which rebuilds the
+     workforce plan under a checker that is halfway through comparing two
+     readings of it. Both the full-store sweep and the panel-promise sweep
+     failed about one run in ten this way, each on a different line, and
+     neither in isolation -- which is the signature of something arriving from
+     outside rather than a rule being broken.
+
+     The charm goal with no decorations down is the natural place to park: it
+     can never complete, so stepGoals never pays, and the village is still
+     unfinished, which is what the resource chip's wording depends on. */
+  const parkGoals = () => {
+    const V = window.__v;
+    const i = V.GOALS.findIndex(g => /charm/i.test(g.text));
+    V.goalIdx = i < 0 ? 0 : i;
+    V.goalDone = null;
+    return V.goalIdx;
+  };
   /* ---------------------------------------------------------------------------
      What the village means by a full store, and that everything means the same.
 
@@ -3787,7 +3809,7 @@
     V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
     /* An UNFINISHED village: a finished one shares its overflow and the chip
        says so in calmer words, which is a different sentence to look for. */
-    V.goalIdx = 0; V.tutSeen.length = 0;
+    V.tutSeen.length = 0;
     V.away = null; V.goalDone = null; V.finished = null; V.panel = null; V.sel = null;
     V.ensureHall(); V.placed[0].lvl = 5;
     V.res.wood = 1e6; V.res.food = 1e6;
@@ -3798,19 +3820,25 @@
     for (const q of V.placed) if (q.key !== 'hall') q.lvl = 3;
     V.res.wood = 1e6; V.res.food = 1e6;
     for (let i = 0; i < 90 * 30; i++) V.step(1 / 30);        // and the levels land through a real finish
+    parkGoals();
     const farm = V.placed.find(q => q.key === 'farm');
     if (!farm) return { cases: 0, flipAt: null, fails: ['the full-store check could not place a farm'] };
     const says = new RegExp('storage full|wasting');
     const read = room => {
+      /* Stepped first and the stores set after, so that nothing the tick does
+         -- a delivery, a trade, a goal -- can move the figure between setting
+         it and reading it. The plan is worked out fresh from res on every
+         call, so there is no need to step again. */
+      V.step(1 / 30);
       V.res.food = V.caps.food - room;
       V.res.wood = Math.floor(V.caps.wood / 2);   // the other store always has room to go to
-      V.step(1 / 30);
       const want = V.desiredJobs().want;
       const lines = []; const orig = ctx.fillText;
       ctx.fillText = function (x, ...a) { lines.push(String(x)); return orig.call(this, x, ...a); };
       try { V.draw(); } finally { ctx.fillText = orig; }
       return { hands: want.get(farm.id) || 0, full: lines.some(x => says.test(x)) };
     };
+    V.goalIdx = parkGoals();
     const span = V.CARRY + 3;
     const scan = [];
     for (let room = 0; room <= span; room++) scan.push({ room, ...read(room) });
@@ -3846,6 +3874,124 @@
       fails.push('the store took a whole load it had no room for');
     V.goalIdx = 0;
     return { cases: scan.length, flipAt: planFlips.length === 1 ? planFlips[0] : planFlips, fails };
+  };
+  /* ---------------------------------------------------------------------------
+     A road is worth laying, and worth what the card says it is.
+
+     Paving is one of the two answers the game gives for a workplace losing
+     half of itself to the walk -- the cheap one, five wood a tile against a
+     whole building moved -- and the panel offers it in those words. Nothing
+     checked that it does anything. Set PATH_SPEED to 1 and the entire road
+     mechanic is dead: twenty-five sweeps pass, because every figure the
+     interface quotes is worked out from the same constant and they all go to
+     zero together. The badge over a path promises nothing, the panel's advice
+     achieves nothing, and the sweeps agree with each other all the way down.
+
+     So the road is measured against a villager rather than against the
+     formula, in both states, and against the words on its own card. The words
+     have drifted from the number here before -- the blurb said "half again"
+     while the constant was 2.2 -- so the blurb is read rather than trusted.
+
+       roadSweep()  -> { bare, paved, laid, fails }
+  --------------------------------------------------------------------------- */
+  window.roadSweep = function () {
+    const V = window.__v, fails = [];
+    V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
+    V.goalIdx = V.GOALS.length; V.tutSeen.length = 0;
+    V.away = null; V.goalDone = null; V.finished = null; V.panel = null; V.sel = null;
+    V.ensureHall(); V.placed[0].lvl = 5; V.placed[0].t = 1;
+    V.res.wood = 1e6; V.res.food = 1e6;
+    const L = V.landBounds();
+    const put = k => { for (let r = L.lo; r <= L.hi; r++) for (let c = L.lo; c <= L.hi; c++)
+      if (V.canPlace(k, c, r, V.occupied())) return V.place(k, c, r); return false; };
+    /* Placed by hand, not packed. A greedy fill puts the farm and its store
+       shoulder to shoulder and the whole route lies under their own
+       footprints, so there is nothing to pave -- the first version of this
+       laid nought tiles and said so. The farm goes in a corner and its store
+       five tiles away up the same column, which also keeps the hall from
+       being the nearer of the two: the hall sits in the middle and is a store
+       as well. */
+    V.place('house', L.lo + 9, L.lo + 9); V.place('house', L.lo + 9, L.lo + 11);
+    V.place('farm', L.lo + 1, L.lo + 1); V.place('store', L.lo + 1, L.lo + 6);
+    void put;
+    for (const q of V.placed) { q.t = 1; q.build = 0; if (q.key !== 'hall') q.lvl = 3; }
+    V.rebuildStores();
+    for (let i = 0; i < 90 * 30; i++) V.step(1 / 30);
+    const p = V.placed.find(q => q.key === 'farm');
+    if (!p) return { bare: null, paved: null, laid: 0, fails: ['the road check could not place a farm'] };
+    /* A real round trip, timed: out with a load and back to the post. The one
+       measurement here that does not go through routeOf. */
+    const trip = () => {
+      const v = V.villagers.find(g => g.job === p.id);
+      if (!v) return null;
+      const got = []; let mark = null, last = v.st, t = 0;
+      /* Averaged over several trips: a villager starts from a random spot
+         inside the post, so one trip runs about an eighth either side. */
+      for (let i = 0; i < 1200 * 30 && got.length < 10; i++) {
+        V.step(1 / 30); t += 1 / 30;
+        for (const k of ['wood', 'food']) V.res[k] = V.caps[k] / 2;
+        if (v.st !== last) {
+          if (last === 'work' && v.st === 'toStore') mark = t;
+          if (last === 'toWork' && v.st === 'work' && mark != null) { got.push(t - mark); mark = null; }
+          last = v.st;
+        }
+      }
+      return got.length ? got.reduce((a, b) => a + b, 0) / got.length : null;
+    };
+    const bareSaid = V.travelSecondsOf(p), bareReal = trip();
+    /* Pave the route the villager actually walks: centre to centre of the
+       store nearest the farm, which is not always the one a reader would
+       pick -- the hall is a store too and it sits in the middle. */
+    const b = V.B(p.key), c0 = V.tileToWorld(p.c + (b.w - 1) / 2, p.r + (b.h - 1) / 2);
+    const st = V.nearestStore(c0.x, c0.y);
+    let laid = 0;
+    if (!st) fails.push('the road check found no store to walk to');
+    else {
+      const sb = V.B(st.key), d = V.tileToWorld(st.c + (sb.w - 1) / 2, st.r + (sb.h - 1) / 2);
+      const steps = Math.max(8, Math.round(Math.hypot(d.x - c0.x, d.y - c0.y) / 12));
+      const want = new Set();
+      for (let i = 0; i < steps; i++) { const fr = (i + 0.5) / steps;
+        const t2 = V.tileAt(c0.x + (d.x - c0.x) * fr, c0.y + (d.y - c0.y) * fr);
+        want.add(t2.c + ',' + t2.r); }
+      V.res.wood = 1e6; V.res.food = 1e6;
+      for (const key of want) { const [cc, rr] = key.split(',').map(Number);
+        if (V.canPlace('path', cc, rr, V.occupied()) && V.place('path', cc, rr)) laid++; }
+      for (const q of V.placed) { q.t = 1; q.build = 0; }
+      V.rebuildStores();
+      for (let i = 0; i < 30 * 30; i++) V.step(1 / 30);
+    }
+    const pavedSaid = V.travelSecondsOf(p), pavedReal = trip();
+    const frac = V.routeOf(p).paved;
+    if (!laid) fails.push('the road check could lay no path on the route, so it proves nothing');
+    else if (frac < 0.3) fails.push('only ' + (frac * 100).toFixed(0) + '% of the route took a path, so it proves little');
+    /* The model and the villager agree, bare and paved. */
+    for (const [what, said, realT] of [['bare', bareSaid, bareReal], ['paved', pavedSaid, pavedReal]]) {
+      if (realT == null) { fails.push('no round trip could be timed with the route ' + what); continue; }
+      if (Math.abs(realT - said) > Math.max(0.15 * said, 0.5))
+        fails.push('with the route ' + what + ' the panel says ' + said.toFixed(2)
+          + 's round trip and the villager takes ' + realT.toFixed(2) + 's');
+    }
+    /* And the road is worth laying, by the factor the walk is paved at. */
+    if (laid && bareReal != null && pavedReal != null) {
+      const want = frac / V.PATH_SPEED + (1 - frac);
+      const had = pavedReal / bareReal;
+      if (had > want + 0.1)
+        fails.push('paving ' + (frac * 100).toFixed(0) + '% of the route should cut the walk to '
+          + (want * 100).toFixed(0) + '% and it took ' + (had * 100).toFixed(0) + '%');
+      if (pavedSaid >= bareSaid - 0.01)
+        fails.push('paving the route did not shorten the walk at all: ' + bareSaid.toFixed(2)
+          + 's before, ' + pavedSaid.toFixed(2) + 's after');
+    }
+    /* And the card still says what the constant does. The words have drifted
+       from the number here before. */
+    const blurb = (V.B('path').blurb || '').toLowerCase();
+    if (!/twice as fast/.test(blurb))
+      fails.push('the path card no longer says how much faster a road is: "' + blurb + '"');
+    else if (V.PATH_SPEED < 2)
+      fails.push('the path card says twice as fast and the road is worth ' + V.PATH_SPEED);
+    return { bare: +bareSaid.toFixed(2), paved: +pavedSaid.toFixed(2), laid, pavedFrac: +frac.toFixed(2),
+      bareReal: bareReal == null ? null : +bareReal.toFixed(2),
+      pavedReal: pavedReal == null ? null : +pavedReal.toFixed(2), fails };
   };
   window.traySweep = function () {
     const V = window.__v, cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
@@ -4043,6 +4189,7 @@
       ['tray', () => window.traySweep()],
       ['strip', () => window.stripSweep()],
       ['full', () => window.fullSweep()],
+      ['road', () => window.roadSweep()],
       ['order', () => window.orderSweep()],
       ['tap', () => window.tapSweep()],
       ['text', () => window.textSweep()],
