@@ -3370,6 +3370,102 @@
       }
     }
 
+    /* And a well's panel keeps the promise its ghost made.
+
+       The badge over a ghost well says what the spot is worth -- "lifts 1
+       workplace · +0.36/s" -- and that figure is the entire reason to put it
+       there. Put it there and, while the hole was still being dug, its own
+       panel said "Reaching no workplace — move it beside one". boostAt skips a
+       well that has never finished, so the row could only tell the difference
+       between reaching nothing and not reaching it YET by being told, and it
+       was not. Measured on the first well of a village, placed exactly where
+       the badge pointed: advice that is not merely useless but backwards, on
+       the one building whose whole value is where it stands.
+
+       Three claims, because the row makes three: the reach it names is the
+       reach the ghost promised, the figure it gives for when the work is done
+       is what the finished well really lifts, and an upgrade in progress does
+       not quote the level after the one it is building -- the rule the
+       delivered row, the storage row and the house row all keep, and the only
+       row that did not. */
+    let wells = 0;
+    {
+      const num = new RegExp('([0-9.]+)/s when it is done');
+      const liftN = new RegExp('Lifting ([0-9]+) workplace');
+      const nowN = new RegExp('([0-9.]+)/s delivered');
+      V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
+      V.goalIdx = V.GOALS.length; V.tutSeen.length = 0;
+      V.away = null; V.goalDone = null; V.finished = null; V.panel = null;
+      V.ensureHall(); V.placed[0].lvl = 5; V.placed[0].t = 1;
+      V.res.wood = 1e6; V.res.food = 1e6;
+      const LB = V.landBounds();
+      const put = k => { for (let r = LB.lo; r <= LB.hi; r++) for (let c = LB.lo; c <= LB.hi; c++)
+        if (V.canPlace(k, c, r, V.occupied())) return V.place(k, c, r); return false; };
+      put('house'); put('house'); put('farm'); put('lumber'); put('store');
+      for (const q of V.placed) { q.t = 1; q.build = 0; if (q.key !== 'hall') q.lvl = 3; }
+      V.rebuildStores();
+      for (let i = 0; i < 60 * 30; i++) V.step(1 / 30);
+      const farm = V.placed.find(q => q.key === 'farm');
+      let spot = null;
+      for (let dc = -2; dc <= 3 && !spot; dc++) for (let dr = -2; dr <= 3 && !spot; dr++) {
+        const c = farm.c + dc, r = farm.r + dr;
+        if (V.canPlace('well', c, r, V.occupied()) && V.wellGainAt(c, r, 1).gain > 0.005) spot = [c, r];
+      }
+      if (!spot) fails.push('the well check found nowhere worth putting a well');
+      else {
+        const said = V.wellGainAt(spot[0], spot[1], 1);
+        V.res.wood = 1e6; V.res.food = 1e6;
+        V.place('well', spot[0], spot[1]);
+        const w = V.placed.find(q => q.key === 'well');
+        w.build = 1e7;                     // the hole stays open to be read
+        V.step(1 / 30);
+        const going = rowLike(w, new RegExp('Lifting|Reaching'));
+        wells++;
+        const mN = liftN.exec(going), mWhen = num.exec(going);
+        if (/Reaching no workplace/.test(going))
+          fails.push('a well going up where its ghost promised +' + said.gain.toFixed(2)
+            + '/s says it reaches no workplace and should be moved');
+        else if (!mN || +mN[1] !== said.n)
+          fails.push('a well going up names ' + (mN ? mN[1] : 'no') + ' workplaces where its ghost promised ' + said.n);
+        else if (!mWhen)
+          fails.push('a well going up does not say what it will lift: "' + going + '"');
+        else if (Math.abs(+mWhen[1] - said.gain) > 0.011)
+          fails.push('a well going up says it will lift +' + mWhen[1]
+            + '/s where its ghost promised +' + said.gain.toFixed(2));
+        /* Finished, the figure it gave has to be the figure it gives. */
+        w.build = 1; for (let i = 0; i < 60 * 30; i++) V.step(1 / 30);
+        const done = rowLike(w, new RegExp('Lifting|Reaching'));
+        const mNow = nowN.exec(done);
+        if (!mNow) fails.push('a finished well says nothing about what it lifts: "' + done + '"');
+        else if (mWhen && Math.abs(+mNow[1] - +mWhen[1]) > 0.011)
+          fails.push('a well promised +' + mWhen[1] + '/s when it was done and lifts +' + mNow[1]);
+        /* And an upgrade in progress keeps its lift, says why there is no more
+           yet, and does not point past the step it is on. */
+        V.res.wood = 1e6; V.res.food = 1e6;
+        if (!V.canUpgrade(w)) fails.push('the well check could not improve its well');
+        else {
+          const before = mNow ? +mNow[1] : 0;
+          V.upgradeBuilding(w); w.build = 1e7; V.step(1 / 30);
+          wells++;
+          const mid = rowLike(w, new RegExp('Lifting|Reaching'));
+          const mMid = nowN.exec(mid), mNext = num.exec(mid);
+          if (!mMid || Math.abs(+mMid[1] - before) > 0.011)
+            fails.push('a well being improved stopped saying what it still lifts: "' + mid + '"');
+          if (mid.includes('→'))
+            fails.push('a well being improved quotes the level after the one it is building: "' + mid + '"');
+          if (!mNext) fails.push('a well being improved does not say what the work will make it: "' + mid + '"');
+          else {
+            w.build = 1; for (let i = 0; i < 60 * 30; i++) V.step(1 / 30);
+            const after = nowN.exec(rowLike(w, new RegExp('Lifting|Reaching')));
+            if (!after) fails.push('an improved well says nothing about what it lifts');
+            else if (Math.abs(+after[1] - +mNext[1]) > 0.011)
+              fails.push('a well being improved promised +' + mNext[1] + '/s and lifts +' + after[1]);
+          }
+        }
+      }
+      if (wells < 2) fails.push('only ' + wells + ' well states were read, so the block proved little');
+    }
+
     /* And what the sell button quotes is what the village receives.
 
        The panel makes two promises about taking a building down and they are
@@ -3448,7 +3544,7 @@
       if (quotes < 30) fails.push('only ' + quotes + ' sales were quoted and checked, so the block proved little');
     }
 
-    return { checked, skipped, delivering: counted, holding: rooms, housing: people, quoted: quotes, fails };
+    return { checked, skipped, delivering: counted, holding: rooms, housing: people, wells, quoted: quotes, fails };
   };
   /* A figure on a build card is the price -- unless it is marked, and then it
      is what is still missing. The two sit in the same place in the same shape,

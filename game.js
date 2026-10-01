@@ -5003,14 +5003,50 @@ function drawPanel() {
     if (up) line += '   ·   under scaffolding   ·   ' + popOf(p) + ' when it is done';
     else if (nl > lvlOf(p)) line += '  →  ' + at(nl, popOf);
   } else if (b.boost) {
-    const wg = wellGain(p);
-    /* And what the next level would lift. Every other panel says what an
-       upgrade buys; the well asked for its price with no number beside it. */
-    const nx = nl > lvlOf(p) && wg.gain > 0.005 ? wellGainAtLevel(p, nl).gain : 0;
-    line = !wg.n ? 'Reaching no workplace — move it beside one'
-      : 'Lifting ' + count(wg.n, 'workplace') + '   ·   '
-        + (wg.gain > 0.005 ? '+' + wg.gain.toFixed(2) + '/s delivered'
-            + (nx > wg.gain + 0.005 ? '  →  +' + nx.toFixed(2) + '/s' : '')
+    /* A well that has never finished lifts nothing YET, which is not the same
+       thing as a well that reaches nothing -- and the row could only say the
+       second. boostAt skips a well that is not established, so the first one
+       the player ever digs answered "Reaching no workplace — move it beside
+       one" from the moment the hole was dug. Measured: the badge over the
+       ghost promised "lifts 1 workplace · +0.36/s", the player put it exactly
+       there, and its own panel told them to move it. Advice that is not merely
+       useless but backwards, on the one building whose entire value is where
+       it stands.
+
+       Asked at the level it is PAYING for, through the same wellGainAtLevel
+       the next-level quote uses -- it stands the well up for the length of the
+       sum and puts it back, so boostAt answers for it the way it answers for
+       every other well. The same shape as the delivered row and the two
+       beside it: what it is worth, why that is nothing yet, and what the work
+       will make it.
+
+       Only the FIRST build. A well being improved still lifts what it lifted,
+       because boostAt reads the level it is holding, and the row should go on
+       saying so. lvlHeld below one is exactly "not a well yet", which is the
+       test capsHeld uses for the same question about storage. */
+    const up = p.t < 1, first = lvlHeld(p) < 1;
+    /* What it lifts now, and what the work in hand will make it. The second
+       scan only happens while the scaffolding is up, which is seconds. */
+    const live = first ? { n: 0, gain: 0 } : wellGain(p);
+    const grown = up ? wellGainAtLevel(p, lvlOf(p)) : live;
+    const reach = first ? grown.n : live.n;
+    /* And what the NEXT level would lift. Every other panel says what an
+       upgrade buys; the well asked for its price with no number beside it.
+
+       Not while this one is unbuilt, which is the rule the delivered row, the
+       storage row and the house row all keep and this one did not: a well
+       halfway to its second level quoted its third. A level is paid for the
+       instant the player taps, so lvlOf has already moved and the arrow
+       pointed one step past the step being watched. */
+    const nx = !up && nl > lvlOf(p) && live.gain > 0.005 ? wellGainAtLevel(p, nl).gain : 0;
+    line = !reach ? 'Reaching no workplace — move it beside one'
+      : 'Lifting ' + count(reach, 'workplace') + '   ·   '
+        + (up
+            ? (first ? '' : '+' + live.gain.toFixed(2) + '/s delivered   ·   ')
+              + 'under scaffolding'
+              + (grown.gain > live.gain + 0.005 ? '   ·   +' + grown.gain.toFixed(2) + '/s when it is done' : '')
+          : live.gain > 0.005 ? '+' + live.gain.toFixed(2) + '/s delivered'
+              + (nx > live.gain + 0.005 ? '  →  +' + nx.toFixed(2) + '/s' : '')
           : 'none of them worked yet');
   } else if (b.charm) {
     /* The percentage was a rate figure, and the walk does not speed up with it.
