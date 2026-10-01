@@ -2416,6 +2416,8 @@
     const V = window.__v, fails = [];
     const real = localStorage.getItem(V.KEY);
     const keepAt = V.hiddenAt, keepSim = V.hiddenSim;
+    // read outside the try, because the summary is returned after the finally
+    let cards = 0, banked = 0, spilt = 0, gave = 0;
     const cases = [
       ['watched all along',            0,        0,    0],
       ['a minute backgrounded',        60,       30,   30],
@@ -2488,11 +2490,115 @@
             + ceiling.wood + '/' + ceiling.food);
         void shed; void fresh;
       }
+    /* And the card a returning player reads says what actually happened.
+
+       It is the first screen of a session and it carries five separate claims
+       -- how long the village worked, what it banked, whether the stores
+       overflowed, when they filled, and what a finished village gave away --
+       and only the first of them was ever held to anything. The sweep above
+       bounds the resources; nothing compared the CARD against the grant that
+       raised it. Three of the faults already written into the comments around
+       grantAway were card faults.
+
+       Everything is measured against the village itself rather than against
+       the card's own arithmetic: what res really gained, what sharedTotal
+       really gained, and whether the span asked for was over the ceiling. */
+    {
+      const put = k => { const L = V.landBounds();
+        for (let r = L.lo; r <= L.hi; r++) for (let c = L.lo; c <= L.hi; c++)
+          if (V.canPlace(k, c, r, V.occupied())) return V.place(k, c, r);
+        return false; };
+      const scene = (finished, fill) => {
+        V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
+        V.goalIdx = finished ? V.GOALS.length : 0; V.tutSeen.length = 0;
+        V.away = null; V.goalDone = null; V.finished = null; V.panel = null;
+        V.sharedTotal.wood = 0; V.sharedTotal.food = 0;
+        V.ensureHall(); V.placed[0].lvl = 5;
+        V.res.wood = 1e6; V.res.food = 1e6;
+        for (const k of ['house', 'house', 'house', 'farm', 'lumber', 'store', 'mill']) put(k);
+        for (const q of V.placed) if (q.key !== 'hall') q.lvl = 3;
+        V.res.wood = 1e6; V.res.food = 1e6;
+        for (let i = 0; i < 90 * 30; i++) V.step(1 / 30);     // and the levels land through a real finish
+        for (const k of ['wood', 'food']) V.res[k] = Math.floor(V.caps[k] * fill);
+      };
+      for (const [name, finished, fill, secs] of [
+        ['an hour away with room to spare', false, 0.2, 3600],
+        ['an hour away with the stores nearly full', false, 0.97, 3600],
+        ['away longer than a village can bank', false, 0.2, 40 * 3600],
+        ['back inside the minute', false, 0.5, 45],
+        ['a finished village, an hour away', true, 0.9, 3600],
+      ]) {
+        scene(finished, fill);
+        const before = { wood: V.res.wood, food: V.res.food };
+        const sharedBefore = { wood: V.sharedTotal.wood, food: V.sharedTotal.food };
+        V.away = null;
+        V.grantAway(secs);
+        const card = V.away;
+        const got = { wood: V.res.wood - before.wood, food: V.res.food - before.food };
+        const shared = { wood: V.sharedTotal.wood - sharedBefore.wood, food: V.sharedTotal.food - sharedBefore.food };
+        const anyGot = got.wood + got.food > 0.01;
+        if (secs < V.AWAY_MIN) {
+          /* Under the floor a reload is not a reward, and there is no card to
+             read either. */
+          if (card) fails.push('a card went up for ' + name);
+          if (anyGot) fails.push('the village was paid for ' + name);
+          continue;
+        }
+        if (!card) { fails.push('no card went up after ' + name); continue; }
+        cards++;
+        if (anyGot) banked++;
+        if (card.spilled) spilt++;
+        /* The span. Over the ceiling it is clamped and SAYS it was clamped;
+           under it, it is what was asked for. */
+        const want = Math.min(V.AWAY_MAX, secs);
+        if (card.secs !== want)
+          fails.push('the card for ' + name + ' says the village worked ' + card.secs + 's and it was credited ' + want + 's');
+        if (card.capped !== (secs > V.AWAY_MAX))
+          fails.push('the card for ' + name + (card.capped ? ' says' : ' does not say') + ' the village worked as long as it can');
+        /* What it banked. The card floors each figure, so it may understate by
+           less than one and never by more, and never overstate at all. */
+        for (const k of ['wood', 'food']) {
+          const said = (card.got || {})[k] || 0;
+          if (said > got[k] + 0.001 || said < got[k] - 1)
+            fails.push('the card for ' + name + ' says it banked ' + said + ' ' + k + ' and the village gained ' + got[k].toFixed(2));
+        }
+        /* What it gave away, and only a finished village gives anything. */
+        if (!finished && card.shared)
+          fails.push('an unfinished village was told it shared goods with its neighbours');
+        /* And the tally behind the card does not move either. The card hides
+           it for an unfinished village -- shared is written as null there -- so
+           watching only the card let the overflow reach sharedTotal all the
+           same, which is the half the rule is actually about: it does not reach
+           back into the game before the village is finished. */
+        if (!finished && shared.wood + shared.food > 0.001)
+          fails.push('an unfinished village added ' + (shared.wood + shared.food).toFixed(1)
+            + ' to the tally of what it has given away');
+        if (finished) {
+          for (const k of ['wood', 'food']) {
+            const said = (card.shared || {})[k] || 0;
+            if (said > shared[k] + 0.001 || said < shared[k] - 1)
+              fails.push('the card for ' + name + ' says it shared ' + said + ' ' + k + ' and the tally rose by ' + shared[k].toFixed(2));
+          }
+          if (shared.wood + shared.food > 1) gave++;
+        }
+        /* And it only claims an overflow when there was one. */
+        if (!card.spilled && fill > 0.9 && secs >= 3600)
+          fails.push('an hour into nearly full stores spilled nothing, by the card');
+        if (card.fullAfter != null && (card.fullAfter < 0 || card.fullAfter > card.secs))
+          fails.push('the card for ' + name + ' says the stores filled after ' + card.fullAfter.toFixed(1)
+            + 's of a ' + card.secs + 's stretch');
+      }
+      if (cards < 4) fails.push('only ' + cards + ' welcome-back cards were read, so the block proved little');
+      if (!banked) fails.push('not one card banked anything, so the figures prove nothing');
+      if (!spilt) fails.push('not one card overflowed, so the overflow half proves nothing');
+      if (!gave) fails.push('no finished village gave anything away, so the sharing half proves nothing');
+      V.away = null; V.goalIdx = 0;
+    }
     } finally {
       V.hiddenAt = keepAt; V.hiddenSim = keepSim;
       try { if (real !== null) localStorage.setItem(V.KEY, real); } catch (e) {}
     }
-    return { cases: cases.length, hiddenNow: document.hidden, fails };
+    return { cases: cases.length, cards, hiddenNow: document.hidden, fails };
   };
   /* Nothing is painted while nobody is watching, and painting resumes the
      moment somebody is. Counted on the canvas context itself, so it measures
