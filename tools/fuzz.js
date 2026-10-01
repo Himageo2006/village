@@ -3460,6 +3460,99 @@
      Read off the canvas by position -- each drawn row assigned to the card
      whose centre it sits under -- so it checks what a player sees rather than
      what the drawing code meant. */
+  /* ---------------------------------------------------------------------------
+     The goal strip answers the same questions whichever thing it is pointing at.
+
+     A goal that tells you to buy something carries a progress line, and there
+     are three things it can name: the hall, a ring of land, and a workplace.
+     They are three branches of one function and they had drifted apart -- the
+     hall said "building..." while its own scaffolding was up and the workplace
+     said nothing at all; the hall and the land said "needs more storage" for a
+     price past the ceiling and the workplace counted out a figure that can
+     never be reached. Both gaps are at the end of the longest goal in the game.
+
+     So the question is asked of all three rather than of the branch that was
+     wrong, because the next branch will be written the same way.
+
+       stripSweep()  -> { cases, fails }
+  --------------------------------------------------------------------------- */
+  window.stripSweep = function () {
+    const V = window.__v, fails = [];
+    let cases = 0;
+    const put = k => { const L = V.landBounds();
+      for (let r = L.lo; r <= L.hi; r++) for (let c = L.lo; c <= L.hi; c++)
+        if (V.canPlace(k, c, r, V.occupied())) return V.place(k, c, r);
+      return false; };
+    /* Levels are set by hand here, and caps is a cache the game rebuilds only
+       when something is built, sold or finished -- so every scene lays one path
+       at the end to make it recompute. The same trap the holding check fell
+       into. */
+    const scene = (hallLvl, land, kinds) => {
+      V.placed.length = 0; V.villagers.length = 0; V.landTier = land; V.coverPlaced();
+      V.goalIdx = 0; V.tutSeen.length = 0; V.away = null; V.goalDone = null;
+      V.finished = null; V.panel = null;
+      V.ensureHall(); V.placed[0].lvl = hallLvl; V.placed[0].t = 1;
+      V.res.wood = 1e6; V.res.food = 1e6;
+      for (const [k, lvl] of kinds) { if (put(k)) { const q = V.placed[V.placed.length - 1]; q.lvl = lvl; q.t = 1; q.build = 0; } }
+      put('path');
+      V.res.wood = 0; V.res.food = 0;
+    };
+    const ask = kind => V.buyProgress(kind);
+    const want = (kind, got, re, what) => { cases++;
+      if (!re.test(got)) fails.push('the strip for a ' + kind + ' ' + what + ' said "' + got + '"'); };
+    const RICHLY = () => { V.res.wood = 1e6; V.res.food = 1e6; };
+
+    // --- a price the village cannot hold -------------------------------------
+    scene(4, 0, []);                                    // hall 4, no storehouses
+    want('hall', ask('hall'), /needs more storage/, 'whose next level costs more than the ceiling');
+    scene(1, 3, []);                                    // the last ring, a hall-one ceiling
+    want('land', ask('land'), /needs more storage/, 'whose next ring costs more than the ceiling');
+    scene(5, V.LAND_MAX, [['market', 4]]);
+    want('workplace', ask('workplace'), /needs more storage/, 'whose next step costs more than the ceiling');
+
+    // --- the thing is already going up ---------------------------------------
+    scene(4, 0, [['store', 5], ['store', 5], ['store', 5], ['store', 5]]);
+    RICHLY();
+    if (!V.upgradeBuilding(V.hallOf())) fails.push('the strip check could not start a hall upgrade');
+    else { V.hallOf().build = 1e7; V.step(1 / 30);
+      want('hall', ask('hall'), /building/, 'already going up'); }
+    scene(5, V.LAND_MAX, [['store', 5], ['store', 5], ['store', 5], ['store', 5], ['market', 4]]);
+    RICHLY();
+    {
+      const mk = V.placed.find(p => p.key === 'market');
+      if (!mk || !V.upgradeBuilding(mk)) fails.push('the strip check could not start a workplace upgrade');
+      else { mk.build = 1e7; V.step(1 / 30);
+        want('workplace', ask('workplace'), /building/, 'already going up'); }
+    }
+
+    // --- ready, and short ----------------------------------------------------
+    scene(4, 0, [['store', 5], ['store', 5], ['store', 5], ['store', 5]]);
+    RICHLY();
+    want('hall', ask('hall'), /ready/, 'the village can pay for');
+    /* The last ring is 5000 wood, which four storehouses at their best do not
+       reach: 700 and four times 960 is 4540. The markets are the rest of the
+       ceiling, and without them this case was reading 'needs more storage' and
+       being right. */
+    scene(5, V.LAND_MAX - 1, [['store', 5], ['store', 5], ['store', 5], ['store', 5], ['market', 5], ['market', 5]]);
+    RICHLY();
+    want('land', ask('land'), /ready/, 'the village can pay for');
+    scene(5, V.LAND_MAX, [['store', 5], ['store', 5], ['store', 5], ['store', 5], ['farm', 1]]);
+    RICHLY();
+    want('workplace', ask('workplace'), /ready/, 'the village can pay for');
+    for (const [kind, s2] of [['hall', () => scene(4, 0, [['store', 5], ['store', 5], ['store', 5], ['store', 5]])],
+                              ['land', () => scene(5, V.LAND_MAX - 1, [['store', 5], ['store', 5], ['store', 5], ['store', 5], ['market', 5], ['market', 5]])],
+                              ['workplace', () => scene(5, V.LAND_MAX, [['store', 5], ['store', 5], ['store', 5], ['store', 5], ['farm', 1]])]]) {
+      s2();                                              // scene leaves the purse empty
+      want(kind, ask(kind), /[0-9]/, 'the village is saving for');
+    }
+    /* And nothing at all only when there is nothing to buy, which for a
+       workplace means every one of them is finished at the top level. */
+    scene(5, V.LAND_MAX, [['farm', 5], ['lumber', 5]]);
+    RICHLY();
+    cases++;
+    if (ask('workplace') !== '') fails.push('the strip spoke for a workplace goal with every workplace finished: "' + ask('workplace') + '"');
+    return { cases, fails };
+  };
   window.traySweep = function () {
     const V = window.__v, cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
     const fails = [];
@@ -3654,6 +3747,7 @@
       ['badgeOverlap', () => window.badgeOverlapSweep()],
       ['badge', () => window.badgeSweep()],
       ['tray', () => window.traySweep()],
+      ['strip', () => window.stripSweep()],
       ['order', () => window.orderSweep()],
       ['tap', () => window.tapSweep()],
       ['text', () => window.textSweep()],

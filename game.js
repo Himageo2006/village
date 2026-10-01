@@ -2160,6 +2160,12 @@ function placeProblem(key, c, r, occ) {
 }
 const canPlace = (key, c, r, occ) => placeProblem(key, c, r, occ) === null;
 const canAfford = cost => Object.entries(cost).every(([k, v]) => res[k] >= v);
+/* A price the village cannot physically HOLD, which is a different answer from
+   cannot afford: no amount of saving reaches it, so the honest advice is about
+   storage rather than patience. The upgrade button and the goal strip both ask
+   it, and the strip only asked it for two of the three things a goal can tell
+   you to buy. */
+const overCaps = cost => !!cost && Object.entries(cost).some(([k, v]) => v > caps[k]);
 /* Exactly how far short you are. "Cannot afford" was signalled by a red tint
    and nothing else, which says the same thing whether you are two wood away or
    two thousand -- and says nothing at all to the one man in twelve who cannot
@@ -4101,20 +4107,35 @@ function buyProgress(kind) {
      twenty-seven minutes of saving, and the strip said only how many were
      done: the player had to open panels to find what the next step costs. */
   if (kind === 'workplace') {
-    let best = null;
+    let best = null, building = false;
     for (const p of placed) {
       if (!B(p.key).jobs || p.key === 'hall' || lvlHeld(p) >= LVL_MAX) continue;
+      /* Its own scaffolding, the same answer the hall gives for its own, and
+         asked BEFORE upInfo. The last workplace of the goal is the one that
+         leaves nothing else to quote, so tapping upgrade on it emptied the
+         progress line for the length of the build -- at the end of the longest
+         goal in the game, on the one step the player is watching. Asked after
+         upInfo it never fired at all: the level is paid for the instant the
+         player taps, so a workplace on its way to five already answers max. */
+      if (p.t < 1) { building = true; continue; }
       const i = upInfo(p);
-      if (i.max || i.gate || p.t < 1) continue;
+      if (i.max || i.gate) continue;
       if (!best || upSum(i.cost) < upSum(best)) best = i.cost;
     }
-    if (!best) return '';
+    if (!best) return building ? 'building…' : '';
+    /* And a price past the ceiling, which the hall and the land have always
+       said and this did not: a market's last step is 4075 wood, the dearest
+       thing in the game, and a village that has sold storage down can hold
+       three thousand. The strip counted out a figure that can never be
+       reached while the building's own button said "Needs another
+       storehouse". */
+    if (overCaps(best)) return 'needs more storage';
     if (canAfford(best)) return 'ready — tap a workplace';
     return 'cheapest next ' + Object.entries(best).map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join(' ');
   }
   const cost = kind === 'hall' ? (h ? upInfo(h).cost : null) : landNext();
   if (!cost) return '';
-  if (Object.entries(cost).some(([k, v]) => v > caps[k])) return 'needs more storage';
+  if (overCaps(cost)) return 'needs more storage';
   if (canAfford(cost)) return kind === 'hall' ? 'ready — tap the town hall' : 'ready — tap the dark ground';
   return Object.entries(cost).filter(([k, v]) => res[k] < v)
     .map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + Math.floor(res[k]) + '/' + v).join(' ');
@@ -5143,8 +5164,7 @@ function drawPanel() {
   /* A late upgrade can cost more than the village can physically hold, and then
      the button would sit grey for ever with no hint why. Storage being a real
      constraint is the point -- it just has to say so. */
-  const overCap = !!i.cost && !canAfford(i.cost)
-    && Object.entries(i.cost).some(([k, v]) => v > caps[k]);
+  const overCap = !canAfford(i.cost || {}) && overCaps(i.cost);
   const label = busy ? 'Building…'
     : i.max ? 'Highest level'
     : i.gate ? 'Needs town hall level ' + i.gate
@@ -5668,7 +5688,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   tap, CAM, save, load, get caps() { return caps; },
   HALL, hallOf, hallLevel, allowedOf, countOf, atLimit, unlocked, buildable, permitted, hintText,
   canUpgrade, upgradeBuilding, upInfo, upCostOf, lvlOf, popOf, capsOf, capsHeld, rateOf, outMul, LVL_MAX,
-  shortfall, shortText, remedy, villageStats, wellGain, wellGainAtLevel, wellGainAt, charmDelivered, deliveredOf, deliveringNow, deliveredWith, travelSecondsOf, handsFor,
+  shortfall, shortText, overCaps, remedy, villageStats, wellGain, wellGainAtLevel, wellGainAt, charmDelivered, deliveredOf, deliveringNow, deliveredWith, travelSecondsOf, handsFor,
   bestDeliveredOf, reachOf, snugWalkOf,
   panelRects, TOUCH_MIN, padHit, TEXT_MIN, get panel() { return panel; }, set panel(v) { panel = v; },
   get villagers() { return villagers; }, workersAt, boostAt, producers, stores,
