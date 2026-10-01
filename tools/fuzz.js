@@ -3755,6 +3755,98 @@
     if (ask('workplace') !== '') fails.push('the strip spoke for a workplace goal with every workplace finished: "' + ask('workplace') + '"');
     return { cases, fails };
   };
+  /* ---------------------------------------------------------------------------
+     What the village means by a full store, and that everything means the same.
+
+     hasRoomFor is called THE definition of a full store in the source, and the
+     note beside it records what it cost to get there: the workforce, the
+     resting badge, the building panel and the hall said "full" with room for
+     less than one load, while the resource bar and its wasting figure waited
+     for the very ceiling -- so for a moment on the way up the hall read "store
+     full, build a storehouse" over a bar reading "+0.3 / s". One rule, two
+     places, twice.
+
+     It was then written once and nothing was ever asked to keep it. Loosening
+     it to "any room at all" -- which is the fault it was written to fix --
+     passes twenty-four sweeps and four thousand soak rounds untouched, and it
+     is not a harmless change: with room for four of a load of eight, the
+     workforce goes on staffing the farm and every load it brings is destroyed
+     on arrival.
+
+     So the line is measured rather than trusted, through two surfaces that
+     have no code in common -- the plan the workforce is built from, and the
+     words on the resource chip -- and it has to fall in exactly one place,
+     at a load. The scan runs past it on both sides so that a rule which never
+     flips, or flips twice, is as loud as one that flips in the wrong place.
+
+       fullSweep()  -> { cases, flipAt, fails }
+  --------------------------------------------------------------------------- */
+  window.fullSweep = function () {
+    const V = window.__v, fails = [];
+    const ctx = document.querySelector('canvas').getContext('2d');
+    V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
+    /* An UNFINISHED village: a finished one shares its overflow and the chip
+       says so in calmer words, which is a different sentence to look for. */
+    V.goalIdx = 0; V.tutSeen.length = 0;
+    V.away = null; V.goalDone = null; V.finished = null; V.panel = null; V.sel = null;
+    V.ensureHall(); V.placed[0].lvl = 5;
+    V.res.wood = 1e6; V.res.food = 1e6;
+    const L = V.landBounds();
+    const put = k => { for (let r = L.lo; r <= L.hi; r++) for (let c = L.lo; c <= L.hi; c++)
+      if (V.canPlace(k, c, r, V.occupied())) return V.place(k, c, r); return false; };
+    for (const k of ['house', 'house', 'farm', 'lumber', 'store']) put(k);
+    for (const q of V.placed) if (q.key !== 'hall') q.lvl = 3;
+    V.res.wood = 1e6; V.res.food = 1e6;
+    for (let i = 0; i < 90 * 30; i++) V.step(1 / 30);        // and the levels land through a real finish
+    const farm = V.placed.find(q => q.key === 'farm');
+    if (!farm) return { cases: 0, flipAt: null, fails: ['the full-store check could not place a farm'] };
+    const says = new RegExp('storage full|wasting');
+    const read = room => {
+      V.res.food = V.caps.food - room;
+      V.res.wood = Math.floor(V.caps.wood / 2);   // the other store always has room to go to
+      V.step(1 / 30);
+      const want = V.desiredJobs().want;
+      const lines = []; const orig = ctx.fillText;
+      ctx.fillText = function (x, ...a) { lines.push(String(x)); return orig.call(this, x, ...a); };
+      try { V.draw(); } finally { ctx.fillText = orig; }
+      return { hands: want.get(farm.id) || 0, full: lines.some(x => says.test(x)) };
+    };
+    const span = V.CARRY + 3;
+    const scan = [];
+    for (let room = 0; room <= span; room++) scan.push({ room, ...read(room) });
+    const flips = (key, from) => {
+      const out = [];
+      for (let i = 1; i < scan.length; i++) if (scan[i][key] !== scan[i - 1][key]) out.push(scan[i].room);
+      return out;
+    };
+    const planFlips = flips('hands'), chipFlips = flips('full');
+    const show = key => scan.map(x => x.room + ':' + x[key]).join(' ');
+    /* The plan must want MORE hands on the farm once a load fits, and the chip
+       must stop calling the store full, and both at the same room. */
+    if (planFlips.length !== 1)
+      fails.push('the workforce changed its mind ' + planFlips.length + ' times across the ceiling, not once — ' + show('hands'));
+    else if (planFlips[0] !== V.CARRY)
+      fails.push('the workforce treats the store as full until there is room for ' + planFlips[0]
+        + ', and a load is ' + V.CARRY + ' — ' + show('hands'));
+    if (chipFlips.length !== 1)
+      fails.push('the chip changed its mind ' + chipFlips.length + ' times across the ceiling, not once — ' + show('full'));
+    else if (chipFlips[0] !== V.CARRY)
+      fails.push('the chip calls the store full until there is room for ' + chipFlips[0]
+        + ', and a load is ' + V.CARRY + ' — ' + show('full'));
+    if (planFlips.length === 1 && chipFlips.length === 1 && planFlips[0] !== chipFlips[0])
+      fails.push('the workforce and the chip disagree about what full means: ' + planFlips[0] + ' against ' + chipFlips[0]);
+    /* And the load that does not fit really does not fit, which is the whole
+       reason for the line. */
+    V.res.food = V.caps.food - (V.CARRY - 1);
+    const before = V.res.food;
+    const got = V.grant('food', V.CARRY, 0, 0);
+    if (got >= V.CARRY - 0.001)
+      fails.push('a whole load fitted into a store with room for ' + (V.CARRY - 1));
+    if (V.res.food - before >= V.CARRY - 0.001)
+      fails.push('the store took a whole load it had no room for');
+    V.goalIdx = 0;
+    return { cases: scan.length, flipAt: planFlips.length === 1 ? planFlips[0] : planFlips, fails };
+  };
   window.traySweep = function () {
     const V = window.__v, cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
     const fails = [];
@@ -3950,6 +4042,7 @@
       ['badge', () => window.badgeSweep()],
       ['tray', () => window.traySweep()],
       ['strip', () => window.stripSweep()],
+      ['full', () => window.fullSweep()],
       ['order', () => window.orderSweep()],
       ['tap', () => window.tapSweep()],
       ['text', () => window.textSweep()],
