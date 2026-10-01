@@ -3573,6 +3573,80 @@
       if (wells < 2) fails.push('only ' + wells + ' well states were read, so the block proved little');
     }
 
+    /* And what comes back is HALF of what went in -- held against the purse,
+       not against the arithmetic that works the refund out.
+
+       The block below holds the button's quote against the receipt, and both
+       of those come off sellValue, so they move together: make sellValue
+       return everything ever paid instead of half and the quote and the
+       receipt agree all the way down. Twenty-four sweeps and four thousand
+       soak rounds pass while every building in the game is free to put up and
+       take down again, which is the one move the source says cannot be undone.
+
+       So this one does not ask the game what the building cost. It watches the
+       purse through the real transactions -- the placement and each upgrade,
+       each measured across a single call with no tick in between, so nothing
+       but the price can move it -- adds them up itself, and holds the refund
+       to half of that. It therefore also catches investedIn forgetting a step
+       of the ladder, which is the other half of "a level four farm has had far
+       more than a farm's worth put into it".
+
+       Levels are kept low and the stores wide and half empty: a refund is
+       clamped to the room the village will have, and this block is about the
+       figure before the clamp. */
+    let halves = 0;
+    {
+      V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
+      V.tutSeen.length = 0; V.away = null; V.goalDone = null; V.finished = null; V.panel = null;
+      V.ensureHall(); V.placed[0].lvl = 5;
+      V.res.wood = 1e6; V.res.food = 1e6;
+      const L = V.landBounds();
+      const put = k => { for (let r = L.lo; r <= L.hi; r++) for (let c = L.lo; c <= L.hi; c++)
+        if (V.canPlace(k, c, r, V.occupied())) return V.place(k, c, r); return false; };
+      /* Three, not four: the hall allows four storehouses and one of the
+         five kinds bought and sold below is a storehouse, so the fourth slot
+         has to be left open for it. */
+      for (let i = 0; i < 3; i++) put('store');
+      for (const q of V.placed) if (q.key !== 'hall') q.lvl = 5;
+      V.res.wood = 1e6; V.res.food = 1e6;
+      for (let i = 0; i < 60 * 30; i++) V.step(1 / 30);     // the levels land through a real finish
+      parkGoals();
+      const purse = () => { V.res.wood = Math.floor(V.caps.wood * 0.3); V.res.food = Math.floor(V.caps.food * 0.3); };
+      const moved = fn => { const w = V.res.wood, f = V.res.food; const ok = fn();
+        return { ok, wood: V.res.wood - w, food: V.res.food - f }; };
+      for (const key of ['farm', 'lumber', 'house', 'store', 'statue']) {
+        purse();
+        const paid = { wood: 0, food: 0 };
+        const first = moved(() => put(key));
+        if (!first.ok) { fails.push('the refund rule check could not put up a ' + key); continue; }
+        paid.wood -= first.wood; paid.food -= first.food;
+        const p = V.placed[V.placed.length - 1];
+        for (let i = 0; i < 60 * 30; i++) V.step(1 / 30);
+        for (let n = 0; n < 2; n++) {
+          purse();
+          if (!V.canUpgrade(p)) break;
+          const u = moved(() => V.upgradeBuilding(p));
+          paid.wood -= u.wood; paid.food -= u.food;
+          for (let i = 0; i < 60 * 30; i++) V.step(1 / 30);
+        }
+        p.stock = 0;
+        /* Low enough that the refund cannot be clamped on the way in, and the
+           storehouse taking its own capacity away with it is allowed for. */
+        V.res.wood = Math.floor(V.caps.wood * 0.15); V.res.food = Math.floor(V.caps.food * 0.15);
+        const back = moved(() => V.sellBuilding(p));
+        if (!back.ok) { fails.push('the refund rule check could not sell a ' + key); continue; }
+        halves++;
+        for (const k of ['wood', 'food']) {
+          const want = Math.floor(paid[k] / 2), got = Math.round(back[k]);
+          if (Math.abs(got - want) > 1)
+            fails.push('a level ' + V.lvlOf(p) + ' ' + key + ' cost ' + paid[k] + ' ' + k
+              + ' all told and gave back ' + got + ', where half is ' + want);
+        }
+        if (paid.wood <= 0) fails.push('the refund rule check spent nothing on a ' + key + ', so it proves nothing');
+      }
+      if (halves < 4) fails.push('only ' + halves + ' buildings were bought and sold, so the refund rule proved little');
+    }
+
     /* And what the sell button quotes is what the village receives.
 
        The panel makes two promises about taking a building down and they are
@@ -3651,7 +3725,8 @@
       if (quotes < 30) fails.push('only ' + quotes + ' sales were quoted and checked, so the block proved little');
     }
 
-    return { checked, skipped, delivering: counted, holding: rooms, housing: people, wells, quoted: quotes, fails };
+    return { checked, skipped, delivering: counted, holding: rooms, housing: people, wells,
+      halves, quoted: quotes, fails };
   };
   /* A figure on a build card is the price -- unless it is marked, and then it
      is what is still missing. The two sit in the same place in the same shape,
