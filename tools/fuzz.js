@@ -4502,6 +4502,169 @@
     }
     return { quiet: +quiet.toFixed(1), arrivals, armedFor, bars: { quiet: QUIET, disarm: 30 }, fails };
   };
+  /* ---------------------------------------------------------------------------
+     The day is a real day and the night is short of black.
+
+     Two constants run the light, and the whole battery is blind to both. Set
+     NIGHT_MAX to 0.95 -- the village all but black at two in the morning --
+     and 32 sweeps pass. Set DAY_MS to eight hours, so the cycle never visibly
+     moves in a session and the lamp decoration goes back to being an ornament,
+     and 32 sweeps pass again.
+
+     The contrast sweeps cannot see either, and it is worth saying why: they
+     sample what is behind a string at the moment fillText is called, and the
+     night wash is painted over the whole world AFTERWARDS. Every contrast
+     figure in this file is a daylight figure. (The HUD escapes the wash for
+     real -- drawHUD runs after it -- so the "build bar you cannot read at 2am"
+     the source worries about is protected by the draw order rather than by
+     NIGHT_MAX. What the wash actually dims is the world and the badges
+     standing in it.)
+
+     So this one looks at finished frames. Four questions, each in units the
+     constant behind it cannot move:
+
+       the night is short of black   the spread of light across the world at
+                                     midnight, against the same spread at noon
+       a day passes while you play   addressed in REAL SECONDS: a quarter of an
+                                     hour of play must show the whole swing
+       it does not strobe            the most the light moves in any ONE second
+       the lamp has a reason to      "until now it was an ornament that glowed
+       exist                         at noon" -- so its light must be clearly
+                                     stronger at the darkest hour of that
+                                     quarter hour than at the brightest
+
+     Noon and midnight are addressed by PHASE, which is immune to DAY_MS, so
+     the swing they measure is a fixed yardstick that the walk in real seconds
+     is then held against.
+
+       lightSweep()  -> { retain, walkFrac, jumpFrac, glow, fails }
+  --------------------------------------------------------------------------- */
+  window.lightSweep = function () {
+    const V = window.__v, fails = [];
+    const cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
+    const lum = (r, g, b) => { const f2 = v => { v /= 255;
+      return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+      return 0.2126 * f2(r) + 0.7152 * f2(g) + 0.0722 * f2(b); };
+
+    V.placed.length = 0; V.villagers.length = 0; V.landTier = 2; V.coverPlaced();
+    V.tutSeen.length = 0; V.away = null; V.goalDone = null; V.finished = null;
+    V.panel = null; V.sel = null; V.moving = null; V.reduceMotion = false;
+    V.ensureHall(); V.placed[0].lvl = 3;
+    V.grant('wood', 1e6, 0, 0); V.grant('food', 1e6, 0, 0); V.step(0.001);
+    const L = V.landBounds();
+    const put = k => { for (let c = L.lo; c <= L.hi; c++) for (let r = L.lo; r <= L.hi; r++)
+      if (V.canPlace(k, c, r, V.occupied())) return V.place(k, c, r); return null; };
+    for (const k of ['house', 'house', 'farm', 'lumber', 'store', 'lamp']) put(k);
+    for (let i = 0; i < 120 * 30; i++) V.step(1 / 30);
+    parkGoals();
+    V.camFit(true); V.step(0.001);
+    const lamp = V.placed.find(p => p.key === 'lamp');
+    if (!lamp) fails.push('no lamp could be placed, so nothing measured whether it lights up');
+
+    /* Rows across the world band rather than the whole of it: a frame is a
+       megapixel and this sweep draws some seventy of them. The band is where
+       the wash goes -- the HUD above and below it is never washed. */
+    const y0 = Math.max(0, Math.round(V.screenTop()));
+    const y1 = Math.min(cv.height, Math.round(V.screenBot()));
+    const ys = []; for (let i = 1; i <= 9; i++) ys.push(Math.round(y0 + (y1 - y0) * i / 10));
+    const read = () => {
+      const all = []; let sum = 0;
+      for (const y of ys) { const d = ctx.getImageData(0, y, cv.width, 1).data;
+        for (let i = 0; i < d.length; i += 4 * 3) { const v = lum(d[i], d[i + 1], d[i + 2]); all.push(v); sum += v; } }
+      all.sort((a, b) => a - b);
+      const q = p => all[Math.min(all.length - 1, Math.floor(p * all.length))];
+      return { mean: sum / all.length, spread: q(0.95) - q(0.05) };
+    };
+    const whole = () => {                      // the full band, for the lamp only
+      const d = ctx.getImageData(0, y0, cv.width, y1 - y0).data;
+      const out = new Float64Array(Math.ceil(d.length / 28));
+      let j = 0; for (let i = 0; i < d.length; i += 28) out[j++] = lum(d[i], d[i + 1], d[i + 2]);
+      return out;
+    };
+    const realNow = Date.now;
+    const at = ms => { Date.now = () => ms; V.step(0.001); V.draw(); };
+    let out = {};
+    try {
+      at(0.25 * V.DAY_MS); const noon = read();
+      at(0.75 * V.DAY_MS); const mid = read();
+      const swing = Math.abs(noon.mean - mid.mean);
+
+      /* "Capped well short of black. This is a village you are meant to keep
+         playing in." How much of the picture survives the darkest wash --
+         measured as the spread of light across the world, which is what tells
+         one thing from another. 0.42 of it survives at the written value and
+         0.05 at 0.95, so a quarter sits between with better than a three-fold
+         margin on the side that matters. */
+      const retain = noon.spread > 1e-6 ? mid.spread / noon.spread : 0;
+      if (retain < 0.25)
+        fails.push('at the darkest hour only ' + (retain * 100).toFixed(0)
+          + ' per cent of the picture is left, and this is a village you are meant to keep playing in');
+      if (swing < 1e-4) fails.push('the light does not change between noon and midnight at all');
+
+      /* A quarter of an hour of play, in real seconds, must show the whole of
+         that swing. Eight minutes shows it nearly twice over; eight hours
+         shows a sliver of it. */
+      const t0 = 1.7e12, walk = [];
+      for (let sec = 0; sec <= 900; sec += 30) { at(t0 + sec * 1000); walk.push({ sec, m: read().mean }); }
+      const hi = walk.reduce((a, b) => b.m > a.m ? b : a), lo = walk.reduce((a, b) => b.m < a.m ? b : a);
+      const walkFrac = swing > 1e-6 ? (hi.m - lo.m) / swing : 0;
+      if (walkFrac < 0.6)
+        fails.push('a quarter of an hour of play showed ' + (walkFrac * 100).toFixed(0)
+          + ' per cent of the day, so the cycle is not something a player sees');
+
+      /* And it does not strobe. Sampled a second at a time through the
+         steepest half minute the walk found, because the light sits still for
+         long stretches around noon and midnight and a flicker is not going to
+         be there. */
+      let bi = 1;
+      for (let i = 1; i < walk.length; i++)
+        if (Math.abs(walk[i].m - walk[i - 1].m) > Math.abs(walk[bi].m - walk[bi - 1].m)) bi = i;
+      let jump = 0, prev = null;
+      for (let sec = walk[bi - 1].sec; sec <= walk[bi].sec; sec++) {
+        at(t0 + sec * 1000); const m = read().mean;
+        if (prev !== null) jump = Math.max(jump, Math.abs(m - prev));
+        prev = m;
+      }
+      const jumpFrac = swing > 1e-6 ? jump / swing : 0;
+      if (jumpFrac > 0.25)
+        fails.push('the light moved ' + (jumpFrac * 100).toFixed(0)
+          + ' per cent of a whole day in one second, which is a flicker and not a sunset');
+
+      /* The lamp. Drawn after the wash so its light sits on top of the night
+         rather than under it, and gated on there being a night to sit on.
+         Measured by taking the lamp away and putting it back, and counting how
+         much of the frame got brighter for it.
+
+         HOW MUCH of the frame, not how much brighter: the brightest pixel is
+         the lamp's own post, which is there in daylight too, and it put the
+         two readings only three times apart with a mutant squeezing that to
+         two. The light spreads over a radius of ninety world pixels and the
+         post is one tile, so counting lit pixels separates them by a hundred
+         and eighty times instead -- 3652 against 20. */
+      let glow = { dark: 0, bright: 0 };
+      if (lamp) {
+        const keep = V.placed.slice();
+        const lit = sec => {
+          at(t0 + sec * 1000); const on = whole();
+          V.placed.length = 0; for (const p of keep) if (p !== lamp) V.placed.push(p);
+          at(t0 + sec * 1000); const off = whole();
+          V.placed.length = 0; for (const p of keep) V.placed.push(p);
+          let n = 0; for (let i = 0; i < on.length; i++) if (on[i] - off[i] > 0.004) n++;
+          return n;
+        };
+        glow = { dark: lit(lo.sec), bright: lit(hi.sec) };
+        if (!(glow.dark >= 100 && glow.dark >= glow.bright * 10))
+          fails.push('the lamp lit ' + glow.dark + ' of the picture at the darkest hour of the session against '
+            + glow.bright + ' at the brightest, so it is an ornament rather than a lamp');
+      }
+      out = { retain: +retain.toFixed(3), walkFrac: +walkFrac.toFixed(3),
+        jumpFrac: +jumpFrac.toFixed(4), swing: +swing.toFixed(5),
+        glow,
+        bars: { retain: 0.25, walkFrac: 0.6, jumpFrac: 0.25, glow: '10x and at least 100' } };
+    } finally { Date.now = realNow; }
+    V.step(0.001);
+    return { ...out, fails };
+  };
   window.traySweep = function () {
     const V = window.__v, cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
     const fails = [];
@@ -4702,6 +4865,7 @@
       ['charm', () => window.charmSweep()],
       ['floor', () => window.floorSweep()],
       ['clock', () => window.clockSweep()],
+      ['light', () => window.lightSweep()],
       ['order', () => window.orderSweep()],
       ['tap', () => window.tapSweep()],
       ['text', () => window.textSweep()],
