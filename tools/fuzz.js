@@ -676,12 +676,162 @@
       }
     }
     Date.now = realNow;
+
+    /* ---- and how BIG they come out, which was being asked tautologically ----
+
+       The badges were held to the readable floor like this:
+
+         onScreen = BADGE_TEXT_PX * badgeScale() * camScale()
+
+       and badgeScale() is itself `clamp * TEXT_MIN / BADGE_TEXT_PX`, so the
+       constant divides out of its own test and the line reduces to
+       `TEXT_MIN * clamp * camScale >= TEXT_MIN`. It was checking the clamp.
+       Take BADGE_TEXT_PX from 19 to 48 and every badge in the village shrinks
+       to two fifths while that line reports the same number.
+
+       Worse, it assumed every badge string is drawn at BADGE_TEXT_PX units.
+       None of them is. The four are 15, 19, 20 and 23, and the 15 -- the tick
+       that says the hall can grow -- came out at 20.5 logical pixels where the
+       floor is 26.
+
+       So the sizes are READ rather than worked out: the font the game actually
+       set, times the transform actually in force, at the two ends of the pinch
+       range. Which strings have to clear the floor is answered structurally,
+       the way backingSweep answers which strings have a pill. A label that is
+       counter-scaled barely changes size when the camera moves -- it is drawn
+       that way precisely so it stays legible -- while a thing belonging to the
+       world grows with the world. Measured here: the badges move by a factor
+       of 1.21 across the whole pinch range and the icon over a villager's head
+       moves by 4.0, which is the zoom range itself. The one is a label and is
+       held to the floor; the other is a basket a villager is carrying, and it
+       is right that it shrinks along with the villager carrying it.
+
+       POP_PX is the one of the pair that really is a free choice: a delivery
+       pop is drawn at POP_PX units and then scaled by BADGE_TEXT_PX / POP_PX,
+       so the unit cancels against itself and only the pop's rise and its
+       outline are measured in it. Moving it changes nothing a reader could
+       name, which is why nothing here holds it. */
+    const sizes = new Map();
+    const sizeScan = tag => {
+      const o = ctx.fillText.bind(ctx);
+      ctx.fillText = function (t, x, y, ...rest) {
+        const m = ctx.getTransform(), str = String(t).trim();
+        const hit = /([0-9.]+)px/.exec(ctx.font);
+        const inWorld = Math.abs(m.a - 1) > 1e-6 || Math.abs(m.e) > 1e-6;
+        if (hit && str.length && inWorld) {
+          const key = str.slice(0, 10) + ' @' + hit[1] + 'u';
+          const px = +(hit[1] * m.a).toFixed(2);
+          const row = sizes.get(key) || { key, lo: Infinity, byZoom: {} };
+          if (px < row.lo) row.lo = px;
+          /* Kept per zoom, not as one high-water mark. A string that happens
+             to be drawn at only some of the zooms -- the icon over a
+             villager's head is there only while somebody is carrying -- would
+             otherwise be judged on however much of the range it was seen
+             across, and a world thing seen across half the range looks as
+             still as a label. */
+          const z = row.byZoom[tag];
+          if (z === undefined || px < z) row.byZoom[tag] = px;
+          sizes.set(key, row);
+        }
+        return o(t, x, y, ...rest);
+      };
+      try { V.draw(); } finally { ctx.fillText = o; }
+    };
+    const keepZ2 = V.CAM.z;
+    /* The ends of the pinch range and a few points between, because a clamp
+       inside badgeScale means the smallest text is not always at the smallest
+       zoom. Empty and full stores both: full is what puts a post to rest and
+       empty is what leaves it wanting people, and the two wear different
+       badges. */
+    const overZoom = () => {
+      for (const z of [0.55, 0.8, 1, 1.5, 2.2]) {
+        V.CAM.z = z;
+        for (const full of [false, true]) {
+          V.res.wood = full ? V.caps.wood : 20;
+          V.res.food = full ? V.caps.food : 10;
+          /* A delivery pop lives a second or so, so whether one is on screen
+             at the instant of a draw is luck -- and the first run of this
+             block inside the full battery reported the pop unmeasured for
+             exactly that reason. Waited for instead: the stores are held low
+             so the village keeps handing things over, and the frame is taken
+             when something has just arrived. Not with full stores, where
+             nothing arrives at all and that is the point of the pass. */
+          if (!full) for (let i = 0; i < 30 * 30 && !V.pops.length; i++) {
+            V.step(1 / 30);
+            V.res.wood = Math.min(V.res.wood, 20);
+            V.res.food = Math.min(V.res.food, 10);
+          }
+          V.step(0.001); sizeScan(z);
+        }
+      }
+    };
+    overZoom();
+    /* The village above cannot produce the "losing it to the walk" badge, and
+       that badge carries the smallest text of the family. reachOf compares a
+       post against the same post beside a store, so the walk only dominates
+       once the post is FAST: at level one the wait for a load to be ready is
+       long enough that the longest walk a tier-two island allows still comes
+       out at 0.62, well clear of the half the badge wants. A level five farm in
+       the far corner of a full island measures 0.49, and the badge appears. */
+    V.placed.length = 0; V.villagers.length = 0;
+    V.landTier = V.LAND_MAX; V.coverPlaced(); V.ensureHall(); V.placed[0].lvl = 3;
+    V.grant('wood', 1e6, 0, 0); V.grant('food', 1e6, 0, 0); V.step(0.001);
+    {
+      const L2 = V.landBounds();
+      const seat = (k, fromFar) => {
+        const cs = []; for (let c = L2.lo; c <= L2.hi; c++) cs.push(c);
+        if (fromFar) cs.reverse();
+        for (const c of cs) for (const r of cs)
+          if (V.canPlace(k, c, r, V.occupied())) return V.place(k, c, r);
+        return null;
+      };
+      seat('house'); seat('house'); seat('house');
+      seat('farm', true);
+      const corner = V.placed[V.placed.length - 1];
+      if (corner && corner.key === 'farm') { corner.lvl = 5; corner.t = 1; }
+      seat('lumber'); seat('lumber');          // more posts than hands: one stands idle
+      for (let i = 0; i < 240 * 30; i++) V.step(1 / 30);
+      overZoom();
+    }
+    V.CAM.z = keepZ2; V.step(0.001);
+    /* Above this and the string is part of the world. Measured across the two
+       ENDS of the pinch range, where the two populations sit at 1.21 and 4.0,
+       so anywhere between separates them; 2 is the middle of that and keeps a
+       two-fold margin on each side. A string that was not drawn at both ends
+       is not classified at all -- there is nothing to tell from -- and the
+       named families below are what makes sure that silence is not how a
+       label escapes. */
+    const WORLD_GROWTH = 2, ZLO = 0.55, ZHI = 2.2;
+    const sizeRows = [...sizes.values()].map(r => {
+      const lo = r.byZoom[ZLO], hi = r.byZoom[ZHI];
+      return { ...r, grew: lo && hi ? +(hi / lo).toFixed(2) : null };
+    });
+    const fails = [];
+    for (const r of sizeRows.sort((a, b) => a.lo - b.lo)) {
+      if (r.grew === null || r.grew > WORLD_GROWTH) continue;   // the world, or not enough to tell
+      if (r.lo < V.TEXT_MIN - 0.5)
+        fails.push('the badge "' + r.key + '" is drawn at ' + r.lo
+          + ' logical pixels, under the ' + V.TEXT_MIN + ' every label is held to');
+    }
+    /* And every family was actually drawn. A badge that stops appearing takes
+       its own size check with it silently, so they are named rather than
+       counted. */
+    const labels = sizeRows.filter(r => r.grew !== null && r.grew <= WORLD_GROWTH);
+    for (const [re, what] of [[/^Lv /, 'the hall level'], [/^▲/, 'the upgrade tick'],
+      [/^!/, 'the nobody-at-this-post alarm'], [/^−/, 'the lost-to-the-walk figure'],
+      [/^[+]/, 'a delivery']])
+      if (!labels.some(r => re.test(r.key)))
+        fails.push(what + ' never drew, so nothing measured how big it comes out');
+
     const best = new Map();
     for (const f of found) { const k = f.text + '|' + f.colour;
       if (!best.has(k) || f.ratio < best.get(k).ratio) best.set(k, f); }
     const rows = [...best.values()].sort((a, b) => a.ratio - b.ratio);
     return { failing: rows.filter(r => r.ratio < 4.5).length, samples: found.length,
-      worst: rows.slice(0, 6) };
+      worst: rows.slice(0, 6), fails,
+      sizes: sizeRows.map(r => r.key + ' -> ' + r.lo
+        + (r.grew === null ? ' (seen at one end only)'
+          : r.grew > WORLD_GROWTH ? ' (world, x' + r.grew + ')' : '')) };
   };
 
   window.fuzz = function (rounds = 5000, populated = true) {
@@ -1510,12 +1660,14 @@
     let frames = 0, drawn = 0; const bad = [];
     for (const z of [0.35, 0.5, 0.55, 0.8, 1.2, 2.2]) {
       V.CAM.z = z; V.step(0.001); V.draw(); frames++;
-      // and big enough to read: the smallest badge text reaches the HUD floor on screen
-      const onScreen = V.BADGE_TEXT_PX * V.badgeScale() * V.camScale();
-      if (z >= 0.55 && onScreen < V.TEXT_MIN - 0.5) bad.push({ z, tooSmall: +onScreen.toFixed(1), floor: V.TEXT_MIN });
-      // delivery pops share the scale: POP_PX units drawn at badgeScale x BADGE_TEXT_PX / POP_PX
-      const pop = V.POP_PX * (V.badgeScale() * V.BADGE_TEXT_PX / V.POP_PX) * V.camScale();
-      if (z >= 0.55 && pop < V.TEXT_MIN - 0.5) bad.push({ z, popTooSmall: +pop.toFixed(1), floor: V.TEXT_MIN });
+      /* "Big enough to read" used to be asked here, as
+           BADGE_TEXT_PX * badgeScale() * camScale() >= TEXT_MIN
+         -- and badgeScale() is clamp * TEXT_MIN / BADGE_TEXT_PX, so the
+         constant divided out and the line was checking the clamp. It also
+         assumed every badge is drawn at BADGE_TEXT_PX units, and none of them
+         is. badgeSweep now reads the sizes the game actually sets off the
+         canvas instead. This sweep keeps the question it is for: that no two
+         of them land on top of each other. */
       const k = V.lastBadges; drawn += k.length;
       for (let i = 0; i < k.length; i++) for (let j = i + 1; j < k.length; j++)
         if (Math.abs(k[i].x - k[j].x) < k[i].hw + k[j].hw && Math.abs(k[i].y - k[j].y) < k[i].hh + k[j].hh)

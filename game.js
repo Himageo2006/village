@@ -3220,10 +3220,20 @@ function drawStatus(p) {
     g.fillStyle = 'rgba(20,32,16,.86)'; g.strokeStyle = 'rgba(226,200,120,.9)'; g.lineWidth = 2;
     g.beginPath(); g.roundRect(-w / 2, -15, w, 30, 15); g.fill(); g.stroke();
     g.fillStyle = '#f0d894'; g.fillText(label, 0, 1);
-    if (up) {                       // a hall that can grow gets a tick beside it
+    if (up) {
+      /* A hall that can grow gets a tick beside its level, and it is the SAME
+         tick a building wears on its own when it can be improved -- same
+         meaning, so the same size. It was drawn at 15 of these units where
+         every other badge glyph is 19 to 23, and because the badges are
+         counter-scaled that lands it at 20.5 logical pixels: 7.5 CSS on a 375
+         phone, against the 9.5 that TEXT_MIN works out to and that every other
+         label in the game clears. The one glyph in the village that says "your
+         hall can grow", which gates the land, the people and every build limit,
+         was the smallest thing on the screen. The circle is matched to the
+         height of the pill it hangs off, so what it reaches to is unchanged. */
       g.fillStyle = 'rgba(24,52,20,.92)'; g.strokeStyle = 'rgba(150,232,110,.95)'; g.lineWidth = 2;
-      g.beginPath(); g.arc(w / 2 + 15, 0, 13, 0, 7); g.fill(); g.stroke();
-      g.font = 'bold 15px Segoe UI, sans-serif'; g.fillStyle = '#b6f58a';
+      g.beginPath(); g.arc(w / 2 + 15, 0, 15, 0, 7); g.fill(); g.stroke();
+      g.font = 'bold 20px Segoe UI, sans-serif'; g.fillStyle = '#b6f58a';
       g.fillText('▲', w / 2 + 15, 1);
     }
   } else if (resting) {
