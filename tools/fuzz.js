@@ -4539,6 +4539,187 @@
 
        lightSweep()  -> { retain, walkFrac, jumpFrac, glow, fails }
   --------------------------------------------------------------------------- */
+  /* ---------------------------------------------------------------------------
+     What the writing in the world measures AFTER the night has been painted
+     over it.
+
+     Every contrast figure in this file is a daylight figure. The checkers wrap
+     fillText and sample what is behind the glyph at the moment it is drawn,
+     and the night wash goes on afterwards -- it compresses the text and its
+     backing towards the same dark blue, so the ratio a reader actually gets at
+     two in the morning is lower than anything ever reported. The HUD is safe
+     (drawHUD runs after the wash); the badges standing in the world were not.
+
+     The trouble with measuring the finished frame is finding the ink: a glyph
+     is a few solid pixels in a sea of antialiasing and you cannot ask the
+     canvas which ones they are. So the frame is drawn TWICE, once with that
+     one string suppressed and once with it, and the pixel that changed most is
+     the most solid ink there is. Its colour in the second frame is what the
+     reader sees, its colour in the first is what is behind it, and both have
+     been through every wash, overlay and composite the game applies. No
+     arithmetic about alpha, and nothing read off a constant.
+
+     It caught its own first draft, too: the scene had a finished village in it
+     and the completion card lays a 0.66 black scrim over everything, which put
+     the hall's gold label on screen at a third of its stated colour and the
+     ratio at 2.27. A measurement of the real pixels will tell you about
+     anything that is really over them, including the thing you forgot to clear.
+
+       inkSweep()  -> { rows, fails }
+  --------------------------------------------------------------------------- */
+  window.inkSweep = function () {
+    const V = window.__v, fails = [];
+    const cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
+    const lum = (r, g, b) => { const f2 = v => { v /= 255;
+      return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+      return 0.2126 * f2(r) + 0.7152 * f2(g) + 0.0722 * f2(b); };
+    /* Emoji ignore the fill colour and paint in their own, so the ink this
+       finds for one is whatever the font felt like. The same rule the HUD
+       checker uses: above the basic plane, or in the Miscellaneous Symbols
+       block, is emoji. A string with one real letter in it is measured on
+       that letter's account. */
+    const isEmojiChar = ch => { const c = ch.codePointAt(0);
+      return c > 0xFFFF || (c >= 0x2600 && c <= 0x27BF) || (c >= 0xFE00 && c <= 0xFE0F); };
+    const hasText = str => [...str].some(ch => ch.trim() && !isEmojiChar(ch));
+
+    /* Built here rather than borrowed, because the thing this measures is
+       every layer of the frame and a scene left over from another sweep
+       brings its layers with it. goalIdx as well as finished: the completion
+       card raises itself again from the state otherwise. */
+    V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
+    V.goalIdx = 0; V.tutSeen.length = 0; V.finished = null; V.goalDone = null;
+    V.away = null; V.panel = null; V.sel = null; V.moving = null; V.claimAsk = false;
+    V.ensureHall(); V.placed[0].lvl = 3;
+    V.grant('wood', 1e6, 0, 0); V.grant('food', 1e6, 0, 0); V.step(0.001);
+    {
+      const L = V.landBounds();
+      const seat = (k, far) => { const cs = [];
+        for (let c = L.lo; c <= L.hi; c++) cs.push(c);
+        if (far) cs.reverse();
+        for (const c of cs) for (const r of cs)
+          if (V.canPlace(k, c, r, V.occupied())) return V.place(k, c, r);
+        return null; };
+      /* Two houses, not three: four pairs of hands against five posts, so one
+         of them stands empty and wears the amber alarm. With three houses the
+         village staffed everything and that badge -- the one a player most
+         needs to read -- went unmeasured. */
+      seat('house'); seat('house');
+      seat('farm', true);
+      const corner = V.placed[V.placed.length - 1];
+      if (corner && corner.key === 'farm') { corner.lvl = 5; corner.t = 1; }   // far enough to lose half the walk
+      /* And as many posts as the build limits at this hall allow. Some of
+         these are refused -- the mill and a lumber are already at their cap
+         -- which is fine: what matters is that the village ends up with more
+         work than workers. */
+      for (const k of ['lumber', 'lumber', 'farm', 'mill', 'farm']) seat(k);
+      for (let i = 0; i < 240 * 30; i++) V.step(1 / 30);
+    }
+    parkGoals();
+    V.goalIdx = 0; V.finished = null; V.goalDone = null; V.tutSeen.length = 0;
+    V.camFit(true); V.step(0.001);
+
+    const realNow = Date.now;
+    const grab = () => ctx.getImageData(0, 0, cv.width, cv.height).data;
+    /* Two draws with nothing between them: a step moves the villagers and the
+       largest difference between the frames is then somebody's hat. The
+       string is counted as it goes past, because a pop lives about a second
+       and asking after one that has already gone measures the difference
+       between two frames that are the same -- which comes out near 1 and
+       reads as a catastrophe rather than as nothing. */
+    const ink = target => {
+      const o = ctx.fillText.bind(ctx);
+      let drawn = 0;
+      ctx.fillText = function (t, x, y, ...rest) {
+        if (String(t).trim() === target) return;
+        return o(t, x, y, ...rest);
+      };
+      let without;
+      try { V.draw(); without = grab(); } finally { ctx.fillText = o; }
+      ctx.fillText = function (t, x, y, ...rest) {
+        if (String(t).trim() === target) drawn++;
+        return o(t, x, y, ...rest);
+      };
+      let withIt;
+      try { V.draw(); withIt = grab(); } finally { ctx.fillText = o; }
+      if (!drawn) return null;
+      let best = -1, bi = -1;
+      for (let i = 0; i < without.length; i += 4) {
+        const d = Math.abs(lum(withIt[i], withIt[i + 1], withIt[i + 2])
+          - lum(without[i], without[i + 1], without[i + 2]));
+        if (d > best) { best = d; bi = i; }
+      }
+      if (best < 0.02) return null;            // drawn, but nothing of it landed on screen
+      const l1 = lum(withIt[bi], withIt[bi + 1], withIt[bi + 2]);
+      const l2 = lum(without[bi], without[bi + 1], without[bi + 2]);
+      return +(((Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05))).toFixed(2);
+    };
+    /* What is on screen right now, asked rather than assumed: the "-N%" badge
+       prints whatever the walk happens to cost and hard-coding "-51%" meant
+       the one badge with the smallest text quietly went unmeasured. */
+    const strings = () => {
+      const o = ctx.fillText.bind(ctx), seen = new Set();
+      ctx.fillText = function (t, x, y, ...rest) {
+        const m = ctx.getTransform(), q = String(t).trim();
+        if ((Math.abs(m.a - 1) > 1e-6 || Math.abs(m.e) > 1e-6) && q && hasText(q)) seen.add(q);
+        return o(t, x, y, ...rest);
+      };
+      try { V.draw(); } finally { ctx.fillText = o; }
+      return [...seen];
+    };
+
+    /* The bar the rest of the file holds world text to, and the same 4.5 both
+       platforms ask of ordinary text. The badges come out at 9.5 to 11.5 CSS
+       pixels on a phone, which is ordinary. */
+    const BAR = 4.5;
+    const rows = [], seenAt = {};
+    try {
+      for (const [when, phase] of [['by day', 0.25], ['at midnight', 0.75]]) {
+        Date.now = () => phase * V.DAY_MS;
+        /* Empty stores and full ones, because they wear different badges: a
+           full barn sends a post to rest and stops the deliveries, an empty
+           one leaves posts wanting people and keeps the pops coming. */
+        for (const full of [false, true]) {
+          V.res.wood = full ? V.caps.wood : 20;
+          V.res.food = full ? V.caps.food : 10;
+          if (!full) {
+            /* A FRESH delivery. The list is cleared first and then waited on,
+               because a pop fades out over its last half second and one left
+               lying about from building the scene measured 2.15 -- which is
+               the honest contrast of a nearly invisible thing and tells you
+               nothing about the one a player actually sees. */
+            V.pops.length = 0;
+            for (let i = 0; i < 30 * 30 && !V.pops.length; i++) {
+              V.step(1 / 30);
+              V.res.wood = Math.min(V.res.wood, 20);
+              V.res.food = Math.min(V.res.food, 10);
+            }
+          }
+          V.step(0.001);
+          for (const str of strings()) {
+            const got = ink(str);
+            if (got === null) continue;
+            /* The worst of the states this string was seen in, and the
+               complaint is made once at the end from that -- two store states
+               were otherwise reporting the same shortfall twice. */
+            const row = seenAt[str] = seenAt[str] || {};
+            if (row[when] === undefined || got < row[when]) row[when] = got;
+          }
+        }
+      }
+    } finally { Date.now = realNow; }
+    for (const k of Object.keys(seenAt)) for (const when of Object.keys(seenAt[k]))
+      if (seenAt[k][when] < BAR)
+        fails.push('"' + k + '" measures ' + seenAt[k][when] + ' against what is behind it ' + when
+          + ', under the ' + BAR + ' this game holds text to');
+    for (const k of Object.keys(seenAt))
+      rows.push('"' + k + '" ' + Object.entries(seenAt[k]).map(e => e[1] + ' ' + e[0]).join(', '));
+    const night = Object.keys(seenAt).filter(k => seenAt[k]['at midnight'] !== undefined).length;
+    if (night < 3)
+      fails.push('only ' + night + ' pieces of world writing were measured after dark, so the block proved little');
+    V.step(0.001);
+    return { rows, bar: BAR, fails };
+  };
+
   window.lightSweep = function () {
     const V = window.__v, fails = [];
     const cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
@@ -4866,6 +5047,7 @@
       ['floor', () => window.floorSweep()],
       ['clock', () => window.clockSweep()],
       ['light', () => window.lightSweep()],
+      ['ink', () => window.inkSweep()],
       ['order', () => window.orderSweep()],
       ['tap', () => window.tapSweep()],
       ['text', () => window.textSweep()],

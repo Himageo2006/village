@@ -3598,7 +3598,8 @@ function drawWorld() {
   ents.sort((a, b2) => a.y - b2.y);
   badgeQueue = [];
   for (const e of ents) e.d();
-  flushBadges();
+  /* The badges are QUEUED here and painted in draw(), after the night wash.
+     See the note beside that call: they are information, not scenery. */
   /* The well's reach again, outline only, so the far side of the circle is not
      lost behind whatever is standing in it. */
   const ringOf = p => p && B(p.key).boost ? p : null;
@@ -5243,7 +5244,23 @@ function draw() {
   g.save(); g.translate(0, OY);
   g.save(); camApply(); drawWorld(); g.restore();
   drawSky();                                   // dusk and night wash over the world
-  g.save(); camApply(); drawLamps(); g.restore();   // but not over lamplight
+  /* Neither over lamplight, nor over the badges.
+
+     The badges are the only writing in the world -- the hall's level, the
+     amber "!" for a post with nobody at it, the "-N%" for one losing itself
+     to the walk, the tick that says a building can grow -- and they were
+     painted under the wash along with the roofs they label. Measured off
+     finished frames: "Lv 3" reads 9.7 against its pill at noon and 4.34 at
+     midnight, "-51%" 9.8 and 4.44, both under the 4.5 this game holds text
+     to. Nothing had ever looked, because every contrast check in the harness
+     samples at the moment the glyph is drawn and the wash goes on afterwards.
+
+     The same reasoning as the lamps, and with more force: a lamp that gets
+     dimmed by the night is merely wrong, a warning you cannot read at 2am is
+     the thing the source already calls a bug however pretty it looks. The
+     delivery pops stay under the wash -- they carry their own near-black
+     outline and measure 8.4 at midnight, so they do not need it. */
+  g.save(); camApply(); drawLamps(); flushBadges(); g.restore();
   drawHUD();
   g.restore();
 }
