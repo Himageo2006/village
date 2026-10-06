@@ -4739,6 +4739,124 @@
 
        notchSweep()  -> { read, shapes, fails }
   --------------------------------------------------------------------------- */
+  /* ---------------------------------------------------------------------------
+     Every state that is coloured is also said.
+
+     The source states the rule once, beside the placement outline: "dashed when
+     the spot is refused, so it does not rest on colour". It keeps it
+     everywhere -- a card you cannot afford prints its price with a minus in
+     front of it, one at its limit prints "6/6" and a padlock, a trade you
+     cannot fill says "need", an upgrade you cannot reach says what is missing
+     -- and nothing holds any of it. A green pill turning red while the words
+     stay the same is the easiest edit in the world to make, and about one man
+     in twelve would stop being able to play.
+
+     It has to be asked of the WORDS, not of the pixels. Two hues almost always
+     differ in lightness as well -- the gold price and the red one are 0.60 and
+     0.46 -- so a greyscale comparison passes a change that carries no
+     information at all. What a reader who cannot tell the hues apart still has
+     is the writing, and that is what this reads.
+
+       hueSweep()  -> { pairs, fails }
+  --------------------------------------------------------------------------- */
+  window.hueSweep = function () {
+    const V = window.__v, fails = [];
+    const ctx = document.querySelector('canvas').getContext('2d');
+    /* The strings drawn inside one control, in the HUD's own space -- the world
+       is drawn through camApply, which translates, and the HUD only scales. */
+    const inside = rect => {
+      const o = ctx.fillText.bind(ctx), rows = [];
+      ctx.fillText = function (t, x, y, ...rest) {
+        const m = ctx.getTransform(), gx = m.e + x, gy = m.f + y;
+        if (Math.abs(m.e) < 1e-6 && Math.abs(gy - rect.y) < rect.h / 2 + 6
+          && Math.abs(gx - rect.x) < rect.w / 2 + 6) rows.push(String(t));
+        return o(t, x, y, ...rest);
+      };
+      try { V.draw(); } finally { ctx.fillText = o; }
+      return rows;
+    };
+
+    V.placed.length = 0; V.villagers.length = 0; V.landTier = 2; V.coverPlaced();
+    V.goalIdx = 0; V.tutSeen.length = 0; V.finished = null; V.goalDone = null;
+    V.away = null; V.panel = null; V.sel = null; V.moving = null; V.claimAsk = false;
+    V.ensureHall(); V.placed[0].lvl = 3;
+    V.grant('wood', 9e6, 0, 0); V.grant('food', 9e6, 0, 0); V.step(0.001);
+    for (let i = 0; i < 30 * 30; i++) V.step(1 / 30);
+
+    const pairs = [];
+    const say = (what, rect, setA, setB) => {
+      setA(); V.step(0.001); const a = inside(rect());
+      setB(); V.step(0.001); const b = inside(rect());
+      const same = a.length === b.length && a.every((x, i) => x === b[i]);
+      pairs.push(what + ': ' + JSON.stringify(a) + ' vs ' + JSON.stringify(b));
+      if (!a.length || !b.length)
+        fails.push('nothing was written on ' + what + ' in one of its two states, so the check proves nothing');
+      else if (same)
+        fails.push(what + ' says exactly the same thing in both states, so only the colour tells them apart');
+    };
+
+    V.barMode = 'build'; V.panel = null; V.sel = null; V.step(0.001);
+    say('a build card you can and cannot afford', () => V.barRects()[0],
+      () => { V.res.wood = 9e6; V.res.food = 9e6; },
+      () => { V.res.wood = 0; V.res.food = 0; });
+
+    V.res.wood = 9e6; V.res.food = 9e6; V.step(0.001);
+    {
+      /* A kind at its allowance. The hall's limit is what makes this state
+         reachable, so the houses are built out until it refuses another. */
+      const L = V.landBounds();
+      const openCard = () => V.barRects()[0];
+      const free = inside(openCard());
+      for (let c = L.lo; c <= L.hi && !V.atLimit('house'); c++)
+        for (let r = L.lo; r <= L.hi && !V.atLimit('house'); r++)
+          if (V.canPlace('house', c, r, V.occupied())) V.place('house', c, r);
+      V.step(0.001);
+      const full = inside(openCard());
+      pairs.push('a build card free and at its limit: ' + JSON.stringify(free) + ' vs ' + JSON.stringify(full));
+      if (!V.atLimit('house'))
+        fails.push('the houses never reached their allowance, so the at-limit card was never drawn');
+      else if (free.length === full.length && free.every((x, i) => x === full[i]))
+        fails.push('a build card at its limit says exactly the same thing as a free one, '
+          + 'so only the colour tells them apart');
+    }
+
+    V.barMode = 'orders'; V.orders = [V.makeOrder(1)]; V.orderT = 0; V.step(0.001);
+    if (V.orderRects()[0])
+      say('a trade you can and cannot fill', () => V.orderRects()[0],
+        () => { V.res.wood = 9e6; V.res.food = 9e6; },
+        () => { V.res.wood = 1; V.res.food = 1; });
+    else fails.push('no trade was on the board, so that pair went unasked');
+
+    V.barMode = 'build'; V.panel = V.placed[0].id; V.step(0.001);
+    say('an upgrade you can and cannot reach', () => V.panelRects().up,
+      () => { V.res.wood = 9e6; V.res.food = 9e6; },
+      () => { V.res.wood = 0; V.res.food = 0; });
+    V.panel = null; V.res.wood = 9e6; V.res.food = 9e6; V.step(0.001);
+
+    /* And the one the source wrote the rule for. The refused outline is dashed
+       and the allowed one is not, so this is asked of the dash pattern rather
+       than of any words -- there are none. */
+    {
+      const dashes = ghost => {
+        const o = ctx.setLineDash.bind(ctx), seen = new Set();
+        ctx.setLineDash = function (a) { seen.add(JSON.stringify(a)); return o(a); };
+        try { V.sel = 'house'; V.ghost = ghost; V.step(0.001); V.draw(); }
+        finally { ctx.setLineDash = o; V.sel = null; V.ghost = null; }
+        return seen;
+      };
+      const ok = dashes({ c: 5, r: 5, fits: true, ok: true, why: null });
+      const no = dashes({ c: 0, r: 0, fits: false, ok: false, why: 'taken' });
+      const extra = [...no].filter(d => !ok.has(d));
+      pairs.push('a spot allowed and refused: ' + [...ok].join(' ') + ' vs ' + [...no].join(' '));
+      if (!extra.length)
+        fails.push('a refused spot is drawn with the same lines as an allowed one, '
+          + 'so only the colour tells them apart');
+    }
+
+    V.step(0.001);
+    return { pairs, fails };
+  };
+
   window.notchSweep = function () {
     const V = window.__v, fails = [];
     const cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
@@ -5530,6 +5648,7 @@
       ['ink', () => window.inkSweep()],
       ['still', () => window.stillSweep()],
       ['notch', () => window.notchSweep()],
+      ['hue', () => window.hueSweep()],
       ['order', () => window.orderSweep()],
       ['tap', () => window.tapSweep()],
       ['text', () => window.textSweep()],
