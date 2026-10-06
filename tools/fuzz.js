@@ -4912,6 +4912,107 @@
 
        taughtSweep()  -> { taught, fails }
   --------------------------------------------------------------------------- */
+  /* ---------------------------------------------------------------------------
+     A goal's banner says what arrived, not what was promised.
+
+     "Every grant in this game clamps to the storage cap, and three separate
+     times I wrote the clamp in one place and the announcement in another, so
+     the game congratulated the player on goods it had just thrown away.
+     Everything that grants now goes through here." That is the note beside
+     grant(), and the away card is held to it by hiddenSweep. The goal banner is
+     the other thing in the game that announces a payment, and nothing had ever
+     looked at it.
+
+     It is the easiest congratulation in the world to get wrong, because the
+     goal knows what it means to give long before the stores say how much of it
+     will fit: the late goals hand over fourteen hundred wood into a village
+     whose barns hold seven.
+
+     Every goal is walked, twice. A village is built that satisfies all of them
+     at once -- hall five, the whole island, every workplace, enough statues for
+     the charm, the trade tally run up -- and then the goals fall one a tick,
+     which is the only way to see all of them without playing for an hour.
+
+       with room    the banner must claim what the promise was, or what the room
+                    was, whichever is less
+       with none    it must claim nothing at all, and nothing must arrive
+       either way   it must never claim more than the village actually gained
+
+     Allowed one load of slack, because a villager can put eight down in the
+     same tick the goal pays out and neither side can tell the two apart.
+
+       rewardSweep()  -> { goals, withRoom, withNone, fails }
+  --------------------------------------------------------------------------- */
+  window.rewardSweep = function () {
+    const V = window.__v, fails = [];
+    const seat = k => { const L = V.landBounds();
+      V.grant('wood', 9e6, 0, 0); V.grant('food', 9e6, 0, 0);
+      for (let c = L.lo; c <= L.hi; c++) for (let r = L.lo; r <= L.hi; r++)
+        if (V.canPlace(k, c, r, V.occupied())) return V.place(k, c, r);
+      return null; };
+    /* A village with every goal's condition already true. The goals then
+       complete one after another with nothing left to do but pay out. */
+    V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
+    V.tutSeen.length = 0; V.finished = null; V.goalDone = null; V.away = null;
+    V.panel = null; V.sel = null; V.moving = null; V.claimAsk = false;
+    V.orders = []; V.ordersDone = 999;
+    V.ensureHall(); V.placed[0].lvl = 5; V.step(0.001);
+    for (const k of ['house', 'house', 'house', 'house', 'house', 'house', 'store', 'store',
+      'farm', 'farm', 'lumber', 'lumber', 'well', 'mill', 'market']) seat(k);
+    for (let i = 0; i < 14; i++) seat('statue');
+    for (const p of V.placed) if (p.key !== 'hall') { p.t = 1; if (!V.isDecor(p.key)) p.lvl = 5; }
+    V.step(0.001);
+    for (let i = 0; i < 200 * 30; i++) V.step(1 / 30);
+
+    const load = V.CARRY;                       // what a villager can put down in one tick
+    const walk = full => {
+      const rows = [];
+      V.goalIdx = 0; V.goalDone = null; V.finished = null;
+      for (let guard = 0; V.goalIdx < V.GOALS.length && guard < 300; guard++) {
+        const g = V.GOALS[V.goalIdx];
+        for (const k of ['wood', 'food']) V.res[k] = full ? V.caps[k] : V.caps[k] * 0.05;
+        const before = { wood: V.res.wood, food: V.res.food };
+        const room = { wood: V.caps.wood - before.wood, food: V.caps.food - before.food };
+        V.goalDone = null;
+        V.step(1 / 30);
+        const card = V.goalDone;
+        if (!card) continue;                    // not this tick; the next one will do it
+        const got = card.got || {};
+        const gain = { wood: V.res.wood - before.wood, food: V.res.food - before.food };
+        const name = '"' + g.text.slice(0, 30) + '"';
+        for (const k of ['wood', 'food']) {
+          const said = got[k] || 0, meant = Math.min(g.give[k] || 0, room[k]);
+          if (said > (g.give[k] || 0) + 0.01)
+            fails.push('the banner for ' + name + ' claims ' + said + ' ' + k
+              + ' and the goal promises ' + (g.give[k] || 0));
+          if (said > gain[k] + 0.01)
+            fails.push('the banner for ' + name + ' claims ' + said.toFixed(1) + ' ' + k
+              + ' and the village gained ' + gain[k].toFixed(1));
+          if (said < meant - load)
+            fails.push('the banner for ' + name + ' claims ' + said.toFixed(1) + ' ' + k
+              + ' where there was room for ' + meant.toFixed(1));
+        }
+        rows.push({ goal: g.text.slice(0, 24), got, gain: { wood: +gain.wood.toFixed(1), food: +gain.food.toFixed(1) } });
+      }
+      return rows;
+    };
+
+    const withRoom = walk(false);
+    if (withRoom.length < 15)
+      fails.push('only ' + withRoom.length + ' goals paid out, so the walk proves little');
+    const withNone = walk(true);
+    for (const r of withNone) {
+      const said = (r.got.wood || 0) + (r.got.food || 0);
+      if (said > 0.01)
+        fails.push('the banner for "' + r.goal + '" congratulated the village on ' + said.toFixed(1)
+          + ' it could not take in');
+    }
+
+    V.goalIdx = 0; V.goalDone = null; V.finished = null; V.step(0.001);
+    return { goals: V.GOALS.length, withRoom: withRoom.length, withNone: withNone.length,
+      sample: withRoom.slice(0, 3), fails };
+  };
+
   window.taughtSweep = function () {
     const V = window.__v, fails = [];
     const fresh = tier => {
@@ -6125,6 +6226,7 @@
       ['rescue', () => window.rescueSweep()],
       ['offline', () => window.offlineSweep()],
       ['taught', () => window.taughtSweep()],
+      ['reward', () => window.rewardSweep()],
       ['order', () => window.orderSweep()],
       ['tap', () => window.tapSweep()],
       ['text', () => window.textSweep()],
