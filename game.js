@@ -1262,6 +1262,11 @@ const screenBot = () => H + OY;
    edges, and also what puts the resource chips under the camera unless somebody
    subtracts the insets again. Nothing did. */
 let SAFE = { top: 0, bottom: 0 };
+/* Whether the insets have ever been read off a canvas that had a box to
+   measure. A read that finds a laid-out canvas and gets zero is a success --
+   most phones have no notch -- and only a read that found nothing to measure
+   leaves this false. */
+let safeKnown = false;
 function readSafeArea() {
   const el = document.getElementById('safe');
   if (!el) return;
@@ -1269,9 +1274,10 @@ function readSafeArea() {
   const t = parseFloat(cs.paddingTop) || 0, b = parseFloat(cs.paddingBottom) || 0;
   // CSS pixels into the canvas's own units, which is what everything is drawn in
   const rect = cv.getBoundingClientRect();
-  if (!(rect.height > 0)) return;                    // laid out yet? try again later
+  if (!(rect.height > 0)) return;                    // laid out yet? fitCanvas asks again
   const k = VH / rect.height;
   SAFE = { top: t * k, bottom: b * k };
+  safeKnown = true;
 }
 const hudTop = () => -OY + SAFE.top;
 const hudBot = () => H + OY - SAFE.bottom;
@@ -2820,8 +2826,22 @@ function fitCanvas() {
   /* The insets only move when the window does, and reading them means a
      getComputedStyle and a layout read -- cheap here, a forced synchronous
      layout in the middle of a frame on a phone. fitCanvas runs every frame, so
-     it asks only when something actually changed. */
+     it asks only when something actually changed.
+
+     And it keeps asking until it gets an answer. readSafeArea gives up when the
+     canvas has no box yet -- "try again later" -- and there was no later: the
+     only other callers are resize and orientationchange, and a phone held
+     still in portrait fires neither. So a start-up where the first read lands
+     before the canvas is laid out left the insets at zero for the whole
+     session, with the resource chips under the camera and the tray under the
+     gesture bar, and the only way out was to turn the phone over.
+     Demonstrated: read normally the insets come out at 94 and 68; read once
+     with nothing to measure they stay at zero, and sixty frames of ordinary
+     play later they were still zero with the canvas 768 tall.
+
+     One extra layout read per frame until it works, and none ever after. */
   if (cv.height !== want) { cv.height = want; VH = cv.height; readSafeArea(); }
+  else if (!safeKnown) readSafeArea();
   VH = cv.height; OY = Math.round((VH - H) / 2);
   CAM.base = VH / H;
 }
@@ -5802,6 +5822,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   sky, dayPhase, DAY_MS, camFit, get camFling() { return camFling; },
   get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, ART, villagerArt,
   hudTop, hudBot, screenTop, screenBot, readSafeArea, get SAFE() { return SAFE; }, set SAFE(v) { SAFE = v; },
+  get safeKnown() { return safeKnown; }, set safeKnown(v) { safeKnown = !!v; },
   fitLines, TUT, GOALS, get finished() { return finished; }, set finished(v) { finished = v; },
   hasStore, onPath, PATH_SPEED, rebuildPaths, routeOf, get pathSet() { return pathSet; },
   LAND, LAND_MAX, inLand, landNext, canClaim, claimLand, landBounds, coverPlaced,

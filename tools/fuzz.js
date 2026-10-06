@@ -4638,6 +4638,134 @@
 
        stillSweep()  -> { moved, still, lean, pop, camera, fails }
   --------------------------------------------------------------------------- */
+  /* ---------------------------------------------------------------------------
+     The notch, which no sweep had ever put on the phone.
+
+     SAFE does not appear once in this file. Thirty-five sweeps, seven screen
+     shapes between them, and every one of them runs on a handset with no
+     camera cut-out and no gesture bar: SAFE is { top: 0, bottom: 0 } from the
+     first line to the last. The page asks for viewport-fit=cover, which is
+     what lets the sea reach the edges and also what puts the resource chips
+     under the camera unless somebody subtracts the insets again.
+
+     The insets are real values here rather than invented ones: the hidden
+     #safe element is the only way to read env(safe-area-inset-*), and its
+     padding is what readSafeArea measures, so setting that padding is the same
+     thing a notched phone does. 47 CSS pixels at the top and 34 at the bottom
+     are an iPhone's.
+
+     Three questions:
+
+       it is read at all     the insets reach SAFE, and keep reaching it --
+                             readSafeArea gives up when the canvas has no box
+                             yet and says "try again later"
+       the HUD moves         every pill the HUD draws sits inside the band
+                             between hudTop and hudBot, at both ends
+       nothing is crowded    no two controls collide and none loses its hit
+                             region, at every shape of screen, with the notch
+                             on
+
+       notchSweep()  -> { read, shapes, fails }
+  --------------------------------------------------------------------------- */
+  window.notchSweep = function () {
+    const V = window.__v, fails = [];
+    const cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
+    const el = document.getElementById('safe');
+    if (!el) return { fails: ['the page has no #safe element, so the insets cannot be read at all'] };
+    const keepPad = { t: el.style.paddingTop, b: el.style.paddingBottom };
+    const keepScreen = [window.innerWidth, window.innerHeight];
+    const keepSafe = { ...V.SAFE };
+
+    V.placed.length = 0; V.villagers.length = 0; V.landTier = 2;
+    V.goalIdx = 0; V.tutSeen.length = 0; V.finished = null; V.goalDone = null;
+    V.away = null; V.moving = null; V.claimAsk = false;
+    V.ensureHall(); V.placed[0].lvl = 4; V.step(1 / 30);
+    for (const [k, c, r] of [['store', 4, 4], ['farm', 7, 4], ['house', 4, 7]]) {
+      V.grant('wood', 9999, 0, 0); V.grant('food', 9999, 0, 0);
+      if (V.place(k, c, r)) V.placed[V.placed.length - 1].t = 1;
+    }
+    for (let i = 0; i < 60 * 30; i++) V.step(1 / 30);
+    V.panel = V.placed[1].id; V.barMode = 'build';
+
+    const out = { read: null, shapes: 0 };
+    try {
+      el.style.paddingTop = '47px'; el.style.paddingBottom = '34px';
+
+      /* Read at all, and read again when the first attempt had nothing to
+         measure. The canvas is hidden for the length of one resize, which is
+         the start-up this guards: the insets cannot be read, and the only
+         other things that ever ask are resize and orientationchange, which a
+         phone held still in portrait never fires. Ordinary frames have to pick
+         it up. */
+      V.SAFE = { top: 0, bottom: 0 }; V.safeKnown = false;
+      const keepDisplay = cv.style.display;
+      cv.style.display = 'none';
+      window.dispatchEvent(new Event('resize'));
+      const blind = { ...V.SAFE };
+      cv.style.display = keepDisplay;
+      for (let i = 0; i < 10; i++) V.draw();
+      const recovered = { ...V.SAFE };
+      out.read = { blind, recovered };
+      if (blind.top > 0.01)
+        fails.push('the inset was read off a canvas with no box, so the figure means nothing');
+      if (!(recovered.top > 0.01 && recovered.bottom > 0.01))
+        fails.push('the insets were never read: the first attempt had nothing to measure and nothing asked again, '
+          + 'so the chips sit under the camera for the whole session');
+
+      /* And the HUD keeps out of them. Every pill the HUD draws, at both ends
+         of the screen shapes the tap checks use. */
+      for (const [sw, sh] of [[360, 640], [375, 667], [390, 844], [344, 882], [400, 1200]]) {
+        asScreen(sw, sh); V.draw();                  // the resize reads the insets again
+        out.shapes++;
+        if (!(V.SAFE.top > 0.01))
+          { fails.push('the insets went back to nothing on a ' + sw + 'x' + sh + ' screen'); continue; }
+        /* In the canvas's own pixels, which is what the capture below reads:
+           the notch covers the first SAFE.top of them and the gesture bar the
+           last SAFE.bottom. hudTop and hudBot say the same thing in the space
+           the HUD is drawn in, which is offset by the letterboxing -- comparing
+           one against the other is how this check first reported the whole
+           tray as buried. */
+        const top = V.SAFE.top, bot = cv.height - V.SAFE.bottom;
+        const pills = [];
+        const oR = ctx.roundRect.bind(ctx);
+        ctx.roundRect = function (x, y, w, h, ...rest) {
+          const m = ctx.getTransform();
+          if (Math.abs(m.a - 1) < 1e-6 && Math.abs(m.b) < 1e-6) pills.push({ y: m.f + y, h });
+          return oR(x, y, w, h, ...rest);
+        };
+        try { V.draw(); } finally { ctx.roundRect = oR; }
+        const stuck = pills.filter(p => p.y < top - 1 || p.y + p.h > bot + 1);
+        if (stuck.length)
+          fails.push(stuck.length + ' of the HUD sits under the notch or the gesture bar on a '
+            + sw + 'x' + sh + ' screen');
+
+        /* Nothing is crowded by the smaller band. The same controls tapSweep
+           walks, asked again with the insets in. */
+        const R = V.panelRects(), tabs = V.tabRects(), bars = V.barRects(), M = V.muteRect();
+        const items = [
+          { n: 'close', x: R.close.x, y: R.close.y, w: R.close.r * 2, h: R.close.r * 2 },
+          { n: 'move', x: R.move.x, y: R.move.y, w: R.move.w, h: R.move.h },
+          { n: 'sell', x: R.sell.x, y: R.sell.y, w: R.sell.w, h: R.sell.h },
+          { n: 'up', x: R.up.x, y: R.up.y, w: R.up.w, h: R.up.h },
+          { n: 'mute', x: M.x, y: M.y, w: M.r * 2, h: M.r * 2 },
+          ...tabs.map((t, i) => ({ n: 'tab' + i, x: t.x, y: t.y, w: t.w, h: t.h })),
+          ...bars.map((b, i) => ({ n: 'tray' + i, x: b.x, y: b.y, w: b.w, h: b.h })),
+        ];
+        for (let i = 0; i < items.length; i++) for (let j = i + 1; j < items.length; j++) {
+          const a = items[i], b = items[j];
+          if (Math.abs(a.x - b.x) < (a.w + b.w) / 2 && Math.abs(a.y - b.y) < (a.h + b.h) / 2)
+            fails.push(a.n + ' and ' + b.n + ' land on top of each other with the notch in, on a '
+              + sw + 'x' + sh + ' screen');
+        }
+      }
+    } finally {
+      el.style.paddingTop = keepPad.t; el.style.paddingBottom = keepPad.b;
+      asScreen(keepScreen[0], keepScreen[1]);
+      V.SAFE = keepSafe; V.step(0.001);
+    }
+    return { ...out, fails };
+  };
+
   window.stillSweep = async function () {
     const V = window.__v, fails = [];
     const cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
@@ -5329,6 +5457,7 @@
       ['light', () => window.lightSweep()],
       ['ink', () => window.inkSweep()],
       ['still', () => window.stillSweep()],
+      ['notch', () => window.notchSweep()],
       ['order', () => window.orderSweep()],
       ['tap', () => window.tapSweep()],
       ['text', () => window.textSweep()],
