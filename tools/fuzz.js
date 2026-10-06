@@ -241,6 +241,33 @@
       if (!short) return true;
       return V.placed.every(q => !(V.B(q.key).jobs && q.t < 1 && (want.get(q.id) || 0) > 0));
     }],
+    /* A workplace never has a whole load standing about.
+
+       This is not the rule the source states. Beside the constant: "a
+       workplace stops filling once it has this much waiting", with the ceiling
+       at two loads. Measured over a hundred and sixty thousand post-steps of a
+       busy village -- five houses, thirty villagers, four hands to a post --
+       the most any workplace ever held was 7.997 of a load of 8, and not once
+       did anything reach a whole one. The stated ceiling is twice a number
+       that cannot reach itself.
+
+       The reason is in stepVillagers: a post only produces while somebody is
+       STANDING at it, and that same somebody takes a load away the instant
+       there is one. Nobody there, nothing made; somebody there, nothing
+       waits. So STOCK_MAX never binds, which is why taking it from two loads
+       to six changes nothing a sweep can see, and the battery was right to
+       stay quiet about it.
+
+       It is pinned here rather than left as an observation because the whole
+       delivery model rests on it. deliveredOf says "a worker waits L/rate for
+       a load to be ready and then walks it", and every rate the interface
+       quotes is worked out from that one sentence. The day a post is allowed
+       to make something while nobody is there -- which is an entirely
+       reasonable thing to want -- the stock starts to pile up, the wait is no
+       longer L/rate, and every quoted figure in the game quietly becomes
+       wrong. This fires on the first step of that change. */
+    ['a workplace never holds a whole load waiting', () => V.placed.every(q =>
+      !(q.stock > V.CARRY + 1e-6))],
     /* And a store the cache still believes in must be where it says it is:
        moving one changes no membership at all, only a position. */
     ['a cached store is where it stands', () => V.stores().every(p => {
