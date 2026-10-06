@@ -4781,6 +4781,118 @@
 
        hueSweep()  -> { pairs, fails }
   --------------------------------------------------------------------------- */
+  /* ---------------------------------------------------------------------------
+     The number on the chip is what the village is really doing.
+
+     "The HUD reports the rate the village is ACTUALLY achieving rather than the
+     rate its buildings are rated for -- the gap between the two is walking
+     time, and it is large." That is the one number a player watches while the
+     village runs, and nothing had ever compared it with the goods that actually
+     arrive.
+
+     It is not a figure the game can look up; it is measured and then smoothed
+     -- accumulated over a five second window, divided by the window, and eased
+     forty per cent of the way each time so the readout settles instead of
+     flickering. Everything in that sentence can go wrong quietly: counting
+     something that is not a delivery, counting it twice, easing towards a
+     number that is never recomputed, or keeping the best figure it ever saw.
+     A village that says 2.2 while handing over 1.1 looks perfectly healthy.
+
+     So it is compared against arrivals counted by hand, with the stores held
+     open so nothing is refused, goals parked and the trade board cleared --
+     because the chip counts the village's OWN work, deliveries only, and a
+     goal paying out would be counted by the hand and not by the chip.
+
+     Averaged rather than sampled. A single reading of a smoothed number
+     against a ninety second average is 23 per cent out on an honest game,
+     because the deliveries come in convoys; the time-average of the same
+     readout over the same window comes out between 0.96 and 1.07 of the truth.
+
+       rateSweep()  -> { arriving, quiet, fails }
+  --------------------------------------------------------------------------- */
+  window.rateSweep = function () {
+    const V = window.__v, fails = [];
+    V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
+    V.goalIdx = 0; V.tutSeen.length = 0; V.finished = null; V.goalDone = null;
+    V.away = null; V.panel = null; V.sel = null; V.moving = null; V.claimAsk = false;
+    V.ensureHall(); V.placed[0].lvl = 5;
+    V.grant('wood', 9e6, 0, 0); V.grant('food', 9e6, 0, 0); V.step(0.001);
+    {
+      const L = V.landBounds();
+      const seat = k => { for (let c = L.lo; c <= L.hi; c++) for (let r = L.lo; r <= L.hi; r++)
+        if (V.canPlace(k, c, r, V.occupied())) return V.place(k, c, r); return null; };
+      for (const k of ['house', 'house', 'house', 'store', 'farm', 'farm', 'lumber', 'lumber']) seat(k);
+      for (const p of V.placed) if (p.key !== 'hall') { p.lvl = 3; p.t = 1; }
+      for (let i = 0; i < 200 * 30; i++) V.step(1 / 30);
+    }
+    parkGoals();
+    V.orders = []; V.orderT = 0;
+
+    /* And the readout is let settle before the window opens. The easing is a
+       twelve second time constant, and this sweep inherits whatever the one
+       before it left on the chip -- run after a sweep that ended with full
+       barns it starts from nothing and spends the first half minute climbing,
+       which pulled the ninety second average down to 0.84 of the truth and
+       made the check depend on what ran before it. A minute of the same
+       conditions the window itself uses, first. */
+    for (let i = 0; i < 60 * 30; i++) {
+      V.step(1 / 30); V.orders = []; V.goalDone = null;
+      for (const k of ["wood", "food"]) V.res[k] = Math.min(V.res[k], V.caps[k] / 2);
+    }
+
+    /* Ninety seconds of ordinary work. The stores are put back to half every
+       tick so nothing is ever refused -- a refused load is not a delivery and
+       neither side would count it -- and the trade board is swept, so the only
+       thing that can raise the counters is somebody carrying something in. */
+    const WINDOW = 90;
+    const got = { wood: 0, food: 0 }, sum = { wood: 0, food: 0 };
+    let ticks = 0;
+    for (let i = 0; i < WINDOW * 30; i++) {
+      const was = { wood: V.res.wood, food: V.res.food };
+      V.step(1 / 30);
+      V.orders = []; V.goalDone = null;
+      for (const k of ['wood', 'food']) {
+        if (V.res[k] > was[k]) got[k] += V.res[k] - was[k];
+        V.res[k] = Math.min(V.res[k], V.caps[k] / 2);
+        sum[k] += V.rateNow[k];
+      }
+      ticks++;
+    }
+    const arriving = {};
+    /* A quarter either way. The honest game measures between 0.96 and 1.07, so
+       this is a four-fold margin on a number that is deliberately smoothed --
+       wide enough that a retune of the window or the easing has somewhere to
+       go, and narrow enough that counting a delivery twice cannot hide. */
+    const SLACK = 0.25;
+    for (const k of ['wood', 'food']) {
+      const real = got[k] / WINDOW, shown = sum[k] / ticks;
+      arriving[k] = { real: +real.toFixed(3), shown: +shown.toFixed(3),
+        ratio: real > 0 ? +(shown / real).toFixed(3) : null };
+      if (real < 0.2) { fails.push('only ' + real.toFixed(2) + ' ' + k + ' a second arrived, so the chip proves nothing'); continue; }
+      if (Math.abs(shown / real - 1) > SLACK)
+        fails.push('the ' + k + ' chip reads ' + shown.toFixed(2) + ' a second while '
+          + real.toFixed(2) + ' is actually arriving');
+    }
+
+    /* And it comes back down. Fill the barns and nobody delivers anything; the
+       chip must say so rather than holding the best figure it ever saw.
+       Measured: 1.44 falls to 0.005 within a minute and to nothing by ninety
+       seconds. */
+    V.res.wood = V.caps.wood; V.res.food = V.caps.food;
+    for (let i = 0; i < 90 * 30; i++) {
+      V.step(1 / 30);
+      V.res.wood = V.caps.wood; V.res.food = V.caps.food; V.orders = [];
+    }
+    const quiet = { wood: +V.rateNow.wood.toFixed(4), food: +V.rateNow.food.toFixed(4) };
+    for (const k of ['wood', 'food'])
+      if (quiet[k] > 0.05)
+        fails.push('the ' + k + ' chip still reads ' + quiet[k]
+          + ' a second after a minute and a half of nothing arriving');
+
+    V.res.wood = V.caps.wood / 2; V.res.food = V.caps.food / 2; V.step(0.001);
+    return { arriving, quiet, slack: SLACK, fails };
+  };
+
   window.hueSweep = function () {
     const V = window.__v, fails = [];
     const ctx = document.querySelector('canvas').getContext('2d');
@@ -5671,6 +5783,7 @@
       ['still', () => window.stillSweep()],
       ['notch', () => window.notchSweep()],
       ['hue', () => window.hueSweep()],
+      ['rate', () => window.rateSweep()],
       ['order', () => window.orderSweep()],
       ['tap', () => window.tapSweep()],
       ['text', () => window.textSweep()],
