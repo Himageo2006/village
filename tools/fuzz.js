@@ -4440,7 +4440,79 @@
           fails.push('padHit grew a control past the floor, ' + half + ' to ' + got);
       }
     }
-    return { across, text, touch, floors: { text: TEXT_FLOOR, touch: TOUCH_FLOOR }, fails };
+    /* ---- and the sizes the HUD actually draws at, which is a different
+       question from the one above.
+
+       TEXT_MIN is the floor fitLines will not shrink past. It is not a floor on
+       the HUD: a label drawn at a fixed size never goes near the fitter, and
+       most of them are -- the build cards at 20 of these units, the chips at
+       19, the tabs at 22. The line beside badgeScale calls TEXT_MIN "the floor
+       every HUD label is held to", and that is shorthand for a thing nobody
+       was checking.
+
+       It is the same lesson the badges taught: read the size the game set,
+       times the transform in force, rather than trusting the constant. Those
+       came out at 20.5 against a floor of 26 and had been passing for as long
+       as anyone had asked. Measured here across the seven screen shapes the
+       tap checks use, the smallest writing in the HUD comes out at 8.09 CSS
+       pixels on a 360 phone. Several labels share that size -- the charm chip,
+       the line under the land prompt, the count on the orders tab -- and it is
+       one per cent above the floor, with nothing watching any of them.
+
+       The HUD is told apart from the world by its transform: the world is
+       drawn through camApply, which translates, and the HUD only ever scales. */
+    {
+      const cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
+      const keepScreen = [window.innerWidth, window.innerHeight];
+      const keepPanel = V.panel, keepSel = V.sel, keepBar = V.barMode, keepAsk = V.claimAsk;
+      const seen = [];
+      const scan = () => {
+        const o = ctx.fillText.bind(ctx);
+        ctx.fillText = function (t, x, y, ...rest) {
+          const m = ctx.getTransform(), hit = /([0-9.]+)px/.exec(ctx.font);
+          if (hit && Math.abs(m.e) < 1e-6 && Math.abs(m.b) < 1e-6 && String(t).trim())
+            seen.push({ t: String(t).trim().slice(0, 16), px: hit[1] * m.a });
+          return o(t, x, y, ...rest);
+        };
+        try { V.draw(); } finally { ctx.fillText = o; }
+      };
+      let worst = null;
+      try {
+        V.away = null; V.finished = null; V.goalDone = null;
+        for (const [sw, sh] of [[1200, 800], [360, 640], [375, 667], [390, 844],
+          [344, 882], [360, 1040], [400, 1200]]) {
+          asScreen(sw, sh); V.draw();
+          seen.length = 0;
+          /* Every tray, the panel, a card picked, and the land prompt: between
+             them they put most of the writing in the game on screen. */
+          for (const set of [
+            () => { V.panel = null; V.sel = null; V.barMode = 'build'; },
+            () => { V.barMode = 'decor'; },
+            () => { V.barMode = 'orders'; },
+            () => { V.barMode = 'build'; V.panel = (V.placed[1] || V.placed[0]).id; },
+            () => { V.panel = null; V.sel = 'house'; },
+            () => { V.sel = null; V.claimAsk = true; },
+          ]) { set(); V.step(0.001); scan(); }
+          V.claimAsk = false;
+          for (const r of seen) {
+            const inCss = r.px * sw / across;
+            if (!worst || inCss < worst.css) worst = { css: +inCss.toFixed(2), t: r.t, sw, sh, px: +r.px.toFixed(1) };
+          }
+          if (seen.length < 20)
+            fails.push('only ' + seen.length + ' pieces of HUD writing were drawn on a '
+              + sw + 'x' + sh + ' screen, so the size check proves little');
+        }
+      } finally {
+        asScreen(keepScreen[0], keepScreen[1]);
+        V.panel = keepPanel; V.sel = keepSel; V.barMode = keepBar; V.claimAsk = keepAsk;
+        V.step(0.001);
+      }
+      if (worst && worst.css < TEXT_FLOOR)
+        fails.push('the HUD draws "' + worst.t + '" at ' + worst.css + ' CSS pixels on a '
+          + worst.sw + 'x' + worst.sh + ' screen, which is the size the source calls a smudge');
+      return { across, text, touch, drawn: worst,
+        floors: { text: TEXT_FLOOR, touch: TOUCH_FLOOR }, fails };
+    }
   };
   /* ---------------------------------------------------------------------------
      The clocks are real times.
