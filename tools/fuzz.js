@@ -2841,27 +2841,49 @@
      its clock, and so every tone the working village makes is scheduled for
      the same frozen instant and fires in one clipped bang on the first touch
      after coming back. */
-  window.soundSweep = function () {
+  window.soundSweep = async function () {
     const V = window.__v, fails = [];
     V.audioOn();
     const actx = V.actx;
     if (!actx) return { skipped: 'this browser gave no audio context', fails };
     const keepMute = V.muted; V.muted = false;
     const co = actx.createOscillator.bind(actx);
-    let made = 0, quiet = -1, loud = -1;
+    let made = 0;
     actx.createOscillator = () => { made++; return co(); };
     const say = v => Object.defineProperty(document, 'hidden', { configurable: true, get: () => v });
-    const ring = () => { V.SFX.tap(); V.SFX.place(); V.SFX.deny(); V.SFX.upgrade(); V.SFX.done(); };
+    /* Asked of the game rather than written down here. This used to ring five
+       of them by name -- tap, place, deny, upgrade, done -- and the game has
+       eight: deliver, sell and goal went unrung for as long as the sweep
+       existed. They all go through tone(), which is where the guard lives, so
+       the five were covering the other three by accident; the day somebody
+       adds a sound that makes its own oscillator, the accident stops. Reading
+       the list off SFX means a ninth is tested the moment it is written. */
+    const names = Object.keys(V.SFX);
+    const per = {};
     try {
-      say(true);  made = 0; ring(); quiet = made;
-      say(false); made = 0; ring(); loud = made;
-      if (quiet > 0) fails.push('a hidden page queued ' + quiet + ' sounds nobody can hear');
-      if (loud < 5) fails.push('a visible page made only ' + loud + ' sounds of the nine it should');
+      for (const n of names) {
+        /* deliver is throttled to one in every 220 milliseconds, because a busy
+           village delivers constantly and would chatter. Ring it twice in a row
+           and the second is swallowed -- which, measured, is how a ring-them-all
+           check reports the game's most frequent sound as silent. */
+        const breathe = async () => { if (n === 'deliver') await new Promise(r => setTimeout(r, 260)); };
+        await breathe(); say(true);  made = 0; V.SFX[n](); const hidden = made;
+        await breathe(); say(false); made = 0; V.SFX[n](); const heard = made;
+        per[n] = { hidden, heard };
+        if (hidden > 0)
+          fails.push('a hidden page queued ' + hidden + (hidden === 1 ? ' tone of ' : ' tones of ')
+            + n + ', which nobody can hear');
+        if (heard < 1)
+          fails.push(n + ' made no sound at all on a visible page');
+      }
+      if (names.length < 5)
+        fails.push('only ' + names.length + ' sounds were found, so the check proves little');
     } finally {
       delete document.hidden;
       actx.createOscillator = co; V.muted = keepMute;
     }
-    return { hidden: quiet, visible: loud, fails };
+    const sum = k => names.reduce((n2, x) => n2 + per[x][k], 0);
+    return { sounds: names.length, hidden: sum('hidden'), visible: sum('heard'), per, fails };
   };
   /* Every figure the game prints carries a unit, and the unit has to belong to
      the figure as ROUNDED, not as calculated. Checked as rules rather than as
