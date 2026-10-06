@@ -4886,6 +4886,96 @@
 
        offlineSweep()  -> { secs, away, live, fails }
   --------------------------------------------------------------------------- */
+  /* ---------------------------------------------------------------------------
+     Every lesson the game has can still be taught.
+
+     A whole playthrough was run and the hints it put up were counted: a bot
+     that reaches 23 goals of 23 is shown five of the six. The one it never
+     sees is "Now a lumber camp" -- it is offered between the moment the first
+     house finishes and the moment any workplace exists, and a bot that can
+     afford both buys the second before the first has finished going up. A
+     person who pauses to watch their house get built is shown it; this one
+     never pauses.
+
+     That is not a fault, but it is the shape of one. The hints are a list and
+     the strip offers the FIRST whose condition holds, each one once, so a hint
+     can die in two ways that nothing would report: its condition can become
+     unreachable, or an earlier hint can sit permanently in front of it. The
+     source has already been bitten by the near miss -- the full-stores hint
+     ended "or build a storehouse" in a village where the storehouse was not
+     unlocked, and it is shown ONCE, so that was the whole of what the player
+     was ever told.
+
+     So each hint is put in the state it describes, with the ones before it
+     already read, and asked for by name. Not "could it be eligible" -- what
+     the strip actually hands back.
+
+       taughtSweep()  -> { taught, fails }
+  --------------------------------------------------------------------------- */
+  window.taughtSweep = function () {
+    const V = window.__v, fails = [];
+    const fresh = tier => {
+      V.placed.length = 0; V.villagers.length = 0; V.landTier = tier; V.coverPlaced();
+      V.goalIdx = 0; V.tutSeen.length = 0; V.finished = null; V.goalDone = null;
+      V.away = null; V.panel = null; V.sel = null; V.moving = null; V.claimAsk = false; V.orders = [];
+      V.ensureHall(); V.res.wood = 120; V.res.food = 60; V.step(0.001);
+    };
+    const seat = k => { const L = V.landBounds();
+      V.grant('wood', 9e5, 0, 0); V.grant('food', 9e5, 0, 0);
+      for (let c = L.lo; c <= L.hi; c++) for (let r = L.lo; r <= L.hi; r++)
+        if (V.canPlace(k, c, r, V.occupied())) return V.place(k, c, r);
+      return null; };
+    const settle = secs => { for (let i = 0; i < secs * 30; i++) V.step(1 / 30); };
+    /* The ones before it are marked read, because that is what the player did:
+       the strip shows each once and then moves on. Without this every scene
+       after the first would be answered by the first hint still standing there. */
+    const after = id => { const i = V.TUT.findIndex(h => h.id === id);
+      V.tutSeen.length = 0;
+      for (let j = 0; j < i; j++) V.tutSeen.push(V.TUT[j].id); };
+
+    const scene = {
+      /* Nothing built yet. */
+      house: () => { fresh(0); after('house'); },
+      /* A house standing and nowhere to work. */
+      work: () => { fresh(0); seat('house'); settle(5); after('work'); },
+      /* Somewhere to work, so there is something worth tapping. */
+      tap: () => { fresh(0); seat('house'); seat('lumber'); settle(8); after('tap'); },
+      /* A hall that can grow. */
+      hall: () => { fresh(0); seat('house'); seat('lumber'); settle(8);
+        V.grant('wood', 9e5, 0, 0); V.grant('food', 9e5, 0, 0); V.step(0.001); after('hall'); },
+      /* A goal asking for land, and land to be had. */
+      land: () => { fresh(0); seat('house'); seat('lumber'); settle(8);
+        const g = V.GOALS.findIndex(q => /land|island/i.test(q.text));
+        V.goalIdx = g < 0 ? 0 : g; V.goalDone = null; V.step(0.001); after('land'); },
+      /* Barns at the ceiling with somebody still carrying into them. */
+      full: () => { fresh(0); seat('house'); seat('lumber'); settle(8);
+        V.res.wood = V.caps.wood; V.res.food = V.caps.food; V.step(0.001); after('full'); },
+    };
+
+    const taught = {};
+    for (const h of V.TUT) {
+      const make = scene[h.id];
+      if (!make) { fails.push('no scene was written for the hint "' + h.id + '", so nothing says it can still be taught'); continue; }
+      make();
+      const got = V.currentHint();
+      taught[h.id] = got ? got.id : null;
+      if (!got)
+        fails.push('the hint "' + h.id + '" was put in the state it describes and the strip stayed empty');
+      else if (got.id !== h.id)
+        fails.push('the hint "' + h.id + '" was put in the state it describes and the strip offered "'
+          + got.id + '" instead, so it can never be read');
+      else {
+        /* And it says something. A hint whose words come out empty teaches
+           nothing however correctly it fires. */
+        const words = V.hintText(got);
+        if (!words || !String(words).trim())
+          fails.push('the hint "' + h.id + '" has no words');
+      }
+    }
+    V.tutSeen.length = 0; V.step(0.001);
+    return { taught, fails };
+  };
+
   window.offlineSweep = function () {
     const V = window.__v, fails = [];
     V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
@@ -6034,6 +6124,7 @@
       ['rate', () => window.rateSweep()],
       ['rescue', () => window.rescueSweep()],
       ['offline', () => window.offlineSweep()],
+      ['taught', () => window.taughtSweep()],
       ['order', () => window.orderSweep()],
       ['tap', () => window.tapSweep()],
       ['text', () => window.textSweep()],
