@@ -4857,6 +4857,122 @@
 
        rescueSweep()  -> { fromCorner, fromNothing, ceiling, fails }
   --------------------------------------------------------------------------- */
+  /* ---------------------------------------------------------------------------
+     An hour away is worth an hour of play.
+
+     hiddenSweep is thorough about the welcome-back card -- that it goes up, that
+     it says the right span, that what it claims to have banked is what the
+     village gained, that a reload is not a reward -- and every one of those
+     questions is about the card agreeing with the grant. None of them asks
+     whether the GRANT is right. The haul is potentialRate() times the seconds,
+     and nobody had ever compared that with what the village does when somebody
+     is watching it.
+
+     The source knows this is the dangerous end. Beside potentialRate: "it used
+     to fill posts in the order they were built, which matched the game until
+     hands started going where they deliver most -- and then the offline figure
+     sat a quarter BELOW what the village was really producing, which is the
+     same kind of lie as the ones it was written to avoid, just pointing the
+     other way." It was found by inspection once. Nothing holds it.
+
+     Both directions matter and they are different complaints. Paying less than
+     the village earns robs a player of the hours they were not there; paying
+     more makes closing the game the best move in it.
+
+     Measured by doing both: the same settled village is paid for a stretch of
+     time, put back, and then actually played through the same stretch. Five
+     minutes of it, because the goods arrive in loads of eight and a stretch
+     short enough to hold only three of them cannot tell a fifth from a load.
+
+       offlineSweep()  -> { secs, away, live, fails }
+  --------------------------------------------------------------------------- */
+  window.offlineSweep = function () {
+    const V = window.__v, fails = [];
+    V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
+    V.tutSeen.length = 0; V.finished = null; V.goalDone = null; V.away = null;
+    V.panel = null; V.sel = null; V.moving = null; V.claimAsk = false; V.orders = [];
+    V.ensureHall(); V.placed[0].lvl = 5; V.step(0.001);
+    {
+      const L = V.landBounds();
+      /* Paid for one at a time: a grant is clamped to the ceiling, so a village
+         handed everything at once can only afford the first few buildings. */
+      const seat = k => { V.grant('wood', 9e6, 0, 0); V.grant('food', 9e6, 0, 0);
+        for (let c = L.lo; c <= L.hi; c++) for (let r = L.lo; r <= L.hi; r++)
+          if (V.canPlace(k, c, r, V.occupied())) return V.place(k, c, r);
+        return null; };
+      /* Four storehouses and a deliberately modest workforce. The ceiling is
+         what limits this measurement -- a haul that hits it is not a
+         measurement of anything -- so the village is built with every
+         storehouse it may have and only two houses, which leaves it earning
+         about one a second into a room of seven hundred. A maxed-out village
+         earns seven, fills the stores in a minute and a half, and left no
+         unclamped stretch to measure once a fault made the figure bigger. */
+      for (const k of ['store', 'store', 'store', 'store', 'house', 'house', 'farm', 'lumber']) seat(k);
+      for (const p of V.placed) if (p.key !== 'hall') { p.t = 1; p.lvl = p.key === 'store' ? 5 : 2; }
+      V.step(0.001);
+      for (let i = 0; i < 400 * 30; i++) V.step(1 / 30);
+    }
+    parkGoals();
+    V.orders = []; V.orderT = 0;
+
+    /* Short enough that nothing is clamped, because a haul that hits the
+       ceiling is not a measurement of anything. Worked out from the room the
+       village has and what it earns, with a fifth held back, and never under
+       the floor the game ignores. */
+    const rate = V.potentialRate();
+    V.res.wood = 0; V.res.food = 0; V.away = null; V.step(0.001);
+    let secs = 300;
+    for (const k of ['wood', 'food'])
+      if (rate[k] > 0) secs = Math.min(secs, 0.8 * V.caps[k] / rate[k]);
+    secs = Math.floor(secs);
+    if (secs < V.AWAY_MIN) {
+      fails.push('this village fills its stores in ' + secs + ' seconds, under the '
+        + V.AWAY_MIN + ' the game ignores, so an unclamped stretch could not be measured');
+      return { secs, fails };
+    }
+
+    const before = { wood: V.res.wood, food: V.res.food };
+    V.grantAway(secs);
+    const away = { wood: V.res.wood - before.wood, food: V.res.food - before.food };
+    /* And it really was unclamped, or the two sides are being asked different
+       questions. */
+    for (const k of ['wood', 'food'])
+      if (away[k] > V.caps[k] - before[k] - 1)
+        fails.push('the ' + k + ' haul reached the ceiling, so the comparison means nothing');
+
+    /* Then the same village actually plays it. grantAway moves nobody -- it
+       credits the stores and puts a card up -- so the walk the villagers are
+       in the middle of is the one they were in the middle of a moment ago. */
+    V.away = null; V.res.wood = 0; V.res.food = 0; V.step(0.001);
+    const live = { wood: 0, food: 0 };
+    for (let i = 0; i < secs * 30; i++) {
+      const was = { wood: V.res.wood, food: V.res.food };
+      V.step(1 / 30); V.orders = [];
+      for (const k of ['wood', 'food']) if (V.res[k] > was[k]) live[k] += V.res[k] - was[k];
+    }
+
+    /* A quarter either way. The quarter is not arbitrary: it is the size of the
+       error the source records finding by hand in this very figure. Measured
+       here at 1.001 and 1.019. */
+    const SLACK = 0.25;
+    for (const k of ['wood', 'food']) {
+      if (live[k] < 1) { fails.push('the village delivered almost no ' + k + ' while it was watched, so the comparison proves nothing'); continue; }
+      const r = away[k] / live[k];
+      if (r < 1 - SLACK)
+        fails.push('an hour away pays ' + (r * 100).toFixed(0) + ' per cent of an hour of play in '
+          + k + ', so the time a player was not there is worth less than it should be');
+      if (r > 1 + SLACK)
+        fails.push('an hour away pays ' + (r * 100).toFixed(0) + ' per cent of an hour of play in '
+          + k + ', so shutting the game is the best move in it');
+    }
+
+    V.away = null; V.step(0.001);
+    return { secs, away: { wood: +away.wood.toFixed(1), food: +away.food.toFixed(1) },
+      live: { wood: +live.wood.toFixed(1), food: +live.food.toFixed(1) },
+      ratio: { wood: live.wood ? +(away.wood / live.wood).toFixed(3) : null,
+        food: live.food ? +(away.food / live.food).toFixed(3) : null }, slack: SLACK, fails };
+  };
+
   window.rescueSweep = function () {
     const V = window.__v, fails = [];
     const reset = tier => {
@@ -5917,6 +6033,7 @@
       ['hue', () => window.hueSweep()],
       ['rate', () => window.rateSweep()],
       ['rescue', () => window.rescueSweep()],
+      ['offline', () => window.offlineSweep()],
       ['order', () => window.orderSweep()],
       ['tap', () => window.tapSweep()],
       ['text', () => window.textSweep()],
