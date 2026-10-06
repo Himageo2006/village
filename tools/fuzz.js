@@ -4943,6 +4943,104 @@
 
        rewardSweep()  -> { goals, withRoom, withNone, fails }
   --------------------------------------------------------------------------- */
+  /* ---------------------------------------------------------------------------
+     The countdown on the empty stall is the wait.
+
+     An empty stall on the trade board carries a number saying how long until
+     somebody turns up. nextTraderIn does not appear once in this file: the
+     offers are checked, what they ask for is checked, what filling one pays is
+     checked, and the one figure a player sits and watches is not.
+
+     It is a promise of the simplest possible kind -- a number of seconds, and
+     then a thing happens -- which is exactly why it rots quietly. Nothing else
+     in the game would look wrong if it were twice the truth.
+
+     Three things, all of them by waiting rather than by reading:
+
+       it is the wait        read it, wait that long, and a trader is there --
+                             from a cold board and from halfway through
+       it does not go up     a countdown that climbs while nothing has changed
+                             is unreadable; the one place it may jump is the
+                             moment somebody arrives and it starts again
+       a full board says     with every stall taken there is nothing to wait
+       nothing               for, and it says so rather than counting down to
+                             a trader with nowhere to stand
+
+       traderSweep()  -> { cold, midway, climbed, whenFull, fails }
+  --------------------------------------------------------------------------- */
+  window.traderSweep = function () {
+    const V = window.__v, fails = [];
+    V.placed.length = 0; V.villagers.length = 0; V.landTier = 2; V.coverPlaced();
+    V.goalIdx = 0; V.tutSeen.length = 0; V.finished = null; V.goalDone = null;
+    V.away = null; V.panel = null; V.sel = null; V.moving = null; V.claimAsk = false;
+    V.ensureHall(); V.placed[0].lvl = 3; V.step(0.001);
+    {
+      const L = V.landBounds();
+      const seat = k => { V.grant('wood', 9e5, 0, 0); V.grant('food', 9e5, 0, 0);
+        for (let c = L.lo; c <= L.hi; c++) for (let r = L.lo; r <= L.hi; r++)
+          if (V.canPlace(k, c, r, V.occupied())) return V.place(k, c, r);
+        return null; };
+      for (const k of ['house', 'lumber', 'farm', 'store']) seat(k);
+      for (const p of V.placed) if (p.key !== 'hall') { p.t = 1; p.lvl = 2; }
+      V.step(0.001);
+      for (let i = 0; i < 60 * 30; i++) V.step(1 / 30);
+    }
+
+    /* Wait out one countdown and report what it cost. A climb is only counted
+       on a tick where the board did not change -- the moment a trader arrives
+       the clock starts again, which is the number going up for the right
+       reason. */
+    let climbed = 0;
+    const waitOne = () => {
+      const said = V.nextTraderIn();
+      if (said === null) return { said, waited: null };
+      let prev = said, waited = null, n = V.orders.length;
+      for (let i = 0; i < Math.ceil(said + 30) * 30; i++) {
+        V.step(1 / 30);
+        const now = V.nextTraderIn(), changed = V.orders.length !== n;
+        if (!changed && now !== null && now > prev + 1e-6) climbed++;
+        if (now !== null) prev = now;
+        n = V.orders.length;
+        if (V.orders.length) { waited = i / 30; break; }
+      }
+      return { said, waited };
+    };
+
+    /* From a cold board. */
+    V.orders = []; V.orderT = 0; V.step(0.001);
+    const cold = waitOne();
+    /* And from halfway through one, because a countdown can be right only when
+       it starts. */
+    V.orders = []; V.orderT = 0; V.step(0.001);
+    for (let i = 0; i < 30 * 30; i++) V.step(1 / 30);
+    const midway = waitOne();
+
+    /* A tick is a thirtieth, so the wait lands a tick under what was said. */
+    for (const [name, r] of [['from a cold board', cold], ['halfway through', midway]]) {
+      if (r.said === null) { fails.push('the board had no room ' + name + ', so the countdown could not be read'); continue; }
+      if (r.waited === null) { fails.push('the stall said ' + r.said.toFixed(1)
+        + ' seconds ' + name + ' and no trader ever came'); continue; }
+      if (Math.abs(r.waited - r.said) > 0.2)
+        fails.push('the stall said ' + r.said.toFixed(1) + ' seconds ' + name
+          + ' and the trader took ' + r.waited.toFixed(1));
+    }
+    if (climbed)
+      fails.push('the countdown went up ' + climbed + ' times while the board was unchanged');
+
+    /* And a full board has nothing to say. */
+    let guard = 0;
+    while (V.orders.length < V.orderSlots() && guard++ < 20) V.orders.push(V.makeOrder(1));
+    V.step(0.001);
+    const whenFull = V.nextTraderIn();
+    if (whenFull !== null)
+      fails.push('every stall is taken and the board still counts down ' + whenFull
+        + ' seconds to a trader with nowhere to stand');
+
+    V.orders = []; V.orderT = 0; V.step(0.001);
+    return { cold: { said: cold.said, waited: cold.waited },
+      midway: { said: midway.said, waited: midway.waited }, climbed, whenFull, fails };
+  };
+
   window.rewardSweep = function () {
     const V = window.__v, fails = [];
     const seat = k => { const L = V.landBounds();
@@ -6227,6 +6325,7 @@
       ['offline', () => window.offlineSweep()],
       ['taught', () => window.taughtSweep()],
       ['reward', () => window.rewardSweep()],
+      ['trader', () => window.traderSweep()],
       ['order', () => window.orderSweep()],
       ['tap', () => window.tapSweep()],
       ['text', () => window.textSweep()],
