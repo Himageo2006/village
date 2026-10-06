@@ -2979,7 +2979,28 @@ function villagerArt(v) {
 }
 function drawVillager(v) {
   const im = artFor(villagerArt(v));
-  const moving = Math.hypot(v.tx - v.x, v.ty - v.y) > 6 && v.wait <= 0;
+  /* Far from where he is going, and nothing holding him there.
+
+     "Nothing holding him" used to be written as `v.wait <= 0`, and wait is not
+     a property of walking at all: it belongs to the idle drift, which sets it
+     on arrival before choosing somewhere new to stand, and counts it down
+     only in the idle branch. A villager who takes a job keeps whatever wait he
+     happened to have for ever, because nothing outside that branch ever
+     touches it -- and a new villager is born with up to two seconds of it.
+
+     So the one test standing between the walk animation and the people doing
+     the walking was a timer that, for them, never moves. Measured on a working
+     village: not one villager in 3,600 frames had wait at or below zero, so
+     the bob and the lean below were dead for every worker in the game. The
+     only villagers who ever rocked were the idle ones drifting between
+     buildings.
+
+     Said as what it means instead. The idle drift is the only state that parks
+     somebody at a distance from his target; a worker walking to a post or to a
+     store is always moving, and one standing AT his post is within ARRIVE of
+     it and fails the distance test on its own. */
+  const moving = Math.hypot(v.tx - v.x, v.ty - v.y) > ARRIVE
+    && !(v.st === 'idle' && v.wait > 0);
   const HGT = VILLAGER_H;
   /* Standing art walks by leaning: rocked about the feet and lifted on each
      step, twice per stride so both feet read. Kept small -- at this size a

@@ -4594,6 +4594,259 @@
 
        inkSweep()  -> { rows, fails }
   --------------------------------------------------------------------------- */
+  /* ---------------------------------------------------------------------------
+     Reduce motion, which nothing had ever switched on.
+
+     The game answers prefers-reduced-motion in seven places -- the villagers'
+     bob and lean, the camera's glide, the fling, the chimney smoke, the lamp's
+     pulse -- and the harness mentions the flag exactly once, to set it to
+     false. A whole accessibility mode, declared and unexercised.
+
+     Switching it on turns up something worth knowing before anything is
+     measured: with the paintings loaded, NOTHING in this village is animated
+     by the clock. Hold the village still, move only the wall clock, and two
+     frames a whole day apart are identical to the pixel. Every clock-driven
+     animation the game has lives in the procedural fallback -- the buildings
+     and decorations it draws in code when the art has not arrived -- which is
+     the first second of every cold start and which no sweep had ever drawn
+     either. Two untested surfaces, and one of them is where the other one
+     lives.
+
+     So the art is taken away for the length of this sweep, by telling each
+     image it has not finished loading, which is the honest version of the
+     state rather than a flag invented for testing. Then four questions:
+
+       it stops the motion     hold the village still, move only the clock by
+                               exactly one day so the sky is unchanged, and
+                               count the pixels that move. Reduced: none.
+                               Ordinary: some hundreds, or this proves nothing
+
+       it does not take        reduce motion MOVES things, it does not remove
+       anything away           them -- so against the best-matching instant of
+                               the real animation the picture should differ
+                               symmetrically rather than be missing its smoke
+                               or its lamplight
+
+       the deliveries survive  "the one sign of where goods are actually
+                               arriving, kept even when reduce-motion takes
+                               the decoration away" -- a promise in the source
+                               with nothing holding it
+
+       the camera lands at     asking for a glide must arrive, not travel
+
+       once
+
+       stillSweep()  -> { moved, still, lean, pop, camera, fails }
+  --------------------------------------------------------------------------- */
+  window.stillSweep = async function () {
+    const V = window.__v, fails = [];
+    const cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
+    const lum = (r, g, b) => { const f2 = v => { v /= 255;
+      return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+      return 0.2126 * f2(r) + 0.7152 * f2(g) + 0.0722 * f2(b); };
+    const grab = () => { const d = ctx.getImageData(0, 0, cv.width, cv.height).data;
+      const o = new Float64Array(d.length / 4);
+      for (let i = 0, j = 0; i < d.length; i += 4) o[j++] = lum(d[i], d[i + 1], d[i + 2]);
+      return o; };
+
+    V.placed.length = 0; V.villagers.length = 0; V.landTier = 2; V.coverPlaced();
+    V.goalIdx = 0; V.tutSeen.length = 0; V.finished = null; V.goalDone = null;
+    V.away = null; V.panel = null; V.sel = null; V.moving = null; V.claimAsk = false;
+    V.ensureHall(); V.placed[0].lvl = 3;
+    V.grant('wood', 1e6, 0, 0); V.grant('food', 1e6, 0, 0); V.step(0.001);
+    {
+      const L = V.landBounds();
+      const seat = k => { for (let c = L.lo; c <= L.hi; c++) for (let r = L.lo; r <= L.hi; r++)
+        if (V.canPlace(k, c, r, V.occupied())) return V.place(k, c, r); return null; };
+      /* A house and a farm for their chimneys -- the lumber camp is the one
+         building the smoke is withheld from -- and a lamp for its pulse. */
+      for (const k of ['house', 'house', 'farm', 'lumber', 'store', 'lamp']) seat(k);
+      for (let i = 0; i < 150 * 30; i++) V.step(1 / 30);
+    }
+    parkGoals();
+    V.goalIdx = 0; V.finished = null; V.goalDone = null; V.tutSeen.length = 0;
+    V.camFit(true); V.step(0.001);
+
+    /* Each image is told it has not finished loading, which is what the game
+       asks before it uses one. Restored in the finally below. */
+    const faked = [];
+    const art = on => {
+      for (const k of Object.keys(V.ART)) {
+        const im = V.ART[k];
+        if (!im || typeof im !== 'object') continue;
+        try {
+          if (on) {
+            Object.defineProperty(im, 'complete', { configurable: true, get: () => false });
+            Object.defineProperty(im, 'naturalWidth', { configurable: true, get: () => 0 });
+            faked.push(im);
+          } else { delete im.complete; delete im.naturalWidth; }
+        } catch (e) { /* an image that will not be faked simply keeps its art */ }
+      }
+    };
+    const realNow = Date.now, keepRM = V.reduceMotion;
+    let out = {};
+    try {
+      art(true); V.step(0.001);
+      /* Exactly one day apart, so the sky is the same and the only thing that
+         can have changed is an animation. */
+      const t0 = 1.7e12;
+      const overADay = rm => {
+        V.reduceMotion = rm;
+        Date.now = () => t0; V.draw(); const a = grab();
+        Date.now = () => t0 + V.DAY_MS; V.draw(); const b = grab();
+        let n = 0; for (let i = 0; i < a.length; i++) if (Math.abs(a[i] - b[i]) > 0.004) n++;
+        return n;
+      };
+      const moved = overADay(false), still = overADay(true);
+      if (moved < 200)
+        fails.push('only ' + moved + ' pixels moved with motion on, so the stillness check proves nothing');
+      if (still > 0)
+        fails.push(still + ' pixels still moved with reduce motion on, where the village itself did nothing');
+
+      /* Reduce motion moves things, it does not remove them. Against the
+         best-matching instant of the real animation the two pictures should
+         disagree in both directions about equally; a frame with its smoke or
+         its lamplight deleted is darker than every instant of the animated
+         one. Measured here at 0.74, so three is a four-fold margin. */
+      V.reduceMotion = true; Date.now = () => t0; V.draw();
+      const rFrame = grab();
+      let lean = Infinity, bright = 0, dim = 0;
+      for (const dt of [0, 150, 300, 450, 600, 750]) {
+        V.reduceMotion = false; Date.now = () => t0 + dt; V.draw();
+        const m = grab();
+        let hi = 0, lo = 0;
+        for (let i = 0; i < m.length; i++) { const d = m[i] - rFrame[i];
+          if (d > 0.004) hi++; else if (d < -0.004) lo++; }
+        const ratio = hi / Math.max(1, lo);
+        if (Math.abs(Math.log(Math.max(ratio, 1e-6))) < Math.abs(Math.log(Math.max(lean, 1e-6)))) {
+          lean = ratio; bright = hi; dim = lo;
+        }
+      }
+      if (lean > 3)
+        fails.push('with reduce motion on the picture is missing something: ' + bright
+          + ' pixels are lighter in the moving village against ' + dim + ' the other way');
+
+      /* The paintings come back for what is left. A villager without his
+         sprite is drawn as a circle on a box, and that placeholder does not
+         bob or lean at all -- so a stride measured in the art-less village
+         would measure nothing and say the mode was working. */
+      art(false); V.step(0.001);
+
+      /* The villagers' own motion, which is the one the clock does not
+         drive: the bob and the lean come off a stride counter that only
+         advances when the village steps.
+
+         Read off the canvas rather than out of the pixels. A villager is
+         twenty pixels tall on a fitted island and the rock is five per cent of
+         that, so counting changed pixels gave sixty-seven at noon, two at
+         midnight, and nothing at all whenever he happened to be small or
+         behind something -- a measurement that reports the mode working every
+         time it cannot see. What the game actually does is turn the canvas by
+         the lean and lift the sprite by the bob, so those are what is watched:
+         the angles it rotates by and the heights it draws at.
+
+           rock.tilted   villagers leaning, with motion on
+           rock.lifted   sprites drawn at a different height for the bob
+      */
+      let rock = { tilted: -1, lifted: -1 };
+      {
+        /* Somebody has to be on his feet for this to mean anything, and in a
+           village whose barns are full everybody is resting, so the stores are
+           held open until one of them walks.
+
+           Who is walking is asked of the village rather than restated: a
+           villager who MOVED over the last step is walking, whatever the rule
+           in the drawing code says. Restating it here is how the old gate
+           would have been copied into its own test -- and that gate was the
+           thing that was wrong. */
+        const onFoot = () => {
+          const was = V.villagers.map(v => ({ v, x: v.x, y: v.y }));
+          V.step(1 / 30);
+          V.res.wood = Math.min(V.res.wood, 20);
+          V.res.food = Math.min(V.res.food, 10);
+          return was.some(q => Math.hypot(q.v.x - q.x, q.v.y - q.y) > 0.5);
+        };
+        /* The sprites have to have loaded, or the villagers are drawn as
+           circles on boxes -- a placeholder neither bobs nor leans, so the
+           check would pass on a village of them. Waited for before anybody is
+           set walking, because the game's own loop keeps running across an
+           await and a walker chosen first has arrived by the time it returns. */
+        const sprites = [...new Set(V.villagers.map(v => V.artFor(V.villagerArt(v))))].filter(Boolean);
+        const loaded = () => sprites.length > 0 && sprites.every(im => im.complete && im.naturalWidth);
+        for (let i = 0; i < 40 && !loaded(); i++) await new Promise(r => setTimeout(r, 50));
+        if (!loaded())
+          fails.push('the villager art had not loaded in two seconds, so the stride check could not be made');
+        let walking = false;
+        for (let i = 0; i < 30 * 30 && !walking; i++) walking = onFoot();
+        if (!walking) fails.push('nobody was walking, so the stride check could not be made');
+        else {
+          const watch = rm => {
+            V.reduceMotion = rm;
+            const oR = ctx.rotate.bind(ctx), oD = ctx.drawImage.bind(ctx);
+            const angles = [], highs = [];
+            ctx.rotate = function (a) { angles.push(a); return oR(a); };
+            ctx.drawImage = function (im, ...rest) { if (rest.length >= 2) highs.push(rest[1]); return oD(im, ...rest); };
+            try { V.draw(); } finally { ctx.rotate = oR; ctx.drawImage = oD; }
+            return { angles, highs };
+          };
+          const m = watch(false), r = watch(true);
+          rock = {
+            tilted: m.angles.filter(a => Math.abs(a) > 1e-9).length,
+            lifted: m.highs.filter((h, i) => r.highs[i] !== undefined && Math.abs(h - r.highs[i]) > 1e-9).length
+          };
+          const stillTilted = r.angles.filter(a => Math.abs(a) > 1e-9).length;
+          if (!rock.tilted && !rock.lifted)
+            fails.push('somebody is walking and not one villager leaned or was lifted, so the walk the source describes never runs');
+          if (stillTilted)
+            fails.push(stillTilted + ' villagers were still leaning on their stride with reduce motion on');
+          if (m.highs.length !== r.highs.length)
+            fails.push('reduce motion changed how many sprites are drawn, which is not what it is for');
+        }
+      }
+
+      /* The deliveries. */
+      V.reduceMotion = true;
+      let popSeen = 0;
+      {
+        const o = ctx.fillText.bind(ctx);
+        ctx.fillText = function (t, ...rest) { if (/^\+/.test(String(t).trim())) popSeen++; return o(t, ...rest); };
+        try {
+          V.pops.length = 0;
+          for (let i = 0; i < 30 * 30 && !V.pops.length; i++) {
+            V.step(1 / 30);
+            V.res.wood = Math.min(V.res.wood, 20);
+            V.res.food = Math.min(V.res.food, 10);
+          }
+          V.draw();
+        } finally { ctx.fillText = o; }
+      }
+      if (!popSeen)
+        fails.push('no delivery was drawn with reduce motion on, and the source keeps them on purpose');
+
+      /* And the camera arrives rather than travels. */
+      const landed = rm => {
+        V.reduceMotion = rm;
+        V.CAM.x = 0; V.CAM.y = 0; V.CAM.z = 2; V.step(0.001);
+        V.camFit(false);
+        const asked = { x: V.CAM.x, y: V.CAM.y, z: V.CAM.z };
+        V.camFit(true);
+        return Math.hypot(asked.x - V.CAM.x, asked.y - V.CAM.y) + Math.abs(asked.z - V.CAM.z) * 100;
+      };
+      const glides = landed(false), jumps = landed(true);
+      if (jumps > 1)
+        fails.push('with reduce motion on the camera was still ' + Math.round(jumps)
+          + ' from where it was asked to be, so it is gliding');
+      if (glides < 10)
+        fails.push('the camera did not glide with motion on, so the landing check proves nothing');
+
+      out = { moved, still, lean: +lean.toFixed(2), rock, pop: popSeen,
+        camera: { glides: Math.round(glides), jumps: Math.round(jumps) } };
+    } finally {
+      Date.now = realNow; V.reduceMotion = keepRM; art(false); V.step(0.001);
+    }
+    return { ...out, fails };
+  };
+
   window.inkSweep = function () {
     const V = window.__v, fails = [];
     const cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
@@ -5075,6 +5328,7 @@
       ['clock', () => window.clockSweep()],
       ['light', () => window.lightSweep()],
       ['ink', () => window.inkSweep()],
+      ['still', () => window.stillSweep()],
       ['order', () => window.orderSweep()],
       ['tap', () => window.tapSweep()],
       ['text', () => window.textSweep()],
