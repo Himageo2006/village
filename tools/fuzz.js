@@ -2860,15 +2860,33 @@
        the list off SFX means a ninth is tested the moment it is written. */
     const names = Object.keys(V.SFX);
     const per = {};
+    /* The village is emptied and left to go quiet first, and it is deliver that
+       needs it. That one is throttled to a tone every 220 milliseconds, and the
+       throttle belongs to the game rather than to this sweep: run inside the
+       battery, with a busy village handing things over several times a second,
+       every ring of ours landed inside a window the game itself had just
+       opened, and the sweep reported the game's most frequent sound as silent.
+       No buildings, no deliveries, and a moment for the last one to age out. */
+    V.placed.length = 0; V.villagers.length = 0; V.step(0.001);
+    await new Promise(r => setTimeout(r, 300));
     try {
       for (const n of names) {
-        /* deliver is throttled to one in every 220 milliseconds, because a busy
-           village delivers constantly and would chatter. Ring it twice in a row
-           and the second is swallowed -- which, measured, is how a ring-them-all
-           check reports the game's most frequent sound as silent. */
-        const breathe = async () => { if (n === 'deliver') await new Promise(r => setTimeout(r, 260)); };
-        await breathe(); say(true);  made = 0; V.SFX[n](); const hidden = made;
-        await breathe(); say(false); made = 0; V.SFX[n](); const heard = made;
+        /* Even in a quiet village deliver swallows a second ring inside its own
+           window, so it is given a few tries with a breath between them. The
+           hidden side has to be silent on every one of them. */
+        const tries = n === 'deliver' ? 3 : 1;
+        let hidden = 0, heard = 0;
+        for (let i = 0; i < tries; i++) {
+          if (i) await new Promise(r => setTimeout(r, 260));
+          say(true);  made = 0; V.SFX[n](); hidden += made;
+          /* A breath between the two rings, not only between the tries. The
+             throttle is stamped BEFORE the sound is suppressed -- deliver
+             records the time and then tone() returns because the page is
+             hidden -- so the hidden ring shuts the window on the visible one
+             standing right behind it, and the sound looks dead every time. */
+          if (tries > 1) await new Promise(r => setTimeout(r, 260));
+          say(false); made = 0; V.SFX[n](); heard = Math.max(heard, made);
+        }
         per[n] = { hidden, heard };
         if (hidden > 0)
           fails.push('a hidden page queued ' + hidden + (hidden === 1 ? ' tone of ' : ' tones of ')
@@ -4810,6 +4828,120 @@
 
        rateSweep()  -> { arriving, quiet, fails }
   --------------------------------------------------------------------------- */
+  /* ---------------------------------------------------------------------------
+     A village can always get back on its feet.
+
+     The hall makes wood, and the source says exactly why: "it is deliberately
+     feeble -- its job is not to feed the village but to make a dead end
+     impossible. Two houses and a farm at level 1 leave you 15 wood, no wood
+     income, and a lumber camp costs 20: without this the game is over."
+
+     That is a rule about the whole game being finishable, written down with the
+     very position that forced it, and nothing in this file goes anywhere near
+     it. Every sweep here builds a village that already works. A trickle of
+     0.15 a second on a building nobody thinks of as a workplace is exactly the
+     kind of thing that gets tidied away as a rounding error, and the player it
+     would strand is one who has already spent everything -- which is to say,
+     the one least able to start again.
+
+     Three questions, two of them the source's own:
+
+       the position it names    15 wood, no wood income, and a lumber camp to
+                                buy. Measured: affordable in 47 seconds
+       nothing at all           a hall on the smallest island with nothing in
+                                the stores. Measured: a producer affordable and
+                                standing at 324 seconds, food arriving at 344
+       nothing is out of reach  no building the village must buy may cost more
+                                than a village with no storehouses can hold,
+                                or no amount of patience will do
+
+       rescueSweep()  -> { fromCorner, fromNothing, ceiling, fails }
+  --------------------------------------------------------------------------- */
+  window.rescueSweep = function () {
+    const V = window.__v, fails = [];
+    const reset = tier => {
+      V.placed.length = 0; V.villagers.length = 0; V.landTier = tier; V.coverPlaced();
+      V.tutSeen.length = 0; V.finished = null; V.goalDone = null; V.away = null;
+      V.panel = null; V.sel = null; V.moving = null; V.claimAsk = false; V.orders = [];
+      V.ensureHall();
+    };
+    const seat = k => { const L = V.landBounds();
+      for (let c = L.lo; c <= L.hi; c++) for (let r = L.lo; r <= L.hi; r++)
+        if (V.canPlace(k, c, r, V.occupied())) return V.place(k, c, r);
+      return null; };
+    const afford = c => !!c && Object.keys(c).length > 0
+      && Object.entries(c).every(([k, v]) => V.res[k] >= v);
+    /* A minute of play at a time, with the trade board swept: a trade filling
+       itself would hand the village goods it did not earn and the rescue would
+       be the market's rather than the hall's. Goals are parked for the same
+       reason -- left running, the first one paid out and the village went from
+       15 wood to its ceiling in fifteen seconds. */
+    const minutes = (n, stop) => {
+      for (let sec = 0; sec < n * 60; sec++) {
+        for (let i = 0; i < 30; i++) { V.step(1 / 30); V.orders = []; }
+        if (stop()) return sec;
+      }
+      return null;
+    };
+
+    /* 1. The corner the source names. */
+    reset(0);
+    V.res.wood = 9e5; V.res.food = 9e5; V.step(0.001);
+    seat('house'); seat('house'); seat('farm');
+    for (const p of V.placed) p.t = 1;
+    for (let i = 0; i < 60 * 30; i++) V.step(1 / 30);
+    parkGoals();
+    V.res.wood = 15; V.res.food = 0; V.step(0.001);
+    const lumber = V.B('lumber').cost;
+    const fromCorner = minutes(10, () => afford(lumber));
+    if (fromCorner === null)
+      fails.push('two houses and a farm with 15 wood and no wood income could not reach a lumber camp '
+        + 'in ten minutes, so that village is over');
+
+    /* 2. And from nothing whatever. */
+    reset(0);
+    V.res.wood = 0; V.res.food = 0; V.step(0.001);
+    parkGoals();
+    const makers = V.BUILDINGS.filter(b => b.makes && b.jobs && b.cost
+      && Object.keys(b.cost).length && Object.values(b.cost).some(v => v > 0));
+    const canBuy = () => makers.find(b => V.unlocked(b.key) && !V.atLimit(b.key) && afford(b.cost));
+    const tAfford = minutes(15, () => !!canBuy());
+    let tStanding = null, tFood = null;
+    if (tAfford === null)
+      fails.push('a hall with empty stores could not afford a single workplace in fifteen minutes, '
+        + 'so a village spent down to nothing is over');
+    else {
+      const b = canBuy();
+      tStanding = seat(b.key) ? tAfford : null;
+      if (tStanding === null)
+        fails.push('the one workplace the village could afford had nowhere to stand on its own island');
+      else {
+        tFood = minutes(15, () => V.res.food > 0);
+        if (tFood === null)
+          fails.push('nothing to eat ever arrived after the village built its way back, '
+            + 'so it is still stuck');
+      }
+    }
+
+    /* 3. And nothing it must buy is beyond what it can hold. A village with no
+       storehouses has the hall's ceiling and nothing more; a cost above that
+       can never be saved up for, however long anyone waits. */
+    reset(0); V.step(0.001);
+    const ceiling = { ...V.caps };
+    const tooDear = [];
+    for (const b of V.BUILDINGS) {
+      if (!V.unlocked(b.key) || !b.cost) continue;
+      for (const [k, v] of Object.entries(b.cost))
+        if (v > ceiling[k]) tooDear.push(b.key + ' wants ' + v + ' ' + k + ' and the village can hold ' + ceiling[k]);
+    }
+    for (const t of tooDear)
+      fails.push('nothing can ever be saved up for it: ' + t);
+
+    V.step(0.001);
+    return { fromCorner, fromNothing: { afford: tAfford, standing: tStanding, food: tFood },
+      ceiling, fails };
+  };
+
   window.rateSweep = function () {
     const V = window.__v, fails = [];
     V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
@@ -5784,6 +5916,7 @@
       ['notch', () => window.notchSweep()],
       ['hue', () => window.hueSweep()],
       ['rate', () => window.rateSweep()],
+      ['rescue', () => window.rescueSweep()],
       ['order', () => window.orderSweep()],
       ['tap', () => window.tapSweep()],
       ['text', () => window.textSweep()],
