@@ -4968,6 +4968,148 @@
 
        traderSweep()  -> { cold, midway, climbed, whenFull, fails }
   --------------------------------------------------------------------------- */
+  /* ---------------------------------------------------------------------------
+     What a finished village gives away, and whether it is what it carried.
+
+     "Once the goal list is complete, overflow is sent to the neighbouring
+     villages instead, and the village keeps a tally of what it has given. It
+     changes nothing that can be spent -- the goods were lost either way --
+     which is the point: it is a record, not a new economy." That tally is the
+     last number a finished village still moves. Every goal is done, every
+     building is at its best, there is nothing left to buy, and the one thing
+     the hall has left to say is how much has been given away since.
+
+     Nothing had looked at it. The hour-away version is held to its card by
+     hiddenSweep; the live one -- a villager walking a load into a barn that is
+     already at the ceiling, which is what a finished village does all day --
+     was not watched at all. It is the easiest number in the game to leave
+     behind, because a tally that stopped rising looks exactly like a tally
+     rising slowly, and nothing else on the screen would be wrong.
+
+     Counted off the villagers rather than off any figure the game reports:
+     every tick, the loads that were in somebody's hands and are not any more.
+     A carry only ever leaves a villager by being delivered, so that sum is
+     what the village really carried home, worked out without asking the
+     village anything.
+
+       what it carried  =  what it kept  +  what it gave away
+
+     exactly, in each state it can be in: at the ceiling, where all of it is
+     given; with room, where none of it is; and with room for less than a load,
+     where every delivery splits. And two rules about what does not belong in
+     it -- nothing at all before the last goal, and nothing nobody carried: a
+     statue sold into full barns pours its whole refund away and the tally must
+     not notice.
+
+       shareSweep()  -> { cases, refund, fails }
+  --------------------------------------------------------------------------- */
+  window.shareSweep = function () {
+    const V = window.__v, fails = [];
+    const put = k => { const L = V.landBounds();
+      for (let r = L.lo; r <= L.hi; r++) for (let c = L.lo; c <= L.hi; c++)
+        if (V.canPlace(k, c, r, V.occupied())) return V.place(k, c, r);
+      return false; };
+    /* Big enough that two minutes carries a thousand goods home, and settled
+       first, so the walking has found its rhythm before anything is counted. */
+    const scene = finished => {
+      V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
+      V.tutSeen.length = 0; V.away = null; V.goalDone = null; V.finished = null;
+      V.panel = null; V.sel = null; V.moving = null; V.claimAsk = false; V.orders = [];
+      if (finished) V.goalIdx = V.GOALS.length; else parkGoals();
+      V.ensureHall(); V.placed[0].lvl = 5;
+      for (const k of ['house', 'house', 'house', 'house', 'farm', 'farm',
+        'lumber', 'lumber', 'store', 'mill', 'well', 'statue']) {
+        V.res.wood = 1e6; V.res.food = 1e6; put(k);
+      }
+      for (const q of V.placed) if (q.key !== 'hall' && !V.isDecor(q.key)) q.lvl = 3;
+      for (let i = 0; i < 120 * 30; i++) V.step(1 / 30);
+      if (finished) V.goalIdx = V.GOALS.length; else parkGoals();
+      V.goalDone = null; V.finished = null; V.away = null; V.orders = [];
+      V.sharedTotal.wood = 0; V.sharedTotal.food = 0;
+    };
+    /* Every load that left a pair of hands. */
+    const run = secs => {
+      const carried = { wood: 0, food: 0 };
+      const s0 = { wood: V.sharedTotal.wood, food: V.sharedTotal.food };
+      const r0 = { wood: V.res.wood, food: V.res.food };
+      for (let i = 0; i < secs * 30; i++) {
+        const held = V.villagers.map(v => [v, v.carry ? { k: v.carry.k, n: v.carry.n } : null]);
+        V.orders = [];                      // a trade is not the village's work
+        V.step(1 / 30);
+        for (const [v, h] of held) if (h && !v.carry) carried[h.k] += h.n;
+      }
+      return { carried,
+        kept: { wood: V.res.wood - r0.wood, food: V.res.food - r0.food },
+        given: { wood: V.sharedTotal.wood - s0.wood, food: V.sharedTotal.food - s0.food } };
+    };
+
+    const cases = [];
+    for (const [name, finished, fill] of [
+      ['with the barns at the ceiling', true, 1],
+      ['with room to spare', true, 0.1],
+      ['with room for less than a load', true, null],
+      ['before the last goal, at the ceiling', false, 1],
+    ]) {
+      scene(finished);
+      for (const k of ['wood', 'food'])
+        V.res[k] = fill === null ? V.caps[k] - 3 : Math.floor(V.caps[k] * fill);
+      const r = run(120);
+      const hauled = r.carried.wood + r.carried.food;
+      const gave = r.given.wood + r.given.food;
+      cases.push({ name, carried: +hauled.toFixed(1), kept: +(r.kept.wood + r.kept.food).toFixed(1),
+        given: +gave.toFixed(1) });
+      /* A stretch that carried nothing proves nothing either way. */
+      if (hauled < 200) {
+        fails.push('the village carried only ' + hauled.toFixed(0) + ' goods home ' + name
+          + ', so the tally was never asked anything');
+        continue;
+      }
+      if (!finished) {
+        if (gave > 0.001)
+          fails.push('a village with goals still to do gave ' + gave.toFixed(1)
+            + ' to its neighbours ' + name);
+        continue;
+      }
+      for (const k of ['wood', 'food'])
+        if (Math.abs(r.carried[k] - (r.kept[k] + r.given[k])) > 0.01)
+          fails.push('the villagers carried ' + r.carried[k].toFixed(1) + ' ' + k + ' home ' + name
+            + ' and the village kept ' + r.kept[k].toFixed(1) + ' and gave away ' + r.given[k].toFixed(1));
+      /* Said again in the player's terms at the two ends, because the sum above
+         is also satisfied by a village that gives away nothing and keeps
+         nothing. */
+      if (fill === 1 && gave < hauled - 0.01)
+        fails.push('the barns are at the ceiling and ' + hauled.toFixed(1)
+          + ' was carried home, and the village counts ' + gave.toFixed(1) + ' given away');
+      if (fill === 0.1 && gave > 0.001)
+        fails.push('a village with room to spare was told it gave ' + gave.toFixed(1) + ' away');
+    }
+
+    /* And a refund is not the village's work. A statue sold into barns at the
+       ceiling pours its whole price away -- nobody is housed by it and nobody
+       works it, so not one villager is sent home and not one load is put down
+       in the same breath. The tally must not notice. */
+    scene(true);
+    for (const k of ['wood', 'food']) V.res[k] = V.caps[k];
+    const statue = V.placed.find(p => p.key === 'statue');
+    const refund = statue && V.canSell(statue) ? V.sellValue(statue) : null;
+    let thrown = null;
+    if (!refund || refund.wood + refund.food < 1) {
+      fails.push('nothing could be sold into full barns, so what a refund does was never asked');
+    } else {
+      const s0 = V.sharedTotal.wood + V.sharedTotal.food, hands = V.villagers.length;
+      V.sellBuilding(statue);
+      thrown = V.sharedTotal.wood + V.sharedTotal.food - s0;
+      if (V.villagers.length !== hands)
+        fails.push('selling the statue changed the workforce, so the refund rule was not asked cleanly');
+      else if (thrown > 0.001)
+        fails.push('a statue was sold into full barns and the village counted ' + thrown.toFixed(1)
+          + ' of the ' + (refund.wood + refund.food) + ' refunded as given to its neighbours');
+    }
+
+    V.sharedTotal.wood = 0; V.sharedTotal.food = 0;
+    return { cases, refund, thrown, fails };
+  };
+
   window.traderSweep = function () {
     const V = window.__v, fails = [];
     V.placed.length = 0; V.villagers.length = 0; V.landTier = 2; V.coverPlaced();
@@ -6326,6 +6468,7 @@
       ['taught', () => window.taughtSweep()],
       ['reward', () => window.rewardSweep()],
       ['trader', () => window.traderSweep()],
+      ['share', () => window.shareSweep()],
       ['order', () => window.orderSweep()],
       ['tap', () => window.tapSweep()],
       ['text', () => window.textSweep()],
