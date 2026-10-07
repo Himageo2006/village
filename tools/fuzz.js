@@ -5063,6 +5063,156 @@
 
        buttonSweep()  -> { states, kinds, acted, fails }
   --------------------------------------------------------------------------- */
+  /* ---------------------------------------------------------------------------
+     Nothing the game draws is malformed.
+
+     The rows of this interface are clauses joined by "   ·   ", assembled by
+     about thirty conditionals, and every one of them has to ask the same
+     question before it adds a divider: is there anything on the other side of
+     it? The goal strip asked a different question -- whether the goal HAS
+     something to buy, rather than whether there was anything to say about it --
+     and buyProgress returns nothing at all when there is nothing left to name.
+     So the one line that is always on screen read
+
+       Raise every workplace to level 5   ·      ·   reward 🪵3400 🌾2200
+
+     a divider with a hole where a clause should be.
+
+     Nothing had ever looked at the SHAPE of a drawn string. textSweep measures
+     how wide they are and contrastSweep measures what they are drawn against;
+     both are happy with a row that says nothing in the middle. So is a row
+     carrying the word "undefined", or "NaN/5", which is the other way a string
+     built by concatenation fails and the way that reads worst of all.
+
+     Every string the game paints, in every state this sweep can put it in:
+
+       no empty clause      a divider with nothing between it and the next one
+       no dangling divider  nor one hanging off either end
+       nothing broken       no "undefined", "NaN" or "Infinity" anywhere in it
+
+     Walked over every goal in the list -- which is where the fault was, and it
+     needed the goal AND a village with nothing for it to name -- every
+     building's panel at every level and under scaffolding, and the cards and
+     tray states the HUD can be in.
+
+       shapeSweep()  -> { strings, states, fails }
+  --------------------------------------------------------------------------- */
+  window.shapeSweep = function () {
+    const V = window.__v, cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
+    const fails = [], orig = ctx.fillText, seen = new Set();
+    const SEP = '   ·   ';
+    let states = 0;
+    const grab = where => {
+      states++;
+      const lines = [];
+      ctx.fillText = function (t, ...a) { lines.push(String(t)); return orig.call(this, t, ...a); };
+      try { V.draw(); } finally { ctx.fillText = orig; }
+      for (const t of lines) {
+        if (seen.has(t)) continue;
+        seen.add(t);
+        if (/\b(undefined|NaN|Infinity)\b/.test(t))
+          fails.push(where + ' drew "' + t + '"');
+        if (t.indexOf(SEP) < 0) continue;
+        if (t.startsWith(SEP) || t.endsWith(SEP))
+          fails.push(where + ' drew a row hanging off a divider: "' + t + '"');
+        for (const part of t.split(SEP))
+          if (!part.trim()) { fails.push(where + ' drew a row with nothing between two dividers: "' + t + '"'); break; }
+      }
+    };
+    const put = k => { const L = V.landBounds();
+      for (let r = L.lo; r <= L.hi; r++) for (let c = L.lo; c <= L.hi; c++)
+        if (V.canPlace(k, c, r, V.occupied())) return V.place(k, c, r);
+      return false; };
+    const clear = () => {
+      V.away = null; V.goalDone = null; V.finished = null; V.panel = null;
+      V.sel = null; V.moving = null; V.claimAsk = false; V.barMode = 'build';
+      /* The hint strip and the goal strip share a slot, so a village with a
+         hint still to read never shows the goal at all. */
+      V.tutSeen.length = 0; for (const h of V.TUT) V.tutSeen.push(h.id);
+    };
+    const build = kinds => {
+      for (const k of kinds) { V.res.wood = 9e5; V.res.food = 9e5; put(k); }
+      for (const q of V.placed) q.t = 1;
+      V.step(0.001);
+    };
+
+    /* ---- every goal, in a village that can name what it wants and in one
+            that cannot. The second is the half that mattered: the fault needed
+            a goal asking about buildings and a village with none of them. ---- */
+    const FULL = ['house', 'house', 'farm', 'lumber', 'store', 'well', 'mill',
+      'market', 'statue', 'path'];
+    for (const [what, kinds, hall, land, purse] of [
+      ['a village with one of everything', FULL, 5, V.LAND_MAX, 'rich'],
+      ['a village with nothing but a hall and a house', ['house'], 5, V.LAND_MAX, 'rich'],
+      ['a bare village with an empty purse', ['house'], 1, 0, 'poor'],
+      ['a village at its ceiling', FULL, 5, V.LAND_MAX, 'full'],
+    ]) {
+      for (let i = 0; i < V.GOALS.length; i++) {
+        V.placed.length = 0; V.villagers.length = 0; V.landTier = land; V.coverPlaced();
+        clear();
+        V.ensureHall(); V.placed[0].lvl = hall; V.placed[0].t = 1;
+        V.res.wood = 9e5; V.res.food = 9e5; V.step(0.001);
+        build(kinds);
+        V.goalIdx = i; V.goalDone = null; V.finished = null;
+        V.res.wood = purse === 'poor' ? 0 : purse === 'full' ? V.caps.wood : 9e5;
+        V.res.food = purse === 'poor' ? 0 : purse === 'full' ? V.caps.food : 9e5;
+        V.step(0.001);
+        grab('the goal "' + V.GOALS[i].text.slice(0, 32) + '" in ' + what);
+      }
+    }
+
+    /* ---- every panel, at every level, standing and going up ---- */
+    V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
+    clear();
+    V.ensureHall(); V.placed[0].lvl = 5; V.placed[0].t = 1;
+    V.res.wood = 9e5; V.res.food = 9e5; V.step(0.001);
+    build(FULL);
+    for (let i = 0; i < 90 * 30; i++) V.step(1 / 30);     // villagers at work, stock moving
+    for (const p of V.placed.slice()) {
+      for (let L = 1; L <= V.LVL_MAX; L++) for (const t of [1, 0.5]) {
+        if (V.isDecor(p.key) && L > 1) continue;
+        p.lvl = L; p.t = V.isDecor(p.key) ? 1 : t;
+        for (const purse of ['rich', 'poor', 'full']) {
+          V.res.wood = purse === 'poor' ? 0 : purse === 'full' ? V.caps.wood : 9e5;
+          V.res.food = purse === 'poor' ? 0 : purse === 'full' ? V.caps.food : 9e5;
+          V.panel = p.id; V.step(0.001);
+          grab('the ' + p.key + ' panel at level ' + L + (t < 1 ? ' under scaffolding' : ''));
+        }
+      }
+      p.lvl = 1; p.t = 1;
+    }
+    V.panel = null;
+
+    /* ---- and the cards and trays ---- */
+    const mk = V.placed.find(p => p.key === 'market');
+    for (const [what, set] of [
+      ['the build tray', () => { clear(); V.barMode = 'build'; }],
+      ['the decorate tray', () => { clear(); V.barMode = 'decorate'; }],
+      ['the orders tray', () => { clear(); V.barMode = 'orders';
+        V.orders = [{ ...V.makeOrder(0), slot: 0 }, { ...V.makeOrder(2), slot: 1 }]; }],
+      ['an empty orders tray', () => { clear(); V.barMode = 'orders'; V.orders = []; }],
+      ['a card placing a building', () => { clear(); V.sel = 'mill'; }],
+      ['a card moving a building', () => { clear(); V.moving = mk && mk.id; }],
+      ['the claim dialogue', () => { clear(); V.claimAsk = true; }],
+      ['the welcome-back card', () => { clear();
+        V.away = { secs: 7200, got: { wood: 120, food: 80 }, capped: false, spilled: false,
+          shared: null, fullAfter: null }; }],
+      ['a welcome-back card that shared', () => { clear(); V.goalIdx = V.GOALS.length;
+        V.away = { secs: 7200, got: { wood: 120, food: 80 }, capped: true, spilled: true,
+          shared: { wood: 900, food: 800 }, fullAfter: 60 }; }],
+      ['the goal banner', () => { clear(); V.goalIdx = 3;
+        V.goalDone = { g: V.GOALS[2], got: { wood: 60 }, age: 0.2 }; }],
+      ['the finished card', () => { clear(); V.goalIdx = V.GOALS.length;
+        V.finished = { villagers: 12, buildings: 9, trades: 14, charm: 60 }; }],
+    ]) {
+      V.goalIdx = 4; set(); V.step(0.001);
+      grab(what);
+    }
+
+    clear(); V.goalIdx = 0; V.orders = []; V.step(0.001);
+    return { strings: seen.size, states, fails };
+  };
+
   window.buttonSweep = function () {
     const V = window.__v, cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
     const fails = [], orig = ctx.fillText;
@@ -6883,6 +7033,7 @@
       ['share', () => window.shareSweep()],
       ['allow', () => window.allowSweep()],
       ['button', () => window.buttonSweep()],
+      ['shape', () => window.shapeSweep()],
       ['order', () => window.orderSweep()],
       ['tap', () => window.tapSweep()],
       ['text', () => window.textSweep()],

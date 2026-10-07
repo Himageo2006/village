@@ -4254,9 +4254,22 @@ function drawGoal() {
      Only where a count means something. "Raise the town hall to level 4" is one
      step, and "2/4" under it would be noise. */
   const prog = gl.at ? gl.at() : null;
+  /* Asked for its ANSWER, not for whether the goal has something to buy.
+
+     buyProgress returns nothing at all when there is nothing left to name, and
+     the separator went on regardless, so the strip read "Raise every workplace
+     to level 5   ·      ·   reward 🪵3400 🌾2200" -- a divider with a hole
+     where a clause should be, on the one line that is always on screen.
+
+     Reached by selling the workplaces: that goal asks about buildings the
+     player may remove, and with none of them left there is no cheapest next
+     step to quote. Every other clause on this line already asks what it is
+     about to print; this one asked only whether it was allowed to print
+     something. */
+  const buy = gl.buy ? buyProgress(gl.buy) : '';
   const txt = gl.text
     + (prog && prog[0] < prog[1] ? '   ·   ' + prog[0] + '/' + prog[1] : '')
-    + (gl.buy ? '   ·   ' + buyProgress(gl.buy) : '')
+    + (buy ? '   ·   ' + buy : '')
     + '   ·   ' + reward;
   const fit = fitLines(txt, W - 108 * u, 22 * u, 13 * u, 2);
   const tw = Math.max(...fit.lines.map(l => g.measureText(l).width));
