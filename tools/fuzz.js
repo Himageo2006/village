@@ -5389,6 +5389,152 @@
 
        panSweep()  -> { cases, fewest, fails }
   --------------------------------------------------------------------------- */
+  /* ---------------------------------------------------------------------------
+     What a frame costs to draw.
+
+     Nothing in this file has ever looked at the cost of a frame, and the game
+     is about to be carried around on a phone. The obvious check -- time a draw
+     -- is not available here and would not be worth much if it were: the pane
+     this runs in is usually hidden, requestAnimationFrame does not fire in a
+     hidden pane at all, and timing canvas work with no compositing measures the
+     browser rather than the game. Measured anyway, for the record: draw() in a
+     tight loop reads about sixty milliseconds, and an EMPTY village reads the
+     same sixty, which is how you know the number is about the pane and not
+     about the village. What a frame really costs on a phone is a thing to find
+     out on a phone.
+
+     What can be counted honestly is the WORK: how many times a frame reaches
+     for the canvas. That is machine-independent, repeats exactly, and catches
+     the failure that matters -- work that grows faster than the village does.
+
+     The heaviest village the game allows: hall five, every building its
+     allowance permits, the decoration budget full, seventy-two villagers, at
+     night with the lamps lit and a panel open.
+
+       one image per thing   every building, decoration and villager costs about
+                             one drawImage, and the scenery that is left over
+                             shrinks as the village builds over it -- 41 spare
+                             images in a first village, 8 in a full one
+       nothing vanishes      and not far fewer, or something has stopped being
+                             drawn
+       a ceiling on the      the whole frame, every call, under a stated number
+       whole frame
+       and it repeats        two draws of the same village cost the same
+
+     The last one is belt-and-braces rather than a rule with teeth, and that
+     was measured rather than assumed: the badge queue is emptied BOTH at the
+     top of the depth pass and again inside flushBadges, so taking either clear
+     away leaves the counts identical to the tenth -- ten draws of the same
+     village, 636 calls every time, with the clear in flushBadges removed. No
+     single faithful mutation makes a frame grow. Kept because it costs nothing
+     and the day one of those two clears goes, this is what says so.
+
+       costSweep()  -> { village, perFrame, spare, fails }
+  --------------------------------------------------------------------------- */
+  window.costSweep = function () {
+    const V = window.__v, cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
+    const fails = [];
+    const NAMES = ['drawImage', 'fillText', 'fill', 'stroke', 'save', 'roundRect'];
+    const count = () => {
+      const ops = {}, saved = {};
+      for (const n of NAMES) { const o = ctx[n].bind(ctx); saved[n] = o;
+        ctx[n] = function (...a) { ops[n] = (ops[n] || 0) + 1; return o(...a); }; }
+      try { V.draw(); } finally { for (const n of NAMES) ctx[n] = saved[n]; }
+      let total = 0; for (const n in ops) total += ops[n];
+      return { ...ops, total };
+    };
+    const put = (k, c, r) => V.canPlace(k, c, r, V.occupied()) ? V.place(k, c, r) : false;
+    const seat = k => { const L = V.landBounds(); V.res.wood = 9e5; V.res.food = 9e5;
+      for (let r = L.lo; r <= L.hi; r++) for (let c = L.lo; c <= L.hi; c++) if (put(k, c, r)) return true;
+      return false; };
+    const settle = () => {
+      for (const q of V.placed) if (q.t >= 1) q.t = 0.9;
+      for (let i = 0; i < 60; i++) V.step(1 / 30);
+    };
+
+    /* How much a frame may spend over one image per standing thing.
+
+       The spare is the scenery -- the trees and rocks on ground nobody has
+       built on -- and the whole point of it is that it SHRINKS as the village
+       covers the island: 41 measured on a first village, 39 an hour in, 8 on a
+       full one. One allowance for all three would be a bar only the bare
+       island ever approaches, and a full island drawing its scenery straight
+       through the buildings standing on it would pass by eighteen. So the
+       allowance follows the village. */
+    const SPARE = 60;
+    /* And the whole frame, which is about half as much again as the heaviest
+       state measures: room for the game to grow, not for it to double. */
+    const CEILING = 1200;
+
+    const rows = [];
+    let perFrame = null, spare = null;
+    for (const [what, tier, hall, kinds, decor, spareHere] of [
+      ['a first village', 0, 1, ['house'], 0, SPARE],
+      ['an hour in', 2, 3, ['house', 'house', 'farm', 'lumber', 'store', 'well'], 6, SPARE],
+      ['the heaviest village the game allows', V.LAND_MAX, 5, null, V.DECOR_MAX, 25],
+    ]) {
+      V.placed.length = 0; V.villagers.length = 0; V.landTier = tier; V.coverPlaced();
+      V.away = null; V.goalDone = null; V.finished = null; V.panel = null;
+      V.sel = null; V.moving = null; V.claimAsk = false; V.orders.length = 0;
+      V.goalIdx = 0; V.tutSeen.length = 0; for (const h of V.TUT) V.tutSeen.push(h.id);
+      V.ensureHall(); V.placed[0].lvl = hall; V.placed[0].t = 1;
+      V.res.wood = 9e5; V.res.food = 9e5; settle();
+      if (kinds) for (const k of kinds) seat(k);
+      else { const allow = V.HALL[V.HALL.length - 1].allow;
+        for (const [k, n] of Object.entries(allow)) for (let i = 0; i < n; i++) seat(k); }
+      for (let i = 0; i < decor; i++) seat(i % 2 ? 'statue' : 'path');
+      if (!kinds) for (const q of V.placed) if (!V.isDecor(q.key)) q.lvl = V.LVL_MAX;
+      settle();
+      for (let i = 0; i < 180 * 30; i++) V.step(1 / 30);
+      V.camFit(true); V.step(0.001);
+
+      const things = V.placed.length + V.villagers.length;
+      const ops = count();
+      rows.push({ what, things, drawImage: ops.drawImage, total: ops.total });
+      if (ops.drawImage > things + spareHere)
+        fails.push(what + ' reaches for an image ' + ops.drawImage + ' times with '
+          + things + ' things standing on it, which is more than one each and '
+          + spareHere + ' for the scenery');
+      if (ops.drawImage < things * 0.9)
+        fails.push(what + ' has ' + things + ' things standing on it and draws only '
+          + ops.drawImage + ' images, so something is not being drawn at all');
+      if (ops.total > CEILING)
+        fails.push(what + ' spends ' + ops.total + ' calls on one frame, past the '
+          + CEILING + ' this game gives itself');
+      if (!kinds) { perFrame = ops.total; spare = ops.drawImage - things; }
+    }
+
+    /* ---- the heaviest state there is, rather than the heaviest village ----
+
+       Night, with the lamps lit and a panel open, which measured as the dearest
+       of the six states the game can be in. */
+    {
+      const realNow = Date.now;
+      try {
+        const DAY = 8 * 60 * 1000;
+        Date.now = () => realNow() - (realNow() % DAY) + DAY * 0.75;
+        const mk = V.placed.find(p => p.key === 'market') || V.placed[0];
+        V.panel = mk.id; V.step(0.001);
+        const ops = count();
+        rows.push({ what: 'the same village at night with a panel open',
+          things: V.placed.length + V.villagers.length, drawImage: ops.drawImage, total: ops.total });
+        if (ops.total > CEILING)
+          fails.push('a frame at night with a panel open spends ' + ops.total
+            + ' calls, past the ' + CEILING + ' this game gives itself');
+        perFrame = Math.max(perFrame || 0, ops.total);
+        /* And it repeats. */
+        const again = count();
+        for (const n of NAMES)
+          if ((again[n] || 0) !== (ops[n] || 0))
+            fails.push('two draws of the same village reached for ' + n + ' '
+              + (ops[n] || 0) + ' times and then ' + (again[n] || 0));
+      } finally { Date.now = realNow; V.panel = null; V.step(0.001); }
+    }
+
+    V.goalIdx = 0; V.step(0.001);
+    return { village: rows, perFrame, spare, bars: { spare: SPARE, ceiling: CEILING }, fails };
+  };
+
   window.panSweep = function () {
     const V = window.__v, cv = document.querySelector('canvas');
     const b = cv.getBoundingClientRect();
@@ -8168,18 +8314,42 @@
             try { V.draw(); } finally { ctx.rotate = oR; ctx.drawImage = oD; }
             return { angles, highs };
           };
-          const m = watch(false), r = watch(true);
-          rock = {
-            tilted: m.angles.filter(a => Math.abs(a) > 1e-9).length,
-            lifted: m.highs.filter((h, i) => r.highs[i] !== undefined && Math.abs(h - r.highs[i]) > 1e-9).length
-          };
-          const stillTilted = r.angles.filter(a => Math.abs(a) > 1e-9).length;
+          /* Over a whole stride, rather than at one instant.
+
+             The lean is a sine of the walk phase, so it passes through zero
+             twice a cycle, and the bob with it. This read a SINGLE frame:
+             with one or two people on their feet -- which is what a village
+             of this size has -- a frame can honestly catch all of them at the
+             crossing, and the sweep would then report that the walk "never
+             runs". Seen once in a battery and not reproducible by running the
+             sweep again, which is the signature of a checker sampling
+             something periodic at one point.
+
+             A stride is about a second, so fifteen samples two frames apart
+             take in every phase of it. The PAIR of draws in each sample still
+             happen back to back with no tick between them, because the
+             reduce-motion comparison only means anything on a village that
+             has not moved between the two. */
+          let bestTilt = 0, bestLift = 0, stillTilted = 0, mismatched = 0, samples = 0;
+          for (let shot = 0; shot < 15; shot++) {
+            const m = watch(false), r = watch(true);
+            samples++;
+            bestTilt = Math.max(bestTilt, m.angles.filter(a => Math.abs(a) > 1e-9).length);
+            bestLift = Math.max(bestLift, m.highs.filter((h, i) =>
+              r.highs[i] !== undefined && Math.abs(h - r.highs[i]) > 1e-9).length);
+            stillTilted += r.angles.filter(a => Math.abs(a) > 1e-9).length;
+            if (m.highs.length !== r.highs.length) mismatched++;
+            for (let i = 0; i < 2; i++) V.step(1 / 30);
+          }
+          rock = { tilted: bestTilt, lifted: bestLift, samples };
           if (!rock.tilted && !rock.lifted)
-            fails.push('somebody is walking and not one villager leaned or was lifted, so the walk the source describes never runs');
+            fails.push('somebody was walking through fifteen frames of a stride and not one'
+              + ' villager leaned or was lifted, so the walk the source describes never runs');
           if (stillTilted)
             fails.push(stillTilted + ' villagers were still leaning on their stride with reduce motion on');
-          if (m.highs.length !== r.highs.length)
-            fails.push('reduce motion changed how many sprites are drawn, which is not what it is for');
+          if (mismatched)
+            fails.push('reduce motion changed how many sprites are drawn in ' + mismatched
+              + ' of ' + samples + ' frames, which is not what it is for');
         }
       }
 
@@ -8728,6 +8898,7 @@
       ['land', () => window.landSweep()],
       ['confirm', () => window.confirmSweep()],
       ['pan', () => window.panSweep()],
+      ['cost', () => window.costSweep()],
       ['order', () => window.orderSweep()],
       ['tap', () => window.tapSweep()],
       ['text', () => window.textSweep()],
