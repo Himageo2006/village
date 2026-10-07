@@ -5319,6 +5319,233 @@
 
        landSweep()  -> { rings, seen, fails }
   --------------------------------------------------------------------------- */
+  /* ---------------------------------------------------------------------------
+     The three controls whose whole job is to NOT do something.
+
+     Selling is the one move the game says cannot be undone, so it asks twice.
+     Moving is the other two-tap control. And the speaker is the only thing in
+     the interface that promises an absence: "sound you cannot switch off is
+     worse than no sound".
+
+     clockSweep holds the sell arm's clock -- that it goes to sleep, and that
+     looking at another building puts it away -- and does it by setting sellArm
+     by hand, because that sweep is about the clock. The TAP path has never been
+     walked: nothing in this file has ever pressed the sell button and checked
+     that the building is still standing afterwards. That is the half the player
+     relies on.
+
+       one tap never acts    the building is still there, and the button says it
+                             is waiting
+       two taps do           and the refund is exactly what the panel quoted
+       the hall refuses      twice over
+       the arm is one        armed on a farm, open a lumber camp, and its first
+       building's            tap arms rather than sells
+       and it expires        wait it out and the next tap arms again
+       a move is the same    one tap on a tile puts the building nowhere; a
+                             second on the SAME tile moves it
+       and the speaker       while it is off, not one oscillator is made by any
+       really is off         sound in the game
+
+     Every tap goes through the real handler at the real hit region. Two things
+     the scene has to get right, both learned the hard way: a card -- the goal
+     banner, the welcome-back card, the finished card -- swallows a tap whole,
+     so the goals are parked and the cards cleared before every press; and a
+     building placed a moment ago is still scaffolding, which is not a thing
+     that can be sold.
+
+       confirmSweep()  -> { presses, muted, fails }
+  --------------------------------------------------------------------------- */
+  window.confirmSweep = function () {
+    const V = window.__v, cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
+    const fails = [], orig = ctx.fillText;
+    const put = (k, c, r) => V.canPlace(k, c, r, V.occupied()) ? V.place(k, c, r) : false;
+    const seat = k => { const L = V.landBounds(); V.res.wood = 9e5; V.res.food = 9e5;
+      for (let r = L.lo; r <= L.hi; r++) for (let c = L.lo; c <= L.hi; c++)
+        if (put(k, c, r)) return V.placed[V.placed.length - 1];
+      return null; };
+    /* Long enough for anything just placed to come out of its scaffolding. */
+    const done = () => { for (let i = 0; i < 10 * 30; i++) V.step(1 / 30); };
+    /* Nothing on screen that would eat the press. */
+    const clear = () => { V.goalDone = null; V.away = null; V.finished = null;
+      V.claimAsk = false; V.goalIdx = parkGoals(); };
+    const fresh = () => {
+      V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
+      V.panel = null; V.sel = null; V.moving = null; V.orders.length = 0;
+      V.sellArm = null; V.armed = null;
+      V.tutSeen.length = 0; for (const h of V.TUT) V.tutSeen.push(h.id);
+      V.ensureHall(); V.placed[0].lvl = 5; V.placed[0].t = 1;
+      V.res.wood = 9e5; V.res.food = 9e5; done(); clear();
+    };
+    const sellLabel = () => {
+      const lines = [];
+      ctx.fillText = function (t, ...a) { lines.push(String(t)); return orig.call(this, t, ...a); };
+      try { V.draw(); } finally { ctx.fillText = orig; }
+      /* The face of the button, not the warning row above it: 'Selling it
+         stops 🌾0.32/s arriving' also begins with Sell. */
+      return lines.find(t => /^(Cannot sell$|Tap again to (sell|remove)$|Sell[ ·]|Remove[ ·])/.test(t)) || '';
+    };
+    const press = p => { V.panel = p.id; V.step(0.001); clear();
+      const R = V.panelRects(); V.tap(R.sell.x, R.sell.y); V.step(0.001); clear(); };
+    let presses = 0;
+
+    /* ---- one tap waits, two taps sell ---- */
+    fresh();
+    { const farm = seat('farm'); seat('lumber'); done(); clear();
+      V.res.wood = 100; V.res.food = 100; V.step(0.001); clear();
+      if (!farm || farm.t < 1) fails.push('the sell check had no finished building to sell');
+      else {
+        V.panel = farm.id; V.step(0.001); clear();
+        const quoted = V.sellValue(farm) || {};
+        const before = { wood: V.res.wood, food: V.res.food, n: V.placed.length };
+        const idle = sellLabel();
+        press(farm); presses++;
+        if (!V.placed.includes(farm))
+          fails.push('one tap on the sell button took the building away');
+        if (!(V.sellArm && V.sellArm.id === farm.id))
+          fails.push('one tap on the sell button did not put it on notice');
+        const armed = sellLabel();
+        if (!/^Tap again/.test(armed))
+          fails.push('the sell button was pressed once and still reads "' + armed + '"');
+        if (armed === idle)
+          fails.push('the sell button says the same thing before and after it is pressed');
+        press(farm); presses++;
+        if (V.placed.includes(farm)) fails.push('two taps on the sell button left the building standing');
+        else {
+          if (V.placed.length !== before.n - 1)
+            fails.push('selling one building changed the village by ' + (V.placed.length - before.n) + ' buildings');
+          /* One load of slack: a villager can put eight down in the same tick. */
+          for (const k of ['wood', 'food']) {
+            const got = V.res[k] - before[k], want = quoted[k] || 0;
+            if (got < want - 0.01 || got > want + V.CARRY + 0.01)
+              fails.push('the panel quoted ' + want + ' ' + k + ' back and selling returned ' + got.toFixed(1));
+          }
+        }
+      }
+    }
+
+    /* ---- the hall is the village ---- */
+    fresh();
+    { const hall = V.hallOf();
+      V.panel = hall.id; V.step(0.001); clear();
+      const says = sellLabel();
+      if (!/^Cannot sell/.test(says)) fails.push('the hall\'s sell button reads "' + says + '"');
+      press(hall); presses++; press(hall); presses++;
+      if (!V.hallOf()) fails.push('the town hall was sold');
+    }
+
+    /* ---- the notice belongs to one building ----
+
+       And asked WITHOUT a tick between the two presses. The tick is the game's
+       other guard -- it drops the notice the moment the open panel is not the
+       one that was armed -- so stepping in between hides whether the tap path
+       checks at all. Two inputs inside one frame is the case where only this
+       check stands between a tap and a demolished building. */
+    fresh();
+    { const a = seat('farm'), b = seat('lumber'); done(); clear();
+      if (!a || !b) fails.push('the sell check could not stand two buildings up');
+      else {
+        V.panel = a.id; V.step(0.001); clear();
+        const Ra = V.panelRects(); V.tap(Ra.sell.x, Ra.sell.y); presses++;
+        if (!(V.sellArm && V.sellArm.id === a.id))
+          fails.push('the first building was not put on notice');
+        V.panel = b.id;                                  // no tick: the same frame
+        const Rb = V.panelRects(); V.tap(Rb.sell.x, Rb.sell.y); presses++;
+        V.step(0.001); clear();
+        if (!V.placed.includes(b))
+          fails.push('a building was sold by its FIRST tap, because another was already on notice');
+        if (!V.placed.includes(a)) fails.push('opening another building sold the first');
+      }
+    }
+
+    /* ---- and the notice runs out ---- */
+    fresh();
+    { const a = seat('farm'); done(); clear();
+      if (!a) fails.push('the expiry check could not stand a building up');
+      else {
+        press(a); presses++;
+        for (let i = 0; i < Math.ceil(V.SELL_ARM + 1) * 30; i++) V.step(1 / 30);
+        clear();
+        press(a); presses++;
+        if (!V.placed.includes(a))
+          fails.push('the sell button was left on notice for ' + (V.SELL_ARM + 1)
+            + ' seconds and the next tap still sold the building');
+      }
+    }
+
+    /* ---- a move asks twice as well ---- */
+    fresh();
+    { const a = seat('farm'); done(); clear();
+      const L = V.landBounds();
+      let to = null;
+      for (let c = L.lo; c <= L.hi && !to; c++) for (let r = L.lo; r <= L.hi && !to; r++)
+        if ((c !== a.c || r !== a.r) && V.canPlace('farm', c, r, V.occupied(a.id))) to = [c, r];
+      if (!to) fails.push('the move check found nowhere to move a farm to');
+      else {
+        const w = V.tileToWorld(to[0], to[1]), pt = V.camProject(w.x, w.y);
+        const from = [a.c, a.r];
+        V.moving = a.id; V.armed = null; V.panel = null; V.step(0.001); clear();
+        V.tap(pt.x, pt.y); V.step(0.001); clear(); presses++;
+        if (a.c !== from[0] || a.r !== from[1])
+          fails.push('one tap moved the building, with no chance to think better of it');
+        if (!V.armed) fails.push('one tap on a tile did not put the move on notice');
+        V.tap(pt.x, pt.y); V.step(0.001); clear(); presses++;
+        if (a.c !== to[0] || a.r !== to[1])
+          fails.push('two taps on the same tile left the building at ' + a.c + ',' + a.r);
+      }
+    }
+
+    /* ---- and the speaker really is a speaker ---- */
+    let muted = null;
+    {
+      /* Asked for, the way the game asks for it on the player's first touch.
+         A reload leaves no context at all until something rings, and a sweep
+         that simply reads it finds nothing and says the mute cannot be tested
+         -- which is a failure about the browser rather than about the game. */
+      V.audioOn();
+      const actx = V.actx;
+      if (!actx) fails.push('there is no audio at all, so the mute button proves nothing');
+      else {
+        const keep = V.muted;
+        const co = actx.createOscillator.bind(actx);
+        let made = 0;
+        actx.createOscillator = function () { made++; return co(); };
+        /* tone() also stands down for a page nobody is looking at, and the pane
+           this runs in is often exactly that -- so unmuted and muted both come
+           back silent and the check passes by accident. Said to be on screen,
+           the way soundSweep says it. */
+        const seen = v => Object.defineProperty(document, 'hidden', { configurable: true, get: () => v });
+        seen(false);
+        try {
+          V.muted = true; made = 0;
+          for (const k of Object.keys(V.SFX)) { try { V.SFX[k](); } catch (e) {} }
+          const off = made;
+          V.muted = false; made = 0;
+          for (const k of Object.keys(V.SFX)) { try { V.SFX[k](); } catch (e) {} }
+          const on = made;
+          muted = { off, on, sounds: Object.keys(V.SFX).length };
+          if (off) fails.push('the game was muted and still made ' + off + ' sounds');
+          if (!on) fails.push('the game was unmuted and made no sound at all, so the mute proves nothing');
+        } finally { actx.createOscillator = co; V.muted = keep; delete document.hidden; }
+      }
+      /* The button itself, at its own hit region. */
+      fresh();
+      const was = V.muted, M = V.muteRect();
+      V.tap(M.x, M.y); V.step(0.001); presses++;
+      if (V.muted === was) fails.push('tapping the speaker did not change anything');
+      V.tap(M.x, M.y); V.step(0.001); presses++;
+      if (V.muted !== was) fails.push('tapping the speaker twice did not put it back');
+      /* And it is remembered. */
+      V.muted = true; V.save();
+      V.muted = false; V.load(); V.landTransit(); V.step(0.001);
+      if (!V.muted) fails.push('the game was muted, saved and loaded, and came back loud');
+      V.muted = was; V.save();
+    }
+
+    V.panel = null; V.moving = null; V.sellArm = null; V.armed = null;
+    V.goalIdx = 0; V.step(0.001);
+    return { presses, muted, fails };
+  };
+
   window.landSweep = function () {
     const V = window.__v, cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
     const fails = [], orig = ctx.fillText;
@@ -8323,6 +8550,7 @@
       ['mark', () => window.markSweep()],
       ['advice', () => window.adviceSweep()],
       ['land', () => window.landSweep()],
+      ['confirm', () => window.confirmSweep()],
       ['order', () => window.orderSweep()],
       ['tap', () => window.tapSweep()],
       ['text', () => window.textSweep()],
