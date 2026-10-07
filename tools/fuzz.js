@@ -5355,6 +5355,182 @@
 
        confirmSweep()  -> { presses, muted, fails }
   --------------------------------------------------------------------------- */
+  /* ---------------------------------------------------------------------------
+     You cannot lose the island.
+
+     framingSweep holds the camera's own framing move -- fit the village and
+     nothing is cropped. Nobody has ever held the camera the PLAYER drives. A
+     finger can push it anywhere the clamp allows, and the clamp is written
+     against the whole grid rather than against the claim, on purpose: tapping
+     the dark ground is how land is bought, so looking away from your own
+     village is a thing the game has to let you do.
+
+     Which makes the question a different one. Not "is the village on screen" --
+     it is allowed not to be -- but "is there any ground at all", because a
+     screen of open sea is a game with no way back. There is no recentre button
+     to press; the only way home is to drag, and a player who cannot see which
+     way the island lies cannot drag towards it.
+
+       the island is never   drag to the limit in eight directions, at five
+       wholly gone           zooms, on three sizes of claim, and some of the
+                             grid is still on screen every time
+       and it is ground      the tile under the middle of that view can be
+       you can use           tapped, and it opens the claim dialogue or a
+                             building -- the reason the clamp is drawn around
+                             the grid rather than the claim
+       the drags work        or a camera that ignored every finger would pass
+                             the two rules above
+       the zoom stays        inside its own bounds after any pinch
+       and a flick settles   rather than drifting for ever
+
+     Driven through real pointer events at the real canvas, like gestureSweep --
+     setting CAM by hand is not a test of anything, because the clamp lives in
+     the handlers and a written value simply stands.
+
+       panSweep()  -> { cases, fewest, fails }
+  --------------------------------------------------------------------------- */
+  window.panSweep = function () {
+    const V = window.__v, cv = document.querySelector('canvas');
+    const b = cv.getBoundingClientRect();
+    const fails = [];
+    if (!(b.width > 0) || !(b.height > 0))
+      return { cases: 0, fewest: null, fails: ['the canvas has no size on screen, so no drag could be measured'] };
+    const ev = (type, id, x, y) => cv.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: id,
+      clientX: x, clientY: y, pointerType: 'touch', isPrimary: id === 1, button: 0 }));
+    const drag = (dx, dy) => {
+      const cx = b.left + b.width / 2, cy = b.top + b.height / 2;
+      ev('pointerdown', 9, cx, cy);
+      for (let i = 1; i <= 20; i++) ev('pointermove', 9, cx + dx * i / 20, cy + dy * i / 20);
+      ev('pointerup', 9, cx + dx, cy + dy);
+      for (let i = 0; i < 120; i++) V.step(1 / 30);      // and let any flick run out
+    };
+    const onScreen = (c, r) => { const w = V.tileToWorld(c, r), p = V.camProject(w.x, w.y);
+      return p.x >= 0 && p.x <= 1024 && p.y >= V.hudTop() && p.y <= V.hudBot(); };
+    /* The whole grid, which is the island the clamp is drawn around -- read off
+       the largest claim the game has rather than written down here. */
+    const EDGE = V.LAND[V.LAND_MAX];
+    const ground = () => { let n = 0;
+      for (let c = EDGE.lo; c <= EDGE.hi; c++) for (let r = EDGE.lo; r <= EDGE.hi; r++)
+        if (onScreen(c, r)) n++;
+      return n; };
+
+    V.placed.length = 0; V.villagers.length = 0; V.coverPlaced();
+    V.away = null; V.goalDone = null; V.finished = null; V.panel = null;
+    V.sel = null; V.moving = null; V.claimAsk = false; V.orders.length = 0;
+    V.goalIdx = 0; V.tutSeen.length = 0; for (const h of V.TUT) V.tutSeen.push(h.id);
+    V.ensureHall(); V.placed[0].lvl = 3; V.placed[0].t = 1;
+    V.res.wood = 9e5; V.res.food = 9e5;
+    for (let i = 0; i < 10 * 30; i++) V.step(1 / 30);
+
+    const WAYS = [[900, 0], [-900, 0], [0, 900], [0, -900],
+      [800, 800], [-800, -800], [800, -800], [-800, 800]];
+    const ZOOMS = [0.55, 0.8, 1.4, 1.8, 2.2];
+    let cases = 0, fewest = Infinity, worstAt = null, moved = 0;
+
+    for (const tier of [0, 2, V.LAND_MAX]) {
+      V.landTier = tier; V.coverPlaced();
+      for (const z of ZOOMS) for (const [dx, dy] of WAYS) {
+        V.camFit(true); V.CAM.z = z; V.step(0.001);
+        const from = { x: V.CAM.x, y: V.CAM.y };
+        for (let k = 0; k < 8; k++) drag(dx, dy);        // as far as it will go
+        cases++;
+        if (Math.hypot(V.CAM.x - from.x, V.CAM.y - from.y) > 1) moved++;
+        if (!Number.isFinite(V.CAM.x) || !Number.isFinite(V.CAM.y) || !Number.isFinite(V.CAM.z))
+          fails.push('dragging ' + dx + ',' + dy + ' at zoom ' + z + ' left the camera at no number at all');
+        if (V.CAM.z < 0.55 - 1e-9 || V.CAM.z > 2.2 + 1e-9)
+          fails.push('dragging left the zoom at ' + V.CAM.z);
+        const n = ground();
+        if (n < fewest) { fewest = n; worstAt = { tier, z, dx, dy }; }
+        if (n === 0)
+          fails.push('dragging ' + dx + ',' + dy + ' at zoom ' + z + ' on a ' + (EDGE.hi - EDGE.lo + 1)
+            + '-tile island left nothing but open sea on screen');
+      }
+    }
+    /* A camera that ignored the finger would satisfy every line above. */
+    if (moved < cases * 0.8)
+      fails.push('only ' + moved + ' of ' + cases + ' drags moved the camera at all');
+
+    /* ---- and the ground you are left looking at is ground you can use ----
+
+       This is why the clamp is drawn around the grid and not around the claim:
+       the dark land is what a player taps to buy more of it. */
+    {
+      V.landTier = 0; V.coverPlaced(); V.camFit(true); V.CAM.z = 2.2; V.step(0.001);
+      for (let k = 0; k < 8; k++) drag(900, 0);
+      V.claimAsk = false; V.panel = null; V.step(0.001);
+      const mid = V.camUnproject(512, (V.hudTop() + V.hudBot()) / 2);
+      V.tap(512, (V.hudTop() + V.hudBot()) / 2);
+      V.step(0.001);
+      if (!V.claimAsk && V.panel == null)
+        fails.push('after dragging as far west as the camera goes, the middle of the screen is'
+          + ' neither land to claim nor a building to open');
+      V.claimAsk = false; V.panel = null;
+    }
+
+    /* ---- and a pinch cannot push the zoom past its own ends ----
+
+       Dragging never touches the zoom, so a sweep made only of drags cannot
+       see the clamp inside zoomHolding at all -- the mutation that removed it
+       walked through the first version of this. Pinched wide open and shut
+       again, hard, several times over, because the clamp is applied per
+       gesture and one pinch that happens to land inside the range proves
+       nothing. */
+    {
+      V.landTier = V.LAND_MAX; V.coverPlaced(); V.camFit(true); V.step(0.001);
+      const cx = b.left + b.width / 2, cy = b.top + b.height / 2;
+      const pinch = out => {
+        for (let round = 0; round < 6; round++) {
+          const near = 40, far = 400;
+          const a0 = out ? near : far, a1 = out ? far : near;
+          ev('pointerdown', 11, cx - a0, cy); ev('pointerdown', 12, cx + a0, cy);
+          for (let i = 1; i <= 12; i++) {
+            const d = a0 + (a1 - a0) * i / 12;
+            ev('pointermove', 11, cx - d, cy); ev('pointermove', 12, cx + d, cy);
+          }
+          ev('pointerup', 11, cx - a1, cy); ev('pointerup', 12, cx + a1, cy);
+          for (let i = 0; i < 30; i++) V.step(1 / 30);
+        }
+      };
+      for (const out of [true, false, true, false]) {
+        pinch(out);
+        cases++;
+        if (!Number.isFinite(V.CAM.z))
+          fails.push('a pinch left the zoom at no number at all');
+        else if (V.CAM.z < 0.55 - 1e-9 || V.CAM.z > 2.2 + 1e-9)
+          fails.push('pinching ' + (out ? 'open' : 'shut') + ' left the zoom at '
+            + V.CAM.z.toFixed(3) + ', outside the 0.55 to 2.2 the game allows');
+        if (ground() === 0)
+          fails.push('pinching ' + (out ? 'open' : 'shut') + ' left nothing but open sea on screen');
+      }
+      /* And the two ends are actually reached, or the bounds are never asked
+         about. */
+      pinch(true);
+      if (V.CAM.z < 2.2 - 1e-6) fails.push('pinching open never reached the far end of the zoom: '
+        + V.CAM.z.toFixed(3));
+      pinch(false);
+      if (V.CAM.z > 0.55 + 1e-6) fails.push('pinching shut never reached the near end of the zoom: '
+        + V.CAM.z.toFixed(3));
+    }
+
+    /* A flick coming to rest was going to be the fifth rule here and is not,
+       because it cannot be made to fail.
+
+       stepCam drops the flick when it has slowed below FLING_MIN OR when the
+       clamp bites, and on an island this size the clamp always bites first:
+       set the decay to 1, so the flick never loses any speed at all, and the
+       camera carries 650.9 world units and stops -- which is exactly what the
+       honest game does, to the tenth. The decay is real and it shapes how a
+       flick FEELS, but from outside it is invisible, because the edge of the
+       world arrives before the friction does. Written down rather than
+       measured by a rule that would pass whatever the constant said.
+
+       Resting is still covered: every drag above is followed by four seconds
+       of ticks, and the camera has to be at a number afterwards. */
+
+    V.camFit(true); V.step(0.001);
+    return { cases, fewest: fewest === Infinity ? null : fewest, worstAt, moved, fails };
+  };
+
   window.confirmSweep = function () {
     const V = window.__v, cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
     const fails = [], orig = ctx.fillText;
@@ -8551,6 +8727,7 @@
       ['advice', () => window.adviceSweep()],
       ['land', () => window.landSweep()],
       ['confirm', () => window.confirmSweep()],
+      ['pan', () => window.panSweep()],
       ['order', () => window.orderSweep()],
       ['tap', () => window.tapSweep()],
       ['text', () => window.textSweep()],
