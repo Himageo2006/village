@@ -5028,6 +5028,274 @@
 
        allowSweep()  -> { steps, rows, fails }
   --------------------------------------------------------------------------- */
+  /* ---------------------------------------------------------------------------
+     The upgrade button gives a reason, and the reason can be acted on.
+
+     It is the most pressed control in the game and it has seven things it can
+     say. Six of them are refusals, and a refusal is a diagnosis: "Needs town
+     hall level 3", "Needs another storehouse", "Need 🪵150 more". The source
+     has already been caught twice giving advice that could not be taken -- "a
+     player with all four storehouses the hall allows was told to get a bigger
+     one, with no way to build another" is the note beside this very line, and
+     the hall summary had the same fault -- and nothing watched for a third.
+
+     So each reason is taken at its word and then DONE, and the button has to
+     move on:
+
+       Highest level             and the game refuses to sell another
+       Building…                 the same, while the scaffolding is up
+       Needs town hall level N   N is a level the hall can reach; reach it and
+                                 the button stops asking
+       Needs another storehouse  one may still be built -- and said only then
+       Needs a bigger storehouse every one the hall allows is already standing
+                                 -- and said only then
+       (either)                  build every storehouse the hall allows and
+                                 raise them as far as it allows, and storage
+                                 stops being the answer
+       Need 🪵X 🌾Y more          X and Y are exactly what is missing; hand them
+                                 over and the button offers the upgrade
+       Upgrade to N 🪵X 🌾Y       tapping it spends exactly that and the
+                                 building is at level N with its scaffolding up
+
+     And the seven are swept for across a grid of halls, storehouses, levels and
+     purses, so that a reason which has quietly become unreachable is named --
+     the lesson the hint strip taught, applied to the control beside it.
+
+       buttonSweep()  -> { states, kinds, acted, fails }
+  --------------------------------------------------------------------------- */
+  window.buttonSweep = function () {
+    const V = window.__v, cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
+    const fails = [], orig = ctx.fillText;
+    const rowsOf = p => {
+      V.panel = p.id; V.step(0.001);
+      const lines = [];
+      ctx.fillText = function (t, ...a) { lines.push(String(t)); return orig.call(this, t, ...a); };
+      try { V.draw(); } finally { ctx.fillText = orig; }
+      V.panel = null;
+      return lines;
+    };
+    const put = k => { const L = V.landBounds();
+      for (let r = L.lo; r <= L.hi; r++) for (let c = L.lo; c <= L.hi; c++)
+        if (V.canPlace(k, c, r, V.occupied())) return V.place(k, c, r);
+      return false; };
+    /* The ceiling is a CACHE, recomputed only when something finishes going up,
+       so a scene that sets levels by hand is read against a stale one -- and
+       the whole of this sweep is about what the village can hold. Letting
+       everything finish once is the game's own way of putting that right. */
+    const settle = () => {
+      for (const q of V.placed) if (q.t >= 1) q.t = 0.9;
+      for (let i = 0; i < 40; i++) V.step(1 / 30);
+    };
+    const kindOf = t =>
+      t === 'Building…' ? 'busy'
+      : t === 'Highest level' ? 'max'
+      : /^Needs town hall level \d+$/.test(t) ? 'gate'
+      : t === 'Needs a bigger storehouse' ? 'bigger'
+      : t === 'Needs another storehouse' ? 'another'
+      : /^Need [^a-z]*more$/.test(t) ? 'short'
+      : /^Upgrade to \d+/.test(t) ? 'ready'
+      : null;
+    const labelOn = p => {
+      const hits = rowsOf(p).filter(t => kindOf(t));
+      if (hits.length !== 1) return { text: null, n: hits.length, hits };
+      return { text: hits[0], kind: kindOf(hits[0]), n: 1 };
+    };
+    const num = t => (t.match(/\d+/g) || []).map(Number);
+
+    const kinds = {};
+    let states = 0, acted = 0;
+    const budget = { gate: 0, another: 0, bigger: 0, short: 0, ready: 0 };
+    const CAP = 3;                      // how many of each reason are followed through
+
+    const scene = (H, storeCount, storeLvl) => {
+      V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
+      V.away = null; V.goalDone = null; V.finished = null; V.tutSeen.length = 0;
+      V.panel = null; V.sel = null; V.moving = null; V.claimAsk = false; V.orders = [];
+      V.goalIdx = 0;
+      V.ensureHall();
+      V.placed[0].lvl = H; V.placed[0].t = 1;
+      V.res.wood = 9e5; V.res.food = 9e5; V.step(0.001);
+      for (let n = 0; n < storeCount; n++) {
+        V.res.wood = 9e5; V.res.food = 9e5;
+        if (V.atLimit('store') || !put('store')) break;
+      }
+      for (const b of V.BUILDINGS) {
+        if (b.key === 'hall' || b.decor || b.key === 'store') continue;
+        V.res.wood = 9e5; V.res.food = 9e5;
+        if (!V.atLimit(b.key)) put(b.key);
+      }
+      for (const q of V.placed) if (q.key === 'store') q.lvl = storeLvl;
+      settle();
+    };
+
+    for (let H = 1; H <= V.HALL.length - 1; H++)
+      for (const storeCount of [0, 2, 9])
+        for (const storeLvl of [1, V.LVL_MAX]) {
+          scene(H, storeCount, storeLvl);
+          const subjects = V.placed.filter(p => !V.isDecor(p.key));
+          for (const p of subjects) for (let L = 1; L <= V.LVL_MAX; L++) {
+            if (p.key === 'hall' && L > V.HALL.length - 1) continue;
+            for (const purse of ['rich', 'poor', 'part', 'busy']) {
+              /* Every measurement from the same village. The hall is the first
+                 subject in the list, so without this its own pass left it at the
+                 top level and every building measured after it was standing under
+                 a hall that gated nothing -- the sweep ran three thousand states
+                 and never once saw the reason the button gives most often early
+                 on. The scaffolding has to come back down too: a tap taken in an
+                 earlier state leaves the hall half built, and a half built hall
+                 is HOLDING the level below, so the next building was judged
+                 against a gate that had not really moved. */
+              for (const q of V.placed)
+                { q.lvl = q.key === 'hall' ? H : q.key === 'store' ? storeLvl : 1; q.t = 1; }
+              p.lvl = L; p.t = purse === 'busy' ? 0.5 : 1;
+              settle();
+              if (purse === 'busy') p.t = 0.5;
+              /* Full, empty, and HALF WAY -- and the third is the only one of
+                 them where what is missing and what it costs are different
+                 numbers. A button quoting the price where it means the
+                 shortfall is right at an empty store and wrong everywhere
+                 else, and an empty store is the easy case to think of: that
+                 mutation walked through this sweep until the half-full purse
+                 was added. */
+              const price = V.upInfo(p).cost || {};
+              for (const k of ['wood', 'food'])
+                V.res[k] = purse === 'poor' ? 0
+                  : purse === 'part' ? Math.min(V.caps[k], Math.floor((price[k] || 0) / 2))
+                  : V.caps[k];
+              V.step(0.001);
+              const lab = labelOn(p);
+              states++;
+              if (!lab.text) {
+                /* A decoration has no upgrade button at all, which is the one
+                   honest way to say nothing. */
+                if (lab.n > 1)
+                  fails.push('the ' + p.key + ' button says ' + lab.n + ' things at once: '
+                    + lab.hits.join(' / '));
+                continue;
+              }
+              kinds[lab.kind] = (kinds[lab.kind] || 0) + 1;
+              const who = 'a ' + p.key + ' at level ' + L + ' under a hall at ' + V.hallLevel();
+
+              /* ---- the two that refuse outright ---- */
+              if (lab.kind === 'max' || lab.kind === 'busy') {
+                if (V.upgradeBuilding(p))
+                  fails.push('the button for ' + who + ' says "' + lab.text + '" and the game sold an upgrade anyway');
+                if (lab.kind === 'busy' && p.t >= 1)
+                  fails.push('the button for ' + who + ' says "Building…" and nothing is being built');
+                continue;
+              }
+              /* ---- the storehouse pair names the one that is open ---- */
+              if (lab.kind === 'another' && V.atLimit('store'))
+                fails.push('the button for ' + who + ' asks for another storehouse and the hall allows no more');
+              if (lab.kind === 'bigger' && !V.atLimit('store'))
+                fails.push('the button for ' + who + ' asks for a bigger storehouse and another could simply be built');
+
+              if (budget[lab.kind] >= CAP) continue;
+              budget[lab.kind]++; acted++;
+
+              /* ---- and then each reason is acted on ---- */
+              if (lab.kind === 'gate') {
+                const want = num(lab.text)[0];
+                if (!(want >= 1 && want <= V.HALL.length - 1)) {
+                  fails.push('the button for ' + who + ' asks for town hall level ' + want
+                    + ' and the hall stops at ' + (V.HALL.length - 1));
+                  continue;
+                }
+                /* The level it names has to be the one that OPENS it. Reaching
+                   it and finding the button satisfied is only half the rule --
+                   a gate asking for more than it needs clears just as neatly,
+                   and tells the player the thing is further away than it is.
+                   So the level BELOW has to still be refused. Written after a
+                   mutation that moved every gate one level up walked straight
+                   through the half-rule. */
+                const atHall = n => {
+                  V.placed[0].lvl = n;
+                  for (const q of V.placed) q.t = 1;
+                  settle();
+                  V.res.wood = V.caps.wood; V.res.food = V.caps.food; V.step(0.001);
+                  return labelOn(p);
+                };
+                if (want - 1 >= 1) {
+                  const below = atHall(want - 1);
+                  if (below.kind !== 'gate')
+                    fails.push('the button for ' + who + ' asked for town hall level ' + want
+                      + ' and at level ' + (want - 1) + ' it already says "' + below.text + '"');
+                }
+                const now = atHall(want);
+                if (now.kind === 'gate')
+                  fails.push('the button for ' + who + ' asked for town hall level ' + want
+                    + ', the hall reached it, and it still says "' + now.text + '"');
+              } else if (lab.kind === 'another' || lab.kind === 'bigger') {
+                /* Taken as far as the hall allows. One more shed need not be
+                   enough on its own; running out of shed must be. */
+                for (let n = 0; n < 9 && !V.atLimit('store'); n++) {
+                  V.res.wood = 9e5; V.res.food = 9e5;
+                  if (!put('store')) break;
+                }
+                for (const q of V.placed) if (q.key === 'store' && q !== p) {
+                  let i = V.upInfo(q), guard = 0;
+                  while (!i.max && !i.gate && guard++ < 9) { q.lvl++; i = V.upInfo(q); }
+                }
+                settle();
+                V.res.wood = V.caps.wood; V.res.food = V.caps.food; V.step(0.001);
+                const now = labelOn(p);
+                if (now.kind === 'another' || now.kind === 'bigger')
+                  fails.push('the button for ' + who + ' said "' + lab.text
+                    + '", every storehouse the hall allows is up and as big as it allows, and it says "'
+                    + now.text + '"');
+              } else if (lab.kind === 'short') {
+                /* The figures are what is MISSING, not what it costs. */
+                const want = V.upInfo(p).cost;
+                for (const [icon, k] of [['🪵', 'wood'], ['🌾', 'food']]) {
+                  const m = new RegExp(icon + '(\\d+)').exec(lab.text);
+                  const real = Math.max(0, Math.ceil((want[k] || 0) - V.res[k]));
+                  if (!m) {
+                    if (real > 0) fails.push('the button for ' + who + ' says "' + lab.text
+                      + '" and the village is ' + real + ' ' + k + ' short');
+                  } else if (+m[1] !== real) {
+                    fails.push('the button for ' + who + ' says "' + lab.text + '" and the village is '
+                      + real + ' ' + k + ' short');
+                  }
+                }
+                for (const [k, v] of Object.entries(want)) V.res[k] = v;
+                V.step(0.001);
+                const now = labelOn(p);
+                if (now.kind !== 'ready')
+                  fails.push('the button for ' + who + ' said "' + lab.text
+                    + '", the village was handed exactly the price, and it says "' + now.text + '"');
+              } else if (lab.kind === 'ready') {
+                const want = V.upInfo(p).cost;
+                const said = num(lab.text);
+                if (said[0] !== L + 1)
+                  fails.push('the button for ' + who + ' offers level ' + said[0]);
+                const before = { wood: V.res.wood, food: V.res.food };
+                if (!V.upgradeBuilding(p)) {
+                  fails.push('the button for ' + who + ' says "' + lab.text + '" and the tap did nothing');
+                  continue;
+                }
+                for (const k of ['wood', 'food']) {
+                  const spent = before[k] - V.res[k];
+                  if (Math.abs(spent - (want[k] || 0)) > 0.01)
+                    fails.push('the button for ' + who + ' said "' + lab.text + '" and the village paid '
+                      + spent.toFixed(0) + ' ' + k);
+                }
+                if (p.lvl !== L + 1 || p.t >= 1)
+                  fails.push('the button for ' + who + ' was tapped and the building is at level '
+                    + p.lvl + (p.t >= 1 ? ' with no work to do' : ''));
+              }
+            }
+          }
+        }
+
+    /* Every reason it can give is a reason it does give. One that has quietly
+       become unreachable is a branch nobody can read and nobody can test. */
+    for (const k of ['busy', 'max', 'gate', 'another', 'bigger', 'short', 'ready'])
+      if (!kinds[k]) fails.push('the upgrade button never once said its "' + k + '" reason');
+
+    V.panel = null;
+    return { states, kinds, acted, fails };
+  };
+
   window.allowSweep = function () {
     const V = window.__v, cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
     const fails = [], orig = ctx.fillText, rows = [];
@@ -6614,6 +6882,7 @@
       ['trader', () => window.traderSweep()],
       ['share', () => window.shareSweep()],
       ['allow', () => window.allowSweep()],
+      ['button', () => window.buttonSweep()],
       ['order', () => window.orderSweep()],
       ['tap', () => window.tapSweep()],
       ['text', () => window.textSweep()],
