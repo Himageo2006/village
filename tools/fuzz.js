@@ -18,6 +18,15 @@
    whatever was in local storage while it is going. Do not kill it halfway
    through on a device whose village you care about. */
 (function () {
+  /* Strict, so that a mistake this file has already made once cannot be made
+     again quietly.
+
+     placed is exported with a getter and no setter. Outside strict mode,
+     "V.placed = V.placed.filter(...)" is accepted, discarded, and leaves the
+     sweep measuring a village it believes it has changed -- which is how a
+     line in promiseSweep spent its whole life claiming to take a well out of
+     the ground without ever doing it. In here the same line throws. */
+  'use strict';
   const V = window.__v;
   if (!V) { console.error('fuzz: load this on a page with the game running'); return; }
 
@@ -1100,6 +1109,7 @@
      await window.textSweep();
 --------------------------------------------------------------------------- */
 (function () {
+  'use strict';
   const V = window.__v;
   if (!V) return;
   const W = 1024;
@@ -3284,7 +3294,14 @@
       scene(5, undefined, 3);
       const farm = V.placed.find(q => q.key === 'farm');
       const well = V.placed.find(q => q.key === 'well');
-      if (well) { V.placed = V.placed.filter(q => q !== well); V.rebuildStores(); }
+      /* Spliced, not reassigned. placed is exported with a getter and no
+         setter, so "V.placed = V.placed.filter(...)" is silently thrown away --
+         this line has been claiming to take the well out since it was written
+         and has never once done it. The check still bit, because wellGainAt
+         counts the wells already standing and the measured gain counts them
+         too; but a comment describing a village that was never built is the
+         thing this file exists to stop. */
+      if (well) { V.placed.splice(V.placed.indexOf(well), 1); V.rebuildStores(); }
       V.res.wood = 1e5; V.res.food = 1e5;
       if (!farm || !V.canUpgrade(farm)) fails.push('the well check could not put a farm under scaffolding');
       else {
@@ -5135,6 +5152,216 @@
 
        chipSweep()  -> { scenes, seen, fails }
   --------------------------------------------------------------------------- */
+  /* ---------------------------------------------------------------------------
+     The number the placement decision is made on.
+
+     Dragging a building around puts a pill under the finger saying what it
+     would deliver on the tile it is over -- "0.45/s here   ·   best 1.04" --
+     and that is the whole of the spot-choosing decision. It is the one promise
+     in the game made BEFORE the money is spent, which makes it the most
+     expensive one to get wrong, and the source records getting it wrong once
+     already: "the label quoted one worker's share, so a lumber camp whose panel
+     said 0.92/s delivered was now 0.46 here: the same camp, two numbers, a
+     factor of two apart."
+
+     moveLabelSweep holds the "now" half of that pill -- what the building
+     delivers where it already stands -- against its own panel. The "here" half,
+     the number about the spot being chosen, has never been checked against
+     anything, and it is the half the player is actually reading.
+
+     So it is bought. The pill is read, the building is placed on that exact
+     tile, the village is left to settle, and its panel is asked what it
+     delivers:
+
+       the number is the    read "X/s here", build it there, and the panel says
+       spot's               X/s delivered
+       the spots differ     and by enough to be worth choosing between, or the
+                            check above is satisfied by a label that ignores
+                            the tile entirely
+       best is the best     every legal tile on the island is tried and not one
+                            of them beats what the pill calls best, and at least
+                            one reaches it
+       and the price        with an empty purse it says what is missing instead,
+                            and hands the number over the moment it is paid
+
+       spotSweep()  -> { tried, spread, fails }
+  --------------------------------------------------------------------------- */
+  window.spotSweep = function () {
+    const V = window.__v, cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
+    const fails = [], orig = ctx.fillText;
+    const grab = re => { const got = [];
+      ctx.fillText = function (t, ...r) { if (re.test(String(t))) got.push(String(t)); return orig.call(this, t, ...r); };
+      try { V.draw(); } finally { ctx.fillText = orig; }
+      return got; };
+    const put = (k, c, r) => V.canPlace(k, c, r, V.occupied()) ? V.place(k, c, r) : false;
+    /* Finished the game's own way, never by writing t = 1.
+
+       storeAt is a cache, rebuilt when something is placed, sold or FINISHES --
+       and a storehouse set to t = 1 by hand finishes none of those, so it is
+       standing on the island and is not a store. The pill then quotes a walk to
+       the hall and is perfectly right about the village it was shown, while the
+       building placed a moment later is measured against a village that has a
+       storehouse in it. Read as a 13% lie by the game until the scene was
+       fixed; it is the same trap caps sets, and this is the third sweep to
+       fall into it. */
+    const settle = () => {
+      for (const q of V.placed) if (q.t >= 1) q.t = 0.9;
+      for (let i = 0; i < 40; i++) V.step(1 / 30);
+    };
+    const RICH = () => { V.res.wood = 9e5; V.res.food = 9e5; };
+    const pill = (key, c, r) => {
+      V.sel = key; V.ghost = { c, r, fits: true, ok: true, why: null };
+      V.step(0.001);
+      const got = grab(new RegExp('/s here|no one spare|need '))[0] || null;
+      V.sel = null; V.ghost = null;
+      return got;
+    };
+    const num = (t, re) => { const m = re.exec(t || ''); return m ? +m[1] : null; };
+
+    /* A village with its storehouse in one corner, so that where a workplace
+       stands is worth arguing about. */
+    V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
+    V.away = null; V.goalDone = null; V.finished = null; V.panel = null;
+    V.sel = null; V.moving = null; V.claimAsk = false; V.orders = [];
+    V.tutSeen.length = 0; for (const h of V.TUT) V.tutSeen.push(h.id);
+    V.ensureHall(); V.placed[0].lvl = 5; V.placed[0].t = 1;
+    RICH(); V.step(0.001);
+    const L = V.landBounds();
+    /* Plenty of houses, because the pill quotes the hands a new building
+       WOULD get and a village with everyone already employed has none to give
+       -- the pill then rightly says so instead of a rate, and the spot is never
+       tested at all. */
+    for (let i = 0; i < 9; i++) { RICH();
+      for (let r = L.lo; r <= L.hi; r++) { let done = false;
+        for (let c = L.lo; c <= L.hi; c++) if (put('house', c, r)) { done = true; break; }
+        if (done) break; } }
+    RICH(); put('store', L.hi - 2, L.hi - 2);
+    settle();
+    for (let i = 0; i < 150 * 30; i++) V.step(1 / 30);
+    V.goalIdx = parkGoals();
+
+    let tried = 0, spread = 0;
+    for (const key of ['farm', 'lumber', 'mill']) {
+      const got = [];
+      /* The tiles are chosen by what they are WORTH rather than by where they
+         are: every free tile ranked, then the best, the worst and two between.
+         Fixed coordinates kept landing under a house as the village grew, and a
+         handful of tiles that happen to be alike proves nothing about a label
+         that is supposed to tell them apart. */
+      const occ0 = V.occupied();
+      const ranked = [];
+      for (let c = L.lo; c <= L.hi; c++) for (let r = L.lo; r <= L.hi; r++)
+        if (V.canPlace(key, c, r, occ0))
+          ranked.push([c, r, V.deliveredOf({ id: -1, key, c, r, t: 1, lvl: 1 })]);
+      ranked.sort((a, b) => b[2] - a[2]);
+      const pick = ranked.length < 4 ? ranked
+        : [ranked[0], ranked[(ranked.length / 3) | 0], ranked[(ranked.length * 2 / 3) | 0], ranked[ranked.length - 1]];
+      for (const [c, r] of pick) {
+        RICH();
+        if (!V.canPlace(key, c, r, V.occupied())) continue;
+        const said = pill(key, c, r);
+        const here = num(said, /([\d.]+)\/s here/);
+        if (here === null) { fails.push('the pill over an empty tile for a ' + key + ' said "' + said + '"'); continue; }
+        /* The hands the pill was quoted for. A spot that ends up staffed
+           differently is not evidence either way -- the same rule the panel
+           promise keeps. */
+        const wanted = Math.max(1, V.handsFor({ id: -1, key, c, r, t: 1, lvl: 1 }, 1));
+        RICH();
+        if (!V.place(key, c, r)) { fails.push('a ' + key + ' could not be put on the tile its pill had just quoted'); continue; }
+        const p = V.placed[V.placed.length - 1];
+        settle();
+        for (let i = 0; i < 150 * 30; i++) V.step(1 / 30);
+        const hands = V.workersAt(p.id);
+        V.panel = p.id; V.step(0.001);
+        const row = grab(new RegExp('/s delivered'))[0] || '';
+        V.panel = null;
+        const real = num(row, /([\d.]+)\/s delivered/);
+        V.placed.splice(V.placed.indexOf(p), 1); V.rebuildStores(); settle();
+        if (hands !== wanted) continue;               // the workforce moved: not evidence
+        tried++; got.push(here);
+        if (real === null) { fails.push('a ' + key + ' built where its pill promised ' + here + '/s has no delivered row'); continue; }
+        if (Math.abs(real - here) > 0.011)
+          fails.push('the pill promised ' + here + '/s for a ' + key + ' on ' + c + ',' + r
+            + ' and the one built there delivers ' + real + '/s');
+      }
+      if (got.length >= 2) spread = Math.max(spread, Math.max(...got) - Math.min(...got));
+    }
+    if (tried < 6) fails.push('only ' + tried + ' spots were bought, so the pill was barely asked');
+    /* And the spots have to be worth choosing between, or a pill that ignored
+       the tile altogether would satisfy everything above. */
+    if (spread < 0.2) fails.push('the best and worst spots tried differ by only ' + spread.toFixed(2)
+      + '/s, so a pill that never looked at the tile would pass');
+
+    /* ---- best is the best there is ----
+
+       On its own island, with one storehouse and nothing else. bestDeliveredOf
+       is the shortest round trip a building of that kind could ever have, to a
+       store of ANY kind set directly against it, and whether a tile like that
+       is free is a question about the village rather than about the claim. In a
+       built-up village the nearest free tile falls short of it and rightly so;
+       given room, the two meet exactly. Both halves are worth having: the bound
+       must hold everywhere, and it must be a bound somebody can reach. */
+    {
+      V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
+      V.panel = null; V.sel = null; V.moving = null; V.ghost = null;
+      V.ensureHall(); V.placed[0].lvl = 5; V.placed[0].t = 1;
+      RICH(); V.step(0.001);
+      put('store', L.lo + 4, L.lo + 4);
+      settle();
+      for (let i = 0; i < 60 * 30; i++) V.step(1 / 30);
+      RICH();
+      const occ = V.occupied();
+      let found = -1, at = null, spots = 0;
+      for (let c = L.lo; c <= L.hi; c++) for (let r = L.lo; r <= L.hi; r++) {
+        if (!V.canPlace('farm', c, r, occ)) continue;
+        spots++;
+        const v = V.deliveredOf({ id: -1, key: 'farm', c, r, t: 1, lvl: 1 });
+        if (v > found) { found = v; at = [c, r]; }
+      }
+      if (!at) fails.push('there was nowhere on the island to try a farm');
+      else {
+        const hands = Math.max(1, V.handsFor({ id: -1, key: 'farm', c: at[0], r: at[1], t: 1, lvl: 1 }, 1));
+        const claimed = hands * V.bestDeliveredOf({ id: -1, key: 'farm', c: at[0], r: at[1], t: 1, lvl: 1 });
+        const real = hands * found;
+        if (real > claimed + 0.011)
+          fails.push('the pill calls ' + claimed.toFixed(2) + '/s the best a farm can do and '
+            + at.join(',') + ' gives ' + real.toFixed(2) + '/s');
+        if (real < claimed - 0.011)
+          fails.push('the pill calls ' + claimed.toFixed(2) + '/s the best a farm can do and the best of '
+            + spots + ' tiles on the island is ' + real.toFixed(2) + '/s');
+      }
+    }
+
+    /* ---- and the price, where there is not enough to pay it ---- */
+    {
+      const c = L.lo + 1, r = L.lo + 6;
+      if (!V.canPlace('mill', c, r, V.occupied())) fails.push('the price check had nowhere to stand a mill');
+      else {
+        V.res.wood = 0; V.res.food = 0; V.step(0.001);
+        const poor = pill('mill', c, r);
+        const cost = V.B('mill').cost;
+        if (!/^need /.test(poor || ''))
+          fails.push('the pill over a mill the village cannot pay for said "' + poor + '"');
+        else for (const [icon, k] of [['🪵', 'wood'], ['🌾', 'food']]) {
+          const m = new RegExp(icon + '(\\d+)').exec(poor);
+          const want = Math.max(0, Math.ceil((cost[k] || 0) - V.res[k]));
+          if (!m) { if (want > 0) fails.push('the pill says "' + poor + '" and the village is ' + want + ' ' + k + ' short'); }
+          else if (+m[1] !== want)
+            fails.push('the pill says "' + poor + '" and the village is ' + want + ' ' + k + ' short');
+        }
+        /* Paid for, and it goes back to answering the question that was asked. */
+        for (const [k, v] of Object.entries(cost)) V.res[k] = v;
+        V.step(0.001);
+        const paid = pill('mill', c, r);
+        if (!/\/s here/.test(paid || ''))
+          fails.push('the village was handed exactly a mill\'s price and the pill still said "' + paid + '"');
+      }
+    }
+
+    V.sel = null; V.ghost = null; V.panel = null; V.goalIdx = 0; V.step(0.001);
+    return { tried, spread: +spread.toFixed(2), fails };
+  };
+
   window.chipSweep = function () {
     const V = window.__v, cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
     const fails = [], orig = ctx.fillText;
@@ -7193,6 +7420,7 @@
       ['button', () => window.buttonSweep()],
       ['shape', () => window.shapeSweep()],
       ['chip', () => window.chipSweep()],
+      ['spot', () => window.spotSweep()],
       ['order', () => window.orderSweep()],
       ['tap', () => window.tapSweep()],
       ['text', () => window.textSweep()],
