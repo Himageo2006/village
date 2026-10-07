@@ -5219,6 +5219,299 @@
 
        cardSweep()  -> { boards, seen, fails }
   --------------------------------------------------------------------------- */
+  /* ---------------------------------------------------------------------------
+     What a badge over a building means.
+
+     The badges are the only layer of this game a player reads without opening
+     anything: a green tick to say this can be improved, an amber "−56%" to say
+     the walk is eating it, an orange "!" to say nobody is working it, a calm
+     pause to say it is resting because there is nowhere to put what it makes,
+     and the hall's level. Everything else has to be tapped for.
+
+     Two sweeps already watch them and neither reads them: badgeSweep measures
+     how big they are drawn and badgeOverlapSweep checks that no two land on
+     each other. What any of them MEANS has never been asked.
+
+     It is asked here against the village rather than against the code that drew
+     it -- restating drawStatus back at itself would prove only that it is
+     consistent with itself:
+
+       the tick     the panel's own button offers the upgrade. A tick that leads
+                    to "Need 🪵140 more" is a wasted tap, and the tick is an
+                    invitation to tap
+       the amber    the building really is losing that much: moved beside a
+       figure       store it delivers about 1/(1-n) times what it did
+       the "!"      nobody is working it AND there is room for what it makes, so
+                    people are the answer
+       the pause    nobody is working it AND there is NO room, so storage is.
+                    The source is explicit about why these two must not swap:
+                    "a player whose stores were full saw three alarmed farms and
+                    the obvious response -- build a house -- makes it worse"
+       nothing      a producer wearing no badge is being worked
+       and all five appear, or a badge nobody can see is a badge nobody checks
+
+     Badges carry no name, so each is matched to its building by the x it was
+     queued at, which is the building's own centre; the scenes put everything in
+     its own column so that is unambiguous. The resting badge draws no text at
+     all -- two bars rather than a glyph, because the pause character is not in
+     every font -- so lastBadges is what gets read rather than the canvas.
+
+       markSweep()  -> { scenes, seen, fails }
+  --------------------------------------------------------------------------- */
+  window.markSweep = function () {
+    const V = window.__v, cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
+    const fails = [], orig = ctx.fillText;
+    const KIND = { 0: 'hall', 1: 'idle', 2: 'far', 3: 'rest', 4: 'up' };
+    const put = (k, c, r) => V.canPlace(k, c, r, V.occupied()) ? V.place(k, c, r) : false;
+    const settle = () => {
+      for (const q of V.placed) if (q.t >= 1) q.t = 0.9;
+      for (let i = 0; i < 40; i++) V.step(1 / 30);
+    };
+    /* Room for a whole load, which is what the game means by a store that
+       is not full -- hasRoomFor is not exported, and saying it here in the
+       sweep's own terms is better than borrowing it anyway: the rule under
+       test is about the player's remedy, not about a shared helper. */
+    const roomFor = k => V.caps[k] - V.res[k] >= V.CARRY;
+    const centreX = p => { const b = V.B(p.key);
+      return V.tileToWorld(p.c + (b.w - 1) / 2, p.r + (b.h - 1) / 2).x; };
+    /* Draw, then hand each badge to the building standing under it. */
+    const marks = () => {
+      const texts = [];
+      ctx.fillText = function (t, ...a) {
+        const str = String(t);
+        if (/^(▲|Lv \d+|−\d+%|!)$/.test(str)) texts.push({ t: str, x: this.getTransform().e });
+        return orig.call(this, t, ...a);
+      };
+      try { V.draw(); } finally { ctx.fillText = orig; }
+      const out = new Map();
+      for (const bg of V.lastBadges) {
+        let who = null, d = Infinity;
+        for (const p of V.placed) { const dx = Math.abs(centreX(p) - bg.x); if (dx < d) { d = dx; who = p; } }
+        if (!who || d > 20) { fails.push('a badge was drawn with no building under it'); continue; }
+        if (out.has(who.id)) fails.push('the ' + who.key + ' wears two badges at once');
+        out.set(who.id, KIND[bg.prio] || ('prio ' + bg.prio));
+      }
+      return { on: out, texts };
+    };
+    const rowsOf = p => {
+      V.panel = p.id; V.step(0.001);
+      const lines = [];
+      ctx.fillText = function (t, ...a) { lines.push(String(t)); return orig.call(this, t, ...a); };
+      try { V.draw(); } finally { ctx.fillText = orig; }
+      V.panel = null;
+      return lines;
+    };
+    /* Placed by hand, on tiles whose ISO COLUMNS differ.
+
+       A badge carries no name and is matched to the building under it by the x
+       it was queued at -- and in this projection x is a function of c MINUS r,
+       so two buildings on the same diagonal stand in the same column and the
+       match is a coin toss. The hall sits at the middle of the island, which is
+       c - r = 0, so nothing else may be. Scanning for the first free tile put
+       three of them on that diagonal and the hall was handed somebody else's
+       badge twice over. */
+    const at = (k, c, r) => { V.res.wood = 9e5; V.res.food = 9e5;
+      return put(k, c, r) ? V.placed[V.placed.length - 1] : null; };
+    /* And the scene says so itself, rather than trusting the layout to stay
+       right through the next edit. */
+    const columnsDiffer = where => {
+      const seenX = new Map();
+      for (const p of V.placed) {
+        if (V.isDecor(p.key)) continue;
+        const x = Math.round(centreX(p));
+        if (seenX.has(x)) fails.push('the scene for ' + where + ' put a ' + p.key + ' and a '
+          + seenX.get(x) + ' in the same column, so their badges cannot be told apart');
+        seenX.set(x, p.key);
+      }
+    };
+    const fresh = hallLvl => {
+      V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
+      V.away = null; V.goalDone = null; V.finished = null; V.panel = null;
+      V.sel = null; V.moving = null; V.claimAsk = false; V.orders.length = 0;
+      V.tutSeen.length = 0; for (const h of V.TUT) V.tutSeen.push(h.id);
+      V.ensureHall(); V.placed[0].lvl = hallLvl; V.placed[0].t = 1;
+      V.res.wood = 9e5; V.res.food = 9e5; settle();
+      V.goalIdx = parkGoals();
+    };
+
+    const seen = new Set();
+    let scenes = 0;
+    /* Hold every badge in the village to what the village is doing. */
+    const judge = (where, extra) => {
+      scenes++;
+      const { on } = marks();
+      for (const p of V.placed) {
+        if (V.isDecor(p.key) || p.t < 1) continue;
+        const b = V.B(p.key), kind = on.get(p.id) || null;
+        if (kind) seen.add(kind);
+        const who = 'the ' + p.key + ' in ' + where;
+        if (p.key === 'hall') {
+          if (kind !== 'hall') fails.push('the hall in ' + where + ' wears "' + kind + '" instead of its level');
+          continue;
+        }
+        const hands = V.workersAt(p.id);
+        const makes = b.makes && b.jobs ? Object.keys(b.makes)[0] : null;
+        if (kind === 'up') {
+          const row = rowsOf(p).find(t => /^(Upgrade to \d+|Needs |Need |Highest level|Building…)/.test(t)) || '';
+          if (!/^Upgrade to /.test(row))
+            fails.push(who + ' wears a tick inviting a tap and its own button says "' + row + '"');
+        } else if (kind === 'idle') {
+          if (hands) fails.push(who + ' is marked as having nobody at it and ' + hands + ' are working it');
+          else if (makes && !roomFor(makes))
+            fails.push(who + ' wears the alarm, and there is nowhere to put what it makes — so a house makes it worse');
+        } else if (kind === 'rest') {
+          if (hands) fails.push(who + ' is marked as resting and ' + hands + ' are working it');
+          else if (makes && roomFor(makes))
+            fails.push(who + ' is marked as resting and there is room for everything it makes');
+        } else if (kind === 'far') {
+          if (!hands) fails.push(who + ' is marked as badly placed and nobody is working it');
+        } else if (!kind && makes) {
+          /* The three things a badge exists to say, all false. The one worth
+             naming is the first: a producer standing empty is the most
+             confusing state in the game, and saying nothing about it is the
+             fault the alarm was added for. */
+          if (!hands) fails.push(who + ' has nobody working it and wears no badge at all');
+        }
+      }
+      if (extra) extra(on);
+    };
+
+    /* ---- a worked village that can afford to grow: ticks ---- */
+    fresh(5);
+    { const farm = at('farm', 2, 8), lum = at('lumber', 8, 2);
+      at('house', 0, 4); at('house', 4, 0); at('house', 10, 8);
+      columnsDiffer('a village that can afford to grow');
+      settle(); for (let i = 0; i < 120 * 30; i++) V.step(1 / 30);
+      V.res.wood = 9e5; V.res.food = 9e5; V.step(0.001);
+      judge('a village that can afford to grow', on => {
+        if (on.get(farm.id) !== 'up' || on.get(lum.id) !== 'up')
+          fails.push('a village rich enough to improve everything showed no tick on a workplace');
+      });
+      /* ---- and the same village with an empty purse: no ticks ---- */
+      V.res.wood = 0; V.res.food = 0; V.step(0.001);
+      judge('the same village with nothing in the stores', on => {
+        for (const p of V.placed) if (on.get(p.id) === 'up')
+          fails.push('a village with nothing in its stores showed a tick on the ' + p.key);
+      });
+    }
+
+    /* ---- nobody to work it, and room for what it makes: the alarm ---- */
+    fresh(5);
+    { const lum = at('lumber', 8, 2), farm = at('farm', 2, 8);
+      columnsDiffer('a village with one pair of hands');
+      settle(); for (let i = 0; i < 120 * 30; i++) V.step(1 / 30);
+      V.res.wood = 0; V.res.food = 0; V.step(0.001);
+      const empty = [lum, farm].filter(p => p && !V.workersAt(p.id));
+      if (!empty.length) fails.push('the alarm check could not leave a workplace empty');
+      judge('a village with one pair of hands and two workplaces', on => {
+        for (const p of empty) if (on.get(p.id) !== 'idle')
+          fails.push('a ' + p.key + ' with nobody at it and room to spare wears "' + on.get(p.id) + '"');
+      });
+    }
+
+    /* ---- nobody to work it because there is nowhere to put it: the pause ---- */
+    fresh(5);
+    { const lum = at('lumber', 8, 2), farm = at('farm', 2, 8); at('house', 0, 4);
+      columnsDiffer('a village whose granary is full');
+      if (lum) lum.lvl = 5;
+      settle();
+      for (let i = 0; i < 120 * 30; i++) {
+        V.res.food = V.caps.food; V.res.wood = Math.floor(V.caps.wood * 0.3);
+        V.step(1 / 30);
+      }
+      if (!farm || V.workersAt(farm.id))
+        fails.push('the resting check could not empty the farm');
+      else judge('a village whose granary is full', on => {
+        if (on.get(farm.id) !== 'rest')
+          fails.push('a farm nobody works because the granary is full wears "' + on.get(farm.id) + '"');
+      });
+    }
+
+    /* ---- losing half of itself to the walk, and what moving it is worth ---- */
+    fresh(5);
+    {
+      const L = V.landBounds();
+      /* No storehouse. The hall counts as one -- it is why a village works at
+         all before the first shed is built -- and a SECOND store lifts the worst
+         tile on a fourteen-tile island above half, so the badge this scene is
+         about never appears. One store in the middle, and the far corners are
+         genuinely far. */
+      at('house', 0, 4); at('house', 4, 0); at('house', 11, 8);
+      /* Everything standing BEFORE the island is ranked. A storehouse that has
+         not finished is not a store, so a scan run before this rated the tile
+         right beside it as the worst on the island and the farm was planted
+         next door to the thing it was supposed to be far from. */
+      settle();
+      /* The worst tile left, rather than a corner guessed at: the badge only
+         appears below half, and where half is depends on where the storehouse
+         and the hall ended up. Taken from the columns nothing is standing in,
+         so the badge can still be told from its neighbours'. */
+      const used = new Set(V.placed.filter(p => !V.isDecor(p.key)).map(p => Math.round(centreX(p))));
+      let worst = Infinity, spot = null;
+      { const occ = V.occupied();
+        for (let c = L.lo; c <= L.hi; c++) for (let r = L.lo; r <= L.hi; r++) {
+          if (!V.canPlace('farm', c, r, occ)) continue;
+          const b = V.B('farm');
+          const x = Math.round(V.tileToWorld(c + (b.w - 1) / 2, r + (b.h - 1) / 2).x);
+          if (used.has(x)) continue;
+          const v = V.deliveredOf({ id: -1, key: 'farm', c, r, t: 1, lvl: V.LVL_MAX });
+          if (v < worst) { worst = v; spot = [c, r]; }
+        } }
+      const farm = spot ? at('farm', spot[0], spot[1]) : null;
+      columnsDiffer('a village with its storehouse in one corner');
+      if (farm) farm.lvl = V.LVL_MAX;
+      settle(); for (let i = 0; i < 150 * 30; i++) V.step(1 / 30);
+      V.res.wood = 0; V.res.food = 0; V.step(0.001);
+      if (!farm) fails.push('the walk check could not put a farm in the far corner');
+      else {
+        const { on, texts } = marks();
+        if (on.get(farm.id)) seen.add(on.get(farm.id));
+        if (on.get(farm.id) !== 'far')
+          fails.push('a level five farm in the far corner wears "' + on.get(farm.id)
+            + '" and reaches ' + V.reachOf(farm).toFixed(2) + ' of what it could');
+        else {
+          const m = texts.map(t => /^−(\d+)%$/.exec(t.t)).find(Boolean);
+          if (!m) fails.push('the badly-placed farm drew no figure');
+          else {
+            const said = +m[1] / 100;
+            const before = V.deliveredOf(farm);
+            /* Moved as close to the storehouse as it will go, which is what the
+               badge is measured against. */
+            let at = null, best = -1;
+            const occ = V.occupied(farm.id);
+            for (let c = L.lo; c <= L.hi; c++) for (let r = L.lo; r <= L.hi; r++) {
+              if (!V.canPlace('farm', c, r, occ)) continue;
+              /* id -1, which routeOf documents as the opt-out from its cache.
+                 Spread the real building in and every candidate tile comes back
+                 with the route it has where it actually stands, so the scan
+                 scores the whole island identically and picks whichever tile it
+                 happened to see first. */
+              const v = V.deliveredOf({ id: -1, key: farm.key, c, r, t: 1, lvl: farm.lvl });
+              if (v > best) { best = v; at = [c, r]; }
+            }
+            if (!at) fails.push('there was nowhere to move the badly-placed farm to');
+            else {
+              farm.c = at[0]; farm.r = at[1]; V.rebuildStores(); settle();
+              const after = V.deliveredOf(farm);
+              const want = 1 / Math.max(0.01, 1 - said);
+              if (Math.abs(after / before - want) > 0.15 * want)
+                fails.push('a farm badged as losing ' + m[1] + '% of itself delivered '
+                  + (after / before).toFixed(2) + ' times as much beside a store, not '
+                  + want.toFixed(2));
+            }
+          }
+        }
+        scenes++;
+      }
+    }
+
+    for (const k of ['hall', 'idle', 'far', 'rest', 'up'])
+      if (!seen.has(k)) fails.push('no building ever wore the "' + k + '" badge');
+
+    V.panel = null; V.goalIdx = 0; V.step(0.001);
+    return { scenes, seen: [...seen], fails };
+  };
+
   window.cardSweep = function () {
     const V = window.__v, cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
     const fails = [], orig = ctx.fillText;
@@ -7616,6 +7909,7 @@
       ['chip', () => window.chipSweep()],
       ['spot', () => window.spotSweep()],
       ['card', () => window.cardSweep()],
+      ['mark', () => window.markSweep()],
       ['order', () => window.orderSweep()],
       ['tap', () => window.tapSweep()],
       ['text', () => window.textSweep()],
