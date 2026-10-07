@@ -5431,6 +5431,85 @@
 
        costSweep()  -> { village, perFrame, spare, fails }
   --------------------------------------------------------------------------- */
+  /* ---------------------------------------------------------------------------
+     Every picture the game asks for, and the copy that goes on the phone.
+
+     artFor keeps a deliberately quiet fallback: a key with no file 404s once,
+     is remembered as null, and the building is drawn procedurally for ever
+     after. "No file: stay procedural, silently" is the comment beside it, and
+     it is the right behaviour -- a missing sprite should not take the game
+     down. It also means a missing sprite is invisible to every other checker
+     in this file. The village still draws, the panels still read, the rates
+     are still right, and nobody is told that the market is a coloured box.
+
+     That matters more than usual right now, because the thing that ships is
+     www/ and the thing this runs against is the repository root. A sprite
+     added to one and not the other looks perfect here and is a box on the
+     phone, and nothing in this file would have said a word.
+
+       every key loads     asked of the game -- its own building list, its own
+                           villagers, its own scenery -- rather than written
+                           down here, so a ninth building is covered the day
+                           it is added
+       and ships           the same key fetched from www/, which is the tree
+                           the APK carries
+       and the question    a name that is not there really does come back
+       is a real one       missing, or asking the server proves nothing
+
+     A third rule was wanted and dropped: every building whose sprite is fitted
+     by hand should have an entry in ART_FIT, since the default is a plain
+     bottom-centre fit and on a measured sprite that is not a fallback, it is
+     wrong. ART_FIT is not exported, and exporting a constant so that this file
+     can read it is the wrong way round -- the game does not owe the harness a
+     window. Left here as the next thing to measure if the fittings ever drift.
+
+       artSweep()  -> { asked, loaded, shipped, fails }
+  --------------------------------------------------------------------------- */
+  window.artSweep = async function () {
+    const V = window.__v, fails = [];
+    /* The keys the GAME has asked for, read out of its own cache rather than
+       listed here. Everything it can draw is requested once at boot -- every
+       building, every villager, the ground, the water and the scenery -- so
+       ART is the game saying what it needs, and a ninth building is covered
+       the day somebody adds one. */
+    const keys = Object.keys(V.ART || {}).sort();
+    if (keys.length < 15)
+      fails.push('the game has asked for only ' + keys.length + ' pictures, so this sweep found almost nothing to check');
+
+    /* Every one of them arrived. artFor returns the image only once it has
+       loaded, and null for ever after a 404 -- so this is the one place the
+       quiet fallback is made to speak. */
+    for (const k of keys) V.artFor(k);
+    for (let i = 0; i < 40; i++) {
+      if (keys.every(k => V.artFor(k))) break;
+      await new Promise(r => setTimeout(r, 50));
+    }
+    const loaded = keys.filter(k => !!V.artFor(k));
+    for (const k of keys) if (!V.artFor(k))
+      fails.push('the game asks for a picture of ' + k + ' and there is none, so it is drawn as a plain shape and nothing else in this file would notice');
+
+    /* And the copy that goes on the phone. The dev server serves the
+       repository root, so the shipped tree and the working one are both
+       reachable from here and can be told apart -- which is the whole point,
+       because they are the two that drift. */
+    let shipped = 0;
+    for (const k of keys) {
+      let ok = false;
+      try { ok = (await fetch('/www/art/' + k + '.webp')).status === 200; } catch (e) { ok = false; }
+      if (ok) shipped++;
+      else fails.push('art/' + k + '.webp is not in www/, which is the tree the phone gets');
+    }
+    /* And the check itself is worth something only if a missing file would
+       really come back missing. */
+    {
+      let ghost = true;
+      try { ghost = (await fetch('/www/art/__nothing_is_here__.webp')).status === 200; } catch (e) { ghost = false; }
+      if (ghost)
+        fails.push('the server answers for a picture that does not exist, so asking it proves nothing');
+    }
+
+    return { asked: keys.length, loaded: loaded.length, shipped, keys, fails };
+  };
   window.costSweep = function () {
     const V = window.__v, cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
     const fails = [];
@@ -8948,6 +9027,7 @@
       ['confirm', () => window.confirmSweep()],
       ['pan', () => window.panSweep()],
       ['cost', () => window.costSweep()],
+      ['art', () => window.artSweep()],
       ['order', () => window.orderSweep()],
       ['tap', () => window.tapSweep()],
       ['text', () => window.textSweep()],
