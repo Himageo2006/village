@@ -5258,6 +5258,235 @@
 
        markSweep()  -> { scenes, seen, fails }
   --------------------------------------------------------------------------- */
+  /* ---------------------------------------------------------------------------
+     The one line that tells the player what to do with the whole village.
+
+     The hall's summary names the binding constraint and what to do about it:
+     "12 villagers · 7 idle — build a workplace · workplaces at 41%". It is the
+     only sentence in the game about the village as a whole rather than about
+     one building, and the source records two separate faults in it -- "5 posts
+     empty -- build a house" over a granary at the ceiling, where the villagers
+     that house brings would make goods destroyed on arrival; and a village with
+     every storehouse the hall allows being told to build another.
+
+     Nothing had read it. The counts, the order the constraints are named in,
+     and the advice at the end are three different things to get wrong, and the
+     advice comes from remedy(), which has four answers in a cascade and is used
+     by the placement pill as well.
+
+       the count is the count    the idle figure is villagers with no job; the
+                                 empty figure is posts with nobody in them
+       doing it relieves it      build what it names and the number falls
+       the binding one wins      a granary at the ceiling is named ahead of
+                                 empty posts, because filling those posts makes
+                                 it worse
+       the advice can be taken   "build" only where something may be built,
+                                 "improve" only where a next level adds a post
+                                 or a resident, "raise the town hall" only where
+                                 the hall can still grow, and "no more possible"
+                                 only when none of the three is true
+       and all four answers      appear, along with every clause the row has
+
+       adviceSweep()  -> { rows, seen, fails }
+  --------------------------------------------------------------------------- */
+  window.adviceSweep = function () {
+    const V = window.__v, cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
+    const fails = [], orig = ctx.fillText, rows = [];
+    const hallRow = () => {
+      V.panel = V.hallOf().id; V.step(0.001);
+      const lines = [];
+      ctx.fillText = function (t, ...a) { lines.push(String(t)); return orig.call(this, t, ...a); };
+      try { V.draw(); } finally { ctx.fillText = orig; }
+      V.panel = null;
+      return lines.find(x => /villager/.test(x)) || '';
+    };
+    const put = (k, c, r) => V.canPlace(k, c, r, V.occupied()) ? V.place(k, c, r) : false;
+    const seat = k => { const L = V.landBounds(); V.res.wood = 9e5; V.res.food = 9e5;
+      for (let r = L.lo; r <= L.hi; r++) for (let c = L.lo; c <= L.hi; c++)
+        if (put(k, c, r)) return V.placed[V.placed.length - 1];
+      return null; };
+    const settle = () => {
+      for (const q of V.placed) if (q.t >= 1) q.t = 0.9;
+      for (let i = 0; i < 60; i++) V.step(1 / 30);
+    };
+    const run = secs => { for (let i = 0; i < secs * 30; i++) V.step(1 / 30); };
+    /* Comfortably off, so that nothing in the row is about money. */
+    const mid = () => { V.res.wood = Math.floor(V.caps.wood * 0.3);
+      V.res.food = Math.floor(V.caps.food * 0.3); V.step(0.001); };
+    const fresh = lvl => {
+      V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
+      V.away = null; V.goalDone = null; V.finished = null; V.panel = null;
+      V.sel = null; V.moving = null; V.claimAsk = false; V.orders.length = 0;
+      V.tutSeen.length = 0; for (const h of V.TUT) V.tutSeen.push(h.id);
+      V.ensureHall(); V.placed[0].lvl = lvl; V.placed[0].t = 1;
+      V.res.wood = 9e5; V.res.food = 9e5; settle();
+      V.goalIdx = parkGoals();
+    };
+    const seen = new Set();
+    const note = (where, row) => {
+      rows.push(where + ' — ' + row);
+      if (/idle/.test(row)) seen.add('idle');
+      if (/posts? empty/.test(row)) seen.add('empty');
+      if (/store.? full/.test(row)) seen.add('full');
+      if (/every post filled/.test(row)) seen.add('filled');
+      for (const a of ['build a house', 'build a workplace', 'build a storehouse',
+        'spend or trade', 'improve a house', 'improve a workplace',
+        'raise the town hall', 'no more houses possible', 'no more workplaces possible'])
+        if (row.indexOf(a) >= 0) seen.add(a);
+      /* The percentage is the mean of what every workplace is reaching. */
+      const m = /workplaces at (\d+)%/.exec(row);
+      if (m) { seen.add('reach');
+        const st = V.villageStats();
+        if (st.avg !== null && Math.abs(+m[1] - Math.round(st.avg * 100)) > 0)
+          fails.push(where + ' says workplaces are at ' + m[1] + '% and they average '
+            + Math.round(st.avg * 100) + '%');
+      }
+      /* And the advice at the end has to be one somebody can take. */
+      if (/build a house|build a workplace/.test(row)) {
+        const want = /build a house/.test(row) ? 'pop' : 'jobs';
+        const can = V.BUILDINGS.some(b => b.key !== 'hall' && !b.decor
+          && (want === 'pop' ? b.pop : b.jobs && b.makes) && V.unlocked(b.key) && !V.atLimit(b.key));
+        if (!can) fails.push(where + ' says "' + row.replace(/.*— /, '') + '" and the hall allows no more of them');
+      }
+      if (/build a storehouse/.test(row) && V.atLimit('store'))
+        fails.push(where + ' says to build a storehouse and the hall allows no more');
+      if (/improve a (house|workplace)/.test(row)) {
+        const want = /improve a house/.test(row) ? 'pop' : 'jobs';
+        const grows = V.placed.some(p => {
+          const b = V.B(p.key);
+          if (p.key === 'hall' || b.decor || p.t < 1) return false;
+          if (want === 'pop' ? !b.pop : !(b.jobs && b.makes)) return false;
+          const i = V.upInfo(p); if (i.max || i.gate) return false;
+          const next = { ...p, lvl: p.lvl + 1 };
+          return want === 'pop' ? V.popOf(next) > V.popOf(p) : V.jobsOf(next) > V.jobsOf(p);
+        });
+        if (!grows) fails.push(where + ' says to improve one and not one of them gains a post by growing');
+      }
+      if (/raise the town hall/.test(row) && V.upInfo(V.hallOf()).max)
+        fails.push(where + ' says to raise the town hall and it is at its highest level');
+      if (/no more (houses|workplaces) possible/.test(row)) {
+        const want = /houses/.test(row) ? 'pop' : 'jobs';
+        if (V.BUILDINGS.some(b => b.key !== 'hall' && !b.decor
+          && (want === 'pop' ? b.pop : b.jobs && b.makes) && V.unlocked(b.key) && !V.atLimit(b.key)))
+          fails.push(where + ' says no more are possible and the hall allows another');
+        if (!V.upInfo(V.hallOf()).max)
+          fails.push(where + ' says no more are possible and the town hall can still grow');
+      }
+      return row;
+    };
+
+    /* ---- idle villagers, and building what it says ---- */
+    fresh(5);
+    { for (let i = 0; i < 6; i++) seat('house'); seat('farm');
+      settle(); run(120); mid();
+      const row = note('a village with more people than posts', hallRow());
+      const m = /(\d+) idle/.exec(row), st = V.villageStats();
+      if (!m) fails.push('a village with ' + st.idle + ' villagers out of work said "' + row + '"');
+      else {
+        if (+m[1] !== st.idle) fails.push('the hall says ' + m[1] + ' idle and ' + st.idle + ' have no job');
+        const was = st.idle;
+        seat('lumber'); settle(); run(120); mid();
+        const now = V.villageStats().idle;
+        if (now >= was) fails.push('the hall said "' + row.replace(/.*— /, '')
+          + '" with ' + was + ' idle, one was built, and ' + now + ' are still idle');
+        note('the same village with a workplace added', hallRow());
+      }
+    }
+
+    /* ---- empty posts, and building what it says ---- */
+    fresh(5);
+    { seat('house'); for (let i = 0; i < 4; i++) seat('farm');
+      settle(); run(120); mid();
+      const row = note('a village with more posts than people', hallRow());
+      const st = V.villageStats(), empty = st.slots - st.working;
+      const m = /(\d+) posts? empty/.exec(row);
+      if (!m) fails.push('a village with ' + empty + ' posts standing empty said "' + row + '"');
+      else {
+        if (+m[1] !== empty) fails.push('the hall says ' + m[1] + ' posts empty and ' + empty + ' have nobody in them');
+        seat('house'); settle(); run(120); mid();
+        const st2 = V.villageStats(), now = st2.slots - st2.working;
+        if (now >= empty) fails.push('the hall said "' + row.replace(/.*— /, '')
+          + '" with ' + empty + ' posts empty, one was built, and ' + now + ' are still empty');
+        note('the same village with a house added', hallRow());
+      }
+    }
+
+    /* ---- a full granary outranks the empty posts it would make worse ---- */
+    fresh(5);
+    { seat('house'); for (let i = 0; i < 4; i++) seat('farm');
+      settle(); run(120);
+      for (const k of ['wood', 'food']) V.res[k] = V.caps[k];
+      V.step(0.001);
+      const st = V.villageStats(), empty = st.slots - st.working;
+      const row = note('a village whose stores are at the ceiling', hallRow());
+      if (!/full/.test(row))
+        fails.push('a village with both stores at the ceiling said "' + row + '"');
+      else if (/posts? empty/.test(row))
+        fails.push('a village with ' + empty + ' empty posts and both stores full was told about the posts');
+    }
+
+    /* ---- and at the storehouse limit, where the answer is different ---- */
+    fresh(5);
+    { for (let i = 0; i < 4; i++) seat('store');
+      seat('house'); seat('farm');
+      settle(); run(120);
+      for (const k of ['wood', 'food']) V.res[k] = V.caps[k];
+      V.step(0.001);
+      const row = note('a village at the storehouse limit with full stores', hallRow());
+      if (!V.atLimit('store'))
+        fails.push('the storehouse-limit check never reached the limit');
+      else if (!/spend or trade/.test(row))
+        fails.push('a village that may build no more storehouses was told "' + row + '"');
+    }
+
+    /* ---- every post filled ---- */
+    fresh(5);
+    { /* Exactly filled, which needs the two sides to meet: a house holds two,
+         a farm opens two posts and a hall opens one more at three and again at
+         five, so most mixes land one either side of balance. Two houses and a
+         farm under a level-three hall is four and four. */
+      V.placed[0].lvl = 3; settle();
+      seat('house'); seat('house'); seat('farm');
+      settle(); run(180); mid();
+      const st = V.villageStats();
+      if (st.idle === 0 && st.slots === st.working) note('a village in balance', hallRow());
+      else fails.push('the balanced village came out ' + st.idle + ' idle and '
+        + (st.slots - st.working) + ' posts empty, so "every post filled" was never said');
+    }
+
+    /* ---- nothing left to build, and nothing left to improve ---- */
+    fresh(2);
+    { const allow = V.HALL[2].allow;
+      for (const [k, n] of Object.entries(allow)) for (let i = 0; i < n; i++) seat(k);
+      for (const q of V.placed) if (!V.isDecor(q.key) && q.key !== 'hall') q.lvl = 2;
+      settle(); run(120); mid();
+      note('a village that has filled a level-two hall', hallRow());
+    }
+    fresh(5);
+    { const allow = V.HALL[V.HALL.length - 1].allow;
+      for (const [k, n] of Object.entries(allow)) for (let i = 0; i < n; i++) seat(k);
+      /* Not the hall. Setting every building's level without excluding it put
+         the hall back to two, so the village still had somewhere to go and the
+         row said "raise the town hall" -- the scene meant to leave improving a
+         workplace as the only thing left, and had quietly given the player a
+         better answer. */
+      for (const q of V.placed) if (!V.isDecor(q.key) && q.key !== 'hall') q.lvl = 2;
+      settle(); run(180); mid();
+      note('a village at the build limit with room to improve', hallRow());
+      for (const q of V.placed) if (!V.isDecor(q.key) && q.key !== 'hall') q.lvl = V.LVL_MAX;
+      settle(); run(300); mid();
+      note('a village with nothing left to build or improve', hallRow());
+    }
+
+    for (const k of ['idle', 'empty', 'full', 'reach',
+      'filled', 'build a house', 'build a workplace', 'build a storehouse', 'spend or trade',
+      'improve a workplace', 'raise the town hall', 'no more workplaces possible'])
+      if (!seen.has(k)) fails.push('the hall never once said "' + k + '"');
+
+    V.panel = null; V.goalIdx = 0; V.step(0.001);
+    return { rows, seen: [...seen], fails };
+  };
+
   window.markSweep = function () {
     const V = window.__v, cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
     const fails = [], orig = ctx.fillText;
@@ -7910,6 +8139,7 @@
       ['spot', () => window.spotSweep()],
       ['card', () => window.cardSweep()],
       ['mark', () => window.markSweep()],
+      ['advice', () => window.adviceSweep()],
       ['order', () => window.orderSweep()],
       ['tap', () => window.tapSweep()],
       ['text', () => window.textSweep()],
