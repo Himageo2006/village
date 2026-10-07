@@ -5289,6 +5289,188 @@
 
        adviceSweep()  -> { rows, seen, fails }
   --------------------------------------------------------------------------- */
+  /* ---------------------------------------------------------------------------
+     The card that asks for five thousand wood.
+
+     Land is the second most expensive thing a player buys and the last ring is
+     the single largest purchase in the game. The dialogue that sells it makes
+     four claims, and not one of them had ever been read -- the whole card is
+     absent from this file, text and all.
+
+       14 x 14 tiles, from 12 x 12        what the island becomes, and was
+       131 of your 144 tiles are still    how much room there already is, which
+       empty                              is the only thing that says whether
+                                          this is a claim you need or forty
+                                          tiles of grass you already had
+       🪵 5000  🌾 3200                    what it costs
+       Claim it / Need 🪵140 more /        and whether you can, and if not why
+       Your stores cannot hold this
+       much yet
+
+     All four are bought and checked against the island afterwards. The empty
+     count is the one with arithmetic in it: it must count the roads and the
+     statues as well as the buildings, which is the easy half to forget, and it
+     is asked here against the game's own map of what stands where rather than
+     against the sum the card makes.
+
+     And the last ring is its own case -- no price, no button, "the whole island
+     is yours" -- because a card that still asks for money when there is nothing
+     to sell is the shape of fault this game has had three times over.
+
+       landSweep()  -> { rings, seen, fails }
+  --------------------------------------------------------------------------- */
+  window.landSweep = function () {
+    const V = window.__v, cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
+    const fails = [], orig = ctx.fillText;
+    const card = () => {
+      const keep = V.claimAsk;
+      V.claimAsk = true; V.step(0.001);
+      const lines = [];
+      ctx.fillText = function (t, ...a) { lines.push(String(t)); return orig.call(this, t, ...a); };
+      try { V.draw(); } finally { ctx.fillText = orig; }
+      V.claimAsk = keep;
+      return lines;
+    };
+    const put = (k, c, r) => V.canPlace(k, c, r, V.occupied()) ? V.place(k, c, r) : false;
+    const seat = k => { const L = V.landBounds(); V.res.wood = 9e5; V.res.food = 9e5;
+      for (let r = L.lo; r <= L.hi; r++) for (let c = L.lo; c <= L.hi; c++) if (put(k, c, r)) return true;
+      return false; };
+    const settle = () => {
+      for (const q of V.placed) if (q.t >= 1) q.t = 0.9;
+      for (let i = 0; i < 40; i++) V.step(1 / 30);
+    };
+    /* The island's own map of what stands where, counted inside the claim. */
+    const emptyTiles = () => {
+      const B = V.landBounds(), occ = V.occupied();
+      let taken = 0;
+      for (const key of occ) {
+        const [c, r] = key.split(',').map(Number);
+        if (c >= B.lo && c <= B.hi && r >= B.lo && r <= B.hi) taken++;
+      }
+      const side = B.hi - B.lo + 1;
+      return { side, area: side * side, empty: side * side - taken };
+    };
+    const line = (lines, re) => lines.find(t => re.test(t)) || '';
+
+    const seen = new Set();
+    let rings = 0;
+    for (let tier = 0; tier <= V.LAND_MAX; tier++) {
+      V.placed.length = 0; V.villagers.length = 0; V.landTier = tier; V.coverPlaced();
+      V.away = null; V.goalDone = null; V.finished = null; V.panel = null;
+      V.sel = null; V.moving = null; V.orders.length = 0;
+      V.tutSeen.length = 0; for (const h of V.TUT) V.tutSeen.push(h.id);
+      V.ensureHall(); V.placed[0].lvl = 5; V.placed[0].t = 1;
+      V.res.wood = 9e5; V.res.food = 9e5; settle();
+      /* Roads and a statue among them, because the count has to include what
+         is not a building. */
+      for (const k of ['house', 'farm', 'statue', 'path', 'path']) seat(k);
+      settle();
+      V.goalIdx = parkGoals();
+
+      const before = emptyTiles(), cost = V.landNext();
+      V.res.wood = 9e5; V.res.food = 9e5; V.step(0.001);
+      const lines = card();
+      rings++;
+
+      if (!cost) {
+        /* Nothing left to sell. */
+        seen.add('whole island');
+        if (!lines.some(t => /whole island is yours/.test(t)))
+          fails.push('the last ring was claimed and the card still offers more land: ' + lines.join(' / '));
+        if (lines.some(t => /^(Claim it|Need |Your stores cannot)/.test(t)))
+          fails.push('the card for a finished island still has a button: ' + lines.join(' / '));
+        if (V.claimLand()) fails.push('the island was claimed a second time');
+        continue;
+      }
+      seen.add('more land');
+
+      /* What it will be, and what it is. */
+      const grow = /(\d+) x (\d+) tiles, from (\d+) x (\d+)/.exec(line(lines, /tiles, from/));
+      if (!grow) fails.push('the card for ring ' + tier + ' says nothing about the size: ' + lines.join(' / '));
+      else if (+grow[3] !== before.side)
+        fails.push('the card says the island is ' + grow[3] + ' x ' + grow[3] + ' and it is '
+          + before.side + ' x ' + before.side);
+
+      /* How much room there already is. */
+      const room = /(\d+) of your (\d+) tiles are still empty/.exec(line(lines, /still empty/));
+      if (!room) fails.push('the card for ring ' + tier + ' says nothing about the room already there');
+      else {
+        if (+room[2] !== before.area)
+          fails.push('the card says the island holds ' + room[2] + ' tiles and it holds ' + before.area);
+        if (+room[1] !== before.empty)
+          fails.push('the card says ' + room[1] + ' tiles are still empty and ' + before.empty
+            + ' have nothing on them');
+      }
+
+      /* The price, and the button that offers it. */
+      const priced = line(lines, /🪵 \d/);
+      for (const [icon, k] of [['🪵', 'wood'], ['🌾', 'food']]) {
+        const m = new RegExp(icon + ' (\\d+)').exec(priced);
+        if (!m) fails.push('the card for ring ' + tier + ' never names a price in ' + k);
+        else if (+m[1] !== cost[k]) fails.push('the card asks ' + m[1] + ' ' + k + ' and claiming takes ' + cost[k]);
+      }
+      if (!lines.some(t => t === 'Claim it'))
+        fails.push('a village that can pay for ring ' + tier + ' is not offered it: ' + lines.join(' / '));
+      seen.add('claim it');
+
+      /* Short of it, and short of ever holding it. */
+      V.res.wood = 0; V.res.food = 0; V.step(0.001);
+      const poor = card();
+      const short = poor.find(t => /^Need /.test(t)) || '';
+      const held = poor.find(t => /stores cannot hold/.test(t)) || '';
+      const overCap = Object.entries(cost).some(([k, v]) => v > V.caps[k]);
+      if (overCap) {
+        seen.add('cannot hold');
+        if (!held) fails.push('ring ' + tier + ' costs more than the village can hold and the card says "'
+          + (short || poor.join(' / ')) + '"');
+      } else {
+        seen.add('need more');
+        if (!short) fails.push('a village with nothing in its stores is not told what ring ' + tier
+          + ' still needs: ' + poor.join(' / '));
+        else for (const [icon, k] of [['🪵', 'wood'], ['🌾', 'food']]) {
+          const m = new RegExp(icon + '(\\d+)').exec(short);
+          const want = Math.max(0, Math.ceil(cost[k] - V.res[k]));
+          if (!m) { if (want > 0) fails.push('the card says "' + short + '" and ring ' + tier + ' needs ' + want + ' more ' + k); }
+          else if (+m[1] !== want)
+            fails.push('the card says "' + short + '" and ring ' + tier + ' needs ' + want + ' more ' + k);
+        }
+        if (V.claimLand()) fails.push('ring ' + tier + ' was claimed with nothing in the stores');
+      }
+
+      /* And buying it does what the card said it would. */
+      V.res.wood = 9e5; V.res.food = 9e5; V.step(0.001);
+      const purse = { wood: V.res.wood, food: V.res.food };
+      if (!V.claimLand()) {
+        fails.push('ring ' + tier + ' could not be claimed by a village holding everything');
+        continue;
+      }
+      for (const k of ['wood', 'food'])
+        if (Math.abs((purse[k] - V.res[k]) - (cost[k] || 0)) > 0.01)
+          fails.push('ring ' + tier + ' was priced at ' + cost[k] + ' ' + k + ' and took '
+            + (purse[k] - V.res[k]).toFixed(0));
+      const after = emptyTiles();
+      if (grow && after.side !== +grow[1])
+        fails.push('the card promised ' + grow[1] + ' x ' + grow[1] + ' and the island came out '
+          + after.side + ' x ' + after.side);
+      /* And the ground it sold is ground something can be put on, rather than
+         a bigger number with nowhere new to build. */
+      const B = V.landBounds();
+      let fresh = 0;
+      const occ = V.occupied();
+      for (let c = B.lo; c <= B.hi; c++) for (let r = B.lo; r <= B.hi; r++)
+        if (!occ.has(c + ',' + r) && V.canPlace('statue', c, r, occ)) fresh++;
+      if (fresh < after.empty)
+        fails.push('ring ' + tier + ' left ' + after.empty + ' tiles empty and only '
+          + fresh + ' of them will take a building');
+    }
+
+    for (const k of ['more land', 'claim it', 'need more', 'cannot hold', 'whole island'])
+      if (!seen.has(k)) fails.push('the claim card never once said "' + k + '"');
+
+    V.claimAsk = false; V.goalIdx = 0; V.step(0.001);
+    return { rings, seen: [...seen], fails };
+  };
+
   window.adviceSweep = function () {
     const V = window.__v, cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
     const fails = [], orig = ctx.fillText, rows = [];
@@ -8140,6 +8322,7 @@
       ['card', () => window.cardSweep()],
       ['mark', () => window.markSweep()],
       ['advice', () => window.adviceSweep()],
+      ['land', () => window.landSweep()],
       ['order', () => window.orderSweep()],
       ['tap', () => window.tapSweep()],
       ['text', () => window.textSweep()],
