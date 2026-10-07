@@ -5097,6 +5097,164 @@
 
        shapeSweep()  -> { strings, states, fails }
   --------------------------------------------------------------------------- */
+  /* ---------------------------------------------------------------------------
+     The second line on the resource chip, held to the village.
+
+     The two chips at the top of the screen are the most looked at thing in the
+     game, and under each number is a line saying what is happening to it. It
+     has five things it can say and every one of them is a claim about the next
+     minute of play:
+
+       +1.4/s         this much is arriving
+       idle           nobody is making it
+       wasting 5.7/s  this much is being carried home and thrown away
+       sharing 5.7/s  the same, once the village is finished and gives it away
+       storage full   full, and nothing is being made to lose
+
+     Only the first has ever been checked, and only as a number inside the game
+     rather than as the string on the chip. "idle" has a fault written into the
+     source beside it -- "that read idle for the first EIGHTEEN seconds of a new
+     player's first lumber camp while the wood above it climbed" -- and nothing
+     has watched it since. The wasting figure has never been compared to
+     anything at all: it is potentialRate, the village's own guess at what it
+     WOULD deliver, quoted at the one moment the measured rate reads zero
+     because every load is being destroyed on arrival.
+
+     So each line is read off the chip and then measured against the village for
+     four minutes:
+
+       +X/s and idle    what the stores really gain
+       wasting/sharing  what the villagers really carry home and cannot keep,
+                        counted off their hands the way shareSweep counts it
+       the word         "sharing" exactly when the village is finished
+       storage full     full, and nothing arriving to lose
+
+     Allowed one load of slack plus a tenth, because a measurement made of
+     eight-unit loads cannot be finer than eight units, and half a tenth more
+     for the rounding the chip itself does.
+
+       chipSweep()  -> { scenes, seen, fails }
+  --------------------------------------------------------------------------- */
+  window.chipSweep = function () {
+    const V = window.__v, cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
+    const fails = [], orig = ctx.fillText;
+    const put = k => { const L = V.landBounds();
+      for (let r = L.lo; r <= L.hi; r++) for (let c = L.lo; c <= L.hi; c++)
+        if (V.canPlace(k, c, r, V.occupied())) return V.place(k, c, r);
+      return false; };
+    /* The chip draws its two lines in order: the amount, then this. So the
+       line under the wood chip is the first of these the draw puts out and the
+       line under the food chip is the second. */
+    const LINE = /^(\+[\d.]+\/s|idle|storage full|(?:wasting|sharing) [\d.]+\/s)$/;
+    const chips = () => {
+      const lines = [];
+      ctx.fillText = function (t, ...a) { lines.push(String(t)); return orig.call(this, t, ...a); };
+      try { V.draw(); } finally { ctx.fillText = orig; }
+      return lines.filter(t => LINE.test(t));
+    };
+    const figure = t => { const m = /([\d.]+)\/s/.exec(t); return m ? +m[1] : 0; };
+
+    const SECS = 240;
+    /* What the stores gain, and what the villagers carry home. A carry only
+       ever leaves a villager by being delivered, so the second is the village's
+       work counted without asking the village. */
+    const run = (secs, hold) => {
+      const carried = { wood: 0, food: 0 };
+      const r0 = { wood: V.res.wood, food: V.res.food };
+      for (let i = 0; i < secs * 30; i++) {
+        const held = V.villagers.map(v => [v, v.carry ? { k: v.carry.k, n: v.carry.n } : null]);
+        V.orders = [];                                   // a trade is not production
+        if (hold) for (const k of ['wood', 'food']) V.res[k] = V.caps[k];
+        V.step(1 / 30);
+        for (const [v, h] of held) if (h && !v.carry) carried[h.k] += h.n;
+      }
+      return { carried, gained: { wood: V.res.wood - r0.wood, food: V.res.food - r0.food } };
+    };
+    /* A measurement made of loads cannot be finer than a load. */
+    const near = (said, real, secs) =>
+      Math.abs(real - said) * secs <= V.CARRY + 0.10 * said * secs + 0.05 * secs;
+
+    const seen = new Set();
+    const scene = (kinds, hall, finished) => {
+      V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
+      V.away = null; V.goalDone = null; V.finished = null; V.panel = null;
+      V.sel = null; V.moving = null; V.claimAsk = false; V.orders = [];
+      V.tutSeen.length = 0; for (const h of V.TUT) V.tutSeen.push(h.id);
+      V.ensureHall(); V.placed[0].lvl = hall; V.placed[0].t = 1;
+      V.res.wood = 9e5; V.res.food = 9e5; V.step(0.001);
+      for (const k of kinds) { V.res.wood = 9e5; V.res.food = 9e5; put(k); }
+      for (const q of V.placed) if (q.key !== 'hall' && !V.isDecor(q.key)) q.lvl = 3;
+      for (let i = 0; i < 150 * 30; i++) V.step(1 / 30);   // the levels land through a real finish
+      /* Parked, or a goal pays out in the middle of the measurement and the
+         stores gain something nobody carried. */
+      V.goalIdx = finished ? V.GOALS.length : parkGoals();
+      V.goalDone = null; V.finished = null; V.away = null; V.orders = [];
+    };
+    const WORKING = ['house', 'house', 'house', 'house', 'farm', 'farm',
+      'lumber', 'lumber', 'store', 'mill', 'well'];
+
+    let scenes = 0;
+    for (const [what, kinds, hall, finished, fill] of [
+      ['a working village with room to spare', WORKING, 5, false, 0.1],
+      ['a working village at its ceiling', WORKING, 5, false, 1],
+      ['a finished village at its ceiling', WORKING, 5, true, 1],
+      ['a village with no farm, granary full', ['house', 'house', 'lumber', 'store'], 3, false, 1],
+      ['a hall and one house', ['house'], 3, false, 0.1],
+    ]) {
+      scene(kinds, hall, finished);
+      for (const k of ['wood', 'food']) V.res[k] = Math.floor(V.caps[k] * fill);
+      V.step(0.001);
+      const said = chips();
+      scenes++;
+      if (said.length !== 2) {
+        fails.push('the chips said ' + said.length + ' things in ' + what + ': ' + said.join(' / '));
+        continue;
+      }
+      const full = fill === 1;
+      const r = run(SECS, full);
+      for (const [i, k] of [[0, 'wood'], [1, 'food']]) {
+        const t = said[i];
+        seen.add(/^\+/.test(t) ? 'rate' : /wasting/.test(t) ? 'wasting'
+          : /sharing/.test(t) ? 'sharing' : t);
+        const where = 'the ' + k + ' chip in ' + what + ' says "' + t + '"';
+        /* The word belongs to the state, whatever the number is. */
+        if (/wasting|sharing|storage full/.test(t) !== full)
+          fails.push(where + (full ? ' with the store at its ceiling' : ' with room to spare'));
+        if (/sharing/.test(t) && !finished)
+          fails.push(where + ' and the village still has goals to finish');
+        if (/wasting/.test(t) && finished)
+          fails.push(where + ' and every goal is done, so it is given away rather than lost');
+
+        if (t === 'idle') {
+          const got = r.gained[k] + r.carried[k];
+          if (got > 0.01)
+            fails.push(where + ' and ' + got.toFixed(1) + ' ' + k + ' arrived over ' + SECS + ' seconds');
+        } else if (/^\+/.test(t)) {
+          const real = r.gained[k] / SECS;
+          if (!near(figure(t), real, SECS))
+            fails.push(where + ' and the stores gained ' + real.toFixed(2) + '/s');
+        } else if (/wasting|sharing/.test(t)) {
+          /* Held at the ceiling for the whole stretch, so every load carried
+             home is a load lost. */
+          const real = r.carried[k] / SECS;
+          if (!near(figure(t), real, SECS))
+            fails.push(where + ' and the villagers carried home ' + real.toFixed(2) + '/s that could not be kept');
+        } else if (t === 'storage full') {
+          const real = r.carried[k] / SECS;
+          if (real > 0.06)
+            fails.push(where + ' and the villagers carried home ' + real.toFixed(2) + '/s into it');
+        }
+      }
+    }
+
+    /* Every line it can show is a line it does show. */
+    for (const k of ['rate', 'idle', 'wasting', 'sharing', 'storage full'])
+      if (!seen.has(k)) fails.push('the chips never once said "' + k + '"');
+
+    V.goalIdx = 0; V.orders = []; V.step(0.001);
+    return { scenes, seen: [...seen], fails };
+  };
+
   window.shapeSweep = function () {
     const V = window.__v, cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
     const fails = [], orig = ctx.fillText, seen = new Set();
@@ -7034,6 +7192,7 @@
       ['allow', () => window.allowSweep()],
       ['button', () => window.buttonSweep()],
       ['shape', () => window.shapeSweep()],
+      ['chip', () => window.chipSweep()],
       ['order', () => window.orderSweep()],
       ['tap', () => window.tapSweep()],
       ['text', () => window.textSweep()],
