@@ -5003,6 +5003,150 @@
 
        shareSweep()  -> { cases, refund, fails }
   --------------------------------------------------------------------------- */
+  /* ---------------------------------------------------------------------------
+     What the hall says the next level allows, and what it then allows.
+
+     The hall is the spine of the game and the most expensive thing in it --
+     two thousand wood for the last step -- and the whole of what that buys is
+     one row on its panel: "level 4 adds 🏠+3 🌾+1 🪵+1 📦+1 ⛲+1 🌬️+1 🏪+1".
+     The mill and the market are not even in the build tray until the hall
+     unlocks them, so for two of the four steps the best part of the purchase is
+     a part the player cannot see coming and has to take the row's word for.
+
+     Nothing had ever taken the row at its word. The promise is held here by
+     buying the level and counting what the village may build afterwards, not by
+     reading the table back -- the row and the table come from the same five
+     lines of source, so an arithmetic that read them both would agree with
+     itself and prove nothing.
+
+       every step    the row names the level that is coming, and each figure on
+                     it is exactly what the village gains the right to build
+       while it is   the allowance has not moved yet, the row says so, and the
+       being built   level it names is the one being paid for -- not the one
+                     after it
+       at the top    there is nothing left to buy and nothing is promised
+
+       allowSweep()  -> { steps, rows, fails }
+  --------------------------------------------------------------------------- */
+  window.allowSweep = function () {
+    const V = window.__v, cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
+    const fails = [], orig = ctx.fillText, rows = [];
+    const rowsOf = p => {
+      V.panel = p.id; V.step(0.001);
+      const lines = [];
+      ctx.fillText = function (t, ...a) { lines.push(String(t)); return orig.call(this, t, ...a); };
+      try { V.draw(); } finally { ctx.fillText = orig; }
+      V.panel = null;
+      return lines;
+    };
+    const byIcon = new Map(V.BUILDINGS.map(b => [b.icon, b.key]));
+    const nameOf = new Map(V.BUILDINGS.map(b => [b.key, b.name.toLowerCase()]));
+    /* What the village may build, asked of the game rather than of the table. */
+    const allowNow = () => {
+      const o = {};
+      for (const b of V.BUILDINGS) o[b.key] = V.allowedOf(b.key) || 0;
+      return o;
+    };
+    /* The row, read back as a promise. */
+    const readAdds = lines => {
+      const row = lines.find(x => /^level \d+ adds/.test(x));
+      if (!row) return null;
+      const m = /^level (\d+) adds\s+(.*)$/.exec(row);
+      const pending = / when it is done$/.test(m[2]);
+      const add = {};
+      for (const bit of m[2].replace(/ when it is done$/, '').split(/\s+/).filter(Boolean)) {
+        const mm = /^(.*)\+(\d+)$/.exec(bit);
+        if (!mm) { fails.push('the hall says "' + row + '", and "' + bit + '" is not an icon and a number'); continue; }
+        const key = byIcon.get(mm[1]);
+        if (!key) { fails.push('the hall promises more ' + mm[1] + ' and nothing in the village wears that icon'); continue; }
+        add[key] = +mm[2];
+      }
+      return { row, level: +m[1], pending, add };
+    };
+    const put = k => { const L = V.landBounds();
+      for (let r = L.lo; r <= L.hi; r++) for (let c = L.lo; c <= L.hi; c++)
+        if (V.canPlace(k, c, r, V.occupied())) return V.place(k, c, r);
+      return false; };
+
+    V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
+    V.away = null; V.goalDone = null; V.finished = null; V.tutSeen.length = 0;
+    V.panel = null; V.sel = null; V.moving = null; V.claimAsk = false; V.orders = [];
+    V.goalIdx = 0;
+    V.ensureHall();
+    const hall = V.placed[0];
+
+    let steps = 0;
+    for (let L = 1; L < V.HALL.length - 1; L++) {
+      hall.lvl = L; hall.t = 1;
+      V.res.wood = 5e5; V.res.food = 5e5; V.step(0.001);
+      /* Storage up to what this level allows, or the village cannot HOLD the
+         price of the last step and the game rightly refuses to sell it. */
+      while (!V.atLimit('store')) { V.res.wood = 5e5; V.res.food = 5e5; if (!put('store')) break; }
+      for (const q of V.placed) if (q.key === 'store') { q.t = 1; q.lvl = 5; }
+      V.res.wood = 5e5; V.res.food = 5e5; V.step(0.001);
+
+      const before = allowNow();
+      const settledLines = rowsOf(hall);
+      const settled = readAdds(settledLines);
+      if (settledLines.some(x => /under scaffolding/.test(x)))
+        fails.push('a hall settled at level ' + L + ' says it is under scaffolding');
+
+      V.res.wood = 5e5; V.res.food = 5e5;
+      if (!V.upgradeBuilding(hall)) {
+        fails.push('a hall at level ' + L + ' could not be sent to level ' + (L + 1)
+          + ', so the promise was never tested');
+        continue;
+      }
+      const midLines = rowsOf(hall);
+      const mid = readAdds(midLines);
+      if (!midLines.some(x => /under scaffolding/.test(x)))
+        fails.push('a hall halfway to level ' + (L + 1) + ' says nothing about the work being done');
+      /* And nothing is allowed yet, which is what makes the row a promise
+         rather than a report. */
+      const held = allowNow();
+      for (const b of V.BUILDINGS)
+        if (held[b.key] !== before[b.key])
+          fails.push('a hall halfway to level ' + (L + 1) + ' already allows '
+            + held[b.key] + ' ' + nameOf.get(b.key) + ', up from ' + before[b.key]);
+
+      for (let i = 0; i < 30 * 30 && hall.t < 1; i++) V.step(1 / 30);
+      if (hall.t < 1) { fails.push('level ' + (L + 1) + ' never finished going up'); continue; }
+      const after = allowNow();
+      steps++;
+
+      for (const [what, said, wanted] of [
+        ['settled at level ' + L, settled, false],
+        ['halfway to level ' + (L + 1), mid, true]]) {
+        if (!said) {
+          fails.push('a hall ' + what + ' says nothing about what level ' + (L + 1) + ' allows');
+          continue;
+        }
+        rows.push(what + ' — ' + said.row);
+        if (said.level !== L + 1)
+          fails.push('a hall ' + what + ' quotes level ' + said.level + ': "' + said.row + '"');
+        if (said.pending !== wanted)
+          fails.push('a hall ' + what + (said.pending ? ' says the row is a promise for later'
+            : ' states it flatly') + ': "' + said.row + '"');
+        for (const b of V.BUILDINGS) {
+          const real = after[b.key] - before[b.key], promised = said.add[b.key] || 0;
+          if (real !== promised)
+            fails.push('a hall ' + what + ' promises ' + promised + ' more ' + nameOf.get(b.key)
+              + ' and level ' + (L + 1) + ' allows ' + real + ' more: "' + said.row + '"');
+        }
+      }
+    }
+
+    /* And a hall with nothing left to sell sells nothing. */
+    hall.lvl = V.HALL.length - 1; hall.t = 1; V.step(0.001);
+    const top = readAdds(rowsOf(hall));
+    if (top) fails.push('a hall at its top level still promises what the next one adds: "' + top.row + '"');
+    if (steps < V.HALL.length - 2)
+      fails.push('only ' + steps + ' of the hall\'s steps were walked');
+
+    V.panel = null;
+    return { steps, rows, fails };
+  };
+
   window.shareSweep = function () {
     const V = window.__v, fails = [];
     const put = k => { const L = V.landBounds();
@@ -6469,6 +6613,7 @@
       ['reward', () => window.rewardSweep()],
       ['trader', () => window.traderSweep()],
       ['share', () => window.shareSweep()],
+      ['allow', () => window.allowSweep()],
       ['order', () => window.orderSweep()],
       ['tap', () => window.tapSweep()],
       ['text', () => window.textSweep()],

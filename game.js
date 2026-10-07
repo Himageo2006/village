@@ -5109,21 +5109,44 @@ function drawPanel() {
       + (cd > 0.005 ? '   ·   adding +' + cd.toFixed(2) + '/s delivered' : '');
   }
   if (p.key === 'hall') {
+    /* What the village is allowed NOW -- and while the scaffolding is up that
+       is still the OLD level, because hallLevel reads what the hall is
+       HOLDING, the same rule livedIn and capsHeld follow.
+
+       The three branches above this one each say so and then quote the step
+       being built. The hall said neither. Its allowance row went up unqualified
+       while the work was on, and the row beneath it quoted the level after the
+       one being paid for, measured against an allowance two steps back: a hall
+       halfway through level 3 read "level 4 adds 🏠+5 🌾+2 🪵+2 📦+2 ⛲+2 🌬️+2
+       🏪+1" where level 4 really adds three houses and one of everything else.
+       Every figure but the market overstated, and the mill introduced as new by
+       the level that does not introduce it -- level 3 does, and the player had
+       just bought it.
+
+       It is the most expensive thing in the game and the six seconds of
+       scaffolding are exactly when its panel gets opened, because that is the
+       moment a player wants to see what nine hundred wood just bought. So
+       while the work is on, the row below names the level being BUILT and what
+       it will allow; once it is done, the level that could be bought next. */
     const a = HALL[hallLevel()].allow;
-    line = Object.keys(a).map(k => B(k).icon + a[k]).join('  ');
-    /* And what the next level adds, which is the entire reason to buy it. The
-       hall is the most expensive thing in the game -- two thousand wood for the
-       last step -- and its panel showed only what the village is allowed NOW,
-       so the player was asked to spend that on a promise nothing stated. The
-       mill and the market are not even visible in the build tray until the hall
-       unlocks them, which makes it worse: the best part of the upgrade is the
-       part you cannot see coming. */
-    const nx = nl > lvlOf(p) && HALL[nl] ? HALL[nl].allow : null;
+    const up = p.t < 1;
+    line = Object.keys(a).map(k => B(k).icon + a[k]).join('  ')
+      + (up ? '   ·   under scaffolding' : '');
+    /* What that level adds, which is the entire reason to buy it. The hall is
+       the most expensive thing in the game -- two thousand wood for the last
+       step -- and its panel showed only what the village is allowed NOW, so the
+       player was asked to spend that on a promise nothing stated. The mill and
+       the market are not even visible in the build tray until the hall unlocks
+       them, which makes it worse: the best part of the upgrade is the part you
+       cannot see coming. */
+    const show = up ? lvlOf(p) : (nl > lvlOf(p) ? nl : null);
+    const nx = show !== null && HALL[show] ? HALL[show].allow : null;
     if (nx) {
       const add = Object.keys(nx)
         .filter(k => (nx[k] || 0) > (a[k] || 0))
         .map(k => B(k).icon + '+' + ((nx[k] || 0) - (a[k] || 0)));
-      if (add.length) panelRow('level ' + nl + ' adds   ' + add.join(' '),
+      if (add.length) panelRow('level ' + show + ' adds   ' + add.join(' ')
+        + (up ? ' when it is done' : ''),
         lx, R.y - R.h / 2 + 148 * u, R.w - 56 * u, 20 * u, '#a9bd9c', '');
     }
   }
