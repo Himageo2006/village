@@ -8185,7 +8185,11 @@
         if (V.canPlace(k, c, r, V.occupied())) return V.place(k, c, r); return null; };
       /* A house and a farm for their chimneys -- the lumber camp is the one
          building the smoke is withheld from -- and a lamp for its pulse. */
-      for (const k of ['house', 'house', 'farm', 'lumber', 'store', 'lamp']) seat(k);
+      /* Four houses rather than two. The stride check below can only see a
+         villager who is WALKING, and a village of four people has one or two
+         on their feet at a time -- which puts the count it reports one step
+         from the nought that fails it. */
+      for (const k of ['house', 'house', 'house', 'house', 'farm', 'lumber', 'store', 'lamp']) seat(k);
       for (let i = 0; i < 150 * 30; i++) V.step(1 / 30);
     }
     parkGoals();
@@ -8284,13 +8288,26 @@
            in the drawing code says. Restating it here is how the old gate
            would have been copied into its own test -- and that gate was the
            thing that was wrong. */
-        const onFoot = () => {
-          const was = V.villagers.map(v => ({ v, x: v.x, y: v.y }));
+        /* How many are STRIDING this frame -- not merely how many moved.
+
+           A villager inside the arrival window is still drifting the last
+           few pixels onto its target and the game rightly does not animate
+           that as a walk, so counting movement found a walker who was not
+           leaning about one run in six. The condition is written out here
+           rather than borrowed from the game, which is the whole point: a
+           copy does not move when the original is mutated, and the rule is
+           that these two agree. ARRIVE is six. */
+        const STRIDE_FROM = 6;
+        const striding = () => V.villagers.filter(v =>
+          Math.hypot(v.tx - v.x, v.ty - v.y) > STRIDE_FROM
+          && !(v.st === 'idle' && v.wait > 0)).length;
+        const walkersNow = () => {
           V.step(1 / 30);
           V.res.wood = Math.min(V.res.wood, 20);
           V.res.food = Math.min(V.res.food, 10);
-          return was.some(q => Math.hypot(q.v.x - q.x, q.v.y - q.y) > 0.5);
+          return striding();
         };
+        const onFoot = () => walkersNow() > 0;
         /* The sprites have to have loaded, or the villagers are drawn as
            circles on boxes -- a placeholder neither bobs nor leans, so the
            check would pass on a village of them. Waited for before anybody is
@@ -8330,21 +8347,53 @@
              happen back to back with no tick between them, because the
              reduce-motion comparison only means anything on a village that
              has not moved between the two. */
-          let bestTilt = 0, bestLift = 0, stillTilted = 0, mismatched = 0, samples = 0;
-          for (let shot = 0; shot < 15; shot++) {
+          /* And only the frames where somebody really is on their feet.
+
+             Sampling across a stride took the phase out of it; this takes
+             out the other half, which is that the one person walking can
+             ARRIVE part way through the sampling and stand still for the
+             rest of it. A sample with nobody walking says nothing about the
+             walk, so it is not counted -- and if too few of them have anyone
+             walking at all, the sweep says that rather than reporting a
+             village that never leans. */
+          /* Everyone who is walking is leaning, counted against each other.
+
+             "At least one villager leaned" was the rule, and it is far too
+             weak: it passes a game where one of three walkers leans, and it
+             sits one step from nought on a village with a single walker,
+             which is what made this sweep fail a battery once and then
+             refuse to fail again.
+
+             The honest game leans exactly as many as are striding, and not
+             approximately: measured over 399 consecutive frames, the count
+             drawn leaning equalled the count striding every single time,
+             with no frame short and none over. So the rule is equality, and
+             a game that animates only some of its walkers fails it at the
+             first frame. */
+          let worstShort = 0, bestTilt = 0, bestLift = 0, stillTilted = 0, mismatched = 0, samples = 0;
+          for (let shot = 0; shot < 90 && samples < 15; shot++) {
+            const walkers = walkersNow();         // this steps a frame itself
+            if (!walkers) continue;
             const m = watch(false), r = watch(true);
             samples++;
-            bestTilt = Math.max(bestTilt, m.angles.filter(a => Math.abs(a) > 1e-9).length);
+            const tilted = m.angles.filter(a => Math.abs(a) > 1e-9).length;
+            worstShort = Math.max(worstShort, walkers - tilted);
+            bestTilt = Math.max(bestTilt, tilted);
             bestLift = Math.max(bestLift, m.highs.filter((h, i) =>
               r.highs[i] !== undefined && Math.abs(h - r.highs[i]) > 1e-9).length);
             stillTilted += r.angles.filter(a => Math.abs(a) > 1e-9).length;
             if (m.highs.length !== r.highs.length) mismatched++;
-            for (let i = 0; i < 2; i++) V.step(1 / 30);
+            V.step(1 / 30);
           }
-          rock = { tilted: bestTilt, lifted: bestLift, samples };
-          if (!rock.tilted && !rock.lifted)
-            fails.push('somebody was walking through fifteen frames of a stride and not one'
-              + ' villager leaned or was lifted, so the walk the source describes never runs');
+          rock = { tilted: bestTilt, lifted: bestLift, samples, worstShort };
+          if (samples < 5)
+            fails.push('only ' + samples + ' frames in three seconds had anybody walking at all,'
+              + ' so the stride could not be judged');
+          else if (worstShort > 0)
+            fails.push(worstShort + ' of the villagers on their feet were not leaning on their stride,'
+              + ' so the walk the source describes does not run for all of them');
+          else if (!rock.lifted)
+            fails.push('every walker leaned and not one of them was lifted, so the bob never runs');
           if (stillTilted)
             fails.push(stillTilted + ' villagers were still leaning on their stride with reduce motion on');
           if (mismatched)
