@@ -3988,15 +3988,34 @@ function drawHUD() {
       }
       g.restore();
     }
-    /* Which stall on the board trades best. The rate rises with the size, and
-       nothing on the card would otherwise say so -- comparing 105-for-99
-       against 345-for-341 in your head is not a decision anyone should be asked
-       to make while the numbers are already there to be compared for them. */
-    const bestTier = rs.reduce((n, r) => Math.max(n, r.o.tier || 0), 0);
+    /* Which stall on the board trades best. Nothing on the card would otherwise
+       say so -- comparing 105-for-99 against 345-for-341 in your head is not a
+       decision anyone should be asked to make while the numbers are already
+       there to be compared for them.
+
+       Asked of the TRADE, not of the size label on it. This used to pick the
+       highest tier on the board, on the reasoning that the rate rises with the
+       size -- true of an offer the moment it is written, and the tier is only
+       ever a note about how big it was. The numbers are what the player is
+       being told about, and the two can come apart: an order saved before
+       tiers existed is given one on load by its size against the CURRENT
+       ceiling, so a small, nearly-even trade written when the barns held four
+       hundred comes back labelled as the smallest size in a village holding
+       four and a half thousand. Measured on exactly that board: 🪵92 for 🌾91,
+       which is 0.989, sitting under "tap to trade" while 🪵555 for 🌾525 --
+       0.946, thirty food worse -- wore the gold border and the words "best
+       rate".
+
+       Both sides as a share of their own ceiling, which is the same comparison
+       makeOrder uses to keep every offer below even; the two ceilings can
+       differ. */
+    const worth = o => (o.getN / Math.max(1, caps[o.getK]))
+      / Math.max(1e-9, o.giveN / Math.max(1, caps[o.giveK]));
+    const bestWorth = rs.reduce((n, r) => Math.max(n, worth(r.o)), 0);
     for (const r of rs) {
       const ok = canFill(r.o);
-      const best = ok && rs.length > 1 && (r.o.tier || 0) === bestTier
-        && rs.some(q => (q.o.tier || 0) !== bestTier);
+      const best = ok && rs.length > 1 && worth(r.o) >= bestWorth - 1e-9
+        && rs.some(q => worth(q.o) < bestWorth - 1e-9);
       g.save();
       g.fillStyle = ok ? 'rgba(22,32,20,.92)' : 'rgba(40,22,20,.92)';
       g.strokeStyle = best ? 'rgba(240,216,148,.9)'

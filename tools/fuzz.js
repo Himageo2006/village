@@ -5186,6 +5186,200 @@
 
        spotSweep()  -> { tried, spread, fails }
   --------------------------------------------------------------------------- */
+  /* ---------------------------------------------------------------------------
+     What the trade card says about itself.
+
+     Each stall carries one line between the two numbers, and it is the only
+     thing on the board telling the player what to do about that offer:
+
+       need 🪵420    this much short of being able to take it
+       no room       the payout would not fit
+       best rate     nothing on the board trades better
+       tap to trade  takeable, and not the best
+
+     orderSweep holds the board's MECHANICS -- a stall keeps its place when its
+     neighbour is filled, an offer the player is saving for is never handed to
+     the next trader -- and nothing had ever read what the cards say.
+
+     "best rate" is the one with something to get wrong, because it was asked of
+     the size label rather than of the trade. The tier is a note about how big
+     an offer was when it was written; the rate is what the player is being told
+     about, and the two come apart on a board that outlived the ceiling it was
+     written against.
+
+       the shortfall    is what is missing, and handing it over makes the card
+                        takeable
+       no room          the game refuses it, and making room makes it takeable
+       best rate        no other card on the board trades better, by the same
+                        share-of-the-ceiling comparison makeOrder uses
+       tap to trade     the tap works: exactly giveN leaves, exactly getN
+                        arrives, and the stall is left empty
+       and all four     appear, or a line nobody can reach is a line nobody
+                        can check
+
+       cardSweep()  -> { boards, seen, fails }
+  --------------------------------------------------------------------------- */
+  window.cardSweep = function () {
+    const V = window.__v, cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
+    const fails = [], orig = ctx.fillText;
+    const LINE = /^(need [^ ]*\d+|no room|best rate|tap to trade)$/;
+    /* Read in the order the cards are laid out, which is the order orderRects
+       gives and so the order they are drawn. */
+    const lines = () => {
+      const got = [];
+      ctx.fillText = function (t, ...a) { if (LINE.test(String(t))) got.push(String(t)); return orig.call(this, t, ...a); };
+      try { V.draw(); } finally { ctx.fillText = orig; }
+      return got;
+    };
+    const worth = o => (o.getN / Math.max(1, V.caps[o.getK]))
+      / Math.max(1e-9, o.giveN / Math.max(1, V.caps[o.giveK]));
+    const put = (k, c, r) => V.canPlace(k, c, r, V.occupied()) ? V.place(k, c, r) : false;
+    const seat = k => { const L = V.landBounds();
+      for (let r = L.lo; r <= L.hi; r++) for (let c = L.lo; c <= L.hi; c++) if (put(k, c, r)) return true;
+      return false; };
+    const settle = () => {
+      for (const q of V.placed) if (q.t >= 1) q.t = 0.9;
+      for (let i = 0; i < 40; i++) V.step(1 / 30);
+    };
+    const village = hallLvl => {
+      V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
+      V.away = null; V.goalDone = null; V.finished = null; V.panel = null;
+      V.sel = null; V.moving = null; V.claimAsk = false; V.orders.length = 0;
+      V.goalIdx = V.GOALS.length; V.tutSeen.length = 0; for (const h of V.TUT) V.tutSeen.push(h.id);
+      V.ensureHall(); V.placed[0].lvl = hallLvl; V.placed[0].t = 1;
+      V.res.wood = 9e5; V.res.food = 9e5; settle();
+      V.barMode = 'orders';
+    };
+    const grow = n => {
+      for (let i = 0; i < n; i++) { V.res.wood = 9e5; V.res.food = 9e5; seat('store'); }
+      for (const q of V.placed) if (q.key === 'store') q.lvl = 5;
+      settle();
+    };
+
+    const seen = new Set();
+    let boards = 0;
+    /* Read a board and hold every card on it to its line. */
+    const check = where => {
+      boards++;
+      V.step(0.001);
+      const said = lines(), cards = V.orders.slice();
+      if (said.length !== cards.length) {
+        fails.push('the board in ' + where + ' holds ' + cards.length + ' offers and drew '
+          + said.length + ' lines: ' + said.join(' / '));
+        return;
+      }
+      const bestWorth = cards.reduce((n, o) => Math.max(n, worth(o)), 0);
+      for (let i = 0; i < cards.length; i++) {
+        const o = cards[i], t = said[i];
+        seen.add(/^need /.test(t) ? 'need' : t);
+        const card = '🪵/🌾 ' + o.giveN + ' for ' + o.getN + ' in ' + where;
+        const short = Math.ceil(o.giveN - V.res[o.giveK]);
+        if (/^need /.test(t)) {
+          const m = /(\d+)/.exec(t);
+          if (short <= 0) fails.push('the card ' + card + ' says "' + t + '" and the village can pay it');
+          else if (+m[1] !== short)
+            fails.push('the card ' + card + ' says "' + t + '" and the village is ' + short + ' short');
+        } else if (t === 'no room') {
+          if (short > 0) fails.push('the card ' + card + ' says "no room" and the village cannot pay for it either');
+          else if (V.canFill(o)) fails.push('the card ' + card + ' says "no room" and the game would fill it');
+        } else {
+          if (!V.canFill(o)) fails.push('the card ' + card + ' says "' + t + '" and the game refuses it');
+          if (t === 'best rate') {
+            for (const q of cards)
+              if (worth(q) > worth(o) + 1e-9)
+                fails.push('the card ' + card + ' is called the best rate at ' + worth(o).toFixed(3)
+                  + ' and ' + q.giveN + ' for ' + q.getN + ' on the same board is ' + worth(q).toFixed(3));
+          }
+        }
+      }
+    };
+
+    /* ---- a fresh board, enough to pay for all of it ---- */
+    village(5); grow(4);
+    V.res.wood = V.caps.wood; V.res.food = Math.floor(V.caps.food * 0.2);
+    V.orders.length = 0;
+    for (let i = 0; i < 3; i++) V.orders.push({ ...V.makeOrder(i), slot: i });
+    check('a fresh board the village can pay for');
+
+    /* ---- and with an empty purse, so every card has to say what is missing ---- */
+    V.res.wood = 0; V.res.food = 0;
+    check('a board with nothing in the stores');
+
+    /* ---- and with the payout side at its ceiling, so there is nowhere to put it ---- */
+    V.res.wood = V.caps.wood; V.res.food = V.caps.food;
+    check('a board with both barns at the ceiling');
+
+    /* ---- the board that outlived its ceiling ----
+
+       An offer written when the barns held four hundred, still standing in a
+       village holding four and a half thousand, and saved WITHOUT the tier --
+       which is what a save made before tiers existed looks like, and load gives
+       it one by its size against the ceiling it comes back to. The trade is
+       unchanged and nearly even; the label it is handed is the smallest. */
+    {
+      village(2);
+      V.res.wood = V.caps.wood; V.res.food = Math.floor(V.caps.food * 0.2);
+      const old = { ...V.makeOrder(2), slot: 0 };
+      grow(4);
+      V.placed[0].lvl = 5; settle();
+      V.res.wood = V.caps.wood; V.res.food = Math.floor(V.caps.food * 0.2);
+      V.orders.length = 0;
+      V.orders.push(old, { ...V.makeOrder(0), slot: 1 }, { ...V.makeOrder(1), slot: 2 });
+      V.save();
+      try {
+        const raw = JSON.parse(localStorage.getItem('vil_save'));
+        for (const o of raw.orders || []) delete o.tier;
+        localStorage.setItem('vil_save', JSON.stringify(raw));
+        V.load(); V.landTransit();
+      } catch (e) { fails.push('the legacy-board check could not write a save: ' + (e && e.message)); }
+      V.barMode = 'orders';
+      V.res.wood = V.caps.wood; V.res.food = Math.floor(V.caps.food * 0.2);
+      if (V.orders.length < 3) fails.push('the legacy board came back with only ' + V.orders.length + ' offers');
+      else {
+        const w = V.orders.map(worth);
+        if (Math.max(...w) - Math.min(...w) < 0.02)
+          fails.push('the legacy board\'s offers are all within ' + (Math.max(...w) - Math.min(...w)).toFixed(3)
+            + ' of each other, so which is best proves nothing');
+        check('a board that outlived its ceiling');
+      }
+    }
+
+    /* ---- and the tap does what the card says ---- */
+    {
+      village(5); grow(4);
+      V.res.wood = V.caps.wood; V.res.food = Math.floor(V.caps.food * 0.2);
+      V.orders.length = 0;
+      for (let i = 0; i < 3; i++) V.orders.push({ ...V.makeOrder(i), slot: i });
+      V.step(0.001);
+      const said = lines();
+      const i = said.findIndex(t => t === 'best rate' || t === 'tap to trade');
+      if (i < 0) fails.push('no card on a paid-up board offered itself to be tapped');
+      else {
+        const o = V.orders[i], slot = o.slot;
+        const before = { wood: V.res.wood, food: V.res.food, done: V.ordersDone };
+        if (!V.fillOrder(o)) fails.push('a card reading "' + said[i] + '" refused the tap');
+        else {
+          if (Math.abs((before[o.giveK] - V.res[o.giveK]) - o.giveN) > 0.01)
+            fails.push('a card asking ' + o.giveN + ' ' + o.giveK + ' took '
+              + (before[o.giveK] - V.res[o.giveK]).toFixed(1));
+          if (Math.abs((V.res[o.getK] - before[o.getK]) - o.getN) > 0.01)
+            fails.push('a card paying ' + o.getN + ' ' + o.getK + ' handed over '
+              + (V.res[o.getK] - before[o.getK]).toFixed(1));
+          if (V.ordersDone !== before.done + 1)
+            fails.push('a filled order did not count towards the tally of trades');
+          if (V.orders.some(q => q.id === o.id)) fails.push('a filled order is still on the board');
+          if (V.orders.some(q => q.slot === slot)) fails.push('a filled stall was taken over instead of left empty');
+        }
+      }
+    }
+
+    for (const k of ['need', 'no room', 'best rate', 'tap to trade'])
+      if (!seen.has(k)) fails.push('no trade card ever said "' + k + '"');
+
+    V.orders.length = 0; V.barMode = 'build'; V.goalIdx = 0; V.step(0.001);
+    return { boards, seen: [...seen], fails };
+  };
+
   window.spotSweep = function () {
     const V = window.__v, cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
     const fails = [], orig = ctx.fillText;
@@ -7421,6 +7615,7 @@
       ['shape', () => window.shapeSweep()],
       ['chip', () => window.chipSweep()],
       ['spot', () => window.spotSweep()],
+      ['card', () => window.cardSweep()],
       ['order', () => window.orderSweep()],
       ['tap', () => window.tapSweep()],
       ['text', () => window.textSweep()],
