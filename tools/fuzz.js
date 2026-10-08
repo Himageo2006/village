@@ -4558,6 +4558,67 @@
         fails.push('paving the route did not shorten the walk at all: ' + bareSaid.toFixed(2)
           + 's before, ' + pavedSaid.toFixed(2) + 's after');
     }
+    /* And taking a road up costs what laying it down was worth.
+
+       Every other decoration is charm and nothing else, so the row that
+       warns what a sale costs could work the whole question out by dropping
+       the charm total and asking what the village would then deliver. A road
+       is the one that is not: it is worth a single charm and better than
+       twice the walking speed, and the walk is the entire reason to lay one.
+       Dropping one charm out of a village of sixteen moves the delivered
+       total by less than half a hundredth of a unit, so the row found no
+       figure worth printing and said 'Selling it takes 1 charm' -- over a
+       tile carrying two workplaces, one tap before it came up.
+
+       The badge over the same tile, before it was laid, had the right answer
+       all along: it tries the tile in the route and quotes the quicker walk.
+       So the two are held against each other and both against the village,
+       which is a shape that needs no number written down here.
+
+       Measured in the SAME frame, with no step between the reading and the
+       sale. A step lets assignJobs move somebody, and then the figure
+       describes a different village from the one that was quoted -- which is
+       the mistake this file has now made three times and does not intend to
+       make a fourth. */
+    {
+      let worth = 0, silent = 0, worstGap = 0, worstAt = null, worstSays = null, worstReal = null;
+      let worstBuy = 0, worstBuyAt = null;
+      for (const at of V.placed.filter(q => q.key === 'path').map(q => ({ c: q.c, r: q.r }))) {
+        const q = V.placed.find(z => z.key === 'path' && z.c === at.c && z.r === at.r);
+        if (!q) continue;
+        const said = V.saleCost(q) || '';
+        /* Read by splitting, not by matching. A pattern written here loses
+           its backslashes on the way into this file -- twice now -- and a
+           pattern that matches nothing reports every figure as missing,
+           which would have made this check pass by accident on the day it
+           was written. Splitting needs no escape. */
+        const quotes = said.indexOf('/s') >= 0;
+        const says = quotes ? parseFloat(said.split('−').pop()) : 0;
+        const was = V.deliveredAtMul(V.charmMul());
+        if (!V.sellBuilding(q)) { fails.push('the road check could not take up the path at ' + at.c + ',' + at.r); continue; }
+        const real = was - V.deliveredAtMul(V.charmMul());
+        /* And what the game would quote for laying this very tile back, which
+           is the same sum pointing the other way. */
+        const buy = V.decorGainAt('path', at.c, at.r);
+        if (!V.place('path', at.c, at.r)) { fails.push('the road check could not lay the path back at ' + at.c + ',' + at.r); continue; }
+        if (real > 0.005) worth++;
+        if (real > 0.005 && !quotes) { silent++; if (real > (worstReal || 0)) { worstAt = at; worstReal = real; } }
+        else if (Math.abs(says - real) > 0.011 && Math.abs(says - real) > worstGap) {
+          worstGap = Math.abs(says - real); worstAt = at; worstSays = says; worstReal = real;
+        }
+        if (Math.abs(buy - real) > worstBuy) { worstBuy = Math.abs(buy - real); worstBuyAt = at; }
+      }
+      if (!worth) fails.push('not one road tile was worth anything to the village, so the sale warning proves nothing');
+      if (silent)
+        fails.push(silent + ' road tiles cost the village something and their panels quoted no figure at all, the dearest at '
+          + worstAt.c + ',' + worstAt.r + ' worth ' + worstReal.toFixed(3) + '/s');
+      else if (worstGap > 0.011)
+        fails.push('the panel for the road at ' + worstAt.c + ',' + worstAt.r + ' says taking it up costs '
+          + worstSays.toFixed(2) + '/s and the village lost ' + worstReal.toFixed(3) + '/s');
+      if (worstBuy > 0.011)
+        fails.push('the road at ' + worstBuyAt.c + ',' + worstBuyAt.r + ' is quoted one figure to lay and another to take up, out by '
+          + worstBuy.toFixed(3) + '/s');
+    }
     /* And the card still says what the constant does. The words have drifted
        from the number here before. */
     const blurb = (V.B('path').blurb || '').toLowerCase();

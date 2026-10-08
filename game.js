@@ -4597,8 +4597,37 @@ function saleCost(p) {
     return wg.gain > 0.005 ? 'Selling it takes −' + wg.gain.toFixed(2) + '/s from ' + count(wg.n, 'workplace') : null;
   }
   if (b.charm) {
-    const now = deliveredAtMul(charmMul()), after = deliveredAtMul(mulFor(Math.max(0, charmSum - b.charm)));
-    return 'Selling it takes ✨' + b.charm + ' charm' + (now - after > 0.005 ? '   —   −' + (now - after).toFixed(2) + '/s' : '');
+    const now = deliveredAtMul(charmMul()), less = Math.max(0, charmSum - b.charm);
+    /* A path is not only charm, and this was the one place in the game that
+       said it was.
+
+       A road is worth a single charm and it is not what a road is for: a
+       villager walks it at better than twice the speed, so a paved route is
+       half the reason a distant farm delivers at all. The label over a path
+       about to be laid has always said so -- it tries the tile in the route
+       and quotes the quicker walk, because 'charm alone understated a path by
+       half or more'. This row, which is the LAST thing a player reads before
+       the second tap takes the road up again, changed the charm total and
+       left the paving exactly where it was. So it subtracted one charm from a
+       village of sixteen, found the difference under half a hundredth of a
+       unit, and dropped the figure entirely.
+
+       Measured on a thirty-building village with every workplace's route
+       paved: sixteen road tiles, not one of which quoted a rate, together
+       worth 1.07 goods a second with the hands held still. The dearest single
+       tile cost 0.21/s -- two thirds of what a whole farm delivers -- and the
+       game had offered that same figure, out of this same sum, at the moment
+       the player laid it.
+
+       Only the path needs the second set: every other decoration is charm and
+       nothing else, and for those the two calls are the same call. */
+    let after;
+    if (p.key === 'path') {
+      const gone = new Set(pathSet); gone.delete(p.c + ',' + p.r);
+      after = deliveredWithPaths(gone, less);
+    } else after = deliveredAtMul(mulFor(less));
+    const lost = Math.max(0, now - after);
+    return 'Selling it takes ✨' + b.charm + ' charm' + (lost > 0.005 ? '   —   −' + lost.toFixed(2) + '/s' : '');
   }
   return null;
 }
@@ -4851,6 +4880,21 @@ function deliveredAtMul(m) {
   return total;
 }
 const mulFor = sum => 1 + Math.min(CHARM_CAP, sum / CHARM_FULL * CHARM_CAP);
+/* The same question asked of a village whose roads are not the ones it has:
+   what would it deliver with THESE paved tiles and THIS much charm.
+
+   Laying a path and taking one up are the same sum pointing opposite ways,
+   and they were written twice -- once here, correctly, for the label over a
+   path about to go down, and once in saleCost, where the paving was simply
+   left out. One function now, because a figure quoted to buy something and
+   a figure quoted to sell the same thing have to come from the same place
+   or they will disagree, and they did. */
+function deliveredWithPaths(set, sum) {
+  const keepSet = pathSet, keepCache = travelCache;
+  pathSet = set; travelCache = new Map();
+  try { return deliveredAtMul(mulFor(sum)); }
+  finally { pathSet = keepSet; travelCache = keepCache; }
+}
 function charmDelivered() {
   const m = charmMul();
   return m <= 1 ? 0 : deliveredAtMul(m) - deliveredAtMul(1);
@@ -4882,12 +4926,7 @@ function decorGainAt(key, c, r) {
   const add = usefulCharm(key);
   if (key !== 'path') return charmGainFrom(add);
   const now = deliveredAtMul(charmMul());
-  const keepSet = pathSet, keepCache = travelCache;
-  pathSet = new Set(pathSet); pathSet.add(c + ',' + r); travelCache = new Map();
-  let then;
-  try { then = deliveredAtMul(mulFor(charmSum + add)); }
-  finally { pathSet = keepSet; travelCache = keepCache; }
-  return Math.max(0, then - now);
+  return Math.max(0, deliveredWithPaths(new Set(pathSet).add(c + ',' + r), charmSum + add) - now);
 }
 
 /* How the village is doing as a whole, shown on the hall.
