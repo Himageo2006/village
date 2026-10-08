@@ -91,6 +91,67 @@ if (themeCode.includes('@drawable' + '/' + 'splash'))
   fails.push('the launch theme points at @drawable/splash again -- android:background is not a window'
     + ' background, so it would ship the images without ever showing them');
 
+/* What actually gets packaged.
+
+   The APK is built from www/, and www/ is filled by a script with a list of
+   files typed into it. Nothing has ever checked that the list is complete or
+   that the copies are current, which leaves two ways to ship a broken game
+   with every other check in this project passing.
+
+   A stale copy is the first. "Editing game.js and running a Gradle build is
+   not enough" is the comment at the top of sync-www.js, and it cost two
+   build cycles on another project before it was learned. npm run sync copies
+   first and so cannot be stale -- but a build started from Android Studio, or
+   a bare cap sync, does not run it, and then the phone gets yesterday.
+
+   A missing one is the second, and it is worse because it is silent. The page
+   asks for what it needs by name; a name the list does not carry resolves to
+   nothing, and a WebView with no script in it is a blank screen with no error
+   anywhere a developer would look.
+
+   So: everything the shipped page asks for is in www/, everything in www/
+   matches the copy it came from, and nothing reaches outside it -- an
+   absolute path or a ../ works against a dev server rooted at the repository
+   and does not work in an APK rooted at www/. */
+{
+  const www = path.join(root, 'www');
+  if (!fs.existsSync(www)) {
+    fails.push('there is no www/ at all, so there is nothing to package -- run npm run sync:www');
+  } else {
+    /* Current. Compared byte for byte against what it was copied from. */
+    for (const name of ['index.html', 'game.js']) {
+      const from = path.join(root, name), to = path.join(www, name);
+      if (!fs.existsSync(to)) { fails.push(name + ' is missing from www/, so the APK ships without it');
+        continue; }
+      if (!fs.readFileSync(from).equals(fs.readFileSync(to)))
+        fails.push('www/' + name + ' is not the ' + name + ' in this folder -- the APK would ship an older game. Run npm run sync:www');
+    }
+    /* Complete. Every name the page asks for is a file that is there. */
+    const page = fs.readFileSync(path.join(www, 'index.html'), 'utf8');
+    const refs = [...page.matchAll(new RegExp('(?:src|href)="([^"]+)"', 'g'))].map(m => m[1]);
+    if (!refs.length) fails.push('the shipped page asks for nothing at all, which cannot be right');
+    for (const r of refs) {
+      if (/^(https?:|data:|#)/.test(r)) continue;          // not ours to find
+      if (r.startsWith('/') || r.includes('..'))
+        fails.push('the shipped page reaches outside www/ for ' + r + ', which works against a dev server and not inside an APK');
+      else if (!fs.existsSync(path.join(www, r)))
+        fails.push('the shipped page asks for ' + r + ' and www/ does not have it, so the phone gets a blank screen');
+    }
+    /* And the pictures, which the game asks for by name at run time rather
+       than through the page, so nothing above would miss one. */
+    const from = path.join(root, 'art'), to = path.join(www, 'art');
+    if (fs.existsSync(from)) {
+      const want = fs.readdirSync(from, { withFileTypes: true })
+        .filter(e => e.isFile() && !e.name.endsWith('.md')).map(e => e.name);
+      const have = new Set(fs.existsSync(to) ? fs.readdirSync(to) : []);
+      const lost = want.filter(n => !have.has(n));
+      if (lost.length)
+        fails.push(lost.length + ' of the ' + want.length + ' pictures are not in www/art/ (' +
+          lost.slice(0, 4).join(', ') + (lost.length > 4 ? ', ...' : '') + '), and a missing one is drawn as a plain shape with no error anywhere');
+    }
+  }
+}
+
 /* And the wrapper's own settings, which are easy to lose to a cap sync. */
 const man = read('android/app/src/main/AndroidManifest.xml');
 if (!/android:screenOrientation="portrait"/.test(man))
@@ -101,4 +162,4 @@ if (fails.length) {
   for (const f of fails) console.error('  - ' + f);
   process.exit(1);
 }
-console.log('android/  launch screen ' + want + ', portrait locked');
+console.log('android/  launch screen ' + want + ', portrait locked, www/ current and complete');
