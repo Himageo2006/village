@@ -3979,12 +3979,33 @@
         for (let i = 0; i < 20 * 30; i++) V.step(1 / 30);
         const p = V.placed.find(q => q.key === key);
         if (!p) { fails.push('the refund check could not place a ' + key); continue; }
+        /* The panel can only be read over two frames -- the button quotes the
+           refund until it is armed, and the spoil warning appears only once it
+           is -- and each read steps the village a millisecond so the panel can
+           settle. A carrier already standing at a store hands in its eight on
+           that millisecond. Measured at two cases in a hundred and twenty,
+           which is about one battery in forty reporting that a level 3 market
+           'was quoted 430 food back and the village gained 422' -- a figure
+           eight out, in a block whose whole subject is a clamp that lands on a
+           boundary, with the game blamed for the harness walking the stores
+           out from under its own quote between reading it and testing it.
+
+           Carriers are the only thing that moves the stores here; the goals
+           are finished, so nothing else pays in. They are sent away before the
+           stores are set, and that the stores really did hold still across
+           both reads is checked rather than assumed -- the assumption is the
+           part that was wrong last time. */
+        V.villagers.length = 0;
         const cap = V.caps;
         const at = { empty: 0, half: Math.floor(cap.wood / 2), full: cap.wood, short: cap.wood - 40 }[where];
         V.res.wood = at; V.res.food = where === 'empty' ? 0 : Math.min(at, cap.food);
         p.stock = 0;
+        const held = { wood: V.res.wood, food: V.res.food };
         const btn = rowsArmed(p, false).find(t => isBtn.test(t)) || '';
         const warn = rowsArmed(p, true).find(t => /would spoil/.test(t)) || '';
+        if (V.res.wood !== held.wood || V.res.food !== held.food)
+          fails.push('the stores moved from ' + held.wood + ',' + held.food + ' to ' + V.res.wood
+            + ',' + V.res.food + ' while the sell panel was being read, so its two figures do not describe one moment');
         if (!btn) { fails.push('a ' + key + ' panel has no sell button to read'); continue; }
         const said = /nothing|none/.test(btn) ? { wood: 0, food: 0 } : pick(btn);
         const spoiled = warn ? pick(warn.split('—')[1] || '') : { wood: 0, food: 0 };
