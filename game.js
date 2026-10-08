@@ -241,6 +241,14 @@ const SELF_TRIP = (() => {
   }
   return 2 * (sum / (N * N)) / VIL_SPD;
 })();
+/* Which buildings keep their own goods: the hall, and anything with storage.
+
+   Four places were asking this and they did not all agree. rebuildStores
+   decides what counts as a store by it; the building panel suppresses the
+   round-trip row by it, because a storehouse's walk is not a thing to advise
+   anybody about; and the two below -- the route and the best route -- did not
+   ask it at all, which is the whole of the fault this comment sits above. */
+const storesItself = key => { const b = B(key); return !!b && (!!b.caps || key === 'hall'); };
 function routeOf(p) {
   const key = p.id;
   if (key !== undefined && key !== -1) {
@@ -249,7 +257,25 @@ function routeOf(p) {
   }
   const c = centreOf(p), s = nearestStore(c.x, c.y);
   let out;
-  if (!s) out = { secs: 0, paved: 0 };
+  /* A market stores for itself, so it carries nothing anywhere: the load is
+     set down where it was made and the trip is the one a worker makes inside
+     their own building.
+
+     A market standing on the island already got this answer, by accident --
+     it is in the store list, so nearestStore hands it back to itself at
+     nought distance. A market that is not standing yet is not in that list,
+     so the pill under the player's finger priced its round trip as a walk to
+     somebody else's storehouse, and quoted a different number for every tile
+     on an island where the tile makes no difference at all. Measured against
+     the panel of the market afterwards: 0.30/s here, 0.42/s here, 0.23/s
+     here, and 0.53/s delivered wherever it was actually put. The dearest
+     building in the tray, sold on a figure up to a factor of two under what
+     it does, with the spread presented as a reason to choose.
+
+     Asked of the building rather than of the store list, so it is the same
+     answer before it is built, while it is going up, and after. */
+  if (storesItself(p.key)) out = { secs: SELF_TRIP, paved: 0 };
+  else if (!s) out = { secs: 0, paved: 0 };
   else {
     const d = centreOf(s);
     const dist = Math.hypot(d.x - c.x, d.y - c.y);
@@ -313,7 +339,7 @@ function snugWalkOf(b) {
   let best = Infinity;
   const here = tileToWorld((b.w - 1) / 2, (b.h - 1) / 2);
   for (const s of BUILDINGS) {
-    if (!s.caps && s.key !== 'hall') continue;        // the same test rebuildStores uses
+    if (!storesItself(s.key)) continue;               // the same test rebuildStores uses
     for (let dc = -s.w; dc <= b.w; dc++) for (let dr = -s.h; dr <= b.h; dr++) {
       if (dc < b.w && dc + s.w > 0 && dr < b.h && dr + s.h > 0) continue;   // they would overlap
       const t = tileToWorld(dc + (s.w - 1) / 2, dr + (s.h - 1) / 2);
@@ -705,7 +731,7 @@ function rebuildStores() {
        delivery targets was empty -- measured, carriers stopped hauling and goods
        piled up at the workplaces until the scaffolding came down. Upgrading a
        storehouse likewise sent every carrier on a detour to the next one. */
-    if (established(p) && (B(p.key).caps || p.key === 'hall')) {
+    if (established(p) && storesItself(p.key)) {
       const c = centreOf(p);
       storeAt.push({ p, x: c.x, y: c.y });
     }
@@ -5221,7 +5247,7 @@ function drawPanel() {
        printing "0.0s round trip to the nearest store" straight through the
        village summary that shares this row. Two lines of text on top of each
        other, for as long as the panel has existed. */
-    const reach = (b.caps || p.key === 'hall') ? null : reachOf(p);
+    const reach = storesItself(p.key) ? null : reachOf(p);
     /* Not for a market: it makes something AND holds something, so it comes
        through here and through the market block below, and both wanted this
        row. It was drawing the same warning twice in the same place. */

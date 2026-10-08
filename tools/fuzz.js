@@ -7208,7 +7208,20 @@
     V.goalIdx = parkGoals();
 
     let tried = 0, spread = 0;
-    for (const key of ['farm', 'lumber', 'mill']) {
+    /* The market is in this list because it is the one building that both
+       produces and stores, and that made it the one the pill got wrong.
+
+       Every other workplace carries its goods to somebody else's storehouse,
+       so the probe describing an empty tile prices a real walk. A market
+       keeps what it makes: built, it is in the store list and nearestStore
+       hands it back to itself at nought distance. Not built, it is not in
+       that list, so the pill quoted a walk the market will never take -- and
+       quoted a different one for every tile, on an island where the tile
+       makes no difference to it at all. 0.30/s, 0.42/s and 0.23/s over three
+       spots, against 0.53/s delivered wherever it was really put.
+
+       It is the dearest thing in the tray at 200 wood and 120 food. */
+    for (const key of ['farm', 'lumber', 'mill', 'market']) {
       const got = [];
       /* The tiles are chosen by what they are WORTH rather than by where they
          are: every free tile ranked, then the best, the worst and two between.
@@ -7252,6 +7265,14 @@
             + ' and the one built there delivers ' + real + '/s');
       }
       if (got.length >= 2) spread = Math.max(spread, Math.max(...got) - Math.min(...got));
+      /* And a building that keeps its own goods carries nothing anywhere, so
+         every tile on the island is worth the same to it and the pill has to
+         say so. Asked of the building table rather than of the game's own
+         answer to the question, which is the thing under test. */
+      if (V.B(key).caps && got.length >= 2 && Math.max(...got) - Math.min(...got) > 0.011)
+        fails.push('a ' + key + ' stores its own goods and walks nowhere, and the pill quoted it '
+          + Math.min(...got).toFixed(2) + '/s on one tile and ' + Math.max(...got).toFixed(2)
+          + '/s on another');
     }
     if (tried < 6) fails.push('only ' + tried + ' spots were bought, so the pill was barely asked');
     /* And the spots have to be worth choosing between, or a pill that ignored
