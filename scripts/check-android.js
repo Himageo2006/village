@@ -214,10 +214,28 @@ const man = read('android/app/src/main/AndroidManifest.xml');
 if (!/android:screenOrientation="portrait"/.test(man))
   fails.push('the activity is no longer locked to portrait, which the whole layout assumes');
 
+/* And it asks for nothing.
+
+   The template declared INTERNET and the game never used it: it reaches for
+   nothing off the phone, and Capacitor serves the page by intercepting the
+   WebView's own requests rather than over a socket, so nothing underneath
+   needed it either. It is gone, and a game that asks for no permissions at
+   all is the honest thing to put in front of somebody on a store page.
+
+   Keeping it gone is the harder half. cap sync and any plugin added later
+   can both put one back without a word -- which is how it got there in the
+   first place -- so the build stops on ANY permission rather than on the one
+   that was removed. If one is ever genuinely needed, it is added here with
+   its reason, which makes it a decision instead of a default. */
+const asks = [...man.replace(new RegExp('<!--[^]*?-->', 'g'), '')
+  .matchAll(/<uses-permission[^>]*android:name="([^"]+)"/g)].map(m => m[1]);
+if (asks.length)
+  fails.push('the app asks for ' + asks.join(', ') + ' -- it asked for nothing when this check was written, and a permission that arrives on its own is one nobody decided to want');
+
 if (fails.length) {
   console.error('android/  ' + fails.length + ' problem' + (fails.length > 1 ? 's' : '') + ':');
   for (const f of fails) console.error('  - ' + f);
   process.exit(1);
 }
 console.log('android/  launch screen ' + want + ', portrait locked, www/ current and complete,'
-  + ' offline, targeting API ' + (/targetSdkVersion\s*=\s*(\d+)/.exec(read('android/variables.gradle')) || [])[1]);
+  + ' offline, no permissions, targeting API ' + (/targetSdkVersion\s*=\s*(\d+)/.exec(read('android/variables.gradle')) || [])[1]);

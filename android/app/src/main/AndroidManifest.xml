@@ -30,7 +30,20 @@
         </provider>
     </application>
 
-    <!-- Permissions -->
+    <!-- Permissions: none, and that is the whole list.
 
-    <uses-permission android:name="android.permission.INTERNET" />
+         The Capacitor template declares INTERNET. This game does not use it.
+         It reaches for nothing off the phone -- no http, no localhost, no
+         fetch anywhere in the shipped code, which check-android.js now holds
+         it to -- and Capacitor serves the page by intercepting the WebView's
+         own requests and reading out of assets rather than over a socket, so
+         nothing underneath needs it either.
+
+         A game that asks for no permissions at all is also the honest thing
+         to put in front of somebody on a store page.
+
+         cap sync and any plugin added later can both put one back without a
+         word, so check-android.js fails the build on any uses-permission that
+         appears here. If one is ever genuinely needed, add it AND the reason
+         to that check, deliberately. -->
 </manifest>
