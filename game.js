@@ -1862,7 +1862,8 @@ const GOALS = [
     at: () => { const a = HALL[HALL_MAX].allow; let have = 0, want = 0;
                 for (const k of Object.keys(a)) { have += Math.min(countOf(k), a[k]); want += a[k]; }
                 return [have, want]; } },
-  { text: 'Fill the village with charm',   done: () => charmTotal() >= CHARM_FULL,
+  { text: 'Fill the village with charm',   buy: 'charm',
+    done: () => charmTotal() >= CHARM_FULL,
     give: { wood: 2600, food: 1700 },
     at: () => [Math.min(charmTotal(), CHARM_FULL), CHARM_FULL] },
   { text: 'Raise every workplace to level 5', buy: 'workplace',
@@ -2124,6 +2125,10 @@ const noSpareHands = key => {
 /* Charm: what decorations are actually for. A pleasant village works a little
    harder, capped so it stays a bonus rather than the main economy. */
 const CHARM_FULL = 600, CHARM_CAP = 0.20;
+/* The most charm one ornament slot can be worth, which decides whether the
+   charm goal is still reachable. Read off the table so that retuning a
+   statue cannot leave this behind. */
+const BEST_CHARM = BUILDINGS.reduce((n, b) => b.decor ? Math.max(n, b.charm || 0) : n, 0);
 /* Cached for the same reason as the stores: every rate the interface quotes
    multiplies by charm, so this whole-village scan ran twice per producer per
    frame. Decorations only appear and disappear through the paths that already
@@ -4203,6 +4208,40 @@ function buyProgress(kind) {
     if (overCaps(best)) return 'needs more storage';
     if (canAfford(best)) return 'ready — tap a workplace';
     return 'cheapest next ' + Object.entries(best).map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join(' ');
+  }
+  /* Charm, which is the one goal a player can put out of their own reach.
+
+     Roads are ornaments: they are laid from the same tray and they count
+     against the same sixty slots. That is reasonable -- they are things
+     standing on the ground -- but it means paving competes with charm for
+     the same budget, and the player is given no reason to think so. The
+     arithmetic is unforgiving: a statue is the best a slot can hold, the
+     goal wants six hundred, so fourteen slots have to be kept for statues
+     and anything past forty-seven roads makes the goal impossible. Paving
+     the straight route from every workplace to its nearest store on the
+     whole island takes thirty-nine, measured, so a player doing the sensible
+     thing is already two thirds of the way to a cliff nothing mentions.
+
+     It is recoverable -- a road comes up again and gives a slot back -- but
+     only by somebody who has worked out what happened, and the strip said
+     the same unchanging line either way. So it says which it is. */
+  if (kind === 'charm') {
+    if (charmTotal() >= CHARM_FULL) return '';
+    const slots = Math.max(0, DECOR_MAX - decorCount());
+    const reach = charmTotal() + BEST_CHARM * slots;
+    if (reach < CHARM_FULL) {
+      /* The remedy, and it has to be one that exists: a road is the cheapest
+         slot to win back, being worth almost no charm itself. */
+      const road = placed.find(p => isDecor(p.key) && (B(p.key).charm || 0) < BEST_CHARM / 4);
+      return road ? 'no room left — remove a ' + B(road.key).name.toLowerCase()
+        : 'no room left — remove an ornament';
+    }
+    const need = Math.ceil((CHARM_FULL - charmTotal()) / BEST_CHARM);
+    const best = BUILDINGS.find(b => b.decor && (b.charm || 0) === BEST_CHARM);
+    if (!best) return '';
+    if (!canAfford(best.cost)) return Object.entries(best.cost).filter(([k, v]) => res[k] < v)
+      .map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + Math.floor(res[k]) + '/' + v).join(' ');
+    return need + ' more ' + best.name.toLowerCase() + (need === 1 ? '' : 's') + ' — ready';
   }
   const cost = kind === 'hall' ? (h ? upInfo(h).cost : null) : landNext();
   if (!cost) return '';

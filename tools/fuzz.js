@@ -4020,7 +4020,8 @@
      The goal strip answers the same questions whichever thing it is pointing at.
 
      A goal that tells you to buy something carries a progress line, and there
-     are three things it can name: the hall, a ring of land, and a workplace.
+     are four things it can name: the hall, a ring of land, a workplace, and
+     charm.
      They are three branches of one function and they had drifted apart -- the
      hall said "building..." while its own scaffolding was up and the workplace
      said nothing at all; the hall and the land said "needs more storage" for a
@@ -4107,6 +4108,117 @@
     RICHLY();
     cases++;
     if (ask('workplace') !== '') fails.push('the strip spoke for a workplace goal with every workplace finished: "' + ask('workplace') + '"');
+
+    /* ---- and charm, which is the one a player can put out of their own reach.
+
+       Roads are ornaments and share the sixty slots with them, so paving
+       competes with charm for the same budget. A statue is the best a slot
+       can hold, so a fixed number of slots must be kept for statues and
+       everything past that makes the goal impossible -- and the strip said
+       the same line either way until it was taught this.
+
+       The edge is worked out here from the table rather than written down,
+       so retuning a statue or the sixty moves the test with it. ---- */
+    {
+      /* Read off the CANVAS rather than out of buyProgress.
+
+         The first version of this asked the function, and the mutation that
+         takes the goal's buy field away -- which is exactly how the strip
+         used to behave -- walked straight through it: the branch still
+         answers when you call it, and the strip simply never calls it. What
+         is being tested is whether the player is told, so the test has to
+         be what the player can read. */
+      const cv2 = document.querySelector('canvas'), ctx2 = cv2.getContext('2d');
+      const line = () => {
+        V.goalIdx = V.GOALS.findIndex(g => /charm/i.test(g.text));
+        V.goalDone = null; V.away = null; V.finished = null; V.claimAsk = false;
+        V.tutSeen.length = 0; for (const h of V.TUT) V.tutSeen.push(h.id);
+        V.step(0.001);
+        const rows = [], o = ctx2.fillText;
+        ctx2.fillText = function (t2, ...a) { rows.push(String(t2)); return o.call(this, t2, ...a); };
+        try { V.draw(); } finally { ctx2.fillText = o; }
+        return rows.find(t2 => /^Fill the village/.test(t2)) || '';
+      };
+      const best = V.BUILDINGS.reduce((n, b) => b.decor ? Math.max(n, b.charm || 0) : n, 0);
+      /* The most roads that still leave room for the statues the goal needs. */
+      const edge = (() => { let r = V.DECOR_MAX;
+        while (r > 0 && r + best * (V.DECOR_MAX - r) < V.CHARM_FULL) r--;
+        return r; })();
+      const lay = n => {
+        V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
+        V.goalIdx = 0; V.tutSeen.length = 0; V.away = null; V.goalDone = null;
+        V.finished = null; V.panel = null; V.sel = null; V.moving = null;
+        V.ensureHall(); V.placed[0].lvl = 5; V.placed[0].t = 1;
+        V.res.wood = 1e6; V.res.food = 1e6;
+        const L = V.landBounds();
+        for (let i = 0; i < n; i++) { V.res.wood = 1e6; V.res.food = 1e6;
+          let put = false;
+          for (let r = L.lo; r <= L.hi && !put; r++) for (let c = L.lo; c <= L.hi && !put; c++)
+            if (V.canPlace('path', c, r, V.occupied())) put = !!V.place('path', c, r);
+          if (!put) break; }
+        for (const q of V.placed) if (q.t < 1) { q.t = 0.9; }
+        for (let i = 0; i < 40; i++) V.step(1 / 30);
+        V.res.wood = 1e6; V.res.food = 1e6; V.step(0.001);
+        return V.decorCount();
+      };
+      if (edge < 2 || edge >= V.DECOR_MAX)
+        fails.push('the charm arithmetic puts its edge at ' + edge + ' roads, which is not an edge at all');
+      else {
+        lay(edge);
+        want('charm', line(), /ready/, 'with the last road that still leaves room');
+        lay(edge + 1);
+        const over = line();
+        cases++;
+        if (!/no room left/.test(over))
+          fails.push('the strip with ' + (edge + 1) + ' roads down, which cannot reach the charm the goal wants, says "' + over + '"');
+        else {
+          /* The remedy is one that can be taken, and taking it works. */
+          /* Split on the divider rather than matched with a pattern.
+
+             The strip carries the reward after this clause, so a pattern run
+             to the end of the line captures "path   ·   reward" and finds
+             nothing standing in the village by that name. The first attempt
+             to stop it at the divider lost its backslash on the way into this
+             file and quietly matched nothing at all -- which is the warning
+             already written beside the launch-theme check, earned a fourth
+             time. Splitting needs no escape, so there is nothing to lose. */
+          const clause = over.split('   ·   ').find(c => c.indexOf('remove a') >= 0) || '';
+          const name = (clause.split('remove a')[1] || '').replace(/^n /, '').trim() || null;
+          const gone = V.placed.find(p => V.isDecor(p.key)
+            && V.B(p.key).name.toLowerCase() === name);
+          cases++;
+          if (!name || !gone)
+            fails.push('the strip says "' + over + '" and there is no such thing standing in the village');
+          else {
+            V.placed.splice(V.placed.indexOf(gone), 1); V.rebuildStores();
+            for (let i = 0; i < 20; i++) V.step(1 / 30);
+            V.res.wood = 1e6; V.res.food = 1e6; V.step(0.001);
+            want('charm', line(), /ready/, 'once the thing it named was removed');
+          }
+        }
+        /* And it asks for what is missing when the purse is empty. */
+        lay(0);
+        V.res.wood = 0; V.res.food = 0; V.step(0.001);
+        want('charm', line(), /\d+\/\d+/, 'the village is saving for');
+        /* And says nothing once there is nothing left to want. */
+        lay(0);
+        { const L = V.landBounds();
+          for (let i = 0; i < 40 && V.charmTotal() < V.CHARM_FULL; i++) {
+            V.res.wood = 1e6; V.res.food = 1e6;
+            let put = false;
+            for (let r = L.lo; r <= L.hi && !put; r++) for (let c = L.lo; c <= L.hi && !put; c++)
+              if (V.canPlace('statue', c, r, V.occupied())) put = !!V.place('statue', c, r);
+            if (!put) break; }
+          for (const q of V.placed) if (q.t < 1) q.t = 0.9;
+          for (let i = 0; i < 40; i++) V.step(1 / 30);
+        }
+        cases++;
+        if (V.charmTotal() < V.CHARM_FULL)
+          fails.push('the charm check could not fill the village with charm, so the finished case proves nothing');
+        else if (V.buyProgress('charm') !== '')
+          fails.push('the strip spoke for a charm goal that is already met: "' + V.buyProgress('charm') + '"');
+      }
+    }
     return { cases, fails };
   };
   /* A goal parked where it cannot be finished, for the sweeps that measure a
