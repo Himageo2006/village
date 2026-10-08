@@ -62,6 +62,48 @@ if (!/^#[0-9a-f]{6}$/.test(want)) {
   say('the page background', bg ? bg[1].toLowerCase() : null, want, 'index.html');
 }
 
+/* The icon, which is the other thing capacitor-assets gets wrong.
+
+   An adaptive icon is two layers, each 108dp. The outer eighteenth of each
+   side is the launcher's to crop, scale and slide about; only the central
+   66.6% is guaranteed to be seen. The foreground is the thing that may be
+   inset, so the picture survives the mask. The background exists to fill
+   the whole 108dp, and it is the only layer that must.
+
+   It was generated with BOTH layers inset by 16.7%, which leaves the rim
+   with nothing in it. Composited and measured at the shipping artwork: at a
+   mask three quarters of the width 63% of the rim is empty, and at the usual
+   circle 97% of it is. The home screen gets a hard-edged square of artwork,
+   smaller than everything beside it, with the mask cutting nothing because
+   there is nothing out there to cut.
+
+   It is also pointed at the launch colour rather than at a white PNG, which
+   makes the icon and the screen it opens into the same resource instead of
+   the same number written twice. */
+for (const name of ['ic_launcher', 'ic_launcher_round']) {
+  const p = 'android/app/src/main/res/mipmap-anydpi-v26/' + name + '.xml';
+  const xml = read(p).replace(new RegExp('<!--[^]*?-->', 'g'), '');
+  const bg = /<background([^>]*)>([^]*?)<\/background>|<background([^>]*)\/>/.exec(xml);
+  if (!bg) { fails.push(name + ' has no background layer at all'); continue; }
+  const inner = (bg[2] || '') + (bg[1] || '') + (bg[3] || '');
+  if (/<inset|android:inset/.test(inner))
+    fails.push(name + ' insets its background layer again -- the rim of the icon is then empty, and the launcher shows a shrunken square instead of a masked icon');
+  if (!/@color\/splashBackground/.test(inner))
+    fails.push(name + ' no longer fills its background with @color/splashBackground, so the icon and the screen it opens into can drift apart');
+}
+/* And the white square capacitor-assets leaves behind to fill it with. */
+{
+  const res = path.join(root, 'android/app/src/main/res');
+  const strays = [];
+  for (const dir of fs.readdirSync(res))
+    for (const ext of ['.png', '.xml'])
+      if (fs.existsSync(path.join(res, dir, 'ic_launcher_background' + ext)))
+        strays.push(dir + '/ic_launcher_background' + ext);
+  if (strays.length)
+    fails.push(strays.length + ' ic_launcher_background files are back (' + strays.slice(0, 3).join(', ')
+      + (strays.length > 3 ? ', ...' : '') + ') -- nothing points at them, and the one that did was painting the icon white');
+}
+
 /* The splash images that are never drawn.
 
    capacitor-assets generates twenty-six of them and points the launch theme
@@ -238,4 +280,4 @@ if (fails.length) {
   process.exit(1);
 }
 console.log('android/  launch screen ' + want + ', portrait locked, www/ current and complete,'
-  + ' offline, no permissions, targeting API ' + (/targetSdkVersion\s*=\s*(\d+)/.exec(read('android/variables.gradle')) || [])[1]);
+  + ' offline, no permissions, icon full-bleed, targeting API ' + (/targetSdkVersion\s*=\s*(\d+)/.exec(read('android/variables.gradle')) || [])[1]);

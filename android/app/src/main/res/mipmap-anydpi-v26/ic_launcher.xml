@@ -1,9 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- The background layer is FULL BLEED, and that is the whole point of it.
+
+     capacitor-assets generated this with the background inset by 16.7% as
+     well as the foreground, which leaves the outer eighteenth of the icon
+     with nothing in it at all. Android guarantees only the central 66.6% is
+     visible and lets the launcher mask reach further, and every standard
+     mask does: composited and measured, at a mask three quarters of the
+     width 63% of the rim is empty, and at the usual circle 97% of it is.
+     What reaches the home screen is not a round icon -- it is a hard-edged
+     square of artwork, smaller than everything beside it, with the mask
+     cutting nothing because there is nothing out there to cut.
+
+     The background is also the game's own colour rather than the white
+     capacitor-assets left here, and it is the SAME resource the launch screen
+     uses rather than a fifth copy of the number. It is insurance now rather
+     than decoration: the foreground is a full-bleed 432-square illustration
+     and fills the icon on its own, so the colour is only seen if a mask ever
+     reaches past the art. Rendered under a circle, a squircle and a rounded
+     square, the house sits well inside all three and only sky and grass are
+     cropped. -->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background>
-        <inset android:drawable="@mipmap/ic_launcher_background" android:inset="16.7%" />
-    </background>
-    <foreground>
-        <inset android:drawable="@mipmap/ic_launcher_foreground" android:inset="16.7%" />
-    </foreground>
+    <background android:drawable="@color/splashBackground" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
 </adaptive-icon>
