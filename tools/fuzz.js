@@ -2588,6 +2588,96 @@
       try { if (realBak !== null) localStorage.setItem(V.KEY_BAK, realBak); else localStorage.removeItem(V.KEY_BAK); } catch (e) {}
     }
 
+    /* A village written by another build of the game.
+
+       usableSave wants the version to match exactly, which is right: this
+       build does not know what a v3 placed array means. What it must not do
+       is throw the file away. It used to: load gave up, the game started
+       empty, the first autosave wrote the empty village over the file, and
+       the backup went with it inside the minute -- promotion copies the
+       primary whenever the primary is readable, and an empty village is
+       perfectly readable. Seven buildings on disk, both copies gone in under
+       a minute, and not a word on screen.
+
+       The version has moved three times already, so a fourth is likely, and
+       after this ships a fourth would do that to somebody who had played for
+       hours. Now it is set aside and the player is told. */
+    {
+      const keepOther = (() => { try { return localStorage.getItem(V.KEY_OTHER); } catch (e) { return null; } })();
+      const cv2 = document.querySelector("canvas"), ctx2 = cv2.getContext("2d");
+      const notice = () => {
+        V.step(0.001);
+        const rows = [], o = ctx2.fillText;
+        ctx2.fillText = function (t2, ...a) { rows.push(String(t2)); return o.call(this, t2, ...a); };
+        try { V.draw(); } finally { ctx2.fillText = o; }
+        return rows.join(" ");
+      };
+      const coldStart = () => {
+        V.placed.length = 0; V.villagers.length = 0; V.orders.length = 0;
+        V.away = null; V.goalDone = null; V.finished = null; V.otherBuild = 0;
+        /* A cold start has not restored anything from a backup either. The block
+           above this one leaves that flag set, and the notice shows one message
+           at a time -- so without this the screen says "restored from a backup"
+           and the check reads it as having said nothing about the version. */
+        V.loadedFromBackup = false; V.saveFailed = false;
+        V.load(); V.landTransit(); V.step(0.001);
+      };
+      try {
+        buildVillage(RICH);
+        V.save();
+        const mine = JSON.parse(localStorage.getItem(V.KEY));
+        const had = mine.placed.length;
+        if (had < 3) bakFails.push("the other-build check had only " + had + " buildings to lose");
+        else {
+          /* One version back, which is what an update looks like from the
+             file's side. */
+          const older = JSON.stringify({ ...mine, v: V.SAVE_V - 1 });
+          for (const k of [V.KEY, V.KEY_BAK]) localStorage.setItem(k, older);
+          try { localStorage.removeItem(V.KEY_OTHER); } catch (e) {}
+          coldStart();
+          if (V.placed.length > 1)
+            bakFails.push("a save from another build was loaded as if this build understood it");
+          const said = notice();
+          if (said.indexOf("another version") < 0)
+            bakFails.push("a village from another build was found and the screen said nothing about it");
+          /* A minute of play and a run of saves, which is what used to eat it. */
+          for (let i = 0; i < 60 * 30; i++) V.step(1 / 30);
+          for (let i = 0; i < V.BACKUP_EVERY * 3; i++) V.save();
+          const kept = (() => { try { return JSON.parse(localStorage.getItem(V.KEY_OTHER)); } catch (e) { return null; } })();
+          if (!kept || !Array.isArray(kept.placed) || kept.placed.length !== had)
+            bakFails.push("a village from another build was not kept through a minute of play");
+          else {
+            /* And the next time the app opens, which is when the empty
+               village would overwrite the one being kept safe. */
+            const before = localStorage.getItem(V.KEY_OTHER);
+            coldStart();
+            for (let i = 0; i < V.BACKUP_EVERY * 3; i++) V.save();
+            if (localStorage.getItem(V.KEY_OTHER) !== before)
+              bakFails.push("the village being kept safe was overwritten the second time the game started");
+          }
+          /* And a save that is not a village is not worth keeping: there is
+             nothing in it to bring back, and storage is not free. */
+          try { localStorage.removeItem(V.KEY_OTHER); } catch (e) {}
+          for (const k of [V.KEY, V.KEY_BAK]) localStorage.setItem(k, "{\"v\":3,\"placed\":\"none\"}");
+          coldStart();
+          if (localStorage.getItem(V.KEY_OTHER))
+            bakFails.push("a save with no village in it was kept as if it were one");
+          /* And an ordinary, current save says nothing and keeps nothing. */
+          try { localStorage.removeItem(V.KEY_OTHER); } catch (e) {}
+          for (const k of [V.KEY, V.KEY_BAK]) localStorage.setItem(k, JSON.stringify(mine));
+          coldStart();
+          if (V.otherBuild)
+            bakFails.push("an ordinary save was taken for one from another build");
+          if (localStorage.getItem(V.KEY_OTHER))
+            bakFails.push("an ordinary save was set aside as if this build could not read it");
+        }
+      } finally {
+        V.otherBuild = 0;
+        try { if (keepOther !== null) localStorage.setItem(V.KEY_OTHER, keepOther);
+          else localStorage.removeItem(V.KEY_OTHER); } catch (e) {}
+      }
+    }
+
     try { if (real !== null) localStorage.setItem(V.KEY, real); } catch (e) {}
     const blind = Object.entries(detects).filter(([, ok]) => !ok).map(([k]) => k);
     /* Reported where allSweeps can see it. It counts r.fails, and nothing

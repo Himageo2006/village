@@ -2337,6 +2337,40 @@ const SAVE_V = 4;      // 2: house 2x1. 3: hall and jobs. 4: every building leve
    backup exists for. */
 const readSave = str => { try { return JSON.parse(str); } catch (e) { return null; } };
 const usableSave = x => !!x && typeof x === 'object' && x.v === SAVE_V && Array.isArray(x.placed);
+/* A village written by a different build of this game.
+
+   usableSave wants the version to match exactly, which is right -- this
+   build does not know what a v3 placed array means. What was wrong was what
+   happened next: load gave up, the game started empty, and five seconds
+   later the first autosave wrote the empty village over the file. The backup
+   went the same way inside the minute, because promotion copies the primary
+   whenever the primary is readable and an empty village is perfectly
+   readable. Measured: seven buildings on disk, both copies gone within a
+   minute, and not one word on screen.
+
+   The version has already moved three times -- 2 for the house, 3 for the
+   hall, 4 for building levels -- so a fourth is likely, and after this ships
+   a fourth would do that to somebody who has played for hours.
+
+   So a village we cannot read is not destroyed. It is set aside under its
+   own key, once, and the player is told it is there. That is not a
+   migration and does not pretend to be one; it is the difference between a
+   village that can be brought back by a later build and one that cannot. */
+const KEY_OTHER = 'vil_save_other';
+let otherBuild = 0;                   // the version of a save this build cannot read
+const isVillage = x => !!x && typeof x === 'object' && Array.isArray(x.placed);
+function setAside(raw2, v) {
+  otherBuild = Number.isFinite(v) ? v : -1;
+  /* The most recent one, not the first.
+
+     This began as "keep it only if nothing is kept yet", to stop a second
+     start copying the empty village over the one being kept safe. That cannot
+     happen: once a readable save exists setAside is never reached again, so
+     within one install the kept copy is already stable. What the guard did
+     instead was decide which village survives TWO updates -- and it chose the
+     oldest, which is the one the player is least likely to want back. */
+  try { if (raw2) localStorage.setItem(KEY_OTHER, raw2); } catch (e) {}
+}
 /* The moment the simulation has reached, which is not always now.
 
    A backgrounded page is throttled, not stopped: the tick still runs, a few
@@ -2422,6 +2456,10 @@ function load() {
   if (!usable(s)) {
     const bak = parse(KEY_BAK);
     if (usable(bak)) { s = bak; loadedFromBackup = true; }
+    /* Neither one is readable. If either is a village all the same -- a real
+       save from another build rather than a damaged one -- it is kept. */
+    else for (const [k, x] of [[KEY, s], [KEY_BAK, bak]])
+      if (isVillage(x)) { setAside(localStorage.getItem(k), x.v); break; }
   }
   if (!usable(s)) return;
   if (s.rate && typeof s.rate === 'object') for (const k of ['wood', 'food'])
@@ -4134,7 +4172,7 @@ function drawHUD() {
    that the village could not be written down, and that it was restored from the
    older copy so the last minute is missing. */
 function drawSaveState() {
-  if (!saveFailed && !loadedFromBackup) return;
+  if (!saveFailed && !loadedFromBackup && !otherBuild) return;
   const u = US(), y = hudTop() + 190 * u;
   /* Not "storage", which in this village means the barns. The resource bar
      says "storage full" when a barn is at its ceiling and the trade card says
@@ -4146,7 +4184,9 @@ function drawSaveState() {
      problem with one fix and is two problems with none. */
   const txt = saveFailed
     ? 'The village cannot be saved — this device is full or blocking it'
-    : 'Restored from a backup — the last minute of play was lost';
+    : otherBuild && !loadedFromBackup
+      ? 'A village from another version of the game is saved on this device — it has been kept, not overwritten'
+      : 'Restored from a backup — the last minute of play was lost';
   g.save();
   /* Through the fitter, like every other pill. This one clamped its own WIDTH
      to the screen and then drew the text at a fixed size regardless, which is
@@ -5910,7 +5950,8 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   get orderT() { return orderT; }, set orderT(v) { orderT = v; },
   get goalDone() { return goalDone; }, set goalDone(v) { goalDone = v; },
   SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; },
-  KEY, KEY_BAK, BACKUP_EVERY, usableSave, readSave,
+  KEY, KEY_BAK, KEY_OTHER, BACKUP_EVERY, SAVE_V, usableSave, readSave,
+  get otherBuild() { return otherBuild; }, set otherBuild(v) { otherBuild = v; },
   get saveFailed() { return saveFailed; }, set saveFailed(v) { saveFailed = v; },
   get loadedFromBackup() { return loadedFromBackup; }, set loadedFromBackup(v) { loadedFromBackup = v; },
   sky, dayPhase, DAY_MS, camFit, get camFling() { return camFling; },
