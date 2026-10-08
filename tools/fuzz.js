@@ -8183,9 +8183,65 @@
           + ' it could not take in');
     }
 
+    /* And the case between the two, which is the one the card was wrong about.
+
+       Both ends were already checked here and both were right: nothing fits
+       and the card says 'stores already full', everything fits and it says
+       what arrived. One barn at its ceiling and the other with room is the
+       ordinary state of a village that has been spending one of the two, and
+       the card printed the half that arrived with no word about the half it
+       had just destroyed -- 'Goal complete!   food +20' over thirty wood
+       that was gone.
+
+       Read off the canvas rather than out of goalDone. The figures in that
+       object were never the problem; what was missing was anything drawn
+       about them, and a block that asked the object would have passed on the
+       day the fault was written. It is the lesson beside the charm goal: the
+       question is what the player can see. */
+    let partial = 0;
+    {
+      const cv2 = document.querySelector('canvas'), ctx2 = cv2.getContext('2d');
+      const banner = () => {
+        const rows = [], o = ctx2.fillText;
+        ctx2.fillText = function (t, ...a) { rows.push(String(t)); return o.call(this, t, ...a); };
+        try { V.draw(); } finally { ctx2.fillText = o; }
+        return rows.find(t => t.indexOf('Goal complete') === 0) || '';
+      };
+      V.goalIdx = 0; V.goalDone = null; V.finished = null;
+      for (let guard = 0; V.goalIdx < V.GOALS.length && guard < 300; guard++) {
+        const g = V.GOALS[V.goalIdx];
+        /* Wood at the ceiling, food with room. Both rewards are then live and
+           only one of them can land. */
+        V.res.wood = V.caps.wood; V.res.food = 0;
+        const before = { wood: V.res.wood, food: V.res.food };
+        V.goalDone = null;
+        V.step(1 / 30);
+        if (!V.goalDone) continue;
+        const said = banner();
+        let gained = 0, missed = 0, missedAt = null;
+        for (const k of ['wood', 'food']) {
+          const give = g.give[k] || 0;
+          if (!give) continue;
+          const got = V.res[k] - before[k];
+          if (got >= 0.5) gained++;
+          if (give - got >= 0.5) { missed = Math.round(give - got); missedAt = k; }
+        }
+        /* Only a goal where something arrived AND something did not is
+           evidence: the all-or-nothing ends are the walks above. */
+        if (!gained || !missedAt) continue;
+        partial++;
+        const mark = (missedAt === 'wood' ? '🪵' : '🌾') + missed;
+        if (said.indexOf(mark) < 0)
+          fails.push('the banner for "' + g.text.slice(0, 30) + '" took ' + missed + ' ' + missedAt
+            + ' the village had no room for and said "' + said + '"');
+      }
+      if (partial < 5)
+        fails.push('only ' + partial + ' goals paid half a reward, so the half-full card was barely asked');
+    }
+
     V.goalIdx = 0; V.goalDone = null; V.finished = null; V.step(0.001);
     return { goals: V.GOALS.length, withRoom: withRoom.length, withNone: withNone.length,
-      sample: withRoom.slice(0, 3), fails };
+      partial, sample: withRoom.slice(0, 3), fails };
   };
 
   window.taughtSweep = function () {

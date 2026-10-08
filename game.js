@@ -1952,12 +1952,28 @@ function stepGoals(dt) {
      the reward lands on the hall as visible numbers rather than appearing only
      in a counter. */
   const h = hallOf(), c = h ? centreOf(h) : { x: 0, y: 0 };
-  const got = {};
+  /* And what would NOT fit, which is the half this card used to leave out.
+
+     Both ends were right and the middle was not. Nothing fits and it says
+     'stores already full'; everything fits and it says what arrived. One
+     barn at the ceiling and the other with room -- which is the ordinary
+     state of a village that has been spending one of the two -- and it
+     printed the half that arrived and not a word about the half destroyed.
+     Measured on 'Build a farm', worth 30 wood and 20 food, with the wood at
+     its ceiling: 'Goal complete!   food +20'. The thirty wood was gone. At
+     the last goal the same silence is worth five thousand.
+
+     This is the fault the welcome-back card was already fixed for, written
+     up there as 'two different ceilings can eat this haul, and the card
+     used to show the survivor of both with no account of either'. It is the
+     same card in a smaller frame, and it kept the same silence. */
+  const got = {}, lost = {};
   for (const [k, val] of Object.entries(g2.give)) {
-    const gained = Math.round(grant(k, val, c.x, c.y));
-    if (gained > 0) got[k] = gained;
+    const gained = grant(k, val, c.x, c.y);
+    if (gained >= 0.5) got[k] = Math.round(gained);
+    if (val - gained >= 0.5) lost[k] = Math.round(val - gained);
   }
-  goalDone = { g: g2, got, age: 0 };
+  goalDone = { g: g2, got, lost, age: 0 };
   goalIdx++;
   SFX.goal();
   save();
@@ -4355,9 +4371,17 @@ function drawGoal() {
   if (goalDone) {
     const t = goalDone.age / GOAL_SHOW;
     const banked = goalDone.got || goalDone.g.give;
-    const parts = Object.keys(banked).length
-      ? Object.entries(banked).map(([k, v]) => (k === 'wood' ? '🪵 +' : '🌾 +') + v).join('   ')
-      : 'stores already full';
+    const spilled = goalDone.lost || {};
+    const icon = k => k === 'wood' ? '🪵' : '🌾';
+    /* Nothing fitted at all, which the card has always said. Naming the
+       figures as well would only repeat the reward the player can read in
+       the goal strip behind it. */
+    const parts = !Object.keys(banked).length ? 'stores already full'
+      : Object.entries(banked).map(([k, v]) => icon(k) + ' +' + v).join('   ')
+        + (Object.keys(spilled).length
+            ? '   ·   ' + Object.entries(spilled).map(([k, v]) => icon(k) + v).join(' ')
+              + ' spilled — stores full'
+            : '');
     g.save();
     g.globalAlpha = Math.min(1, (1 - t) * 3);
     const txt = 'Goal complete!   ' + parts;
