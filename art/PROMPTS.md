@@ -1027,17 +1027,35 @@ its own once the frames exist.
 
 ## 24 — Farmer walk cycle → `art/villager_farmer_walk1.png` … `villager_farmer_walk6.png`
 
-Six prompts, one per frame. Paste the finished `villager_farmer` standing
-sprite into the conversation first, then send these in order, one per message.
+Six prompts, one per frame, each one self-contained: the character is
+described in full, so these work with no reference image at all.
+
+**Attaching the sprite is still better.** `art/original/villager_farmer.png`
+is the master, `art/villager_farmer.webp` the smaller processed one; either
+will do. A written description keeps the clothes and the palette, but only
+the image keeps the FACE, and a face that drifts between frames is the one
+thing a viewer notices immediately. Attach it, then send these in order, one
+per message.
 
 ### Frame 1 of 6 → `art/villager_farmer_walk1.png`
 
 ```
 Frame 1 of a six-frame walk cycle for this exact character, as a game
-character sprite. Match the pasted standing sprite exactly: same face, same
-soft cloth cap, same muted earthy green knee-length tunic, same dark brown
-trousers, same laced leather boots, same wide brown belt, sleeves rolled to
-the elbow, same colours throughout.
+character sprite.
+
+CHARACTER: a cheerful young medieval peasant farmer, clean-shaven, with a
+friendly open face and warm tan skin. Short reddish-brown hair showing
+under a soft slouchy cloth cap in pale tan (#d1aa78). He wears a
+long-sleeved olive-green tunic (#56502b, lifting to #716637 where the light
+catches it) falling to mid-thigh, with a laced V-neck closed by pale cord,
+and cream undershirt sleeves rolled to just below the elbow leaving his
+forearms bare. A wide dark brown leather belt (#4e2c16) with a square
+pewter buckle and a small pouch at the hip. Very dark brown trousers
+(#2c180c) tucked into mid-calf brown leather boots (#73492f) with folded
+cuffs and laces.
+
+If a reference image of this character is attached, match it exactly and
+let it override every description above.
 
 POSE — CONTACT, left leg leading. His left foot is forward and flat on the
 ground, his right foot is back with the heel lifted and only the toe still
@@ -1045,10 +1063,12 @@ touching. The legs are clearly apart with daylight between them. His body is
 at MIDDLE height. His right arm swings forward and his left arm back,
 opposite to the legs.
 
-CAMERA: unchanged from the standing sprite — seen from slightly above, about
-30 degrees above the horizon, the figure facing three-quarters to the RIGHT
-and turned slightly towards the viewer so the face is visible. Full body,
-head to feet. He is walking towards the right of frame.
+CAMERA: the figure faces the viewer almost straight on, the body turned
+only very slightly, seen from a little above as from an isometric game
+board about 30 degrees above the horizon. Full body, head to feet. He is
+walking towards the viewer's right. Keep this same near-frontal view in
+all six frames -- do NOT turn the character into a side-on profile, and do
+not change the angle between frames.
 
 REGISTRATION: identical canvas, identical figure height and identical
 horizontal centre in every frame of this cycle. The lowest foot rests on the
@@ -1077,10 +1097,21 @@ any ground surface.
 
 ```
 Frame 2 of a six-frame walk cycle for this exact character, as a game
-character sprite. Match the pasted standing sprite exactly: same face, same
-soft cloth cap, same muted earthy green knee-length tunic, same dark brown
-trousers, same laced leather boots, same wide brown belt, sleeves rolled to
-the elbow, same colours throughout.
+character sprite.
+
+CHARACTER: a cheerful young medieval peasant farmer, clean-shaven, with a
+friendly open face and warm tan skin. Short reddish-brown hair showing
+under a soft slouchy cloth cap in pale tan (#d1aa78). He wears a
+long-sleeved olive-green tunic (#56502b, lifting to #716637 where the light
+catches it) falling to mid-thigh, with a laced V-neck closed by pale cord,
+and cream undershirt sleeves rolled to just below the elbow leaving his
+forearms bare. A wide dark brown leather belt (#4e2c16) with a square
+pewter buckle and a small pouch at the hip. Very dark brown trousers
+(#2c180c) tucked into mid-calf brown leather boots (#73492f) with folded
+cuffs and laces.
+
+If a reference image of this character is attached, match it exactly and
+let it override every description above.
 
 POSE — DOWN, weight on the left leg. His weight has come fully over his left
 leg, which is bent at the knee and taking it. His right foot is just leaving
@@ -1088,10 +1119,12 @@ the ground behind him. His body is at its LOWEST point of the whole cycle,
 noticeably lower than frame 1. Both arms are passing close to his body,
 roughly vertical.
 
-CAMERA: unchanged from the standing sprite — seen from slightly above, about
-30 degrees above the horizon, the figure facing three-quarters to the RIGHT
-and turned slightly towards the viewer so the face is visible. Full body,
-head to feet. He is walking towards the right of frame.
+CAMERA: the figure faces the viewer almost straight on, the body turned
+only very slightly, seen from a little above as from an isometric game
+board about 30 degrees above the horizon. Full body, head to feet. He is
+walking towards the viewer's right. Keep this same near-frontal view in
+all six frames -- do NOT turn the character into a side-on profile, and do
+not change the angle between frames.
 
 REGISTRATION: identical canvas, identical figure height and identical
 horizontal centre in every frame of this cycle. The lowest foot rests on the
@@ -1120,10 +1153,21 @@ any ground surface.
 
 ```
 Frame 3 of a six-frame walk cycle for this exact character, as a game
-character sprite. Match the pasted standing sprite exactly: same face, same
-soft cloth cap, same muted earthy green knee-length tunic, same dark brown
-trousers, same laced leather boots, same wide brown belt, sleeves rolled to
-the elbow, same colours throughout.
+character sprite.
+
+CHARACTER: a cheerful young medieval peasant farmer, clean-shaven, with a
+friendly open face and warm tan skin. Short reddish-brown hair showing
+under a soft slouchy cloth cap in pale tan (#d1aa78). He wears a
+long-sleeved olive-green tunic (#56502b, lifting to #716637 where the light
+catches it) falling to mid-thigh, with a laced V-neck closed by pale cord,
+and cream undershirt sleeves rolled to just below the elbow leaving his
+forearms bare. A wide dark brown leather belt (#4e2c16) with a square
+pewter buckle and a small pouch at the hip. Very dark brown trousers
+(#2c180c) tucked into mid-calf brown leather boots (#73492f) with folded
+cuffs and laces.
+
+If a reference image of this character is attached, match it exactly and
+let it override every description above.
 
 POSE — PASSING, right leg swinging through. His right leg swings forward
 beneath his body, knee bent, the foot just clear of the ground. His left leg
@@ -1131,10 +1175,12 @@ is straight and carrying all the weight. The feet are close together, nearly
 overlapping. His body is at its HIGHEST point of the whole cycle, risen up
 over the straight leg. Both arms hang near vertical at his sides.
 
-CAMERA: unchanged from the standing sprite — seen from slightly above, about
-30 degrees above the horizon, the figure facing three-quarters to the RIGHT
-and turned slightly towards the viewer so the face is visible. Full body,
-head to feet. He is walking towards the right of frame.
+CAMERA: the figure faces the viewer almost straight on, the body turned
+only very slightly, seen from a little above as from an isometric game
+board about 30 degrees above the horizon. Full body, head to feet. He is
+walking towards the viewer's right. Keep this same near-frontal view in
+all six frames -- do NOT turn the character into a side-on profile, and do
+not change the angle between frames.
 
 REGISTRATION: identical canvas, identical figure height and identical
 horizontal centre in every frame of this cycle. The supporting foot rests on
@@ -1163,10 +1209,21 @@ any ground surface.
 
 ```
 Frame 4 of a six-frame walk cycle for this exact character, as a game
-character sprite. Match the pasted standing sprite exactly: same face, same
-soft cloth cap, same muted earthy green knee-length tunic, same dark brown
-trousers, same laced leather boots, same wide brown belt, sleeves rolled to
-the elbow, same colours throughout.
+character sprite.
+
+CHARACTER: a cheerful young medieval peasant farmer, clean-shaven, with a
+friendly open face and warm tan skin. Short reddish-brown hair showing
+under a soft slouchy cloth cap in pale tan (#d1aa78). He wears a
+long-sleeved olive-green tunic (#56502b, lifting to #716637 where the light
+catches it) falling to mid-thigh, with a laced V-neck closed by pale cord,
+and cream undershirt sleeves rolled to just below the elbow leaving his
+forearms bare. A wide dark brown leather belt (#4e2c16) with a square
+pewter buckle and a small pouch at the hip. Very dark brown trousers
+(#2c180c) tucked into mid-calf brown leather boots (#73492f) with folded
+cuffs and laces.
+
+If a reference image of this character is attached, match it exactly and
+let it override every description above.
 
 POSE — CONTACT, right leg leading. This is frame 1 with the legs and arms
 swapped. His RIGHT foot is forward and flat on the ground, his LEFT foot is
@@ -1174,10 +1231,12 @@ back with the heel lifted and only the toe still touching. The legs are
 clearly apart with daylight between them. His body is at MIDDLE height. His
 LEFT arm swings forward and his RIGHT arm back.
 
-CAMERA: unchanged from the standing sprite — seen from slightly above, about
-30 degrees above the horizon, the figure facing three-quarters to the RIGHT
-and turned slightly towards the viewer so the face is visible. Full body,
-head to feet. He is walking towards the right of frame.
+CAMERA: the figure faces the viewer almost straight on, the body turned
+only very slightly, seen from a little above as from an isometric game
+board about 30 degrees above the horizon. Full body, head to feet. He is
+walking towards the viewer's right. Keep this same near-frontal view in
+all six frames -- do NOT turn the character into a side-on profile, and do
+not change the angle between frames.
 
 REGISTRATION: identical canvas, identical figure height and identical
 horizontal centre in every frame of this cycle. The lowest foot rests on the
@@ -1206,10 +1265,21 @@ any ground surface.
 
 ```
 Frame 5 of a six-frame walk cycle for this exact character, as a game
-character sprite. Match the pasted standing sprite exactly: same face, same
-soft cloth cap, same muted earthy green knee-length tunic, same dark brown
-trousers, same laced leather boots, same wide brown belt, sleeves rolled to
-the elbow, same colours throughout.
+character sprite.
+
+CHARACTER: a cheerful young medieval peasant farmer, clean-shaven, with a
+friendly open face and warm tan skin. Short reddish-brown hair showing
+under a soft slouchy cloth cap in pale tan (#d1aa78). He wears a
+long-sleeved olive-green tunic (#56502b, lifting to #716637 where the light
+catches it) falling to mid-thigh, with a laced V-neck closed by pale cord,
+and cream undershirt sleeves rolled to just below the elbow leaving his
+forearms bare. A wide dark brown leather belt (#4e2c16) with a square
+pewter buckle and a small pouch at the hip. Very dark brown trousers
+(#2c180c) tucked into mid-calf brown leather boots (#73492f) with folded
+cuffs and laces.
+
+If a reference image of this character is attached, match it exactly and
+let it override every description above.
 
 POSE — DOWN, weight on the right leg. This is frame 2 with the legs and arms
 swapped. His weight has come fully over his RIGHT leg, which is bent at the
@@ -1217,10 +1287,12 @@ knee and taking it. His LEFT foot is just leaving the ground behind him. His
 body is at its LOWEST point, the same height as frame 2. Both arms pass
 close to his body, roughly vertical.
 
-CAMERA: unchanged from the standing sprite — seen from slightly above, about
-30 degrees above the horizon, the figure facing three-quarters to the RIGHT
-and turned slightly towards the viewer so the face is visible. Full body,
-head to feet. He is walking towards the right of frame.
+CAMERA: the figure faces the viewer almost straight on, the body turned
+only very slightly, seen from a little above as from an isometric game
+board about 30 degrees above the horizon. Full body, head to feet. He is
+walking towards the viewer's right. Keep this same near-frontal view in
+all six frames -- do NOT turn the character into a side-on profile, and do
+not change the angle between frames.
 
 REGISTRATION: identical canvas, identical figure height and identical
 horizontal centre in every frame of this cycle. The lowest foot rests on the
@@ -1249,10 +1321,21 @@ any ground surface.
 
 ```
 Frame 6 of a six-frame walk cycle for this exact character, as a game
-character sprite. Match the pasted standing sprite exactly: same face, same
-soft cloth cap, same muted earthy green knee-length tunic, same dark brown
-trousers, same laced leather boots, same wide brown belt, sleeves rolled to
-the elbow, same colours throughout.
+character sprite.
+
+CHARACTER: a cheerful young medieval peasant farmer, clean-shaven, with a
+friendly open face and warm tan skin. Short reddish-brown hair showing
+under a soft slouchy cloth cap in pale tan (#d1aa78). He wears a
+long-sleeved olive-green tunic (#56502b, lifting to #716637 where the light
+catches it) falling to mid-thigh, with a laced V-neck closed by pale cord,
+and cream undershirt sleeves rolled to just below the elbow leaving his
+forearms bare. A wide dark brown leather belt (#4e2c16) with a square
+pewter buckle and a small pouch at the hip. Very dark brown trousers
+(#2c180c) tucked into mid-calf brown leather boots (#73492f) with folded
+cuffs and laces.
+
+If a reference image of this character is attached, match it exactly and
+let it override every description above.
 
 POSE — PASSING, left leg swinging through. This is frame 3 with the legs and
 arms swapped, and it is the last frame, so it must lead straight back into
@@ -1261,10 +1344,12 @@ just clear of the ground. His RIGHT leg is straight and carrying all the
 weight. The feet are close together, nearly overlapping. His body is at its
 HIGHEST point, the same height as frame 3. Both arms hang near vertical.
 
-CAMERA: unchanged from the standing sprite — seen from slightly above, about
-30 degrees above the horizon, the figure facing three-quarters to the RIGHT
-and turned slightly towards the viewer so the face is visible. Full body,
-head to feet. He is walking towards the right of frame.
+CAMERA: the figure faces the viewer almost straight on, the body turned
+only very slightly, seen from a little above as from an isometric game
+board about 30 degrees above the horizon. Full body, head to feet. He is
+walking towards the viewer's right. Keep this same near-frontal view in
+all six frames -- do NOT turn the character into a side-on profile, and do
+not change the angle between frames.
 
 REGISTRATION: identical canvas, identical figure height and identical
 horizontal centre in every frame of this cycle. The supporting foot rests on
@@ -1295,8 +1380,9 @@ any ground surface.
 
 She wears an ankle-length dress, so her legs barely show — her silhouette is one
 solid shape from the waist down, which is why her prompts describe the step in
-the skirt and the body rather than in the feet. Paste the finished
-`villager_basket` standing sprite in first, then send these in order.
+the skirt and the body rather than in the feet. Each prompt is self-contained,
+but attach `art/original/villager_basket.png` as well if you can -- only the
+image keeps her face.
 
 The shared block below is the same in all six; only POSE changes.
 
@@ -1304,10 +1390,19 @@ The shared block below is the same in all six; only POSE changes.
 
 ```
 Frame 1 of a six-frame walk cycle for this exact character, as a game
-character sprite. Match the pasted standing sprite exactly: same face, same
-simple headscarf, same muted dusty blue long-sleeved ankle-length dress,
-same cream apron, same round wicker basket of vegetables on the same hip,
-same colours throughout.
+character sprite.
+
+CHARACTER: a friendly young medieval peasant woman with a warm open face
+and tan skin. Brown hair tucked under a cream headscarf (#f2d3aa) tied
+behind her head. She wears a slate-blue long-sleeved dress (#374d68) that
+falls all the way to the ground and hides her feet, with a laced bodice and
+cream undershirt sleeves rolled below the elbow. Over it a full-length
+cream apron (#e9cba3) covering her front from chest to hem. On one hip she
+carries a round woven wicker basket (#6c3611) heaped with vegetables --
+orange carrots, red tomatoes, green cabbage leaves.
+
+If a reference image of this character is attached, match it exactly and
+let it override every description above.
 
 POSE — CONTACT, left leg leading. Her left leg is forward, which pushes the
 hem of the skirt forward and lifts it slightly on that side; the skirt falls
@@ -1316,10 +1411,12 @@ the hem. Her body is at MIDDLE height. Her free arm swings forward, opposite
 the leading leg. Her shoulders turn slightly against her hips. The basket
 stays on the same hip, held by the same hand, and rides with that hip.
 
-CAMERA: unchanged from the standing sprite — seen from slightly above, about
-30 degrees above the horizon, facing three-quarters to the RIGHT and turned
-slightly towards the viewer so the face is visible. Full body, head to feet.
-She is walking towards the right of frame.
+CAMERA: the figure faces the viewer almost straight on, the body turned
+only very slightly, seen from a little above as from an isometric game
+board about 30 degrees above the horizon. Full body, head to feet. She is
+walking towards the viewer's right. Keep this same near-frontal view in
+all six frames -- do NOT turn the character into a side-on profile, and do
+not change the angle between frames.
 
 REGISTRATION: identical canvas, identical figure height and identical
 horizontal centre in every frame of this cycle. The lowest point of the hem
@@ -1348,10 +1445,19 @@ surface.
 
 ```
 Frame 2 of a six-frame walk cycle for this exact character, as a game
-character sprite. Match the pasted standing sprite exactly: same face, same
-simple headscarf, same muted dusty blue long-sleeved ankle-length dress,
-same cream apron, same round wicker basket of vegetables on the same hip,
-same colours throughout.
+character sprite.
+
+CHARACTER: a friendly young medieval peasant woman with a warm open face
+and tan skin. Brown hair tucked under a cream headscarf (#f2d3aa) tied
+behind her head. She wears a slate-blue long-sleeved dress (#374d68) that
+falls all the way to the ground and hides her feet, with a laced bodice and
+cream undershirt sleeves rolled below the elbow. Over it a full-length
+cream apron (#e9cba3) covering her front from chest to hem. On one hip she
+carries a round woven wicker basket (#6c3611) heaped with vegetables --
+orange carrots, red tomatoes, green cabbage leaves.
+
+If a reference image of this character is attached, match it exactly and
+let it override every description above.
 
 POSE — DOWN, weight on the left leg. Her weight settles over her left side
 and her whole body is at its LOWEST point of the cycle, noticeably lower
@@ -1359,10 +1465,12 @@ than frame 1. The skirt hangs straight and gathers in slightly, its swing
 momentarily stilled. Her free arm passes close to her body. The basket is
 pressed down against the hip.
 
-CAMERA: unchanged from the standing sprite — seen from slightly above, about
-30 degrees above the horizon, facing three-quarters to the RIGHT and turned
-slightly towards the viewer so the face is visible. Full body, head to feet.
-She is walking towards the right of frame.
+CAMERA: the figure faces the viewer almost straight on, the body turned
+only very slightly, seen from a little above as from an isometric game
+board about 30 degrees above the horizon. Full body, head to feet. She is
+walking towards the viewer's right. Keep this same near-frontal view in
+all six frames -- do NOT turn the character into a side-on profile, and do
+not change the angle between frames.
 
 REGISTRATION: identical canvas, identical figure height and identical
 horizontal centre in every frame of this cycle. The lowest point of the hem
@@ -1391,20 +1499,31 @@ surface.
 
 ```
 Frame 3 of a six-frame walk cycle for this exact character, as a game
-character sprite. Match the pasted standing sprite exactly: same face, same
-simple headscarf, same muted dusty blue long-sleeved ankle-length dress,
-same cream apron, same round wicker basket of vegetables on the same hip,
-same colours throughout.
+character sprite.
+
+CHARACTER: a friendly young medieval peasant woman with a warm open face
+and tan skin. Brown hair tucked under a cream headscarf (#f2d3aa) tied
+behind her head. She wears a slate-blue long-sleeved dress (#374d68) that
+falls all the way to the ground and hides her feet, with a laced bodice and
+cream undershirt sleeves rolled below the elbow. Over it a full-length
+cream apron (#e9cba3) covering her front from chest to hem. On one hip she
+carries a round woven wicker basket (#6c3611) heaped with vegetables --
+orange carrots, red tomatoes, green cabbage leaves.
+
+If a reference image of this character is attached, match it exactly and
+let it override every description above.
 
 POSE — PASSING, right leg swinging through. She rises to her HIGHEST point
 of the cycle over a straight supporting leg. The skirt is at its narrowest,
 hanging close and almost still as the swinging leg passes beneath it. Her
 free arm hangs near vertical. Her shoulders are square.
 
-CAMERA: unchanged from the standing sprite — seen from slightly above, about
-30 degrees above the horizon, facing three-quarters to the RIGHT and turned
-slightly towards the viewer so the face is visible. Full body, head to feet.
-She is walking towards the right of frame.
+CAMERA: the figure faces the viewer almost straight on, the body turned
+only very slightly, seen from a little above as from an isometric game
+board about 30 degrees above the horizon. Full body, head to feet. She is
+walking towards the viewer's right. Keep this same near-frontal view in
+all six frames -- do NOT turn the character into a side-on profile, and do
+not change the angle between frames.
 
 REGISTRATION: identical canvas, identical figure height and identical
 horizontal centre in every frame of this cycle. The lowest point of the hem
@@ -1433,10 +1552,19 @@ surface.
 
 ```
 Frame 4 of a six-frame walk cycle for this exact character, as a game
-character sprite. Match the pasted standing sprite exactly: same face, same
-simple headscarf, same muted dusty blue long-sleeved ankle-length dress,
-same cream apron, same round wicker basket of vegetables on the same hip,
-same colours throughout.
+character sprite.
+
+CHARACTER: a friendly young medieval peasant woman with a warm open face
+and tan skin. Brown hair tucked under a cream headscarf (#f2d3aa) tied
+behind her head. She wears a slate-blue long-sleeved dress (#374d68) that
+falls all the way to the ground and hides her feet, with a laced bodice and
+cream undershirt sleeves rolled below the elbow. Over it a full-length
+cream apron (#e9cba3) covering her front from chest to hem. On one hip she
+carries a round woven wicker basket (#6c3611) heaped with vegetables --
+orange carrots, red tomatoes, green cabbage leaves.
+
+If a reference image of this character is attached, match it exactly and
+let it override every description above.
 
 POSE — CONTACT, right leg leading. This is frame 1 mirrored in the step: her
 RIGHT leg is forward, pushing the hem forward and lifting it slightly on the
@@ -1445,10 +1573,12 @@ MIDDLE height. Her free arm swings BACK this time, opposite the leading leg.
 Her shoulders turn the other way against her hips. The basket stays on the
 same hip as always — it does NOT change sides.
 
-CAMERA: unchanged from the standing sprite — seen from slightly above, about
-30 degrees above the horizon, facing three-quarters to the RIGHT and turned
-slightly towards the viewer so the face is visible. Full body, head to feet.
-She is walking towards the right of frame.
+CAMERA: the figure faces the viewer almost straight on, the body turned
+only very slightly, seen from a little above as from an isometric game
+board about 30 degrees above the horizon. Full body, head to feet. She is
+walking towards the viewer's right. Keep this same near-frontal view in
+all six frames -- do NOT turn the character into a side-on profile, and do
+not change the angle between frames.
 
 REGISTRATION: identical canvas, identical figure height and identical
 horizontal centre in every frame of this cycle. The lowest point of the hem
@@ -1477,10 +1607,19 @@ surface.
 
 ```
 Frame 5 of a six-frame walk cycle for this exact character, as a game
-character sprite. Match the pasted standing sprite exactly: same face, same
-simple headscarf, same muted dusty blue long-sleeved ankle-length dress,
-same cream apron, same round wicker basket of vegetables on the same hip,
-same colours throughout.
+character sprite.
+
+CHARACTER: a friendly young medieval peasant woman with a warm open face
+and tan skin. Brown hair tucked under a cream headscarf (#f2d3aa) tied
+behind her head. She wears a slate-blue long-sleeved dress (#374d68) that
+falls all the way to the ground and hides her feet, with a laced bodice and
+cream undershirt sleeves rolled below the elbow. Over it a full-length
+cream apron (#e9cba3) covering her front from chest to hem. On one hip she
+carries a round woven wicker basket (#6c3611) heaped with vegetables --
+orange carrots, red tomatoes, green cabbage leaves.
+
+If a reference image of this character is attached, match it exactly and
+let it override every description above.
 
 POSE — DOWN, weight on the right leg. Her weight settles over her right side
 and her whole body is at its LOWEST point, the same height as frame 2. The
@@ -1488,10 +1627,12 @@ skirt hangs straight and gathers in slightly, its swing momentarily stilled.
 Her free arm passes close to her body. The basket is pressed down against
 the hip.
 
-CAMERA: unchanged from the standing sprite — seen from slightly above, about
-30 degrees above the horizon, facing three-quarters to the RIGHT and turned
-slightly towards the viewer so the face is visible. Full body, head to feet.
-She is walking towards the right of frame.
+CAMERA: the figure faces the viewer almost straight on, the body turned
+only very slightly, seen from a little above as from an isometric game
+board about 30 degrees above the horizon. Full body, head to feet. She is
+walking towards the viewer's right. Keep this same near-frontal view in
+all six frames -- do NOT turn the character into a side-on profile, and do
+not change the angle between frames.
 
 REGISTRATION: identical canvas, identical figure height and identical
 horizontal centre in every frame of this cycle. The lowest point of the hem
@@ -1520,10 +1661,19 @@ surface.
 
 ```
 Frame 6 of a six-frame walk cycle for this exact character, as a game
-character sprite. Match the pasted standing sprite exactly: same face, same
-simple headscarf, same muted dusty blue long-sleeved ankle-length dress,
-same cream apron, same round wicker basket of vegetables on the same hip,
-same colours throughout.
+character sprite.
+
+CHARACTER: a friendly young medieval peasant woman with a warm open face
+and tan skin. Brown hair tucked under a cream headscarf (#f2d3aa) tied
+behind her head. She wears a slate-blue long-sleeved dress (#374d68) that
+falls all the way to the ground and hides her feet, with a laced bodice and
+cream undershirt sleeves rolled below the elbow. Over it a full-length
+cream apron (#e9cba3) covering her front from chest to hem. On one hip she
+carries a round woven wicker basket (#6c3611) heaped with vegetables --
+orange carrots, red tomatoes, green cabbage leaves.
+
+If a reference image of this character is attached, match it exactly and
+let it override every description above.
 
 POSE — PASSING, left leg swinging through. This is the last frame and it
 must lead straight back into frame 1. She rises to her HIGHEST point, the
@@ -1531,10 +1681,12 @@ same height as frame 3, over a straight supporting leg. The skirt is at its
 narrowest, hanging close and almost still as the swinging leg passes
 beneath. Her free arm hangs near vertical. Her shoulders are square.
 
-CAMERA: unchanged from the standing sprite — seen from slightly above, about
-30 degrees above the horizon, facing three-quarters to the RIGHT and turned
-slightly towards the viewer so the face is visible. Full body, head to feet.
-She is walking towards the right of frame.
+CAMERA: the figure faces the viewer almost straight on, the body turned
+only very slightly, seen from a little above as from an isometric game
+board about 30 degrees above the horizon. Full body, head to feet. She is
+walking towards the viewer's right. Keep this same near-frontal view in
+all six frames -- do NOT turn the character into a side-on profile, and do
+not change the angle between frames.
 
 REGISTRATION: identical canvas, identical figure height and identical
 horizontal centre in every frame of this cycle. The lowest point of the hem
@@ -1564,16 +1716,28 @@ surface.
 ## 26 — Woodcutter walk cycle → `art/villager_woodcutter_walk1.png` … `villager_woodcutter_walk6.png`
 
 The axe stays over the same shoulder in all six, held by the same hand, and
-that arm never swings. Only the FREE arm swings. Paste the finished
-`villager_woodcutter` standing sprite in first, then send these in order.
+that arm never swings. Only the FREE arm swings. Each prompt is
+self-contained, but attach `art/original/villager_woodcutter.png` as well if
+you can -- only the image keeps his face.
 
 ### Frame 1 of 6 → `art/villager_woodcutter_walk1.png`
 
 ```
 Frame 1 of a six-frame walk cycle for this exact character, as a game
-character sprite. Match the pasted standing sprite exactly: same face, same
-beard, same clothing, same colours, and the same axe carried over the same
-shoulder by the same hand.
+character sprite.
+
+CHARACTER: a sturdy, broad-shouldered older medieval woodcutter with a
+weathered friendly face, tan skin and a full greying-brown beard (#705034).
+A soft slouchy cloth cap in warm brown. He wears a brick-red long-sleeved
+tunic (#8e3926) to mid-thigh with a laced V-neck, and cream undershirt
+sleeves (#d6b58c) rolled to the elbow leaving thick forearms bare. A wide
+dark brown leather belt with a square pewter buckle. Dark brown trousers
+(#4d3826) tucked into mid-calf brown leather boots (#714a30). He carries a
+large felling axe with a long pale wooden haft and a grey steel head
+(#554b46) resting back over one shoulder, gripped by the hand on that side.
+
+If a reference image of this character is attached, match it exactly and
+let it override every description above.
 
 POSE — CONTACT, left leg leading. His left foot is forward and flat on the
 ground, his right foot is back with the heel lifted and only the toe still
@@ -1581,10 +1745,12 @@ touching. The legs are clearly apart with daylight between them. His body is
 at MIDDLE height. His FREE arm swings forward. The arm holding the axe does
 not swing; the axe head rocks very slightly with his shoulders.
 
-CAMERA: unchanged from the standing sprite — seen from slightly above, about
-30 degrees above the horizon, facing three-quarters to the RIGHT and turned
-slightly towards the viewer so the face is visible. Full body, head to feet.
-He is walking towards the right of frame.
+CAMERA: the figure faces the viewer almost straight on, the body turned
+only very slightly, seen from a little above as from an isometric game
+board about 30 degrees above the horizon. Full body, head to feet. He is
+walking towards the viewer's right. Keep this same near-frontal view in
+all six frames -- do NOT turn the character into a side-on profile, and do
+not change the angle between frames.
 
 REGISTRATION: identical canvas, identical figure height and identical
 horizontal centre in every frame of this cycle. The lowest foot rests on the
@@ -1614,9 +1780,20 @@ surface.
 
 ```
 Frame 2 of a six-frame walk cycle for this exact character, as a game
-character sprite. Match the pasted standing sprite exactly: same face, same
-beard, same clothing, same colours, and the same axe carried over the same
-shoulder by the same hand.
+character sprite.
+
+CHARACTER: a sturdy, broad-shouldered older medieval woodcutter with a
+weathered friendly face, tan skin and a full greying-brown beard (#705034).
+A soft slouchy cloth cap in warm brown. He wears a brick-red long-sleeved
+tunic (#8e3926) to mid-thigh with a laced V-neck, and cream undershirt
+sleeves (#d6b58c) rolled to the elbow leaving thick forearms bare. A wide
+dark brown leather belt with a square pewter buckle. Dark brown trousers
+(#4d3826) tucked into mid-calf brown leather boots (#714a30). He carries a
+large felling axe with a long pale wooden haft and a grey steel head
+(#554b46) resting back over one shoulder, gripped by the hand on that side.
+
+If a reference image of this character is attached, match it exactly and
+let it override every description above.
 
 POSE — DOWN, weight on the left leg. His weight has come fully over his left
 leg, which is bent at the knee and taking it. His right foot is just leaving
@@ -1624,10 +1801,12 @@ the ground behind him. His body is at its LOWEST point of the whole cycle,
 noticeably lower than frame 1. His free arm passes close to his body. The
 axe dips with his shoulders.
 
-CAMERA: unchanged from the standing sprite — seen from slightly above, about
-30 degrees above the horizon, facing three-quarters to the RIGHT and turned
-slightly towards the viewer so the face is visible. Full body, head to feet.
-He is walking towards the right of frame.
+CAMERA: the figure faces the viewer almost straight on, the body turned
+only very slightly, seen from a little above as from an isometric game
+board about 30 degrees above the horizon. Full body, head to feet. He is
+walking towards the viewer's right. Keep this same near-frontal view in
+all six frames -- do NOT turn the character into a side-on profile, and do
+not change the angle between frames.
 
 REGISTRATION: identical canvas, identical figure height and identical
 horizontal centre in every frame of this cycle. The lowest foot rests on the
@@ -1657,9 +1836,20 @@ surface.
 
 ```
 Frame 3 of a six-frame walk cycle for this exact character, as a game
-character sprite. Match the pasted standing sprite exactly: same face, same
-beard, same clothing, same colours, and the same axe carried over the same
-shoulder by the same hand.
+character sprite.
+
+CHARACTER: a sturdy, broad-shouldered older medieval woodcutter with a
+weathered friendly face, tan skin and a full greying-brown beard (#705034).
+A soft slouchy cloth cap in warm brown. He wears a brick-red long-sleeved
+tunic (#8e3926) to mid-thigh with a laced V-neck, and cream undershirt
+sleeves (#d6b58c) rolled to the elbow leaving thick forearms bare. A wide
+dark brown leather belt with a square pewter buckle. Dark brown trousers
+(#4d3826) tucked into mid-calf brown leather boots (#714a30). He carries a
+large felling axe with a long pale wooden haft and a grey steel head
+(#554b46) resting back over one shoulder, gripped by the hand on that side.
+
+If a reference image of this character is attached, match it exactly and
+let it override every description above.
 
 POSE — PASSING, right leg swinging through. His right leg swings forward
 beneath his body, knee bent, the foot just clear of the ground. His left leg
@@ -1667,10 +1857,12 @@ is straight and carrying all the weight. The feet are close together, nearly
 overlapping. His body is at its HIGHEST point of the whole cycle. His free
 arm hangs near vertical. The axe rides at its highest with him.
 
-CAMERA: unchanged from the standing sprite — seen from slightly above, about
-30 degrees above the horizon, facing three-quarters to the RIGHT and turned
-slightly towards the viewer so the face is visible. Full body, head to feet.
-He is walking towards the right of frame.
+CAMERA: the figure faces the viewer almost straight on, the body turned
+only very slightly, seen from a little above as from an isometric game
+board about 30 degrees above the horizon. Full body, head to feet. He is
+walking towards the viewer's right. Keep this same near-frontal view in
+all six frames -- do NOT turn the character into a side-on profile, and do
+not change the angle between frames.
 
 REGISTRATION: identical canvas, identical figure height and identical
 horizontal centre in every frame of this cycle. The supporting foot rests on
@@ -1700,9 +1892,20 @@ surface.
 
 ```
 Frame 4 of a six-frame walk cycle for this exact character, as a game
-character sprite. Match the pasted standing sprite exactly: same face, same
-beard, same clothing, same colours, and the same axe carried over the same
-shoulder by the same hand.
+character sprite.
+
+CHARACTER: a sturdy, broad-shouldered older medieval woodcutter with a
+weathered friendly face, tan skin and a full greying-brown beard (#705034).
+A soft slouchy cloth cap in warm brown. He wears a brick-red long-sleeved
+tunic (#8e3926) to mid-thigh with a laced V-neck, and cream undershirt
+sleeves (#d6b58c) rolled to the elbow leaving thick forearms bare. A wide
+dark brown leather belt with a square pewter buckle. Dark brown trousers
+(#4d3826) tucked into mid-calf brown leather boots (#714a30). He carries a
+large felling axe with a long pale wooden haft and a grey steel head
+(#554b46) resting back over one shoulder, gripped by the hand on that side.
+
+If a reference image of this character is attached, match it exactly and
+let it override every description above.
 
 POSE — CONTACT, right leg leading. This is frame 1 with the legs swapped.
 His RIGHT foot is forward and flat on the ground, his LEFT foot is back with
@@ -1710,10 +1913,12 @@ the heel lifted and only the toe still touching. The legs are clearly apart.
 His body is at MIDDLE height. His FREE arm swings BACK this time. The axe
 stays over the SAME shoulder as always — it does not change sides.
 
-CAMERA: unchanged from the standing sprite — seen from slightly above, about
-30 degrees above the horizon, facing three-quarters to the RIGHT and turned
-slightly towards the viewer so the face is visible. Full body, head to feet.
-He is walking towards the right of frame.
+CAMERA: the figure faces the viewer almost straight on, the body turned
+only very slightly, seen from a little above as from an isometric game
+board about 30 degrees above the horizon. Full body, head to feet. He is
+walking towards the viewer's right. Keep this same near-frontal view in
+all six frames -- do NOT turn the character into a side-on profile, and do
+not change the angle between frames.
 
 REGISTRATION: identical canvas, identical figure height and identical
 horizontal centre in every frame of this cycle. The lowest foot rests on the
@@ -1743,9 +1948,20 @@ surface.
 
 ```
 Frame 5 of a six-frame walk cycle for this exact character, as a game
-character sprite. Match the pasted standing sprite exactly: same face, same
-beard, same clothing, same colours, and the same axe carried over the same
-shoulder by the same hand.
+character sprite.
+
+CHARACTER: a sturdy, broad-shouldered older medieval woodcutter with a
+weathered friendly face, tan skin and a full greying-brown beard (#705034).
+A soft slouchy cloth cap in warm brown. He wears a brick-red long-sleeved
+tunic (#8e3926) to mid-thigh with a laced V-neck, and cream undershirt
+sleeves (#d6b58c) rolled to the elbow leaving thick forearms bare. A wide
+dark brown leather belt with a square pewter buckle. Dark brown trousers
+(#4d3826) tucked into mid-calf brown leather boots (#714a30). He carries a
+large felling axe with a long pale wooden haft and a grey steel head
+(#554b46) resting back over one shoulder, gripped by the hand on that side.
+
+If a reference image of this character is attached, match it exactly and
+let it override every description above.
 
 POSE — DOWN, weight on the right leg. This is frame 2 with the legs swapped.
 His weight has come fully over his RIGHT leg, which is bent at the knee and
@@ -1753,10 +1969,12 @@ taking it. His LEFT foot is just leaving the ground behind him. His body is
 at its LOWEST point, the same height as frame 2. His free arm passes close
 to his body. The axe dips with his shoulders.
 
-CAMERA: unchanged from the standing sprite — seen from slightly above, about
-30 degrees above the horizon, facing three-quarters to the RIGHT and turned
-slightly towards the viewer so the face is visible. Full body, head to feet.
-He is walking towards the right of frame.
+CAMERA: the figure faces the viewer almost straight on, the body turned
+only very slightly, seen from a little above as from an isometric game
+board about 30 degrees above the horizon. Full body, head to feet. He is
+walking towards the viewer's right. Keep this same near-frontal view in
+all six frames -- do NOT turn the character into a side-on profile, and do
+not change the angle between frames.
 
 REGISTRATION: identical canvas, identical figure height and identical
 horizontal centre in every frame of this cycle. The lowest foot rests on the
@@ -1786,9 +2004,20 @@ surface.
 
 ```
 Frame 6 of a six-frame walk cycle for this exact character, as a game
-character sprite. Match the pasted standing sprite exactly: same face, same
-beard, same clothing, same colours, and the same axe carried over the same
-shoulder by the same hand.
+character sprite.
+
+CHARACTER: a sturdy, broad-shouldered older medieval woodcutter with a
+weathered friendly face, tan skin and a full greying-brown beard (#705034).
+A soft slouchy cloth cap in warm brown. He wears a brick-red long-sleeved
+tunic (#8e3926) to mid-thigh with a laced V-neck, and cream undershirt
+sleeves (#d6b58c) rolled to the elbow leaving thick forearms bare. A wide
+dark brown leather belt with a square pewter buckle. Dark brown trousers
+(#4d3826) tucked into mid-calf brown leather boots (#714a30). He carries a
+large felling axe with a long pale wooden haft and a grey steel head
+(#554b46) resting back over one shoulder, gripped by the hand on that side.
+
+If a reference image of this character is attached, match it exactly and
+let it override every description above.
 
 POSE — PASSING, left leg swinging through. This is frame 3 with the legs
 swapped, and it is the last frame, so it must lead straight back into frame
@@ -1798,10 +2027,12 @@ The feet are close together. His body is at its HIGHEST point, the same
 height as frame 3. His free arm hangs near vertical. The axe rides at its
 highest with him.
 
-CAMERA: unchanged from the standing sprite — seen from slightly above, about
-30 degrees above the horizon, facing three-quarters to the RIGHT and turned
-slightly towards the viewer so the face is visible. Full body, head to feet.
-He is walking towards the right of frame.
+CAMERA: the figure faces the viewer almost straight on, the body turned
+only very slightly, seen from a little above as from an isometric game
+board about 30 degrees above the horizon. Full body, head to feet. He is
+walking towards the viewer's right. Keep this same near-frontal view in
+all six frames -- do NOT turn the character into a side-on profile, and do
+not change the angle between frames.
 
 REGISTRATION: identical canvas, identical figure height and identical
 horizontal centre in every frame of this cycle. The supporting foot rests on
