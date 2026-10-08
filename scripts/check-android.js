@@ -152,6 +152,63 @@ if (themeCode.includes('@drawable' + '/' + 'splash'))
   }
 }
 
+/* The two files that have to agree about what is being built.
+
+   capacitor.config.json and build.gradle each name the app, and nothing
+   makes them match. They are read by different tools at different times, so
+   a rename in one leaves an app that installs beside its old self instead of
+   over it -- two icons, two saves, and a player who has lost their village.
+
+   And the server block, which is the expensive one. Capacitor serves the app
+   by intercepting the WebView's own requests and reading out of assets; it
+   opens no socket and needs no network. Point server.url at a laptop for an
+   afternoon of live reload, forget it, and the APK is a white screen for
+   everyone not on that wifi -- and it still works perfectly on the machine
+   that built it, which is the worst property a fault can have. */
+{
+  const cfg = JSON.parse(read('capacitor.config.json'));
+  const gradle = read('android/app/build.gradle');
+  const appId = /applicationId\s+"([^"]+)"/.exec(gradle);
+  say('the app id', cfg.appId || null, appId ? appId[1] : '(none in build.gradle)',
+    'capacitor.config.json against build.gradle');
+  say('the folder that ships', cfg.webDir || null, 'www', 'capacitor.config.json');
+  if (cfg.server && Object.keys(cfg.server).length)
+    fails.push('capacitor.config.json still has a server block (' + Object.keys(cfg.server).join(', ')
+      + ') -- that is live reload pointing at somebody\'s laptop, and the APK is a white screen for anyone else');
+
+  /* What it is built against. Play has refused new uploads below 35 since
+     August 2025, and compile and target moving apart is how a build starts
+     using an API it does not ship against. */
+  const vars = read('android/variables.gradle');
+  const num = k => { const m = new RegExp(k + '\\s*=\\s*(\\d+)').exec(vars); return m ? +m[1] : null; };
+  const target = num('targetSdkVersion'), compile = num('compileSdkVersion'), min = num('minSdkVersion');
+  if (target === null || compile === null)
+    fails.push('android/variables.gradle does not say what it targets');
+  else {
+    if (target !== compile)
+      fails.push('it targets API ' + target + ' and compiles against ' + compile + '; those have to match');
+    if (target < 35)
+      fails.push('it targets API ' + target + ', and Play has refused anything below 35 since August 2025');
+  }
+  if (min !== null && min > 24)
+    fails.push('it needs Android ' + min + ' or newer, which is a long way past the phones this game would run on');
+
+  /* And a version somebody can upload twice. */
+  const code = /versionCode\s+(\d+)/.exec(gradle);
+  if (!code) fails.push('build.gradle has no versionCode');
+  else if (+code[1] < 1) fails.push('versionCode is ' + code[1] + ', and Play counts from 1');
+
+  /* The game reaches for nothing off the phone -- which is what makes the
+     INTERNET permission in the manifest unnecessary, and is worth holding
+     true whether or not that line is ever removed. */
+  const shipped = read('www/game.js') + read('www/index.html');
+  const outward = shipped.match(new RegExp('https?://[^\'"\\s)]+', 'g')) || [];
+  const real = outward.filter(u => !/schemas\.android\.com|w3\.org/.test(u));
+  if (real.length)
+    fails.push('the shipped game reaches off the phone for ' + real.slice(0, 3).join(', ')
+      + ' -- it is meant to work with no network at all');
+}
+
 /* And the wrapper's own settings, which are easy to lose to a cap sync. */
 const man = read('android/app/src/main/AndroidManifest.xml');
 if (!/android:screenOrientation="portrait"/.test(man))
@@ -162,4 +219,5 @@ if (fails.length) {
   for (const f of fails) console.error('  - ' + f);
   process.exit(1);
 }
-console.log('android/  launch screen ' + want + ', portrait locked, www/ current and complete');
+console.log('android/  launch screen ' + want + ', portrait locked, www/ current and complete,'
+  + ' offline, targeting API ' + (/targetSdkVersion\s*=\s*(\d+)/.exec(read('android/variables.gradle')) || [])[1]);
