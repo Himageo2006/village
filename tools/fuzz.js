@@ -8388,6 +8388,75 @@
           + k + ', so shutting the game is the best move in it');
     }
 
+    /* And the traders came too.
+
+       The note on grantAway says everything carried on unwatched -- the
+       harvest, the hour of the day, the traders. The first two did. orderT
+       only moves inside step(), so the board was frozen: a village left for
+       twelve hours came back to the stalls it was left with, down to the
+       offer, and a countdown that had not moved a second. An empty board
+       stayed empty after an hour, after eight, after twelve, against the
+       forty-eight to five hundred and seventy-six traders that stretch is
+       worth -- and five minutes of actually playing fills every stall.
+
+       Held against PLAY rather than against a number written here, which is
+       the shape the rest of this sweep already uses: the same stretch, once
+       watched and once not, has to leave the same board. That survives
+       retuning ORDER_EVERY, the stall count and the market's hurry-up, none
+       of which this block has to know. */
+    {
+      const every = V.orderEvery(), slots = V.orderSlots();
+      /* Long enough that every stall is taken either way, so the comparison
+         is between two full boards rather than two half-filled ones. */
+      const stretch = Math.max(V.AWAY_MIN, Math.ceil(every * (slots + 1)) + 5);
+      const shape = () => ({ n: V.orders.length,
+        sizes: new Set(V.orders.map(o => o.tier)).size,
+        stalls: new Set(V.orders.map(o => o.slot)).size });
+      V.away = null; V.panel = null;
+      V.res.wood = Math.floor(V.caps.wood / 2); V.res.food = Math.floor(V.caps.food / 2);
+      V.orders = []; V.orderT = 0; V.step(0.001);
+      for (let i = 0; i < stretch * 30; i++) V.step(1 / 30);
+      const played = shape();
+      V.res.wood = Math.floor(V.caps.wood / 2); V.res.food = Math.floor(V.caps.food / 2);
+      V.orders = []; V.orderT = 0; V.away = null; V.step(0.001);
+      V.grantAway(stretch);
+      const slept = shape();
+      if (played.n < slots)
+        fails.push('playing ' + stretch + ' seconds took only ' + played.n + ' of ' + slots
+          + ' stalls, so there was nothing for the away board to be held to');
+      else if (slept.n !== played.n || slept.sizes !== played.sizes)
+        fails.push(stretch + ' seconds of play leaves ' + played.n + ' stalls taken in ' + played.sizes
+          + ' sizes, and the same stretch away leaves ' + slept.n + ' in ' + slept.sizes);
+      if (slept.stalls !== slept.n)
+        fails.push('the board came back from an absence holding ' + slept.n + ' offers on only '
+          + slept.stalls + ' stalls');
+      /* And a stretch too short for even one trader leaves it alone, or the
+         board would fill itself every time the app was glanced at. */
+      if (V.AWAY_MIN < every) {
+        V.orders = []; V.orderT = 0; V.away = null; V.step(0.001);
+        V.grantAway(V.AWAY_MIN);
+        if (V.orders.length)
+          fails.push('an absence of ' + V.AWAY_MIN + ' seconds, under the ' + Math.round(every)
+            + ' a trader takes, still seated ' + V.orders.length + ' offers');
+      }
+      /* And offers nobody could ever pay for go, one trader at a time being
+         what the live board does and this stretch being worth many of them.
+         An offer larger than the barn is a state load() keeps on purpose. */
+      V.orders = []; V.orderT = 0; V.away = null; V.step(0.001);
+      for (let i = 0; i < slots; i++) {
+        const o = { ...V.makeOrder(i), slot: i };
+        o.giveN = Math.floor(V.caps[o.giveK] * 1.5);
+        V.orders.push(o);
+      }
+      const stuck = V.orders.map(o => o.id);
+      V.grantAway(stretch);
+      const left = V.orders.filter(o => stuck.indexOf(o.id) >= 0).length;
+      if (left)
+        fails.push(left + ' offers asking more than the whole barn holds were still on the board after '
+          + stretch + ' seconds away, and no trader can ever take them');
+      V.orders = []; V.orderT = 0; V.away = null; V.step(0.001);
+    }
+
     V.away = null; V.step(0.001);
     return { secs, away: { wood: +away.wood.toFixed(1), food: +away.food.toFixed(1) },
       live: { wood: +live.wood.toFixed(1), food: +live.food.toFixed(1) },

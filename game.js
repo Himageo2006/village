@@ -2821,6 +2821,46 @@ function grantAway(secs) {
     if (want - earned > 1) spilled = true;
     if (earned >= 1) { res[k] += earned; got[k] = Math.floor(earned); any = true; }
   }
+  /* And the traders came too, which is the one thing in that list that did
+     not.
+
+     The note above says everything else carried on unwatched -- the harvest,
+     the hour of the day, the traders. The first two do: the harvest is what
+     this function credits, and the day runs off the wall clock. The board
+     was simply frozen. orderT only moves inside step(), so a village left
+     for twelve hours came back to the stalls it was left with, down to the
+     offer, and a countdown that had not moved a second.
+
+     Measured: an empty board, away one hour, eight hours, twelve hours --
+     nought stalls taken every time, against the forty-eight to five hundred
+     and seventy-six traders that stretch is worth. Five minutes of actually
+     playing fills all three. So the player most likely to find an empty
+     market is the one who closed the app before the board had filled, and
+     what they come back to is another three and three quarter minutes of
+     waiting -- a stall at a time, at seventy-five seconds each.
+
+     Enough time for ONE trader is all this needs to know. Past that the
+     board is simply full, and running the clock five hundred times over
+     would arrive at the same three stalls having written five hundred
+     saves to get there.
+
+     After the earnings, not before: makeOrder sizes an offer against the
+     ceiling and points it at whichever resource the village is richer in,
+     and both of those are what the haul just changed. */
+  if (secs >= orderEvery()) {
+    seatOrders();
+    /* An offer nobody could take would have been replaced, one stall per
+       trader, and over a stretch this long every one of them. The exception
+       the live rule keeps is kept here too: a board blocked only because
+       there is nowhere to PUT the payout is not a board of bad offers, and
+       the trader who replaced them would hit the same wall. */
+    if (orders.length && !orders.some(canFill) && !orders.every(o => res[o.giveK] >= o.giveN))
+      orders = orders.map(o => ({ ...makeOrder(), slot: o.slot }));
+    /* One at a time, so each new offer sees the ones already standing and
+       keeps the three sizes distinct, exactly as the live board does. */
+    while (orders.length < orderSlots()) orders.push({ ...makeOrder(), slot: freeStall() });
+    orderT = 0;                        // a trader has just been; the next is a full wait away
+  }
   if (any || spilled) away = { secs, got, capped, spilled, shared: finished ? shared : null,
     fullAfter: isFinite(fullAfter) ? fullAfter : null };
 }
