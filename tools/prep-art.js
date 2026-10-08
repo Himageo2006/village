@@ -64,6 +64,15 @@ const OPAQUE = new Set(['water']);
    that curve. It is a flat-field correction, the same idea as removing lens
    falloff from a photograph, and it keeps the texture while losing the shading. */
 const TILES = new Set(['path']);
+
+/* Villagers that can have a walk cycle, and how long one is.
+
+   A cycle is all-or-nothing: six frames and the game walks that villager,
+   fewer and it keeps the standing sprite. Half a cycle on the ground is a
+   villager who limps, so the set is refused rather than half-loaded. */
+const WALK_OF = ['villager_farmer', 'villager_basket', 'villager_woodcutter'];
+const WALK_FRAMES = 6;
+const walkName = (key, i) => key + '_walk' + i;
 const FLAT_BINS = 24, FLAT_MAX_GAIN = 2.4;
 
 function flatten(data, w, h, ch) {
@@ -147,10 +156,178 @@ function palette(at, w, h) {
    new master for that key. */
 const ORIG = path.join(ART, 'original');
 
+/* Key the background out of one image and hand back its raw pixels.
+
+   Split out of the loop below so the walk frames can use it too. They cannot
+   use the rest of that loop: it trims each image to its OWN bounding box,
+   which is right for a building standing alone and ruinous for a cycle --
+   six frames each cropped to themselves is six different registrations, and
+   the villager pulses and slides as they cut. */
+async function keyOut(file, opaque) {
+  const { data, info } = await sharp(file).ensureAlpha()
+    .raw().toBuffer({ resolveWithObject: true });
+    const { width: w, height: h, channels: ch } = info;
+    const at = (x, y) => { const i = (y * w + x) * ch; return [data[i], data[i + 1], data[i + 2], data[i + 3]]; };
+
+    const pal = opaque ? [] : palette(at, w, h);
+
+    // brightness span of the palette, used to bridge checkerboard seams
+    const lum = c => (c[0] + c[1] + c[2]) / 3;
+    const lo = Math.min(...pal.map(lum)) - SEAM, hi = Math.max(...pal.map(lum)) + SEAM;
+    const spans = pal.length > 1;
+
+    const isBg = p => {
+      if (pal.some(c => near(p, c, TOL))) return true;
+      if (!spans) return false;
+      const l = lum(p);
+      // a neutral grey lying between two background greys is a seam, not art
+      return Math.max(p[0], p[1], p[2]) - Math.min(p[0], p[1], p[2]) < 16 && l > lo && l < hi;
+    };
+
+    let keyed = 0, holes = 0;
+    const seen = new Uint8Array(w * h);
+
+    /* Flood a background region from `seeds`. Returns the pixels it covers and
+       which palette colours it contains, without altering the image — the
+       caller decides whether the region really is background. */
+    const flood = seeds => {
+      const px = [], hit = new Set(), stack = seeds.slice();
+      while (stack.length) {
+        const [x, y] = stack.pop();
+        if (x < 0 || y < 0 || x >= w || y >= h) continue;
+        const idx = y * w + x;
+        if (seen[idx]) continue;
+        const p = at(x, y);
+        if (p[3] >= 8 && !isBg(p)) continue;   // hit the subject, stop here
+        seen[idx] = 1;
+        px.push(idx);
+        if (p[3] >= 8) pal.forEach((c, i) => { if (near(p, c, TOL)) hit.add(i); });
+        stack.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
+      }
+      return { px, hit };
+    };
+    const clear = px => { for (const i of px) if (data[i * ch + 3]) { data[i * ch + 3] = 0; keyed++; } };
+
+    if (pal.length) {
+      const seeds = [];
+      for (let x = 0; x < w; x++) { seeds.push([x, 0], [x, h - 1]); }
+      for (let y = 0; y < h; y++) { seeds.push([0, y], [w - 1, y]); }
+      clear(flood(seeds).px);
+
+      /* Gaps the edge flood cannot reach — background seen THROUGH the model,
+         such as the openings of an open-sided workshop. Only a painted
+         checkerboard is safe to key here, and only where the region really
+         does alternate between two palette greys: a flat pale surface inside
+         the building matches one colour at most and is left alone. */
+      if (spans) {
+        for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+          if (seen[y * w + x]) continue;
+          const p = at(x, y);
+          if (p[3] < 8 || !isBg(p)) continue;
+          const r = flood([[x, y]]);
+          if (r.hit.size >= 2) { clear(r.px); holes++; }
+        }
+      }
+    }
+  return { data, w, h, ch, pal, holes, keyed };
+}
+/* A whole walk cycle, registered against itself.
+
+   Every frame is keyed on its own, and then the SET is trimmed as one: the
+   bounding box is the union of all six, every frame is cut to that same box,
+   and they are all scaled by the same factor. That is the whole point of
+   doing this separately. Trim each frame to its own box and the villager's
+   height and centre change from frame to frame -- he pulses, and slides
+   sideways, and the cycle reads as a fault rather than as a walk.
+
+   It also means the frames correct each other. A generator that draws frame
+   three a little small leaves a little air at the top of the shared box
+   instead of being blown up to match, which is wrong by a pixel rather than
+   wrong by a jump.
+
+   All six or none. A cycle missing a frame is a limp, and the game is
+   better off keeping the standing sprite until the set is complete. */
+async function walkSet(key) {
+  const files = [];
+  for (let i = 1; i <= WALK_FRAMES; i++) {
+    const n = walkName(key, i);
+    const dropped = path.join(ART, n + '.png'), master = path.join(ORIG, n + '.png');
+    if (fs.existsSync(dropped)) fs.renameSync(dropped, master);
+    if (fs.existsSync(master)) files.push(master);
+  }
+  if (!files.length) return null;
+  if (files.length < WALK_FRAMES) {
+    console.log(String(key + ' walk').padEnd(26),
+      'only ' + files.length + ' of ' + WALK_FRAMES + ' frames — the set is ignored until it is complete');
+    return null;
+  }
+
+  const frames = [];
+  for (const file of files) frames.push(await keyOut(file, false));
+
+  /* The union box. A pixel counts as part of the figure at the same
+     threshold sharp's own trim uses, so a soft rim is not mistaken for air. */
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const fr of frames) {
+    for (let y = 0; y < fr.h; y++) for (let x = 0; x < fr.w; x++) {
+      if (fr.data[(y * fr.w + x) * fr.ch + 3] < 8) continue;
+      if (x < x0) x0 = x; if (x > x1) x1 = x;
+      if (y < y0) y0 = y; if (y > y1) y1 = y;
+    }
+  }
+  if (!isFinite(x0)) { console.log(String(key + ' walk').padEnd(26), 'every frame keyed away to nothing'); return null; }
+  const bw = x1 - x0 + 1, bh = y1 - y0 + 1;
+
+  /* Frames of differing canvas size cannot share one box, and that is a
+     recrop rather than drift -- worth saying out loud rather than papering
+     over, because the cycle will be wrong and the reason will not be
+     obvious. */
+  const odd = frames.filter(fr => fr.w !== frames[0].w || fr.h !== frames[0].h).length;
+  if (odd) console.log(String(key + ' walk').padEnd(26),
+    'WARNING: ' + odd + ' frames are a different canvas size, so the set cannot register');
+
+  const cap = CAP[key] || MAX_W;
+  let wrote = 0, bytes = 0, dim = '';
+  for (let i = 0; i < frames.length; i++) {
+    const fr = frames[i];
+    let img = sharp(fr.data, { raw: { width: fr.w, height: fr.h, channels: fr.ch } })
+      .extract({ left: Math.min(x0, fr.w - 1), top: Math.min(y0, fr.h - 1),
+        width: Math.min(bw, fr.w - x0), height: Math.min(bh, fr.h - y0) });
+    /* Capped by HEIGHT, not by the longest side as a single image is.
+
+       The game draws a villager to a height, so height is what has to match
+       the standing sprite. A cycle's shared box is wider than that sprite --
+       the legs are apart in four frames of six -- so capping the longest
+       side would scale the set down by its width and the villager would
+       shrink the moment he set off. One cap for the whole set, so every
+       frame also lands at the same scale as every other. */
+    if (bh > cap) img = img.resize({ height: cap, withoutEnlargement: true });
+    const out = await img.webp({ quality: 88, alphaQuality: 100, effort: 6 }).toBuffer();
+    fs.writeFileSync(path.join(ART, walkName(key, i + 1) + '.webp'), out);
+    const meta = await sharp(out).metadata();
+    dim = meta.width + 'x' + meta.height; bytes += out.length; wrote++;
+  }
+  console.log(String(key + ' walk').padEnd(26), (wrote + ' frames, registered as one set').padEnd(34),
+    '-> ' + dim + '  ' + (bytes / 1024).toFixed(0) + ' KB total');
+  return wrote;
+}
+
 (async () => {
   fs.mkdirSync(ORIG, { recursive: true });
-  const only = process.argv.slice(2);
+  const argv = process.argv.slice(2);
+  const walkOnly = argv.includes('--walk');
+  const only = argv.filter(a => a !== '--walk');
   const keys = only.length ? only : KEYS;
+
+  /* Walk cycles first, and on every run rather than only with --walk: a set
+     dropped in art/ and forgotten is a villager who goes on hopping, and the
+     flag is there to do ONLY the cycles, not to be the only way to do them. */
+  let cycles = 0;
+  for (const k of WALK_OF) if (!only.length || only.includes(k)) cycles += (await walkSet(k)) ? 1 : 0;
+  if (walkOnly) {
+    if (!cycles) console.log('No walk frames found in art/. See groups 24-26 in art/PROMPTS.md.');
+    return;
+  }
 
   const jobs = [];
   for (const k of keys) {
@@ -167,72 +344,7 @@ const ORIG = path.join(ART, 'original');
   for (const { key, file } of jobs) {
     const name = key + '.png';
     try {
-      const { data, info } = await sharp(file).ensureAlpha()
-        .raw().toBuffer({ resolveWithObject: true });
-      const { width: w, height: h, channels: ch } = info;
-      const at = (x, y) => { const i = (y * w + x) * ch; return [data[i], data[i + 1], data[i + 2], data[i + 3]]; };
-
-      const pal = OPAQUE.has(key) ? [] : palette(at, w, h);
-
-      // brightness span of the palette, used to bridge checkerboard seams
-      const lum = c => (c[0] + c[1] + c[2]) / 3;
-      const lo = Math.min(...pal.map(lum)) - SEAM, hi = Math.max(...pal.map(lum)) + SEAM;
-      const spans = pal.length > 1;
-
-      const isBg = p => {
-        if (pal.some(c => near(p, c, TOL))) return true;
-        if (!spans) return false;
-        const l = lum(p);
-        // a neutral grey lying between two background greys is a seam, not art
-        return Math.max(p[0], p[1], p[2]) - Math.min(p[0], p[1], p[2]) < 16 && l > lo && l < hi;
-      };
-
-      let keyed = 0, holes = 0;
-      const seen = new Uint8Array(w * h);
-
-      /* Flood a background region from `seeds`. Returns the pixels it covers and
-         which palette colours it contains, without altering the image — the
-         caller decides whether the region really is background. */
-      const flood = seeds => {
-        const px = [], hit = new Set(), stack = seeds.slice();
-        while (stack.length) {
-          const [x, y] = stack.pop();
-          if (x < 0 || y < 0 || x >= w || y >= h) continue;
-          const idx = y * w + x;
-          if (seen[idx]) continue;
-          const p = at(x, y);
-          if (p[3] >= 8 && !isBg(p)) continue;   // hit the subject, stop here
-          seen[idx] = 1;
-          px.push(idx);
-          if (p[3] >= 8) pal.forEach((c, i) => { if (near(p, c, TOL)) hit.add(i); });
-          stack.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
-        }
-        return { px, hit };
-      };
-      const clear = px => { for (const i of px) if (data[i * ch + 3]) { data[i * ch + 3] = 0; keyed++; } };
-
-      if (pal.length) {
-        const seeds = [];
-        for (let x = 0; x < w; x++) { seeds.push([x, 0], [x, h - 1]); }
-        for (let y = 0; y < h; y++) { seeds.push([0, y], [w - 1, y]); }
-        clear(flood(seeds).px);
-
-        /* Gaps the edge flood cannot reach — background seen THROUGH the model,
-           such as the openings of an open-sided workshop. Only a painted
-           checkerboard is safe to key here, and only where the region really
-           does alternate between two palette greys: a flat pale surface inside
-           the building matches one colour at most and is left alone. */
-        if (spans) {
-          for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-            if (seen[y * w + x]) continue;
-            const p = at(x, y);
-            if (p[3] < 8 || !isBg(p)) continue;
-            const r = flood([[x, y]]);
-            if (r.hit.size >= 2) { clear(r.px); holes++; }
-          }
-        }
-      }
-
+      const { data, w, h, ch, pal, holes } = await keyOut(file, OPAQUE.has(key));
       let src = sharp(data, { raw: { width: w, height: h, channels: ch } }).png();
       if (!OPAQUE.has(key)) src = src.trim({ threshold: 1 });   // nothing to trim on a full-bleed plate
       const trimmed = await src.toBuffer();

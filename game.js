@@ -49,6 +49,28 @@ const tileAt = (x, y) => { const t = worldToTile(x, y);
    pose swayed and bobbed in code reads as walking at the size these are drawn.
    Each villager keeps its own index into this list. */
 const VILLAGERS = ['villager_farmer', 'villager_basket', 'villager_woodcutter'];
+/* A painted walk cycle, if one has been drawn for this villager.
+
+   Six frames to the stride, and the stride is the one the walker is
+   actually taking -- the same phase that drives everything else, so the
+   feet land where the ground says they should and a villager hurrying
+   along a road cycles faster without being told to.
+
+   All six or none. artFor hands back null both for a file that is missing
+   and for one still decoding, which is exactly the answer wanted here:
+   until the whole set is on screen the villager keeps his standing sprite
+   and the faked walk, and he switches over the moment the last frame
+   arrives. Half a cycle would be a limp. */
+const WALK_STEPS = 6;
+function walkFrames(key) {
+  const out = [];
+  for (let i = 1; i <= WALK_STEPS; i++) {
+    const im = artFor(key + '_walk' + i);
+    if (!im) return null;
+    out.push(im);
+  }
+  return out;
+}
 const ready=im=>im&&im.complete&&im.naturalWidth>0;
 
 /* Building artwork is OPTIONAL. If art/<key>.webp exists it is drawn; if it is
@@ -143,6 +165,21 @@ const villagers=[];
    the game in transit rather than working -- the first delivery landed a minute
    in. Fast enough to look purposeful, slow enough to watch. */
 const VIL_SPD=58;
+/* How far a villager covers between footfalls.
+
+   The walk used to be a clock: the phase driving the bob advanced at a flat
+   seven radians a second whatever the legs were doing. A villager on a road
+   moves at better than twice the speed and was still rocking at walking
+   cadence, so he skated -- the one thing that reads as broken however good
+   the rest of the figure looks. Phase comes off the ground covered now, so
+   the feet keep up with the floor by construction.
+
+   Cadence rises with speed and so does stride length, which is why the
+   hurrying villager is not simply twice as frantic: at walking pace this is
+   a step every 24 world pixels, about two and a half a second, and on a road
+   a longer step at about three and a half. */
+const STRIDE = 24;
+const strideFor = spd => STRIDE * Math.sqrt(Math.max(0.25, spd / VIL_SPD));
 /* The last few steps of any journey, which used to be three magic numbers in
    three functions. A worker does not stand at the centre of the building they
    work at, they do not walk to the centre of the store either, and they stop
@@ -1021,7 +1058,9 @@ function stepVillagers(dt){
          again. Only slow frames are big enough to do it, which means it would
          have happened on a struggling phone and nowhere else. */
       const m = Math.min(spd * dt, d);
-      v.x+=dx/d*m; v.y+=dy/d*m; v.face=dx<0?-1:1; v.ph+=dt*7; return false; };
+      v.x+=dx/d*m; v.y+=dy/d*m; v.face=dx<0?-1:1;
+      v.ph += m * Math.PI / strideFor(spd);   // one footfall per PI, measured on the ground
+      return false; };
 
     /* A workplace can move out from under somebody: the Move button picks the
        whole building up and sets it down across the island, and nothing told the
@@ -3123,7 +3162,7 @@ function villagerArt(v) {
   return VILLAGERS[v.k % VILLAGERS.length];
 }
 function drawVillager(v) {
-  const im = artFor(villagerArt(v));
+  const key = villagerArt(v);
   /* Far from where he is going, and nothing holding him there.
 
      "Nothing holding him" used to be written as `v.wait <= 0`, and wait is not
@@ -3146,19 +3185,65 @@ function drawVillager(v) {
      it and fails the distance test on its own. */
   const moving = Math.hypot(v.tx - v.x, v.ty - v.y) > ARRIVE
     && !(v.st === 'idle' && v.wait > 0);
+  /* The painted cycle where there is one. Six frames to the stride, picked
+     by where in that stride he is -- so the frame changes with the ground
+     covered rather than with the clock, and the feet do not skate. */
+  const cycle = moving && !reduceMotion ? walkFrames(key) : null;
+  const im = cycle
+    ? cycle[Math.floor(v.ph / (Math.PI * 2) * WALK_STEPS) % WALK_STEPS]
+    : artFor(key);
   const HGT = VILLAGER_H;
-  /* Standing art walks by leaning: rocked about the feet and lifted on each
-     step, twice per stride so both feet read. Kept small -- at this size a
-     hint of motion is convincing and anything more looks like staggering. */
-  const bob = moving && !reduceMotion ? Math.abs(Math.sin(v.ph * 3)) * HGT * 0.05 : 0;
-  const lean = moving && !reduceMotion ? Math.sin(v.ph * 1.5) * 0.055 : 0;
+  /* A walk cycle out of one standing drawing.
+
+     There are no legs to move -- the art is a single cut-out figure -- so the
+     walk is carried by the whole body, the way a flipbook does it. The phase
+     runs a footfall every PI and everything hangs off where in that step he
+     is: nought at CONTACT, when the foot lands and the body is at its lowest,
+     one at PASSING, when it swings under him and he is at his tallest.
+
+       lift      a small rise at passing and a dip at contact, once per
+                 step. SMALL. This was seven and a half per cent of his
+                 height and it read as hopping, because a big vertical is
+                 what a jump is and a walk is a horizontal act with a
+                 wobble on top. Two and a half per cent, on a squared sine
+                 so it eases through the dip rather than bouncing off it --
+                 an absolute sine has a cusp at the bottom, and a cusp is a
+                 landing
+       squash    wider and shorter at contact where the weight lands,
+                 narrower and taller at passing. Halved along with the
+                 lift: squash is the cue that says weight is being TAKEN,
+                 but stacked on a big rise it just adds to the bounce
+       rock      tipping over whichever foot is planted, and it alternates
+                 EVERY STEP. It used to run at half the step rate -- one
+                 roll per two strides -- which is a wallow rather than a
+                 walk, and was the other half of why this looked wrong
+       pitch     leaning into the direction of travel, which is what tells
+                 you somebody is walking rather than standing and bouncing
+
+     Both feet never leave the ground, because that is the whole difference
+     between a walk and a jump -- so the shadow stays exactly where it is
+     and exactly the size it is. Shrinking it with the rise was arguing the
+     opposite. */
+  /* The faked walk is the UNDERSTUDY. With painted frames the lift, the
+     squash and the rock all stand down: the drawing is already doing them,
+     and doing both is a villager bouncing on top of his own footsteps. */
+  const anim = moving && !reduceMotion && !cycle;
+  const sn = anim ? Math.sin(v.ph) : 0;               // sign alternates each step
+  const t = sn * sn;                                  // 0 contact, 1 passing, smooth through both
+  const bob = t * HGT * 0.025;
+  const sy = anim ? 1 + (t - 0.5) * 0.035 : 1;
+  const sx = anim ? 1 - (t - 0.5) * 0.03 : 1;
+  const lean = anim ? sn * 0.035 + 0.05 * v.face : 0;
   g.save();
   g.fillStyle = 'rgba(10,18,8,.34)';
   g.beginPath(); g.ellipse(v.x, v.y + 2, HGT * 0.24, HGT * 0.11, 0, 0, 7); g.fill();
   if (ready(im)) {
     const w = im.width * (HGT / im.height);
-    g.translate(v.x, v.y); g.rotate(lean); g.scale(v.face, 1);
-    g.drawImage(im, -w / 2, -HGT - bob, w, HGT);
+    g.translate(v.x, v.y); g.rotate(lean); g.scale(v.face * sx, sy);
+    /* Divided by the squash so the FEET sit on the ground and the body
+       compresses upward from them -- scaled about the origin, which is where
+       he is standing, a bob applied after the scale would lift him off it. */
+    g.drawImage(im, -w / 2, -HGT - bob / sy, w, HGT);
   } else {                                   // sprite not decoded yet
     g.fillStyle = '#c9b089'; g.beginPath(); g.arc(v.x, v.y - HGT * 0.75, 6, 0, 7); g.fill();
     g.fillStyle = '#5a6f8a'; g.fillRect(v.x - 5, v.y - HGT * 0.6, 10, HGT * 0.6);
@@ -3167,7 +3252,7 @@ function drawVillager(v) {
   /* What they are carrying, drawn OUTSIDE the mirrored transform so the icon
      does not flip when a villager turns round. */
   if (v.carry) {
-    const y = v.y - HGT - 13;
+    const y = v.y - HGT - 13 - bob;        // carried goods ride the bob, not the air above it
     g.save();
     g.fillStyle = 'rgba(14,22,12,.72)';
     g.beginPath(); g.roundRect(v.x - 15, y - 12, 30, 24, 12); g.fill();
@@ -6120,6 +6205,11 @@ for (const b of BUILDINGS) artFor(b.key);
   }
 }
 for (const v of VILLAGERS) artFor(v);
+/* Asked for once, here, rather than on the first frame somebody walks: a
+   villager with no cycle drawn for him would otherwise send six requests
+   the moment he set off, and artFor remembers a miss, so doing it at boot
+   costs the same misses at a moment when nothing is moving yet. */
+for (const v of VILLAGERS) for (let i = 1; i <= WALK_STEPS; i++) artFor(v + '_walk' + i);
 for (const k of ['ground', 'water', 'tree_pine', 'tree_oak', 'rock', 'bush']) artFor(k);
 
 /* test hooks */

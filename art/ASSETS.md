@@ -113,9 +113,16 @@ Buildings are the fiddly case, because their base has to land on a plot. The
 rest is simpler.
 
 **Villagers** (`villager_farmer`, `villager_basket`, `villager_woodcutter`) are
-single standing poses, anchored bottom-centre. The game picks one per villager
-and fakes the walk by rocking the sprite about its feet and lifting it on each
-step. Two things they must be drawn with:
+single standing poses, anchored bottom-centre. The game picks one per villager.
+
+If a villager also has a six-frame walk cycle -- `<key>_walk1.webp` through
+`_walk6.webp`, groups 24-26 in PROMPTS.md -- those are played while he walks,
+one frame per sixth of a stride, driven by the ground he covers rather than by
+a clock. Without them the standing sprite is rocked about its feet and lifted a
+little on each step instead, which is a fair imitation of weight but cannot
+move his legs. The set is all-or-nothing: `node tools/prep-art.js --walk` trims
+the six against a SHARED bounding box so they stay registered, and both it and
+the game ignore a set with a frame missing. Two things they must be drawn with:
 
 - **Flat, frontal light** — unlike everything else. The game mirrors a villager
   to turn them round, and a strong key light would flip with them.

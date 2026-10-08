@@ -5917,24 +5917,71 @@
     if (keys.length < 15)
       fails.push('the game has asked for only ' + keys.length + ' pictures, so this sweep found almost nothing to check');
 
+    /* A walk cycle is an OPTIONAL SET, and the rule above does not fit it.
+
+       The rule is right about a building: no sprite means a coloured box,
+       and nothing else in this file would say so. A villager with no walk
+       frames falls back to his standing sprite, which is a real painting --
+       so an absent cycle is a supported state, not a silent hole, and the
+       game asks for the frames at boot precisely so it can find out.
+
+       What IS a fault is half a cycle. The game takes six frames or none,
+       so one to five on disk are ignored in their entirety: the artist sees
+       no change, nothing errors, and the frames they drew do nothing at
+       all. That is the silent failure here, and it is the one worth
+       checking -- so the exception is not a hole, it is a different rule.
+
+       Named by the key rather than by a list kept here, so a fourth
+       villager with a cycle is covered the day somebody draws one. Split
+       rather than matched, for the reason this file has written down
+       twice: a pattern loses its backslashes on the way in. */
+    const WALK = '_walk';
+    const cycles = new Map(), plain = [];
+    for (const k of keys) {
+      const at = k.indexOf(WALK);
+      if (at < 0) { plain.push(k); continue; }
+      const who = k.slice(0, at);
+      if (!cycles.has(who)) cycles.set(who, []);
+      cycles.get(who).push(k);
+    }
+
     /* Every one of them arrived. artFor returns the image only once it has
        loaded, and null for ever after a 404 -- so this is the one place the
        quiet fallback is made to speak. */
     for (const k of keys) V.artFor(k);
     for (let i = 0; i < 40; i++) {
-      if (keys.every(k => V.artFor(k))) break;
+      if (plain.every(k => V.artFor(k))) break;
       await new Promise(r => setTimeout(r, 50));
     }
+    /* and a short grace for the cycles, which are allowed to be absent and
+       so can never satisfy a wait that insists on them */
+    for (let i = 0; i < 10 && !keys.every(k => V.artFor(k)); i++)
+      await new Promise(r => setTimeout(r, 50));
+
     const loaded = keys.filter(k => !!V.artFor(k));
-    for (const k of keys) if (!V.artFor(k))
+    for (const k of plain) if (!V.artFor(k))
       fails.push('the game asks for a picture of ' + k + ' and there is none, so it is drawn as a plain shape and nothing else in this file would notice');
+
+    /* The cycles: all of a set or none of it. */
+    const whole = [];
+    for (const [who, list] of cycles) {
+      const here = list.filter(k => !!V.artFor(k));
+      if (!here.length) continue;                 // none drawn yet, which is allowed
+      if (here.length < list.length) {
+        fails.push(who + ' has ' + here.length + ' of its ' + list.length
+          + ' walk frames, and the game takes a whole cycle or none -- so those frames are drawn nowhere'
+          + ' and nothing says so');
+        continue;
+      }
+      whole.push(...list);
+    }
 
     /* And the copy that goes on the phone. The dev server serves the
        repository root, so the shipped tree and the working one are both
        reachable from here and can be told apart -- which is the whole point,
        because they are the two that drift. */
     let shipped = 0;
-    for (const k of keys) {
+    for (const k of plain.concat(whole)) {
       let ok = false;
       try { ok = (await fetch('/www/art/' + k + '.webp')).status === 200; } catch (e) { ok = false; }
       if (ok) shipped++;

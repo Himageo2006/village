@@ -191,8 +191,11 @@ A flat white background keys out cleanly; a gradient or a painted scene does not
 
 # Villagers
 
-Three standing figures. The game animates them itself — it bobs them as they
-walk and **mirrors them** to turn them around — so do not ask for walk frames.
+Three standing figures. These are the REST pose and the fallback: the game
+**mirrors them** to turn them around, and without walk frames it fakes a step by
+rocking them about their feet. The walk frames themselves are group 24-26 at the
+end of this file, and a character keeps this standing sprite until its six
+frames arrive.
 
 Two rules matter more here than they did for the buildings:
 
@@ -973,3 +976,873 @@ horizontally. No empty padding.
 DO NOT INCLUDE: weapons, armour, horses, fountains, water, text, labels,
 watermarks, UI, borders, other figures, or any ground surface.
 ```
+
+---
+---
+
+# Villager walk cycles
+
+Six frames per villager, eighteen images in all. These replace the faked walk:
+until they exist the game rocks the standing sprite about its feet, which reads
+as a hop rather than a step, because nothing in a single drawing can move its
+legs.
+
+**Generate one character per conversation, in frame order.** Paste that
+villager's finished standing sprite in first and say *"this exact character —
+same face, same clothes, same colours, same camera, same lighting. I need a
+six-frame walk cycle."* Then ask for one frame per message. Asking for all six
+in one image gives a strip the model cannot keep consistent, and asking for them
+in separate conversations drifts the hat, the belt and the palette.
+
+Four rules decide whether the frames cut together or jitter:
+
+- **The figure must not be re-framed.** Same canvas, same figure height, same
+  horizontal centre, feet on the same ground line in every frame. If frame 3 is
+  zoomed in a little the villager will pulse. `prep-art.js --walk` registers the
+  set against a shared box, which fixes small drift and cannot fix a recrop.
+- **Same even frontal light in all six**, for the reason the standing sprites
+  have it: the game mirrors a villager to turn them round, and a strong key
+  light would flip with them.
+- **The cycle has to loop.** Frame 6 leads back into frame 1. Frames 4-6 are
+  frames 1-3 with the legs and arms swapped.
+- **Arms swing opposite the legs.** Left leg forward means right arm forward.
+
+The six poses, which are the standard eight-frame cycle with the two
+in-betweens dropped:
+
+| # | pose | body height |
+|---|---|---|
+| 1 | CONTACT — left foot forward and flat, right foot back on the toe, legs apart | middle |
+| 2 | DOWN — weight over the left leg, which is bent; right foot leaving the ground | lowest |
+| 3 | PASSING — right leg swings through under the body, feet close together, left leg straight | highest |
+| 4 | CONTACT — right foot forward and flat, left foot back on the toe, legs apart | middle |
+| 5 | DOWN — weight over the right leg, which is bent; left foot leaving the ground | lowest |
+| 6 | PASSING — left leg swings through under the body, feet close together, right leg straight | highest |
+
+Keep the height column small. A head's worth of rise and fall across the whole
+cycle is plenty — these are drawn 60 pixels tall, and the game adds nothing of
+its own once the frames exist.
+
+---
+
+## 24 — Farmer walk cycle → `art/villager_farmer_walk1.png` … `villager_farmer_walk6.png`
+
+Six prompts, one per frame. Paste the finished `villager_farmer` standing
+sprite into the conversation first, then send these in order, one per message.
+
+### Frame 1 of 6 → `art/villager_farmer_walk1.png`
+
+```
+Frame 1 of a six-frame walk cycle for this exact character, as a game
+character sprite. Match the pasted standing sprite exactly: same face, same
+soft cloth cap, same muted earthy green knee-length tunic, same dark brown
+trousers, same laced leather boots, same wide brown belt, sleeves rolled to
+the elbow, same colours throughout.
+
+POSE — CONTACT, left leg leading. His left foot is forward and flat on the
+ground, his right foot is back with the heel lifted and only the toe still
+touching. The legs are clearly apart with daylight between them. His body is
+at MIDDLE height. His right arm swings forward and his left arm back,
+opposite to the legs.
+
+CAMERA: unchanged from the standing sprite — seen from slightly above, about
+30 degrees above the horizon, the figure facing three-quarters to the RIGHT
+and turned slightly towards the viewer so the face is visible. Full body,
+head to feet. He is walking towards the right of frame.
+
+REGISTRATION: identical canvas, identical figure height and identical
+horizontal centre in every frame of this cycle. The lowest foot rests on the
+bottom edge. Do not zoom, crop or re-centre.
+
+STYLE: stylised low-poly mobile strategy game art, in the vein of Clash of
+Clans or Rise of Kingdoms. Chunky simplified forms, warm saturated colours,
+soft hand-painted shading, crisp clean edges. A slightly large head and
+hands so the character reads at small size. Friendly, not gritty.
+
+READABILITY: displayed about 60 pixels tall. Clear daylight between the legs
+and the swinging arm clearly separated from the body.
+
+LIGHTING: soft and even, from the front and slightly above. NO strong
+directional light and no hard shadow down one side.
+
+BACKGROUND: fully transparent. No ground, no grass, no baseplate, no drop
+shadow, no cast shadow of any kind.
+
+DO NOT INCLUDE: text, labels, watermarks, UI, borders, frame numbers,
+multiple poses in one image, sprite sheets, turnarounds, weapons, armour, or
+any ground surface.
+```
+
+### Frame 2 of 6 → `art/villager_farmer_walk2.png`
+
+```
+Frame 2 of a six-frame walk cycle for this exact character, as a game
+character sprite. Match the pasted standing sprite exactly: same face, same
+soft cloth cap, same muted earthy green knee-length tunic, same dark brown
+trousers, same laced leather boots, same wide brown belt, sleeves rolled to
+the elbow, same colours throughout.
+
+POSE — DOWN, weight on the left leg. His weight has come fully over his left
+leg, which is bent at the knee and taking it. His right foot is just leaving
+the ground behind him. His body is at its LOWEST point of the whole cycle,
+noticeably lower than frame 1. Both arms are passing close to his body,
+roughly vertical.
+
+CAMERA: unchanged from the standing sprite — seen from slightly above, about
+30 degrees above the horizon, the figure facing three-quarters to the RIGHT
+and turned slightly towards the viewer so the face is visible. Full body,
+head to feet. He is walking towards the right of frame.
+
+REGISTRATION: identical canvas, identical figure height and identical
+horizontal centre in every frame of this cycle. The lowest foot rests on the
+bottom edge. Do not zoom, crop or re-centre.
+
+STYLE: stylised low-poly mobile strategy game art, in the vein of Clash of
+Clans or Rise of Kingdoms. Chunky simplified forms, warm saturated colours,
+soft hand-painted shading, crisp clean edges. A slightly large head and
+hands so the character reads at small size. Friendly, not gritty.
+
+READABILITY: displayed about 60 pixels tall. The bend in the supporting knee
+must read in the silhouette.
+
+LIGHTING: soft and even, from the front and slightly above. NO strong
+directional light and no hard shadow down one side.
+
+BACKGROUND: fully transparent. No ground, no grass, no baseplate, no drop
+shadow, no cast shadow of any kind.
+
+DO NOT INCLUDE: text, labels, watermarks, UI, borders, frame numbers,
+multiple poses in one image, sprite sheets, turnarounds, weapons, armour, or
+any ground surface.
+```
+
+### Frame 3 of 6 → `art/villager_farmer_walk3.png`
+
+```
+Frame 3 of a six-frame walk cycle for this exact character, as a game
+character sprite. Match the pasted standing sprite exactly: same face, same
+soft cloth cap, same muted earthy green knee-length tunic, same dark brown
+trousers, same laced leather boots, same wide brown belt, sleeves rolled to
+the elbow, same colours throughout.
+
+POSE — PASSING, right leg swinging through. His right leg swings forward
+beneath his body, knee bent, the foot just clear of the ground. His left leg
+is straight and carrying all the weight. The feet are close together, nearly
+overlapping. His body is at its HIGHEST point of the whole cycle, risen up
+over the straight leg. Both arms hang near vertical at his sides.
+
+CAMERA: unchanged from the standing sprite — seen from slightly above, about
+30 degrees above the horizon, the figure facing three-quarters to the RIGHT
+and turned slightly towards the viewer so the face is visible. Full body,
+head to feet. He is walking towards the right of frame.
+
+REGISTRATION: identical canvas, identical figure height and identical
+horizontal centre in every frame of this cycle. The supporting foot rests on
+the bottom edge. Do not zoom, crop or re-centre.
+
+STYLE: stylised low-poly mobile strategy game art, in the vein of Clash of
+Clans or Rise of Kingdoms. Chunky simplified forms, warm saturated colours,
+soft hand-painted shading, crisp clean edges. A slightly large head and
+hands so the character reads at small size. Friendly, not gritty.
+
+READABILITY: displayed about 60 pixels tall. The lifted swinging foot must
+be clearly off the ground in the silhouette.
+
+LIGHTING: soft and even, from the front and slightly above. NO strong
+directional light and no hard shadow down one side.
+
+BACKGROUND: fully transparent. No ground, no grass, no baseplate, no drop
+shadow, no cast shadow of any kind.
+
+DO NOT INCLUDE: text, labels, watermarks, UI, borders, frame numbers,
+multiple poses in one image, sprite sheets, turnarounds, weapons, armour, or
+any ground surface.
+```
+
+### Frame 4 of 6 → `art/villager_farmer_walk4.png`
+
+```
+Frame 4 of a six-frame walk cycle for this exact character, as a game
+character sprite. Match the pasted standing sprite exactly: same face, same
+soft cloth cap, same muted earthy green knee-length tunic, same dark brown
+trousers, same laced leather boots, same wide brown belt, sleeves rolled to
+the elbow, same colours throughout.
+
+POSE — CONTACT, right leg leading. This is frame 1 with the legs and arms
+swapped. His RIGHT foot is forward and flat on the ground, his LEFT foot is
+back with the heel lifted and only the toe still touching. The legs are
+clearly apart with daylight between them. His body is at MIDDLE height. His
+LEFT arm swings forward and his RIGHT arm back.
+
+CAMERA: unchanged from the standing sprite — seen from slightly above, about
+30 degrees above the horizon, the figure facing three-quarters to the RIGHT
+and turned slightly towards the viewer so the face is visible. Full body,
+head to feet. He is walking towards the right of frame.
+
+REGISTRATION: identical canvas, identical figure height and identical
+horizontal centre in every frame of this cycle. The lowest foot rests on the
+bottom edge. Do not zoom, crop or re-centre.
+
+STYLE: stylised low-poly mobile strategy game art, in the vein of Clash of
+Clans or Rise of Kingdoms. Chunky simplified forms, warm saturated colours,
+soft hand-painted shading, crisp clean edges. A slightly large head and
+hands so the character reads at small size. Friendly, not gritty.
+
+READABILITY: displayed about 60 pixels tall. Clear daylight between the legs
+and the swinging arm clearly separated from the body.
+
+LIGHTING: soft and even, from the front and slightly above. NO strong
+directional light and no hard shadow down one side.
+
+BACKGROUND: fully transparent. No ground, no grass, no baseplate, no drop
+shadow, no cast shadow of any kind.
+
+DO NOT INCLUDE: text, labels, watermarks, UI, borders, frame numbers,
+multiple poses in one image, sprite sheets, turnarounds, weapons, armour, or
+any ground surface.
+```
+
+### Frame 5 of 6 → `art/villager_farmer_walk5.png`
+
+```
+Frame 5 of a six-frame walk cycle for this exact character, as a game
+character sprite. Match the pasted standing sprite exactly: same face, same
+soft cloth cap, same muted earthy green knee-length tunic, same dark brown
+trousers, same laced leather boots, same wide brown belt, sleeves rolled to
+the elbow, same colours throughout.
+
+POSE — DOWN, weight on the right leg. This is frame 2 with the legs and arms
+swapped. His weight has come fully over his RIGHT leg, which is bent at the
+knee and taking it. His LEFT foot is just leaving the ground behind him. His
+body is at its LOWEST point, the same height as frame 2. Both arms pass
+close to his body, roughly vertical.
+
+CAMERA: unchanged from the standing sprite — seen from slightly above, about
+30 degrees above the horizon, the figure facing three-quarters to the RIGHT
+and turned slightly towards the viewer so the face is visible. Full body,
+head to feet. He is walking towards the right of frame.
+
+REGISTRATION: identical canvas, identical figure height and identical
+horizontal centre in every frame of this cycle. The lowest foot rests on the
+bottom edge. Do not zoom, crop or re-centre.
+
+STYLE: stylised low-poly mobile strategy game art, in the vein of Clash of
+Clans or Rise of Kingdoms. Chunky simplified forms, warm saturated colours,
+soft hand-painted shading, crisp clean edges. A slightly large head and
+hands so the character reads at small size. Friendly, not gritty.
+
+READABILITY: displayed about 60 pixels tall. The bend in the supporting knee
+must read in the silhouette.
+
+LIGHTING: soft and even, from the front and slightly above. NO strong
+directional light and no hard shadow down one side.
+
+BACKGROUND: fully transparent. No ground, no grass, no baseplate, no drop
+shadow, no cast shadow of any kind.
+
+DO NOT INCLUDE: text, labels, watermarks, UI, borders, frame numbers,
+multiple poses in one image, sprite sheets, turnarounds, weapons, armour, or
+any ground surface.
+```
+
+### Frame 6 of 6 → `art/villager_farmer_walk6.png`
+
+```
+Frame 6 of a six-frame walk cycle for this exact character, as a game
+character sprite. Match the pasted standing sprite exactly: same face, same
+soft cloth cap, same muted earthy green knee-length tunic, same dark brown
+trousers, same laced leather boots, same wide brown belt, sleeves rolled to
+the elbow, same colours throughout.
+
+POSE — PASSING, left leg swinging through. This is frame 3 with the legs and
+arms swapped, and it is the last frame, so it must lead straight back into
+frame 1. His LEFT leg swings forward beneath his body, knee bent, the foot
+just clear of the ground. His RIGHT leg is straight and carrying all the
+weight. The feet are close together, nearly overlapping. His body is at its
+HIGHEST point, the same height as frame 3. Both arms hang near vertical.
+
+CAMERA: unchanged from the standing sprite — seen from slightly above, about
+30 degrees above the horizon, the figure facing three-quarters to the RIGHT
+and turned slightly towards the viewer so the face is visible. Full body,
+head to feet. He is walking towards the right of frame.
+
+REGISTRATION: identical canvas, identical figure height and identical
+horizontal centre in every frame of this cycle. The supporting foot rests on
+the bottom edge. Do not zoom, crop or re-centre.
+
+STYLE: stylised low-poly mobile strategy game art, in the vein of Clash of
+Clans or Rise of Kingdoms. Chunky simplified forms, warm saturated colours,
+soft hand-painted shading, crisp clean edges. A slightly large head and
+hands so the character reads at small size. Friendly, not gritty.
+
+READABILITY: displayed about 60 pixels tall. The lifted swinging foot must
+be clearly off the ground in the silhouette.
+
+LIGHTING: soft and even, from the front and slightly above. NO strong
+directional light and no hard shadow down one side.
+
+BACKGROUND: fully transparent. No ground, no grass, no baseplate, no drop
+shadow, no cast shadow of any kind.
+
+DO NOT INCLUDE: text, labels, watermarks, UI, borders, frame numbers,
+multiple poses in one image, sprite sheets, turnarounds, weapons, armour, or
+any ground surface.
+```
+
+---
+
+## 25 — Basket villager walk cycle → `art/villager_basket_walk1.png` … `villager_basket_walk6.png`
+
+She wears an ankle-length dress, so her legs barely show — her silhouette is one
+solid shape from the waist down, which is why her prompts describe the step in
+the skirt and the body rather than in the feet. Paste the finished
+`villager_basket` standing sprite in first, then send these in order.
+
+The shared block below is the same in all six; only POSE changes.
+
+### Frame 1 of 6 → `art/villager_basket_walk1.png`
+
+```
+Frame 1 of a six-frame walk cycle for this exact character, as a game
+character sprite. Match the pasted standing sprite exactly: same face, same
+simple headscarf, same muted dusty blue long-sleeved ankle-length dress,
+same cream apron, same round wicker basket of vegetables on the same hip,
+same colours throughout.
+
+POSE — CONTACT, left leg leading. Her left leg is forward, which pushes the
+hem of the skirt forward and lifts it slightly on that side; the skirt falls
+back and away on the right. The toe of the leading foot may just show below
+the hem. Her body is at MIDDLE height. Her free arm swings forward, opposite
+the leading leg. Her shoulders turn slightly against her hips. The basket
+stays on the same hip, held by the same hand, and rides with that hip.
+
+CAMERA: unchanged from the standing sprite — seen from slightly above, about
+30 degrees above the horizon, facing three-quarters to the RIGHT and turned
+slightly towards the viewer so the face is visible. Full body, head to feet.
+She is walking towards the right of frame.
+
+REGISTRATION: identical canvas, identical figure height and identical
+horizontal centre in every frame of this cycle. The lowest point of the hem
+rests on the bottom edge. Do not zoom, crop or re-centre.
+
+STYLE: stylised low-poly mobile strategy game art, in the vein of Clash of
+Clans or Rise of Kingdoms. Chunky simplified forms, warm saturated colours,
+soft hand-painted shading, crisp clean edges. A slightly large head and
+hands so the character reads at small size. Friendly, not gritty.
+
+READABILITY: displayed about 60 pixels tall. The swing of the hem and of the
+free arm must read in the silhouette alone.
+
+LIGHTING: soft and even, from the front and slightly above. NO strong
+directional light and no hard shadow down one side.
+
+BACKGROUND: fully transparent. No ground, no grass, no baseplate, no drop
+shadow, no cast shadow of any kind.
+
+DO NOT INCLUDE: text, labels, watermarks, UI, borders, frame numbers,
+multiple poses in one image, sprite sheets, turnarounds, or any ground
+surface.
+```
+
+### Frame 2 of 6 → `art/villager_basket_walk2.png`
+
+```
+Frame 2 of a six-frame walk cycle for this exact character, as a game
+character sprite. Match the pasted standing sprite exactly: same face, same
+simple headscarf, same muted dusty blue long-sleeved ankle-length dress,
+same cream apron, same round wicker basket of vegetables on the same hip,
+same colours throughout.
+
+POSE — DOWN, weight on the left leg. Her weight settles over her left side
+and her whole body is at its LOWEST point of the cycle, noticeably lower
+than frame 1. The skirt hangs straight and gathers in slightly, its swing
+momentarily stilled. Her free arm passes close to her body. The basket is
+pressed down against the hip.
+
+CAMERA: unchanged from the standing sprite — seen from slightly above, about
+30 degrees above the horizon, facing three-quarters to the RIGHT and turned
+slightly towards the viewer so the face is visible. Full body, head to feet.
+She is walking towards the right of frame.
+
+REGISTRATION: identical canvas, identical figure height and identical
+horizontal centre in every frame of this cycle. The lowest point of the hem
+rests on the bottom edge. Do not zoom, crop or re-centre.
+
+STYLE: stylised low-poly mobile strategy game art, in the vein of Clash of
+Clans or Rise of Kingdoms. Chunky simplified forms, warm saturated colours,
+soft hand-painted shading, crisp clean edges. A slightly large head and
+hands so the character reads at small size. Friendly, not gritty.
+
+READABILITY: displayed about 60 pixels tall. The drop in her height must
+read against the other frames.
+
+LIGHTING: soft and even, from the front and slightly above. NO strong
+directional light and no hard shadow down one side.
+
+BACKGROUND: fully transparent. No ground, no grass, no baseplate, no drop
+shadow, no cast shadow of any kind.
+
+DO NOT INCLUDE: text, labels, watermarks, UI, borders, frame numbers,
+multiple poses in one image, sprite sheets, turnarounds, or any ground
+surface.
+```
+
+### Frame 3 of 6 → `art/villager_basket_walk3.png`
+
+```
+Frame 3 of a six-frame walk cycle for this exact character, as a game
+character sprite. Match the pasted standing sprite exactly: same face, same
+simple headscarf, same muted dusty blue long-sleeved ankle-length dress,
+same cream apron, same round wicker basket of vegetables on the same hip,
+same colours throughout.
+
+POSE — PASSING, right leg swinging through. She rises to her HIGHEST point
+of the cycle over a straight supporting leg. The skirt is at its narrowest,
+hanging close and almost still as the swinging leg passes beneath it. Her
+free arm hangs near vertical. Her shoulders are square.
+
+CAMERA: unchanged from the standing sprite — seen from slightly above, about
+30 degrees above the horizon, facing three-quarters to the RIGHT and turned
+slightly towards the viewer so the face is visible. Full body, head to feet.
+She is walking towards the right of frame.
+
+REGISTRATION: identical canvas, identical figure height and identical
+horizontal centre in every frame of this cycle. The lowest point of the hem
+rests on the bottom edge. Do not zoom, crop or re-centre.
+
+STYLE: stylised low-poly mobile strategy game art, in the vein of Clash of
+Clans or Rise of Kingdoms. Chunky simplified forms, warm saturated colours,
+soft hand-painted shading, crisp clean edges. A slightly large head and
+hands so the character reads at small size. Friendly, not gritty.
+
+READABILITY: displayed about 60 pixels tall. Her rise must read against the
+other frames.
+
+LIGHTING: soft and even, from the front and slightly above. NO strong
+directional light and no hard shadow down one side.
+
+BACKGROUND: fully transparent. No ground, no grass, no baseplate, no drop
+shadow, no cast shadow of any kind.
+
+DO NOT INCLUDE: text, labels, watermarks, UI, borders, frame numbers,
+multiple poses in one image, sprite sheets, turnarounds, or any ground
+surface.
+```
+
+### Frame 4 of 6 → `art/villager_basket_walk4.png`
+
+```
+Frame 4 of a six-frame walk cycle for this exact character, as a game
+character sprite. Match the pasted standing sprite exactly: same face, same
+simple headscarf, same muted dusty blue long-sleeved ankle-length dress,
+same cream apron, same round wicker basket of vegetables on the same hip,
+same colours throughout.
+
+POSE — CONTACT, right leg leading. This is frame 1 mirrored in the step: her
+RIGHT leg is forward, pushing the hem forward and lifting it slightly on the
+RIGHT side while the skirt falls back and away on the left. Her body is at
+MIDDLE height. Her free arm swings BACK this time, opposite the leading leg.
+Her shoulders turn the other way against her hips. The basket stays on the
+same hip as always — it does NOT change sides.
+
+CAMERA: unchanged from the standing sprite — seen from slightly above, about
+30 degrees above the horizon, facing three-quarters to the RIGHT and turned
+slightly towards the viewer so the face is visible. Full body, head to feet.
+She is walking towards the right of frame.
+
+REGISTRATION: identical canvas, identical figure height and identical
+horizontal centre in every frame of this cycle. The lowest point of the hem
+rests on the bottom edge. Do not zoom, crop or re-centre.
+
+STYLE: stylised low-poly mobile strategy game art, in the vein of Clash of
+Clans or Rise of Kingdoms. Chunky simplified forms, warm saturated colours,
+soft hand-painted shading, crisp clean edges. A slightly large head and
+hands so the character reads at small size. Friendly, not gritty.
+
+READABILITY: displayed about 60 pixels tall. The swing of the hem and of the
+free arm must read in the silhouette alone.
+
+LIGHTING: soft and even, from the front and slightly above. NO strong
+directional light and no hard shadow down one side.
+
+BACKGROUND: fully transparent. No ground, no grass, no baseplate, no drop
+shadow, no cast shadow of any kind.
+
+DO NOT INCLUDE: text, labels, watermarks, UI, borders, frame numbers,
+multiple poses in one image, sprite sheets, turnarounds, or any ground
+surface.
+```
+
+### Frame 5 of 6 → `art/villager_basket_walk5.png`
+
+```
+Frame 5 of a six-frame walk cycle for this exact character, as a game
+character sprite. Match the pasted standing sprite exactly: same face, same
+simple headscarf, same muted dusty blue long-sleeved ankle-length dress,
+same cream apron, same round wicker basket of vegetables on the same hip,
+same colours throughout.
+
+POSE — DOWN, weight on the right leg. Her weight settles over her right side
+and her whole body is at its LOWEST point, the same height as frame 2. The
+skirt hangs straight and gathers in slightly, its swing momentarily stilled.
+Her free arm passes close to her body. The basket is pressed down against
+the hip.
+
+CAMERA: unchanged from the standing sprite — seen from slightly above, about
+30 degrees above the horizon, facing three-quarters to the RIGHT and turned
+slightly towards the viewer so the face is visible. Full body, head to feet.
+She is walking towards the right of frame.
+
+REGISTRATION: identical canvas, identical figure height and identical
+horizontal centre in every frame of this cycle. The lowest point of the hem
+rests on the bottom edge. Do not zoom, crop or re-centre.
+
+STYLE: stylised low-poly mobile strategy game art, in the vein of Clash of
+Clans or Rise of Kingdoms. Chunky simplified forms, warm saturated colours,
+soft hand-painted shading, crisp clean edges. A slightly large head and
+hands so the character reads at small size. Friendly, not gritty.
+
+READABILITY: displayed about 60 pixels tall. The drop in her height must
+read against the other frames.
+
+LIGHTING: soft and even, from the front and slightly above. NO strong
+directional light and no hard shadow down one side.
+
+BACKGROUND: fully transparent. No ground, no grass, no baseplate, no drop
+shadow, no cast shadow of any kind.
+
+DO NOT INCLUDE: text, labels, watermarks, UI, borders, frame numbers,
+multiple poses in one image, sprite sheets, turnarounds, or any ground
+surface.
+```
+
+### Frame 6 of 6 → `art/villager_basket_walk6.png`
+
+```
+Frame 6 of a six-frame walk cycle for this exact character, as a game
+character sprite. Match the pasted standing sprite exactly: same face, same
+simple headscarf, same muted dusty blue long-sleeved ankle-length dress,
+same cream apron, same round wicker basket of vegetables on the same hip,
+same colours throughout.
+
+POSE — PASSING, left leg swinging through. This is the last frame and it
+must lead straight back into frame 1. She rises to her HIGHEST point, the
+same height as frame 3, over a straight supporting leg. The skirt is at its
+narrowest, hanging close and almost still as the swinging leg passes
+beneath. Her free arm hangs near vertical. Her shoulders are square.
+
+CAMERA: unchanged from the standing sprite — seen from slightly above, about
+30 degrees above the horizon, facing three-quarters to the RIGHT and turned
+slightly towards the viewer so the face is visible. Full body, head to feet.
+She is walking towards the right of frame.
+
+REGISTRATION: identical canvas, identical figure height and identical
+horizontal centre in every frame of this cycle. The lowest point of the hem
+rests on the bottom edge. Do not zoom, crop or re-centre.
+
+STYLE: stylised low-poly mobile strategy game art, in the vein of Clash of
+Clans or Rise of Kingdoms. Chunky simplified forms, warm saturated colours,
+soft hand-painted shading, crisp clean edges. A slightly large head and
+hands so the character reads at small size. Friendly, not gritty.
+
+READABILITY: displayed about 60 pixels tall. Her rise must read against the
+other frames.
+
+LIGHTING: soft and even, from the front and slightly above. NO strong
+directional light and no hard shadow down one side.
+
+BACKGROUND: fully transparent. No ground, no grass, no baseplate, no drop
+shadow, no cast shadow of any kind.
+
+DO NOT INCLUDE: text, labels, watermarks, UI, borders, frame numbers,
+multiple poses in one image, sprite sheets, turnarounds, or any ground
+surface.
+```
+
+---
+
+## 26 — Woodcutter walk cycle → `art/villager_woodcutter_walk1.png` … `villager_woodcutter_walk6.png`
+
+The axe stays over the same shoulder in all six, held by the same hand, and
+that arm never swings. Only the FREE arm swings. Paste the finished
+`villager_woodcutter` standing sprite in first, then send these in order.
+
+### Frame 1 of 6 → `art/villager_woodcutter_walk1.png`
+
+```
+Frame 1 of a six-frame walk cycle for this exact character, as a game
+character sprite. Match the pasted standing sprite exactly: same face, same
+beard, same clothing, same colours, and the same axe carried over the same
+shoulder by the same hand.
+
+POSE — CONTACT, left leg leading. His left foot is forward and flat on the
+ground, his right foot is back with the heel lifted and only the toe still
+touching. The legs are clearly apart with daylight between them. His body is
+at MIDDLE height. His FREE arm swings forward. The arm holding the axe does
+not swing; the axe head rocks very slightly with his shoulders.
+
+CAMERA: unchanged from the standing sprite — seen from slightly above, about
+30 degrees above the horizon, facing three-quarters to the RIGHT and turned
+slightly towards the viewer so the face is visible. Full body, head to feet.
+He is walking towards the right of frame.
+
+REGISTRATION: identical canvas, identical figure height and identical
+horizontal centre in every frame of this cycle. The lowest foot rests on the
+bottom edge. The axe may extend above the figure, but keep its reach the
+same in every frame. Do not zoom, crop or re-centre.
+
+STYLE: stylised low-poly mobile strategy game art, in the vein of Clash of
+Clans or Rise of Kingdoms. Chunky simplified forms, warm saturated colours,
+soft hand-painted shading, crisp clean edges. A slightly large head and
+hands so the character reads at small size. Friendly, not gritty.
+
+READABILITY: displayed about 60 pixels tall. Clear daylight between the legs
+and an unmistakable axe silhouette.
+
+LIGHTING: soft and even, from the front and slightly above. NO strong
+directional light and no hard shadow down one side.
+
+BACKGROUND: fully transparent. No ground, no grass, no baseplate, no drop
+shadow, no cast shadow of any kind.
+
+DO NOT INCLUDE: text, labels, watermarks, UI, borders, frame numbers,
+multiple poses in one image, sprite sheets, turnarounds, or any ground
+surface.
+```
+
+### Frame 2 of 6 → `art/villager_woodcutter_walk2.png`
+
+```
+Frame 2 of a six-frame walk cycle for this exact character, as a game
+character sprite. Match the pasted standing sprite exactly: same face, same
+beard, same clothing, same colours, and the same axe carried over the same
+shoulder by the same hand.
+
+POSE — DOWN, weight on the left leg. His weight has come fully over his left
+leg, which is bent at the knee and taking it. His right foot is just leaving
+the ground behind him. His body is at its LOWEST point of the whole cycle,
+noticeably lower than frame 1. His free arm passes close to his body. The
+axe dips with his shoulders.
+
+CAMERA: unchanged from the standing sprite — seen from slightly above, about
+30 degrees above the horizon, facing three-quarters to the RIGHT and turned
+slightly towards the viewer so the face is visible. Full body, head to feet.
+He is walking towards the right of frame.
+
+REGISTRATION: identical canvas, identical figure height and identical
+horizontal centre in every frame of this cycle. The lowest foot rests on the
+bottom edge. The axe may extend above the figure, but keep its reach the
+same in every frame. Do not zoom, crop or re-centre.
+
+STYLE: stylised low-poly mobile strategy game art, in the vein of Clash of
+Clans or Rise of Kingdoms. Chunky simplified forms, warm saturated colours,
+soft hand-painted shading, crisp clean edges. A slightly large head and
+hands so the character reads at small size. Friendly, not gritty.
+
+READABILITY: displayed about 60 pixels tall. The bend in the supporting knee
+must read in the silhouette.
+
+LIGHTING: soft and even, from the front and slightly above. NO strong
+directional light and no hard shadow down one side.
+
+BACKGROUND: fully transparent. No ground, no grass, no baseplate, no drop
+shadow, no cast shadow of any kind.
+
+DO NOT INCLUDE: text, labels, watermarks, UI, borders, frame numbers,
+multiple poses in one image, sprite sheets, turnarounds, or any ground
+surface.
+```
+
+### Frame 3 of 6 → `art/villager_woodcutter_walk3.png`
+
+```
+Frame 3 of a six-frame walk cycle for this exact character, as a game
+character sprite. Match the pasted standing sprite exactly: same face, same
+beard, same clothing, same colours, and the same axe carried over the same
+shoulder by the same hand.
+
+POSE — PASSING, right leg swinging through. His right leg swings forward
+beneath his body, knee bent, the foot just clear of the ground. His left leg
+is straight and carrying all the weight. The feet are close together, nearly
+overlapping. His body is at its HIGHEST point of the whole cycle. His free
+arm hangs near vertical. The axe rides at its highest with him.
+
+CAMERA: unchanged from the standing sprite — seen from slightly above, about
+30 degrees above the horizon, facing three-quarters to the RIGHT and turned
+slightly towards the viewer so the face is visible. Full body, head to feet.
+He is walking towards the right of frame.
+
+REGISTRATION: identical canvas, identical figure height and identical
+horizontal centre in every frame of this cycle. The supporting foot rests on
+the bottom edge. The axe may extend above the figure, but keep its reach the
+same in every frame. Do not zoom, crop or re-centre.
+
+STYLE: stylised low-poly mobile strategy game art, in the vein of Clash of
+Clans or Rise of Kingdoms. Chunky simplified forms, warm saturated colours,
+soft hand-painted shading, crisp clean edges. A slightly large head and
+hands so the character reads at small size. Friendly, not gritty.
+
+READABILITY: displayed about 60 pixels tall. The lifted swinging foot must
+be clearly off the ground in the silhouette.
+
+LIGHTING: soft and even, from the front and slightly above. NO strong
+directional light and no hard shadow down one side.
+
+BACKGROUND: fully transparent. No ground, no grass, no baseplate, no drop
+shadow, no cast shadow of any kind.
+
+DO NOT INCLUDE: text, labels, watermarks, UI, borders, frame numbers,
+multiple poses in one image, sprite sheets, turnarounds, or any ground
+surface.
+```
+
+### Frame 4 of 6 → `art/villager_woodcutter_walk4.png`
+
+```
+Frame 4 of a six-frame walk cycle for this exact character, as a game
+character sprite. Match the pasted standing sprite exactly: same face, same
+beard, same clothing, same colours, and the same axe carried over the same
+shoulder by the same hand.
+
+POSE — CONTACT, right leg leading. This is frame 1 with the legs swapped.
+His RIGHT foot is forward and flat on the ground, his LEFT foot is back with
+the heel lifted and only the toe still touching. The legs are clearly apart.
+His body is at MIDDLE height. His FREE arm swings BACK this time. The axe
+stays over the SAME shoulder as always — it does not change sides.
+
+CAMERA: unchanged from the standing sprite — seen from slightly above, about
+30 degrees above the horizon, facing three-quarters to the RIGHT and turned
+slightly towards the viewer so the face is visible. Full body, head to feet.
+He is walking towards the right of frame.
+
+REGISTRATION: identical canvas, identical figure height and identical
+horizontal centre in every frame of this cycle. The lowest foot rests on the
+bottom edge. The axe may extend above the figure, but keep its reach the
+same in every frame. Do not zoom, crop or re-centre.
+
+STYLE: stylised low-poly mobile strategy game art, in the vein of Clash of
+Clans or Rise of Kingdoms. Chunky simplified forms, warm saturated colours,
+soft hand-painted shading, crisp clean edges. A slightly large head and
+hands so the character reads at small size. Friendly, not gritty.
+
+READABILITY: displayed about 60 pixels tall. Clear daylight between the legs
+and an unmistakable axe silhouette.
+
+LIGHTING: soft and even, from the front and slightly above. NO strong
+directional light and no hard shadow down one side.
+
+BACKGROUND: fully transparent. No ground, no grass, no baseplate, no drop
+shadow, no cast shadow of any kind.
+
+DO NOT INCLUDE: text, labels, watermarks, UI, borders, frame numbers,
+multiple poses in one image, sprite sheets, turnarounds, or any ground
+surface.
+```
+
+### Frame 5 of 6 → `art/villager_woodcutter_walk5.png`
+
+```
+Frame 5 of a six-frame walk cycle for this exact character, as a game
+character sprite. Match the pasted standing sprite exactly: same face, same
+beard, same clothing, same colours, and the same axe carried over the same
+shoulder by the same hand.
+
+POSE — DOWN, weight on the right leg. This is frame 2 with the legs swapped.
+His weight has come fully over his RIGHT leg, which is bent at the knee and
+taking it. His LEFT foot is just leaving the ground behind him. His body is
+at its LOWEST point, the same height as frame 2. His free arm passes close
+to his body. The axe dips with his shoulders.
+
+CAMERA: unchanged from the standing sprite — seen from slightly above, about
+30 degrees above the horizon, facing three-quarters to the RIGHT and turned
+slightly towards the viewer so the face is visible. Full body, head to feet.
+He is walking towards the right of frame.
+
+REGISTRATION: identical canvas, identical figure height and identical
+horizontal centre in every frame of this cycle. The lowest foot rests on the
+bottom edge. The axe may extend above the figure, but keep its reach the
+same in every frame. Do not zoom, crop or re-centre.
+
+STYLE: stylised low-poly mobile strategy game art, in the vein of Clash of
+Clans or Rise of Kingdoms. Chunky simplified forms, warm saturated colours,
+soft hand-painted shading, crisp clean edges. A slightly large head and
+hands so the character reads at small size. Friendly, not gritty.
+
+READABILITY: displayed about 60 pixels tall. The bend in the supporting knee
+must read in the silhouette.
+
+LIGHTING: soft and even, from the front and slightly above. NO strong
+directional light and no hard shadow down one side.
+
+BACKGROUND: fully transparent. No ground, no grass, no baseplate, no drop
+shadow, no cast shadow of any kind.
+
+DO NOT INCLUDE: text, labels, watermarks, UI, borders, frame numbers,
+multiple poses in one image, sprite sheets, turnarounds, or any ground
+surface.
+```
+
+### Frame 6 of 6 → `art/villager_woodcutter_walk6.png`
+
+```
+Frame 6 of a six-frame walk cycle for this exact character, as a game
+character sprite. Match the pasted standing sprite exactly: same face, same
+beard, same clothing, same colours, and the same axe carried over the same
+shoulder by the same hand.
+
+POSE — PASSING, left leg swinging through. This is frame 3 with the legs
+swapped, and it is the last frame, so it must lead straight back into frame
+1. His LEFT leg swings forward beneath his body, knee bent, the foot just
+clear of the ground. His RIGHT leg is straight and carrying all the weight.
+The feet are close together. His body is at its HIGHEST point, the same
+height as frame 3. His free arm hangs near vertical. The axe rides at its
+highest with him.
+
+CAMERA: unchanged from the standing sprite — seen from slightly above, about
+30 degrees above the horizon, facing three-quarters to the RIGHT and turned
+slightly towards the viewer so the face is visible. Full body, head to feet.
+He is walking towards the right of frame.
+
+REGISTRATION: identical canvas, identical figure height and identical
+horizontal centre in every frame of this cycle. The supporting foot rests on
+the bottom edge. The axe may extend above the figure, but keep its reach the
+same in every frame. Do not zoom, crop or re-centre.
+
+STYLE: stylised low-poly mobile strategy game art, in the vein of Clash of
+Clans or Rise of Kingdoms. Chunky simplified forms, warm saturated colours,
+soft hand-painted shading, crisp clean edges. A slightly large head and
+hands so the character reads at small size. Friendly, not gritty.
+
+READABILITY: displayed about 60 pixels tall. The lifted swinging foot must
+be clearly off the ground in the silhouette.
+
+LIGHTING: soft and even, from the front and slightly above. NO strong
+directional light and no hard shadow down one side.
+
+BACKGROUND: fully transparent. No ground, no grass, no baseplate, no drop
+shadow, no cast shadow of any kind.
+
+DO NOT INCLUDE: text, labels, watermarks, UI, borders, frame numbers,
+multiple poses in one image, sprite sheets, turnarounds, or any ground
+surface.
+```
+
+---
+
+## Getting them into the game
+
+Save the PNGs under the names above, then:
+
+```
+node tools/prep-art.js --walk
+```
+
+That keys the background and trims the whole cycle **as one set** against a
+shared bounding box, so every frame keeps its registration relative to the
+others, scales them all by the same factor, and writes the `.webp` files the
+game loads.
+
+The set is all-or-nothing per character: six frames and the game walks that
+villager properly; fewer than six and it keeps the standing sprite and the
+faked walk for them. So one character's cycle can land on its own, and the
+other two are untouched until their frames arrive.
