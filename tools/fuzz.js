@@ -1819,13 +1819,35 @@
   };
   /* The number a move quotes for where a building is NOW must be the number its
      panel shows. The label quoted one worker's share, half the panel's figure
-     for a two-worker camp. Read off the canvas, as the player reads them. */
+     for a two-worker camp. Read off the canvas, as the player reads them.
+
+     And the two halves of that pill have to agree with EACH OTHER.
+
+     This block already drags every building back onto the tile it is standing
+     on, because that is the one place where the answer is known without
+     measuring anything: a building put back where it already is delivers what
+     it already delivers, so 'X/s here' and 'now X' must be the same number.
+     They were not. The probe describing the spot was built at level one --
+     right for a building being bought, which is what it was written for, and
+     wrong for one being moved -- while 'now' beside it quoted the real level.
+     The same building, on the same pill, at two levels, and the difference is
+     the whole of what the player has spent improving it.
+
+     A level five farm with four hands read '2.02/s here   ·   now 3.49' over
+     the tile it was already on. Walk it up the levels and the left figure
+     never moves off 2.02 while the right climbs 2.02, 2.48, 2.87, 3.20, 3.49.
+
+     Nothing here has to know what a level is worth. Two numbers about one
+     building in one spot either match or they do not, which is a shape no
+     retuning of the ladder can age -- but it only bites above level one, so
+     the levels reached are counted and a run that never left level one says
+     so rather than passing. */
   window.moveLabelSweep = function () {
     const V = window.__v, cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
     const grab = re => { const got = []; const o = ctx.fillText;
       ctx.fillText = function (t, ...r) { if (re.test(String(t))) got.push(String(t)); return o.call(this, t, ...r); };
       try { V.draw(); } finally { ctx.fillText = o; } return got; };
-    const bad = []; let checks = 0;
+    const bad = [], split = [], fails = []; let checks = 0, levelled = 0;
     for (const maxed of [false, true]) {
     sweepVillage(maxed);
     for (const p of V.placed) {
@@ -1839,9 +1861,27 @@
       const pv = panel && panel.match(/([0-9.]+)\/s delivered/), lv = label && label.match(/now ([0-9.]+)/);
       checks++;
       if (!pv || !lv || Math.abs(+pv[1] - +lv[1]) > 0.011) bad.push({ key: p.key, panel, label });
+      /* The near half of the same pill, read by splitting rather than by
+         matching: a pattern written into this file loses its backslashes on
+         the way in, and one that matches nothing would find every pill
+         agreeable and pass. */
+      const here = label ? parseFloat(label) : NaN;
+      if (lv && isFinite(here)) {
+        if (V.lvlOf(p) > 1) levelled++;
+        if (Math.abs(here - +lv[1]) > 0.011)
+          split.push({ key: p.key, lvl: V.lvlOf(p), here: +here.toFixed(2), now: +lv[1], label });
+      }
     }
     }
-    return { checks, mismatched: bad.length, worst: bad.slice(0, 4) };
+    if (!levelled)
+      fails.push('every building dragged was still at level one, so the two halves of the pill '
+        + 'were never asked to agree about a level the player had paid for');
+    for (const q of split.slice(0, 4))
+      fails.push('a level ' + q.lvl + ' ' + q.key + ' put back on the tile it is already standing on '
+        + 'is quoted ' + q.here.toFixed(2) + '/s for the spot and ' + q.now.toFixed(2)
+        + '/s for where it is: "' + q.label + '"');
+    return { checks, levelled, mismatched: bad.length, disagreed: split.length,
+      worst: bad.slice(0, 4), fails };
   };
   /* Back never needs a dead press. Every history entry pushed for something open
      must be gone once nothing is, however it was closed -- or the next press of

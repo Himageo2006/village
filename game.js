@@ -3550,7 +3550,31 @@ function drawWorld() {
       drawPlaced({ id: -1, key: selKey, c: ghost.c, r: ghost.r, t: 1, lvl: 1 }, 0.55);
       /* What this spot would actually be worth. Shown DURING placement, because
          telling the player afterwards is telling them too late. */
-      const probe = { id: -1, key: selKey, c: ghost.c, r: ghost.r, t: 1, lvl: 1 };
+      /* The building being MOVED, if this is a move at all. Wanted here and
+         again in the label below, so it is worked out once. */
+      const from = moving != null ? byId(moving) : null;
+      /* And at the level it IS, which for a move is not level one.
+
+         probe describes the building this spot would hold, and it was written
+         for a BUILD, where level one is exactly right -- that is what you get
+         for your forty wood. Pointed at a building being moved it went on
+         saying level one while the figure printed beside it, 'now', quoted the
+         real level. The same building, on the same pill, at two levels.
+
+         It reads as a punishment for moving anything you have invested in.
+         Measured on a five-villager village, a level five farm with four
+         hands carried to a spot exactly as good as the one it was on: the
+         pill said '2.02/s here   ·   now 3.49', a 42% drop, for a move that
+         changed nothing whatever. Walk the same farm up the levels and the
+         left-hand figure never moves off 2.02 while the right-hand one climbs
+         2.02, 2.48, 2.87, 3.20, 3.49 -- the gap is the whole of the
+         improvement the player has paid for, quoted back to them as the cost
+         of picking the building up.
+
+         A new building is untouched: from is null, and level one is what it
+         will be. */
+      const probe = { id: -1, key: selKey, c: ghost.c, r: ghost.r, t: 1,
+        lvl: from && from.key === selKey ? lvlOf(from) : 1 };
       /* The two rates rather than a percentage. The player is comparing spots,
          and "0.31/s here, 0.58 beside a store" answers that directly, where a
          percentage has to be decoded first -- and decoded wrongly, since the
@@ -3586,7 +3610,6 @@ function drawWorld() {
            over a lumber camp being moved, in red, instead of the one number a
            move is for: what it would deliver there. */
         const empty = moving == null && noSpareHands(selKey);
-        const from = moving != null ? byId(moving) : null;
         // a move keeps its workers; a new building gets whoever is free to take its posts
         const hands = Math.max(1, from ? workersAt(from.id) : handsFor(probe, 1));
         /* Cheaper than either of them, and it outranks both: this is what is
