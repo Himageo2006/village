@@ -3602,12 +3602,22 @@ function drawWorld() {
         let txt;
         if (cantAfford) txt = 'need ' + shortText(B(selKey).cost) + ' more';
         else if (isWell) {
-          const wg = wellGainAt(ghost.c, ghost.r, 1);
+          /* A well already standing is a different question from one that is
+             not there yet -- see wellMoveGain. */
+          const mv = from && from.key === selKey ? from : null;
+          const wg = mv ? wellMoveGain(mv, ghost.c, ghost.r) : wellGainAt(ghost.c, ghost.r, 1);
+          const where = wg.n ? 'lifts ' + count(wg.n, 'workplace') : 'reaches no workplace';
           /* In reach of three sheds that nobody is working is not the same as
              in reach of nothing, and "+0.00/s" beside "lifts 3 workplaces"
              reads as broken rather than as the truth it is. */
-          txt = !wg.n ? 'reaches no workplace'
-            : 'lifts ' + count(wg.n, 'workplace') + '   ·   '
+          /* A move can cost, so its figure carries a sign, and a spot that
+             reaches nothing still has to say what leaving costs. A new well
+             can only ever add, so that half is left exactly as it was. */
+          txt = mv
+            ? where + '   ·   ' + (wg.gain > 0.005 ? '+' + wg.gain.toFixed(2) + '/s'
+                : wg.gain < -0.005 ? '−' + (-wg.gain).toFixed(2) + '/s' : 'no change')
+            : !wg.n ? 'reaches no workplace'
+            : where + '   ·   '
               + (wg.gain > 0.005 ? '+' + wg.gain.toFixed(2) + '/s' : 'none of them worked yet');
         } else if (isCharm) {
           const add = usefulCharm(selKey), gain = decorGainCached(selKey, ghost.c, ghost.r);
@@ -4818,16 +4828,25 @@ function wellGain(w) {
    Placing a well was the last blind decision left in the game: forty wood on a
    building whose entire worth is which workplaces happen to fall inside a
    radius the player cannot see. */
-function wellGainAt(c, r, lvl) {
-  const bw = B('well');
-  let n = 0, gain = 0;
+/* The working places a well standing here would reach. The count the badge
+   gives, and the one thing a new well and a move have always agreed about --
+   so it is written once rather than twice. */
+function wellReachAt(c, r) {
+  const bw = B('well'), out = [];
   for (const p of placed) {
     const b = B(p.key);
     if (!established(p) || !b.makes || !b.jobs) continue;
     const dx = (c + (bw.w - 1) / 2) - (p.c + (b.w - 1) / 2);
     const dy = (r + (bw.h - 1) / 2) - (p.r + (b.h - 1) / 2);
-    if (Math.hypot(dx, dy) > bw.boostR) continue;
-    n++;
+    if (Math.hypot(dx, dy) <= bw.boostR) out.push(p);
+  }
+  return out;
+}
+function wellGainAt(c, r, lvl) {
+  const bw = B('well'), near = wellReachAt(c, r);
+  let gain = 0;
+  for (const p of near) {
+    const b = B(p.key);
     const hands = workersAt(p.id);
     // in reach, but nobody there to speed up -- or nothing yet to speed up,
     // because the scaffolding is still on it. Same rule as wellGain above.
@@ -4836,7 +4855,39 @@ function wellGainAt(c, r, lvl) {
     const base = rateOf(p, Object.keys(b.makes)[0]) * charmMul();
     gain += hands * (deliveredWith(p, base * withIt) - deliveredWith(p, base * without));
   }
-  return { n, gain };
+  return { n: near.length, gain };
+}
+/* And what MOVING a well that already exists would do to the village.
+
+   wellGainAt answers for a well that is not there yet, and every term in it
+   says so: the baseline is boostAt(p), the village exactly as it stands, and
+   the level is the level a new well is built at. Pointed at a well being
+   moved, all three are wrong at once. The well is still standing at its old
+   spot, so its own lift is already inside the baseline and the badge quotes
+   the marginal worth of a SECOND well; the level is taken as one, so a level
+   four well is priced at under half its strength; and nothing anywhere
+   subtracts what the old spot is about to stop lifting.
+
+   Measured on a level four well lifting two workplaces by 0.52/s: every
+   figure the badge gave for moving it was wrong, and three of the four were
+   wrong in their SIGN. Two tiles over read '+0.13/s' where the village lost
+   0.17. A shuffle that changed nothing at all read '+0.18/s'. Carrying it
+   off to a far corner read 'reaches no workplace', which sounds merely
+   useless while quietly throwing the whole 0.52/s away. A green pill
+   promising a gain, over a move that costs.
+
+   There is no sum to get right here. What a move asks is what the village
+   would deliver with this well over there instead of here, and that is one
+   subtraction: stand it at the new spot, ask, put it back -- the same trick
+   wellGainAtLevel already plays with the level. Nothing cached needs
+   clearing: a well is not a store and moving one changes no route, which is
+   the whole of what travelCache holds. */
+function wellMoveGain(w, c, r) {
+  const near = wellReachAt(c, r), now = deliveredAtMul(charmMul());
+  const keep = { c: w.c, r: w.r };
+  w.c = c; w.r = r;
+  try { return { n: near.length, gain: deliveredAtMul(charmMul()) - now }; }
+  finally { w.c = keep.c; w.r = keep.r; }
 }
 /* The reach, drawn on the ground. A circle in GRID space, which is an ellipse
    on screen -- the same two-to-one squash everything else lives in. */
@@ -5965,7 +6016,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   tap, CAM, save, load, get caps() { return caps; },
   HALL, hallOf, hallLevel, allowedOf, countOf, atLimit, unlocked, buildable, permitted, hintText,
   canUpgrade, upgradeBuilding, upInfo, upCostOf, lvlOf, popOf, capsOf, capsHeld, rateOf, outMul, LVL_MAX,
-  shortfall, shortText, overCaps, remedy, villageStats, wellGain, wellGainAtLevel, wellGainAt, charmDelivered, deliveredOf, deliveringNow, deliveredWith, travelSecondsOf, handsFor,
+  shortfall, shortText, overCaps, remedy, villageStats, wellGain, wellGainAtLevel, wellGainAt, wellMoveGain, wellReachAt, charmDelivered, deliveredOf, deliveringNow, deliveredWith, travelSecondsOf, handsFor,
   bestDeliveredOf, reachOf, snugWalkOf,
   panelRects, TOUCH_MIN, padHit, TEXT_MIN, get panel() { return panel; }, set panel(v) { panel = v; },
   get villagers() { return villagers; }, workersAt, boostAt, producers, stores,

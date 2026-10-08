@@ -3937,6 +3937,123 @@
               fails.push('a well being improved promised +' + mNext[1] + '/s and lifts +' + after[1]);
           }
         }
+        /* And MOVING that well says what the move is worth, sign and all.
+
+           The badge over a ghost well answers for a well that is not there
+           yet: its baseline is the village exactly as it stands and its
+           level is the level a new well is built at. A well being moved is
+           still standing at its old spot while the player drags it, so that
+           baseline already contains the thing being quoted, and the figure
+           became the marginal worth of a SECOND well at a level the well
+           has long since passed -- with nothing anywhere subtracting what
+           the old spot stops lifting.
+
+           Measured on a level four well lifting two workplaces by 0.52/s:
+           all four moves tried were wrong and three were wrong in their
+           SIGN. Carrying it off its farms read 'reaches no workplace' and
+           no figure at all, which sounds merely useless while throwing the
+           whole lift away.
+
+           Read off the canvas, not asked of the function. A block that
+           called wellMoveGain would pass with the badge wired to anything
+           at all -- which is the lesson this file has already written down
+           beside the charm goal: the question is what the player can see.
+
+           Held against hands x deliveringNow summed over the posts. That is
+           the village's own delivery model but NOT the sum either badge
+           uses, so a quote that forgot to move the well cannot drag the
+           yardstick along with it. Nothing is stepped between the reading
+           and the measuring: a tick lets assignJobs move somebody, and the
+           figure would then describe a different village from the one that
+           was quoted. */
+        {
+          const badge = () => {
+            const rows = [];
+            ctx.fillText = function (t, ...a) { rows.push(String(t)); return orig.call(this, t, ...a); };
+            try { V.draw(); } finally { ctx.fillText = orig; }
+            return rows.find(t => t.indexOf('lifts ') === 0 || t.indexOf('reaches no workplace') === 0) || '';
+          };
+          const model = () => V.placed.reduce((n, q) => {
+            const qb = V.B(q.key);
+            if (q.t < 1 || !qb.makes || !qb.jobs) return n;
+            const h = V.villagers.filter(g => g.job === q.id).length;
+            return h ? n + h * V.deliveringNow(q) : n;
+          }, 0);
+          /* The figure is read by splitting rather than by matching: a
+             pattern written into this file loses its backslashes on the way
+             in, and one that matches nothing would report every badge as
+             silent and pass. */
+          const figure = t => {
+            const tail = t.split('·').pop().trim();
+            if (tail === 'no change') return 0;
+            if (tail.indexOf('/s') < 0) return null;
+            const neg = tail.charAt(0) === '−';
+            const v = parseFloat(tail.slice(1));
+            return isFinite(v) ? (neg ? -v : v) : null;
+          };
+          const says = to => {
+            V.moving = w.id; V.ghost = { c: to[0], r: to[1], ok: true, fits: true };
+            const t = badge();
+            V.moving = null; V.ghost = null;
+            return t;
+          };
+          const real = to => {
+            const was = model(), keep = [w.c, w.r];
+            w.c = to[0]; w.r = to[1];
+            const got = model() - was;
+            w.c = keep[0]; w.r = keep[1];
+            return got;
+          };
+          /* Somewhere it reaches nothing, so the move that costs the most is
+             on the list: leaving its farms altogether. */
+          let away = null;
+          for (let c = LB.hi; c >= LB.lo && !away; c--) for (let r = LB.hi; r >= LB.lo && !away; r--)
+            if (V.canPlace('well', c, r, V.occupied(w.id)) && V.wellReachAt(c, r).length === 0) away = [c, r];
+          /* And another spot that still reaches something, for the move that
+             barely changes anything. */
+          let beside = null;
+          for (let dc = -3; dc <= 3 && !beside; dc++) for (let dr = -3; dr <= 3 && !beside; dr++) {
+            const c = w.c + dc, r = w.r + dr;
+            if ((dc || dr) && V.canPlace('well', c, r, V.occupied(w.id)) && V.wellReachAt(c, r).length) beside = [c, r];
+          }
+          const home = [w.c, w.r];
+          /* Each try names where the well is STANDING as well as where it is
+             being dragged to, and it is stood there before the label is read.
+             Moving it up front instead made the first try a move to the spot
+             the well was already on -- which this block caught on itself, by
+             the coverage line below: three moves tried and not one of them
+             cost the village anything. */
+          const tries = [];
+          if (away) tries.push(['off its workplaces', home, away]);
+          if (beside) tries.push(['a tile over', home, beside]);
+          /* And the same move backwards, from nowhere to the good spot, so
+             the gaining half is proved too and not only the losing one. */
+          if (away) tries.push(['back to its workplaces', away, home]);
+          let lost = 0, gained = 0;
+          for (const [what, standAt, to] of tries) {
+            w.c = standAt[0]; w.r = standAt[1];
+            const said = says(to), got = real(to), fig = figure(said);
+            if (!said) { fails.push('moving a well ' + what + ' drew no label at all'); continue; }
+            if (fig === null) {
+              fails.push('moving a well ' + what + ' costs the village ' + got.toFixed(3)
+                + '/s and its label gives no figure: "' + said + '"');
+              continue;
+            }
+            if (got < -0.005 && fig > 0.005)
+              fails.push('moving a well ' + what + ' loses the village ' + (-got).toFixed(3)
+                + '/s and the label promises a gain of +' + fig.toFixed(2) + '/s');
+            else if (Math.abs(fig - got) > 0.011)
+              fails.push('moving a well ' + what + ' is quoted ' + fig.toFixed(2)
+                + '/s and the village moves by ' + got.toFixed(3) + '/s');
+            if (got < -0.05) lost++;
+            if (got > 0.05) gained++;
+          }
+          w.c = home[0]; w.r = home[1]; V.rebuildStores();
+          if (!lost || !gained)
+            fails.push('the well-move check tried ' + tries.length + ' moves, ' + lost + ' that cost and '
+              + gained + ' that paid, so it proved only half of what it is for');
+          wells += tries.length;
+        }
       }
       if (wells < 2) fails.push('only ' + wells + ' well states were read, so the block proved little');
     }
