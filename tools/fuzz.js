@@ -5963,7 +5963,7 @@
       fails.push('the game asks for a picture of ' + k + ' and there is none, so it is drawn as a plain shape and nothing else in this file would notice');
 
     /* The cycles: all of a set or none of it. */
-    const whole = [];
+    const whole = [], ground = new Map(), regs = [];
     for (const [who, list] of cycles) {
       const here = list.filter(k => !!V.artFor(k));
       if (!here.length) continue;                 // none drawn yet, which is allowed
@@ -5974,6 +5974,66 @@
         continue;
       }
       whole.push(...list);
+      ground.set(who, list);
+    }
+
+    /* The frames of a cycle have to be REGISTERED on each other, and nothing
+       anywhere else would say a word if they stopped being.
+
+       The game draws every frame to the same height at the same place, so
+       the registration lives entirely in the pictures: the figure has to be
+       the same size in all six and standing on the same line in all six. Get
+       that wrong and the villager swells and shrinks and bobs through the
+       floor as the frames cut, which is a worse walk than no walk at all --
+       and it is silent. No file is missing, no key is unloaded, every sweep
+       passes, and the only report is a person watching the screen.
+
+       It is not hypothetical. The first real set to arrive was drawn a
+       quarter apart in size with the feet a hundred and fifty pixels adrift,
+       because a generator cannot count pixels and the brief asking it to was
+       never going to work. prep-art now fits the frames to each other before
+       it cuts them, and this is the check on that fit -- the one thing that
+       would catch the fit going wrong on art nobody has looked at yet.
+
+       One per cent of the height, which is three pixels on a villager, and
+       three pixels is rounding. The fit does not approximate the ground
+       line, it pins it: the bottoms are made equal and all that is left is
+       where the placement was rounded to a whole pixel. Measured both ways
+       on the first real set -- one pixel with the fit, seven to ten without
+       -- so the line sits between two things that are nowhere near each
+       other, which is where a line should sit. */
+    const LINE = 0.01;
+    const bottomOf = im => {
+      const w = im.naturalWidth, h = im.naturalHeight;
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      const g = c.getContext('2d', { willReadFrequently: true });
+      g.drawImage(im, 0, 0);
+      const d = g.getImageData(0, 0, w, h).data;
+      for (let y = h - 1; y >= 0; y--) {
+        let on = 0;
+        for (let x = 0; x < w; x++) if (d[(y * w + x) * 4 + 3] > 16) on++;
+        if (on > w * 0.004) return y;
+      }
+      return -1;
+    };
+    for (const [who, list] of ground) {
+      const ims = list.map(k => V.artFor(k));
+      const sizes = new Set(ims.map(im => im.naturalWidth + 'x' + im.naturalHeight));
+      if (sizes.size > 1) {
+        fails.push(who + ' has walk frames of ' + sizes.size + ' different sizes (' + [...sizes].join(', ')
+          + '), and the game fits every frame to one height -- so the villager changes width mid-stride');
+        continue;
+      }
+      const h = ims[0].naturalHeight;
+      const lows = ims.map(bottomOf);
+      if (lows.some(y => y < 0)) { fails.push(who + ' has a walk frame that is entirely transparent'); continue; }
+      const spread = Math.max(...lows) - Math.min(...lows);
+      regs.push(who.replace('villager_', '') + ' feet within ' + spread + 'px of ' + h);
+      if (spread > h * LINE)
+        fails.push(who + ' has its feet ' + spread + 'px apart across its walk cycle'
+          + ' (lowest rows ' + lows.join(', ') + ' of ' + h + '), so the villager bobs through the floor'
+          + ' as the frames cut');
     }
 
     /* And the copy that goes on the phone. The dev server serves the
@@ -5996,7 +6056,7 @@
         fails.push('the server answers for a picture that does not exist, so asking it proves nothing');
     }
 
-    return { asked: keys.length, loaded: loaded.length, shipped, keys, fails };
+    return { asked: keys.length, loaded: loaded.length, shipped, regs, keys, fails };
   };
   window.costSweep = function () {
     const V = window.__v, cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
@@ -9013,12 +9073,12 @@
         const STRIDE_FROM = 6;
         const striding = () => V.villagers.filter(v =>
           Math.hypot(v.tx - v.x, v.ty - v.y) > STRIDE_FROM
-          && !(v.st === 'idle' && v.wait > 0)).length;
+          && !(v.st === 'idle' && v.wait > 0));
         const walkersNow = () => {
           V.step(1 / 30);
           V.res.wood = Math.min(V.res.wood, 20);
           V.res.food = Math.min(V.res.food, 10);
-          return striding();
+          return striding().length;
         };
         const onFoot = () => walkersNow() > 0;
         /* The sprites have to have loaded, or the villagers are drawn as
@@ -9038,11 +9098,18 @@
           const watch = rm => {
             V.reduceMotion = rm;
             const oR = ctx.rotate.bind(ctx), oD = ctx.drawImage.bind(ctx);
-            const angles = [], highs = [];
+            const angles = [], highs = [], shown = [];
             ctx.rotate = function (a) { angles.push(a); return oR(a); };
-            ctx.drawImage = function (im, ...rest) { if (rest.length >= 2) highs.push(rest[1]); return oD(im, ...rest); };
+            /* The picture as well as the height. A villager with a painted
+               cycle does not lean and does not bob -- the drawing is doing
+               both -- so the only mark he leaves on the canvas is WHICH of
+               his six frames was asked for. */
+            ctx.drawImage = function (im, ...rest) {
+              if (rest.length >= 2) { highs.push(rest[1]); shown.push(im && im.src ? im.src.split('/').pop() : ''); }
+              return oD(im, ...rest);
+            };
             try { V.draw(); } finally { ctx.rotate = oR; ctx.drawImage = oD; }
-            return { angles, highs };
+            return { angles, highs, shown };
           };
           /* Over a whole stride, rather than at one instant.
 
@@ -9083,10 +9150,56 @@
              with no frame short and none over. So the rule is equality, and
              a game that animates only some of its walkers fails it at the
              first frame. */
+          /* There are now TWO ways for a villager to be walking, and the rule
+             above knows about one of them.
+
+             A villager with no painted cycle is faked: he leans and he bobs,
+             and the equality held because the lean carries a constant term
+             for which way he faces, so it never passes through zero while he
+             is on his feet. A villager who HAS a cycle neither leans nor
+             bobs -- the drawing does that -- and the equality cannot be
+             patched to cover him, because once every six beats his cycle is
+             legitimately on the very frame he would hold standing still, and
+             at that instant there is nothing on the canvas to tell the two
+             apart. That is a true property of a six-frame loop, not a fault,
+             and a checker that calls it one is a checker that cries wolf.
+
+             So the strong rule is kept exactly where it still holds -- on a
+             village whose villagers are all faked -- and the painted ones are
+             judged over a whole stride instead, where the question has a
+             sharp answer: a running cycle shows all six of its drawings in a
+             stride, and a frozen one shows a single drawing fifteen times.
+             Sliding along the ground in a fixed pose is the failure worth
+             catching here, and nothing else in the game would mention it. */
+          const WALK_IN = '_walk';
+          const frameOf = n => { const a = n.indexOf(WALK_IN); return a < 0 ? null : { who: n.slice(0, a), n: n.slice(a + WALK_IN.length).split('.')[0] }; };
+          const seen = new Map();               // character -> set of frames it was drawn on
+          const frozenUnder = new Set();        // characters still cycling with reduce motion on
+          /* Whose cycle is entitled to be judged at all.
+
+             A trade with nobody on his feet is drawn, correctly, on the one
+             frame he stands on, for all fifteen samples -- which looks from
+             the canvas exactly like a cycle that has seized. Seen for real:
+             a run where no basket villager happened to be walking reported
+             her stuck on one of six, and she was doing nothing wrong. So the
+             village is asked who is striding rather than the canvas, by the
+             same test the counting above uses, and a trade sitting the
+             sample out is not marked down for it.
+
+             Counted, not just noted. Being afoot is not all-or-nothing over
+             three seconds: a villager can set off on the twelfth sample, and
+             in the three that are left no cycle on earth gets round six
+             frames. Seen for real too, in the run after the one above. So
+             what is demanded of a trade is in proportion to how long it was
+             actually walking. */
+
           let worstShort = 0, bestTilt = 0, bestLift = 0, stillTilted = 0, mismatched = 0, samples = 0;
+          let painted = 0;
+          const afoot = new Map();
           for (let shot = 0; shot < 90 && samples < 15; shot++) {
             const walkers = walkersNow();         // this steps a frame itself
             if (!walkers) continue;
+            for (const v of striding()) { const w = V.villagerArt(v); afoot.set(w, (afoot.get(w) || 0) + 1); }
             const m = watch(false), r = watch(true);
             samples++;
             const tilted = m.angles.filter(a => Math.abs(a) > 1e-9).length;
@@ -9096,17 +9209,66 @@
               r.highs[i] !== undefined && Math.abs(h - r.highs[i]) > 1e-9).length);
             stillTilted += r.angles.filter(a => Math.abs(a) > 1e-9).length;
             if (m.highs.length !== r.highs.length) mismatched++;
+
+            for (const n of m.shown) {
+              const fr = frameOf(n);
+              if (!fr) continue;
+              painted++;
+              if (!seen.has(fr.who)) seen.set(fr.who, new Set());
+              seen.get(fr.who).add(fr.n);
+            }
+            /* With reduce motion on, a painted villager has to be parked on
+               the one frame he stands on. Anything else and the cycle is
+               still running for somebody who asked it not to. */
+            const parked = new Map();
+            for (const n of r.shown) {
+              const fr = frameOf(n);
+              if (!fr) continue;
+              if (!parked.has(fr.who)) parked.set(fr.who, new Set());
+              parked.get(fr.who).add(fr.n);
+            }
+            for (const [who, set] of parked) if (set.size > 1) frozenUnder.add(who);
             V.step(1 / 30);
           }
-          rock = { tilted: bestTilt, lifted: bestLift, samples, worstShort };
+          rock = { tilted: bestTilt, lifted: bestLift, samples, worstShort, painted,
+            frames: [...seen].map(([who, set]) => who.replace('villager_', '') + ':' + set.size
+              + '/6 in ' + (afoot.get(who) || 0) + ' samples afoot').sort() };
           if (samples < 5)
             fails.push('only ' + samples + ' frames in three seconds had anybody walking at all,'
               + ' so the stride could not be judged');
-          else if (worstShort > 0)
-            fails.push(worstShort + ' of the villagers on their feet were not leaning on their stride,'
-              + ' so the walk the source describes does not run for all of them');
-          else if (!rock.lifted)
-            fails.push('every walker leaned and not one of them was lifted, so the bob never runs');
+          else if (!painted) {
+            /* Nobody is painted, so every walker is faked and the old rule
+               applies in full. */
+            if (worstShort > 0)
+              fails.push(worstShort + ' of the villagers on their feet were not leaning on their stride,'
+                + ' so the walk the source describes does not run for all of them');
+            else if (!rock.lifted)
+              fails.push('every walker leaned and not one of them was lifted, so the bob never runs');
+          } else {
+            /* Somebody is painted. Each character that was drawn from a cycle
+               has to have got round most of it.
+
+               Five of six rather than six, and less than that from a trade
+               that spent less of the sampling walking. A stride is about
+               fifteen of these samples and has six beats in it, so a frame
+               every third sample is the slowest a turning cycle can go; five
+               is the ceiling because the sampling is of the clock and the
+               cycle is of the ground, and a villager who stops at a door can
+               honestly miss the last beat.
+
+               A seized cycle shows one frame however long it is watched, so
+               it fails this at any length of sample worth judging. */
+            for (const [who, set] of seen) {
+              const shots = afoot.get(who) || 0;
+              const want = Math.min(5, Math.floor(shots / 3));
+              if (want > 1 && set.size < want)
+                fails.push(who + ' was drawn on ' + set.size + ' of its 6 frames while walking through '
+                  + shots + ' samples, so its walk cycle is not turning and it slides along in a fixed pose');
+            }
+          }
+          for (const who of frozenUnder)
+            fails.push(who + ' kept changing frame with reduce motion on, so its walk cycle'
+              + ' does not stop when it is asked to');
           if (stillTilted)
             fails.push(stillTilted + ' villagers were still leaning on their stride with reduce motion on');
           if (mismatched)

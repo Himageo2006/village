@@ -72,6 +72,10 @@ const TILES = new Set(['path']);
    villager who limps, so the set is refused rather than half-loaded. */
 const WALK_OF = ['villager_farmer', 'villager_basket', 'villager_woodcutter'];
 const WALK_FRAMES = 6;
+/* The frame a villager holds when he is standing, counted from zero, and
+   it has to agree with WALK_STAND in game.js. Nothing enforces that from
+   here, so the number is spelled out at both ends. */
+const STAND_AT = 5;
 const walkName = (key, i) => key + '_walk' + i;
 const FLAT_BINS = 24, FLAT_MAX_GAIN = 2.4;
 
@@ -231,6 +235,141 @@ async function keyOut(file, opaque) {
     }
   return { data, w, h, ch, pal, holes, keyed };
 }
+/* ---- fitting the frames of a cycle to one another --------------------
+
+   The brief asks the generator for one figure height, one centre, and the
+   feet on the bottom edge of the canvas. No generator yet obeys it.
+   Measured on the first real set to arrive: the drawn height varied by a
+   quarter between frames, and the ground under the boots moved a hundred
+   and fifty pixels up and down the canvas.
+
+   The shared box below fixes the CROP, and that is a different thing. Six
+   frames cut to the same rectangle still hold six differently sized
+   villagers standing in six different places inside it, and he pulses and
+   slides across the ground exactly as if nothing had been done. So the
+   frames are fitted to one another BEFORE anything is cut.
+
+   Scale and sideways placement are read off the silhouette: the frame is
+   tried at a range of sizes and offsets against a reference frame, and the
+   one that covers it best wins. That survives the legs being in different
+   places, because the legs are a quarter of the figure; the head, the body
+   and the arms are the rest of it, and those keep their shape as he walks.
+
+   The VERTICAL placement is NOT taken from that overlap. It is taken from
+   the feet. The supporting foot is on the ground in every frame of every
+   walk ever drawn, so the bottom of the figure is the one landmark that is
+   physically pinned, and matching the bottoms is what stops him floating.
+   The rise and fall of a walk then lands where it belongs -- between his
+   feet and his head -- instead of being the whole drawing riding up and
+   down the canvas. */
+
+const REG_ROUGH = 72;        // mask height the coarse search runs at
+const REG_FINE = 180;        //  ... and the refining one
+const REG_SPAN = 0.35;       // how far either side of the area guess to look
+const REG_FLOOR = 0.004;     // coverage at which a row is ground, not a stray pixel
+
+/* Coverage mask of one keyed frame, boxed down to `hh` rows. Coverage rather
+   than a hard yes/no: at seventy rows a whole arm is two pixels wide, and a
+   mask that rounds it away is a mask that cannot see the arm move. */
+function maskOf(fr, hh) {
+  const k = hh / fr.h, ww = Math.max(1, Math.round(fr.w * k));
+  const m = new Float32Array(ww * hh), n = new Float32Array(ww * hh);
+  for (let y = 0; y < fr.h; y++) {
+    const ty = Math.min(hh - 1, Math.floor(y * k));
+    for (let x = 0; x < fr.w; x++) {
+      const tx = Math.min(ww - 1, Math.floor(x * k));
+      const i = ty * ww + tx;
+      if (fr.data[(y * fr.w + x) * fr.ch + 3] >= 8) m[i]++;
+      n[i]++;
+    }
+  }
+  for (let i = 0; i < m.length; i++) if (n[i]) m[i] /= n[i];
+  return { m, w: ww, h: hh };
+}
+
+const areaOf = k => { let a = 0; for (let i = 0; i < k.m.length; i++) a += k.m[i]; return a; };
+
+/* The lowest row carrying actual figure. One stray pixel left behind by the
+   keying would otherwise become the ground and drop the villager through the
+   floor, so a row has to carry a little width before it counts. */
+function groundOf(k) {
+  for (let y = k.h - 1; y >= 0; y--) {
+    let w = 0;
+    for (let x = 0; x < k.w; x++) w += k.m[y * k.w + x];
+    if (w >= REG_FLOOR * k.w) return y;
+  }
+  return k.h - 1;
+}
+
+/* How well `src` lies on `ref` once scaled by s and shifted by (dx, dy).
+
+   Scored over a window half again as large as the frame in each direction,
+   so that a scale which shoves part of the figure off the canvas is charged
+   for the part it lost. Score only what lands inside and the search learns
+   that the way to overlap perfectly is to be enormous. */
+function overlap(ref, src, s, dx, dy) {
+  const px = ref.w >> 1, py = ref.h >> 1;
+  let inter = 0, union = 0;
+  for (let y = -py; y < ref.h + py; y++) {
+    const sy = Math.round((y - dy) / s);
+    const row = sy >= 0 && sy < src.h ? sy * src.w : -1;
+    const rrow = y >= 0 && y < ref.h ? y * ref.w : -1;
+    if (row < 0 && rrow < 0) continue;
+    for (let x = -px; x < ref.w + px; x++) {
+      let a = 0, b = 0;
+      if (rrow >= 0 && x >= 0 && x < ref.w) a = ref.m[rrow + x];
+      if (row >= 0) { const sx = Math.round((x - dx) / s); if (sx >= 0 && sx < src.w) b = src.m[row + sx]; }
+      if (a > b) { inter += b; union += a; } else { inter += a; union += b; }
+    }
+  }
+  return union > 0 ? inter / union : 0;
+}
+
+/* Search scale and sideways offset for one frame, with the vertical offset
+   pinned by the feet at every candidate rather than searched for. */
+function fitOne(ref, src, s0, span, steps, dx0, sway) {
+  const gRef = groundOf(ref), gSrc = groundOf(src);
+  let best = { s: s0, dx: dx0, dy: gRef - s0 * gSrc, score: -1 };
+  for (let i = 0; i < steps; i++) {
+    const s = steps < 2 ? s0 : s0 * (1 - span + (2 * span * i) / (steps - 1));
+    const dy = gRef - s * gSrc;
+    for (let dx = dx0 - sway; dx <= dx0 + sway; dx++) {
+      const score = overlap(ref, src, s, dx, dy);
+      if (score > best.score) best = { s, dx, dy, score };
+    }
+  }
+  return best;
+}
+
+/* Fit every frame of a set onto the one most nearly typical of it.
+
+   The reference is the frame of median area -- not the first, which is only
+   whichever one the generator happened to draw first, and may well be the
+   outlier the other five would then be dragged towards. */
+function registerCycle(raws) {
+  const rough = raws.map(fr => maskOf(fr, REG_ROUGH));
+  const fine = raws.map(fr => maskOf(fr, REG_FINE));
+  const ri = raws.map((_, i) => i)
+    .sort((a, b) => areaOf(rough[a]) - areaOf(rough[b]))[raws.length >> 1];
+
+  const fits = [];
+  for (let i = 0; i < raws.length; i++) {
+    if (i === ri) { fits.push({ s: 1, dx: 0, dy: 0, score: 1 }); continue; }
+    const guess = Math.sqrt(areaOf(rough[ri]) / Math.max(1, areaOf(rough[i])));
+    const c = fitOne(rough[ri], rough[i], guess, REG_SPAN, 29, 0, Math.round(rough[ri].w * 0.3));
+    const k = REG_FINE / REG_ROUGH;
+    const r = fitOne(fine[ri], fine[i], c.s, 0.05, 11, Math.round(c.dx * k), 5);
+    /* Carried back onto the full canvas. The search worked in mask rows, and
+       a mask is REG_FINE rows to its own frame's height, so the scale picks
+       up the ratio of the two frame heights and the offsets pick up the
+       reference frame's. Both are 1:1 while the canvases match, which the
+       warning above insists on, but the arithmetic should not quietly
+       depend on that. */
+    const up = raws[ri].h / REG_FINE;
+    fits.push({ s: r.s * (raws[ri].h / raws[i].h), dx: r.dx * up, dy: r.dy * up, score: r.score });
+  }
+  return { fits, ref: ri };
+}
 /* A whole walk cycle, registered against itself.
 
    Every frame is keyed on its own, and then the SET is trimmed as one: the
@@ -262,8 +401,46 @@ async function walkSet(key) {
     return null;
   }
 
+  const raws = [];
+  for (const file of files) raws.push(await keyOut(file, false));
+
+  /* Frames of differing canvas size cannot be fitted to one another by a
+     scale and an offset alone, and that is a recrop rather than drift --
+     worth saying out loud rather than papering over, because the cycle will
+     be wrong and the reason will not be obvious. */
+  const odd = raws.filter(fr => fr.w !== raws[0].w || fr.h !== raws[0].h).length;
+  if (odd) console.log(String(key + ' walk').padEnd(26),
+    'WARNING: ' + odd + ' frames are a different canvas size, so the set cannot register');
+
+  const { fits, ref } = registerCycle(raws);
+
+  /* Each frame redrawn at its fitted size and position, onto one canvas big
+     enough to hold all six wherever the fit has put them. */
+  const place = raws.map((fr, i) => ({
+    w: Math.max(1, Math.round(fr.w * fits[i].s)),
+    h: Math.max(1, Math.round(fr.h * fits[i].s)),
+    left: Math.round(fits[i].dx), top: Math.round(fits[i].dy),
+  }));
+  const CL = Math.min(...place.map(p => p.left)), CT = Math.min(...place.map(p => p.top));
+  const CW = Math.max(...place.map(p => p.left + p.w)) - CL;
+  const CH = Math.max(...place.map(p => p.top + p.h)) - CT;
+
   const frames = [];
-  for (const file of files) frames.push(await keyOut(file, false));
+  for (let i = 0; i < raws.length; i++) {
+    const fr = raws[i], p = place[i];
+    const body = await sharp(fr.data, { raw: { width: fr.w, height: fr.h, channels: fr.ch } })
+      .resize({ width: p.w, height: p.h, fit: 'fill' }).png().toBuffer();
+    const { data, info } = await sharp({ create: { width: CW, height: CH, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
+      .composite([{ input: body, left: p.left - CL, top: p.top - CT }])
+      .raw().toBuffer({ resolveWithObject: true });
+    frames.push({ data, w: info.width, h: info.height, ch: info.channels });
+  }
+
+  const apart = Math.max(...fits.map(ft => Math.abs(1 - ft.s)));
+  const worst = Math.min(...fits.map(ft => ft.score));
+  console.log(String(key + ' walk').padEnd(26),
+    ('fitted to frame ' + (ref + 1) + ', which the others were ' + (apart * 100).toFixed(0) + '% off').padEnd(44),
+    'worst overlap ' + (100 * worst).toFixed(0) + '%');
 
   /* The union box. A pixel counts as part of the figure at the same
      threshold sharp's own trim uses, so a soft rim is not mistaken for air. */
@@ -278,18 +455,43 @@ async function walkSet(key) {
   if (!isFinite(x0)) { console.log(String(key + ' walk').padEnd(26), 'every frame keyed away to nothing'); return null; }
   const bw = x1 - x0 + 1, bh = y1 - y0 + 1;
 
-  /* Frames of differing canvas size cannot share one box, and that is a
-     recrop rather than drift -- worth saying out loud rather than papering
-     over, because the cycle will be wrong and the reason will not be
-     obvious. */
-  const odd = frames.filter(fr => fr.w !== frames[0].w || fr.h !== frames[0].h).length;
-  if (odd) console.log(String(key + ' walk').padEnd(26),
-    'WARNING: ' + odd + ' frames are a different canvas size, so the set cannot register');
+
+  /* Which beat he should stand on, and a free way to make it the right one.
+
+     A walk is a LOOP, so rotating which frame is called number one leaves
+     the animation untouched -- the same six pictures follow the same six
+     pictures for ever. That makes the starting point free, and it is worth
+     spending on the one frame the game shows on its own: the one he holds
+     while he is standing still.
+
+     The stillest beat is the passing stride, where the feet are together
+     under the body. Measured by the width of the footprint, and measured
+     rather than assumed, because the brief asks for passing on beats three
+     and six and the generator does not oblige: on the first real set the
+     farmer passed on two and five, the woodcutter on six, and the woman in
+     the dress -- whose feet nobody can see -- on three and six, which is
+     the only place the brief was followed.
+
+     So the loop is turned until the narrowest footprint is the frame the
+     game stands on, and the cycle itself is none the wiser. */
+  const band = Math.max(1, Math.round(bh * 0.12));
+  const foot = frames.map(fr => {
+    let lo = Infinity, hi = -Infinity;
+    for (let y = Math.max(0, y1 - band + 1); y <= Math.min(y1, fr.h - 1); y++)
+      for (let x = x0; x <= Math.min(x1, fr.w - 1); x++) {
+        if (fr.data[(y * fr.w + x) * fr.ch + 3] < 8) continue;
+        if (x < lo) lo = x; if (x > hi) hi = x;
+      }
+    return hi >= lo ? hi - lo + 1 : 0;
+  });
+  let still = 0;
+  for (let i = 1; i < foot.length; i++) if (foot[i] < foot[still]) still = i;
+  const turn = i => frames[(still - STAND_AT + i + 2 * WALK_FRAMES) % WALK_FRAMES];
 
   const cap = CAP[key] || MAX_W;
   let wrote = 0, bytes = 0, dim = '';
   for (let i = 0; i < frames.length; i++) {
-    const fr = frames[i];
+    const fr = turn(i);
     let img = sharp(fr.data, { raw: { width: fr.w, height: fr.h, channels: fr.ch } })
       .extract({ left: Math.min(x0, fr.w - 1), top: Math.min(y0, fr.h - 1),
         width: Math.min(bw, fr.w - x0), height: Math.min(bh, fr.h - y0) });
@@ -309,6 +511,9 @@ async function walkSet(key) {
   }
   console.log(String(key + ' walk').padEnd(26), (wrote + ' frames, registered as one set').padEnd(34),
     '-> ' + dim + '  ' + (bytes / 1024).toFixed(0) + ' KB total');
+  console.log(''.padEnd(26), ('footprints ' + foot.join(' ') + ' px').padEnd(34),
+    'turned ' + ((still - STAND_AT + 2 * WALK_FRAMES) % WALK_FRAMES)
+    + ', so he stands on the narrowest');
   return wrote;
 }
 

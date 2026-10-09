@@ -62,13 +62,40 @@ const VILLAGERS = ['villager_farmer', 'villager_basket', 'villager_woodcutter'];
    and the faked walk, and he switches over the moment the last frame
    arrives. Half a cycle would be a limp. */
 const WALK_STEPS = 6;
+/* Which frame he stands on.
+
+   A villager with a painted cycle is drawn FROM that cycle whether he is
+   walking or not, and this is the frame he holds when he is not. It has to
+   come out of the same set: the cycle is a fresh set of drawings and the
+   old standing sprite is not, so showing one and then the other would
+   change the man's hair colour and build every time he reached a door.
+   Drawn from the same set and cut from the same box, standing and walking
+   cannot disagree about who he is or how tall he is.
+
+   The LAST beat, and the pipeline guarantees what is in it. A walk is a
+   loop, so which drawing gets called number one is free, and prep-art
+   spends that freedom here: it measures the footprint of all six and turns
+   the loop until the narrowest -- feet together, passing stride, the
+   nearest thing a walk has to standing still -- is the one this points at.
+   The number has to agree with STAND_AT in tools/prep-art.js. */
+const WALK_STAND = WALK_STEPS - 1;
+
+/* Remembered once it is whole, because this is now asked on every draw of
+   every villager rather than only of the ones in motion. Until then it
+   really does have to look again each time: artFor answers null both for a
+   frame that is missing and for one still decoding, and the difference
+   between those two only shows up by asking later. */
+const walkSets = new Map();
 function walkFrames(key) {
+  const got = walkSets.get(key);
+  if (got) return got;
   const out = [];
   for (let i = 1; i <= WALK_STEPS; i++) {
     const im = artFor(key + '_walk' + i);
     if (!im) return null;
     out.push(im);
   }
+  walkSets.set(key, out);
   return out;
 }
 const ready=im=>im&&im.complete&&im.naturalWidth>0;
@@ -3188,9 +3215,10 @@ function drawVillager(v) {
   /* The painted cycle where there is one. Six frames to the stride, picked
      by where in that stride he is -- so the frame changes with the ground
      covered rather than with the clock, and the feet do not skate. */
-  const cycle = moving && !reduceMotion ? walkFrames(key) : null;
-  const im = cycle
-    ? cycle[Math.floor(v.ph / (Math.PI * 2) * WALK_STEPS) % WALK_STEPS]
+  const set = walkFrames(key);
+  const cycle = set && moving && !reduceMotion;
+  const im = set
+    ? set[cycle ? Math.floor(v.ph / (Math.PI * 2) * WALK_STEPS) % WALK_STEPS : WALK_STAND]
     : artFor(key);
   const HGT = VILLAGER_H;
   /* A walk cycle out of one standing drawing.
@@ -3227,7 +3255,7 @@ function drawVillager(v) {
   /* The faked walk is the UNDERSTUDY. With painted frames the lift, the
      squash and the rock all stand down: the drawing is already doing them,
      and doing both is a villager bouncing on top of his own footsteps. */
-  const anim = moving && !reduceMotion && !cycle;
+  const anim = moving && !reduceMotion && !set;
   const sn = anim ? Math.sin(v.ph) : 0;               // sign alternates each step
   const t = sn * sn;                                  // 0 contact, 1 passing, smooth through both
   const bob = t * HGT * 0.025;

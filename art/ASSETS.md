@@ -116,13 +116,43 @@ rest is simpler.
 single standing poses, anchored bottom-centre. The game picks one per villager.
 
 If a villager also has a six-frame walk cycle -- `<key>_walk1.webp` through
-`_walk6.webp`, groups 24-26 in PROMPTS.md -- those are played while he walks,
-one frame per sixth of a stride, driven by the ground he covers rather than by
-a clock. Without them the standing sprite is rocked about its feet and lifted a
+`_walk6.webp`, groups 24-26 in PROMPTS.md -- then the cycle replaces the
+standing sprite **entirely**. He walks through all six, one frame per sixth of
+a stride, driven by the ground he covers rather than by a clock; and when he
+stops he holds frame six. That is deliberate: the cycle is a fresh set of
+drawings and the old standing sprite is not, so showing one and then the other
+changes the character every time he reaches a door. Standing and walking have
+to come out of the same set.
+
+Without a cycle the standing sprite is rocked about its feet and lifted a
 little on each step instead, which is a fair imitation of weight but cannot
-move his legs. The set is all-or-nothing: `node tools/prep-art.js --walk` trims
-the six against a SHARED bounding box so they stay registered, and both it and
-the game ignore a set with a frame missing. Two things they must be drawn with:
+move his legs. The set is all-or-nothing, and both the pipeline and the game
+ignore a set with a frame missing.
+
+`node tools/prep-art.js --walk` does three things to a cycle that it does not
+do to a single image:
+
+1. **Fits the frames to one another.** The brief asks the generator for one
+   figure height, one centre and the feet on the bottom edge, and no generator
+   obeys it: the first real set was drawn a quarter apart in size with the feet
+   a hundred and fifty pixels adrift. Each frame is tried at a range of sizes
+   against a reference frame and the best overlap wins; the vertical placement
+   is taken from the feet instead, because the supporting foot is on the ground
+   in every frame of every walk and so is the one landmark that is pinned. So
+   **do not hand-register the frames before running this** -- it is done for
+   you, and done from measurements rather than from a promise.
+2. **Trims the set against a SHARED bounding box**, and caps by HEIGHT rather
+   than by the longest side. A cycle is wider than a standing sprite because
+   the legs are apart in most of it, and capping the longest side would shrink
+   the villager the moment he set off.
+3. **Turns the loop** so the frame with the narrowest footprint -- feet
+   together, the passing stride -- lands on frame six, which is the one he
+   stands on. A walk is a loop, so which drawing is called number one is free,
+   and this is the one thing worth spending it on. Measured, not assumed: the
+   brief asks for passing on beats three and six and the generator put it on
+   two and five for the farmer and on six for the woodcutter.
+
+Two things they must be drawn with:
 
 - **Flat, frontal light** — unlike everything else. The game mirrors a villager
   to turn them round, and a strong key light would flip with them.

@@ -997,9 +997,15 @@ in separate conversations drifts the hat, the belt and the palette.
 Four rules decide whether the frames cut together or jitter:
 
 - **The figure must not be re-framed.** Same canvas, same figure height, same
-  horizontal centre, feet on the same ground line in every frame. If frame 3 is
-  zoomed in a little the villager will pulse. `prep-art.js --walk` registers the
-  set against a shared box, which fixes small drift and cannot fix a recrop.
+  horizontal centre, feet on the same ground line in every frame.
+
+  Ask for it, but do not expect it, and do not try to fix it by hand. The
+  first real set to come back was drawn a quarter apart in size with the feet
+  a hundred and fifty pixels adrift, and it was fine: `prep-art.js --walk`
+  FITS the frames to each other before it cuts them, by overlap for the size
+  and by the feet for the ground line. Hand-registering them first only
+  changes what it has to undo. The prompts still carry the instruction
+  because a generator that half obeys it gives the fit less to do.
 - **Same even frontal light in all six**, for the reason the standing sprites
   have it: the game mirrors a villager to turn them round, and a strong key
   light would flip with them.
@@ -1022,6 +1028,17 @@ in-betweens dropped:
 Keep the height column small. A head's worth of rise and fall across the whole
 cycle is plenty — these are drawn 60 pixels tall, and the game adds nothing of
 its own once the frames exist.
+
+Nor does the beat numbering have to come back right. A walk is a loop, so
+`prep-art.js --walk` measures the footprint of all six and turns the loop
+until the narrowest — feet together — is frame 6, which is the frame the game
+holds while a villager is standing still. On the first real set the farmer had
+passed on 2 and 5 and the woodcutter on 6, and both came out right anyway.
+
+**Once a character has a cycle, the cycle is all the game draws of him** —
+standing as well as walking. So the six frames have to carry the character on
+their own, and a standing sprite drawn earlier in a different style is no
+longer a fallback anybody will see.
 
 ---
 
