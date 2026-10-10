@@ -9844,12 +9844,68 @@
         || r.cropped || r.mismatched || r.conflicts || r.unplayable || r.diffs || 0;
       return n || 0;
     };
+    /* The player's village is not the harness's to spend.
+
+       Every sweep that disturbs the save already puts it back -- each one
+       takes a copy of KEY on the way in and writes it out again on the way
+       out, and has for a long time. It is not enough, and the reason is that
+       the harness is not the only thing writing.
+
+       The GAME is still running underneath all of this. Its autosave fires
+       every five seconds off whatever is in memory, and what is in memory
+       during a battery is a scratch village with fifty buildings dropped on
+       it, resources clamped to twenty, and the odd test constant. So a sweep
+       restores the file, and three seconds later the game writes its scratch
+       state straight back over it. Worse, the FIRST autosave after a page
+       load promotes the primary to the backup, so the one copy that could
+       have rescued the village is overwritten too.
+
+       Found the hard way, on a finished village: two batteries and the
+       player's trades-filled had gone from 34 to 42 and their shared tally
+       had been replaced by a constant out of this file. The layout survived
+       because no sweep rearranges it. Nothing warned, and nothing could
+       have: every individual sweep did exactly what it promised.
+
+       So the battery holds all three save keys itself, across the whole run,
+       and puts them back at the end -- and then LOADS them, because leaving
+       the scratch village in memory means the next autosave undoes the
+       restore five seconds later. Restoring the file without restoring the
+       game is restoring nothing. */
+    const SAVE_KEYS = [V.KEY, V.KEY_BAK, V.KEY_OTHER];
+    const held = SAVE_KEYS.map(k => { try { return localStorage.getItem(k); } catch (e) { return null; } });
+
     const detail = {}, failed = [];
-    for (const [name, fn] of jobs) {
-      try { detail[name] = await fn(); } catch (e) { detail[name] = 'THREW ' + (e && e.message); }
-      const bad = complaints(detail[name]);
-      if (bad) failed.push(name + ': ' + (typeof bad === 'string' ? bad : bad));
-      await new Promise(r => setTimeout(r, 20));
+    let saveGuard = 'not reached';
+    try {
+      for (const [name, fn] of jobs) {
+        try { detail[name] = await fn(); } catch (e) { detail[name] = 'THREW ' + (e && e.message); }
+        const bad = complaints(detail[name]);
+        if (bad) failed.push(name + ': ' + (typeof bad === 'string' ? bad : bad));
+        await new Promise(r => setTimeout(r, 20));
+      }
+    } finally {
+      /* In a finally, because a sweep that throws is exactly when the village
+         is most likely to be left in pieces. */
+      try {
+        for (let i = 0; i < SAVE_KEYS.length; i++) {
+          if (held[i] === null) localStorage.removeItem(SAVE_KEYS[i]);
+          else localStorage.setItem(SAVE_KEYS[i], held[i]);
+        }
+        /* Checked before the village is loaded rather than after, so that what
+           is being proved is that the restore landed -- and not merely that
+           the game then saved something over it that happens to match. */
+        const back = SAVE_KEYS.map(k => { try { return localStorage.getItem(k); } catch (e) { return null; } });
+        const off = SAVE_KEYS.filter((k, i) => back[i] !== held[i]);
+        if (off.length) {
+          saveGuard = 'FAILED';
+          failed.push('the player\'s save was not put back after the battery: ' + off.join(', ')
+            + ' -- their village is now whatever the sweeps left behind');
+        } else saveGuard = 'restored';
+        V.load();              // and back into memory, or the next autosave undoes it
+      } catch (e) {
+        saveGuard = 'THREW';
+        failed.push('the player\'s save could not be put back after the battery: ' + (e && e.message));
+      }
     }
     /* Every checker in the harness is in the list above. The game itself has a
        top-level ptrSweep() -- stale pointer records, nothing to do with
@@ -9869,7 +9925,7 @@
       && typeof window[k + 'Sweep'] !== 'function');
     if (missing.length) failed.push('listed but gone: ' + missing.join(', '));
     return { ran: jobs.length, failed, arc: detail.arc && detail.arc.goals,
-      fuzzRounds: rounds * 2, detail };
+      fuzzRounds: rounds * 2, saveGuard, detail };
   };
   console.log('textSweep ready: window.textSweep(), window.contrastSweep(), window.backingSweep(), window.saveSweep(), window.allSweeps(), window.paintSweep(), window.soundSweep(), window.unitSweep(), window.reachSweep(), window.scaffoldSweep(), window.handoverSweep(), window.promiseSweep()');
 })();
