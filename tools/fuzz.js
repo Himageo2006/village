@@ -8495,12 +8495,27 @@
       for (let i = 0; i < 30 && V.currentHint(); i++) V.tutSeen.push(V.currentHint().id);
       if (!V.tutSeen.includes(V.FINISH_ID)) V.tutSeen.push(V.FINISH_ID);
       V.finished = null;
+      const wasShip = V.shipped();
       V.step(0.001);                       // and the mark is taken from here
 
       after.mark = V.afterMark;
-      if (!after.mark || after.mark.ship !== 5500000 || after.mark.orders !== 34)
-        fails.push('the goals past the ladder did not take their mark from the village they started in,'
-          + ' so they are measured from ' + JSON.stringify(after.mark));
+      /* Between the two, not equal to either.
+
+         The village is RUNNING during the step that takes the mark, and on a
+         finished village every delivery into a full barn is credited as
+         shipped -- so the tally moves while the mark is being read. Measured:
+         five and a half million set, 5,500,008 read, one load of eight from one
+         villager arriving mid-tick, and an equality test called the game broken
+         for it. The same mistake the reward card made, and caught the same way.
+
+         So the bound is what it can honestly be: the mark was taken somewhere
+         inside that tick, so it is at least what the village had going in and
+         at most what it has coming out. */
+      const nowShip = V.shipped();
+      if (!after.mark || after.mark.orders !== 34
+          || !(after.mark.ship >= wasShip && after.mark.ship <= nowShip))
+        fails.push('the goals past the ladder did not take their mark from the village they started in: '
+          + JSON.stringify(after.mark) + ' is not inside ' + wasShip + '..' + Math.round(nowShip));
 
       const seen = [];
       for (let i = 0; i < 4; i++) {
@@ -10193,6 +10208,99 @@
     V.sharedTotal = { wood: 0, food: 0 };
     return { drawn, stages, drank: Math.round(drank), pictures: seen.size, low, high, fails };
   };
+
+  /* ---------- who the villagers are ----------
+
+     Villagers are not in the save. They are worked out from the houses on
+     every load, which means the whole village is built again from an empty
+     list every time the game opens -- and anything about a villager that is
+     decided at random when they are spawned is decided AGAIN, differently.
+
+     That is the fault this guards. It is completely silent: nothing errors,
+     no file is missing, the village looks right in any single session, and
+     the only way to see it is to close the game and open it again.
+
+     Four ways for it to go wrong, and the fourth is the one that would only
+     show up in a village that has been played for a long time. */
+  window.nameSweep = function () {
+    const V = window.__v, fails = [];
+    const cv5 = document.querySelector('canvas'), ctx5 = cv5.getContext('2d');
+
+    /* A village with enough people in it to collide if it is going to. */
+    V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
+    V.away = null; V.goalDone = null; V.finished = null; V.panel = null; V.sel = null;
+    V.moving = null; V.claimAsk = false; V.orders = [];
+    V.goalIdx = V.GOALS.length; V.tutSeen.length = 0; for (const h of V.TUT) V.tutSeen.push(h.id);
+    V.ensureHall(); V.placed[0].lvl = 5; V.placed[0].t = 1;
+    V.res.wood = 9e5; V.res.food = 9e5;
+    {
+      const L = V.landBounds();
+      const seat = k => { for (let r = L.lo; r <= L.hi; r++) for (let c = L.lo; c <= L.hi; c++) {
+        V.res.wood = 9e5; V.res.food = 9e5;
+        if (V.canPlace(k, c, r, V.occupied()) && V.place(k, c, r)) return true; } return false; };
+      for (let i = 0; i < 8; i++) seat('house');
+      for (let i = 0; i < 3; i++) seat('farm');
+      for (let i = 0; i < 3; i++) seat('lumber');
+      for (const p of V.placed) { p.t = 1; p.build = 0; p.lvl = 5; }
+      V.rebuildStores();
+      for (let i = 0; i < 120; i++) V.step(1 / 30);
+    }
+    const people = V.villagers.length;
+    if (people < 8) { fails.push('the name check could only house ' + people + ' villagers'); return { people, fails }; }
+
+    const snap = () => V.villagers.map(v => v.seed + ':' + V.villagerName(v) + ':' + V.villagerArt(v));
+    const names = () => V.villagers.map(v => V.villagerName(v));
+
+    /* Nobody shares a name. */
+    const distinct = new Set(names()).size;
+    if (distinct !== people)
+      fails.push(people + ' villagers answer to ' + distinct + ' names, so some of them are the same person as far as the village is concerned');
+
+    /* The village comes back with the same people in it. Emptying the list
+       and stepping is exactly what a reload does -- they are rebuilt from the
+       houses -- so anything rolled at spawn is rolled again here. */
+    const before = snap();
+    V.villagers.length = 0; V.step(0.001);
+    const after = snap();
+    if (before.join('|') !== after.join('|')) {
+      const n = before.filter((x, i) => x !== after[i]).length;
+      fails.push(n + ' of ' + people + ' villagers came back as somebody else after the village was rebuilt, which is what every reload does: ' + (before.find((x, i) => x !== after[i]) || '') + ' became ' + (after.find((x, i) => x !== before[i]) || ''));
+    }
+
+    /* Somebody leaving does not hand their number to somebody else. A villager
+       is spliced out of the MIDDLE when a house goes, so a new arrival that
+       took the length of the list as its number would take one that is still
+       in use -- and two people in the village would answer to one name. It
+       needs a village this size to show at all. */
+    V.villagers.splice(3, 1);
+    V.step(0.001);
+    const after2 = names();
+    if (new Set(after2).size !== after2.length)
+      fails.push('after somebody left and somebody arrived, ' + (after2.length - new Set(after2).size) + ' villagers share a name with another');
+
+    /* The panel says who works there, and says the right ones. */
+    let named = 0;
+    for (const p of V.placed) {
+      const n = V.workersAt(p.id);
+      if (p.key === 'hall' || n < 1) continue;
+      V.panel = p.id;
+      const rows = [], o5 = ctx5.fillText;
+      ctx5.fillText = function (t, ...a) { rows.push(String(t)); return o5.call(this, t, ...a); };
+      try { V.draw(); } finally { ctx5.fillText = o5; }
+      const row = rows.find(t => t.indexOf('workers ') >= 0) || '';
+      const want = V.workersOf(p.id).map(v => V.villagerName(v));
+      const missing = want.filter(w => row.indexOf(w) < 0);
+      if (missing.length)
+        fails.push('the panel for a ' + p.key + ' names ' + (want.length - missing.length)
+          + ' of the ' + want.length + ' villagers working it, so the ones it leaves out are nobody: "' + row + '"');
+      else named++;
+      break;
+    }
+    V.panel = null;
+    if (!named) fails.push('no staffed building put a name on its panel');
+
+    return { people, distinct, named, fails };
+  };
   window.allSweeps = async function (opts) {
     const o = opts || {}, rounds = o.rounds === undefined ? 12000 : o.rounds;
     const arcMinutes = o.arcMinutes === undefined ? 90 : o.arcMinutes;
@@ -10245,6 +10353,7 @@
       ['cost', () => window.costSweep()],
       ['art', () => window.artSweep()],
       ['beacon', () => window.beaconSweep()],
+      ['name', () => window.nameSweep()],
       ['order', () => window.orderSweep()],
       ['tap', () => window.tapSweep()],
       ['text', () => window.textSweep()],

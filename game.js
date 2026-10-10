@@ -864,6 +864,57 @@ const postNear = p => { const c=centreOf(p);
    gated behind hall levels, still asked for by a goal. The ceiling now sits
    above what a full village asks for, so a house is never wasted. */
 const VILLAGER_MAX = 72;
+
+/* ---------- who the villagers are ----------
+
+   Seventy-two figures walking about an island, and not one of them was
+   anybody. Worse than anonymous: they were not even the SAME anonymous twice.
+   A villager's look came from k, which was rolled at random every time one
+   was spawned -- and they are all spawned afresh on every load, because they
+   are not in the save, they are worked out from the houses. So the woodcutter
+   you watched walk to the mill yesterday came back this morning as a farmer,
+   and nothing in the game had changed.
+
+   A seed fixes both. It is the villager's own number, kept on the record, and
+   everything about them that is not position or timing comes out of it: the
+   name, and the sprite they are drawn with. Rebuild the pool from an empty
+   list -- which is what a reload does -- and villager nought is handed seed
+   nought again, so the village comes back with the same people in it.
+
+   The SMALLEST unused seed, not the length of the list. Someone leaving is
+   spliced out of the middle, so the next arrival would otherwise take a
+   number that a later villager is still using, and two people in a village of
+   seventy-two would answer to the same name.
+
+   Eighty names against a ceiling of seventy-two, stepped by a number coprime
+   with eighty, so every seed in range lands on a different one. Nobody shares
+   a name, and nobody has to. */
+const NAMES = [
+  'Mara', 'Tomas', 'Jens', 'Alda', 'Piet', 'Nell', 'Otto', 'Greta',
+  'Hans', 'Lise', 'Bram', 'Ilse', 'Gus', 'Mette', 'Arne', 'Fenna',
+  'Joren', 'Saskia', 'Klaas', 'Roos', 'Teun', 'Hilde', 'Wim', 'Anke',
+  'Dirk', 'Marit', 'Sven', 'Lotte', 'Rune', 'Birgit', 'Olav', 'Karin',
+  'Erik', 'Sonja', 'Lars', 'Elin', 'Nils', 'Astrid', 'Jonas', 'Freja',
+  'Kai', 'Signe', 'Bo', 'Inga', 'Halle', 'Rikke', 'Esben', 'Maren',
+  'Finn', 'Tove', 'Soren', 'Liv', 'Odd', 'Hedda', 'Vidar', 'Siri',
+  'Trygve', 'Runa', 'Egil', 'Thora', 'Knut', 'Ylva', 'Harald', 'Gudrun',
+  'Sigurd', 'Asta', 'Leif', 'Solveig', 'Torkel', 'Ragna', 'Einar', 'Dagny',
+  'Bjorn', 'Kari', 'Steinar', 'Alva', 'Gunnar', 'Hanne', 'Magnus', 'Edda',
+];
+const NAME_STEP = 37;                 // coprime with 80, so seeds do not collide
+const villagerName = v => NAMES[((v && v.seed | 0) * NAME_STEP) % NAMES.length];
+/* The smallest number nobody is using. */
+function freeSeed() {
+  const taken = new Set(villagers.map(v => v.seed));
+  for (let i = 0; i < VILLAGER_MAX; i++) if (!taken.has(i)) return i;
+  return 0;
+}
+/* Everyone working here, in the order they joined, which is the order their
+   seeds were handed out and so the order their names come back in. */
+const workersOf = id => villagers.filter(v => v.job === id);
+/* "Mara", "Mara and Tomas", "Mara, Tomas and Jens". */
+const nameList = vs => vs.length < 2 ? (vs.length ? villagerName(vs[0]) : '')
+  : vs.slice(0, -1).map(villagerName).join(', ') + ' and ' + villagerName(vs[vs.length - 1]);
 function syncVillagers(){
   let want=0;
   for(const p of placed) want += livedIn(p);
@@ -884,8 +935,13 @@ function syncVillagers(){
   if(villagers.length!==want) invalidateJobs();
   while(villagers.length<want){
     const h=hallOf(), t=h?centreOf(h):tileToWorld(GW/2,GH/2);
+    /* ph and wait stay random -- they are where in a stride and how long until
+       the next errand, and nobody notices those repeating. k does not: it is
+       what the villager LOOKS like, and rolling it on every spawn meant every
+       reload redealt the whole village. */
+    const seed = freeSeed();
     villagers.push({x:t.x,y:t.y,tx:t.x,ty:t.y,ph:Math.random()*7,wait:Math.random()*2,face:1,
-      k:(Math.random()*VILLAGERS.length)|0, job:null, st:'idle', carry:null});
+      seed, k: (seed * 11) % VILLAGERS.length, job:null, st:'idle', carry:null});
   }
   /* Whoever leaves hands in what they were carrying.
 
@@ -5698,6 +5754,11 @@ function drawPanel() {
     if (b.caps) line += '   ·   holds 🪵' + capsHeld(p, 'wood') + ' 🌾' + capsHeld(p, 'food');
     const boost = boostAt(p);
     if (boost > 1 && n) line += '   ·   +' + Math.round((boost - 1) * 100) + '% from wells';
+    /* And WHO they are. Last on the row on purpose: panelRow drops clauses
+       from the end when the row will not fit, and on a narrow phone the names
+       are the right thing to lose -- they are the only clause here that tells
+       the player nothing they need in order to decide anything. */
+    if (n) line += '   ·   ' + nameList(workersOf(p.id));
     /* Skipped for a building that is its own store; otherwise the placement
        gets a line of its own, stated as the counterfactual rather than as a
        score. "Efficiency 39%" is a number the player has to interpret, and
@@ -6553,7 +6614,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   shortfall, shortText, overCaps, remedy, villageStats, wellGain, wellGainAtLevel, wellGainAt, wellMoveGain, wellReachAt, charmDelivered, deliveredOf, deliveringNow, deliveredWith, travelSecondsOf, handsFor,
   bestDeliveredOf, reachOf, snugWalkOf,
   panelRects, TOUCH_MIN, padHit, TEXT_MIN, get panel() { return panel; }, set panel(v) { panel = v; },
-  get villagers() { return villagers; }, workersAt, boostAt, producers, stores,
+  get villagers() { return villagers; }, workersAt, workersOf, villagerName, nameList, NAMES, freeSeed, boostAt, producers, stores,
   assignJobs, desiredJobs, computeJobs, invalidateJobs, established, lvlHeld, buildingAt, ensureHall, jobsOf, VILLAGER_MAX, rebuildStores, nearestStore,
   artRect, paintedAt, isDecor, decorCount, DECOR_MAX, charmTotal, charmMul, charmGainFrom, decorGainAt, deliveredAtMul, charmRoom, usefulCharm, CHARM_FULL,
   // the size of a load: the finest difference any delivery measurement can see
