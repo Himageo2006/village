@@ -2100,6 +2100,31 @@ function afterGoal(n) {
 const currentGoal = () => GOALS[goalIdx] || afterGoal(goalIdx - GOALS.length);
 
 function stepGoals(dt) {
+  /* Where the counters stood when the ladder ended, which every goal after it
+     is measured from.
+
+     FIRST, before a single line of this function asks what the current goal
+     is. It used to be taken further down, next to the completion card, and
+     the ordering was the whole bug: currentGoal() is called at the top, so
+     on the one tick the ladder ran out the first generated goal was built
+     against a mark of nothing -- asking for fifty thousand shipped from a
+     village that had already shipped five and a half million. It completed
+     in the same frame it was created, and the player was congratulated for
+     work they did last week.
+
+     Not caught by the checker, and worth saying why: the sweep sets a
+     village up with a thousand shipped, and a thousand is less than fifty
+     thousand, so the goal was NOT already done and the fault never showed.
+     It took a real save -- five and a half million shipped -- to make the
+     difference between a mark of nothing and the right one visible. The
+     checker now starts from a village that has shipped millions.
+
+     And cleared when the village is short of the end: the mark only means
+     anything past the ladder, and one left over from a finished village
+     would otherwise be carried into a save that has no goals past it. */
+  afterMark = villageFinished()
+    ? (afterMark || { ship: Math.round(shipped()), orders: ordersDone })
+    : null;
   /* One at a time. The goals are a queue, and finishing one often reveals
      another that is ALREADY done -- fill three orders, and the land you claimed
      an hour ago and the building you upgraded last week both come due at once.
@@ -2134,20 +2159,7 @@ function stepGoals(dt) {
     finished = { villagers: villagers.length,
                  buildings: placed.filter(q => !isDecor(q.key)).length,
                  trades: ordersDone, charm: charmTotal() };
-  /* Where the counters stood when the ladder ended, which is what every goal
-     after it is measured from. Taken here rather than at the moment goalIdx
-     passes the end, because a village finished before this existed has no
-     mark at all -- it gets one the first time it ticks, from where it
-     actually is, rather than being asked to catch up with its own history. */
-  /* And cleared when it does not. The mark only means anything past the end
-     of the ladder, so a village short of it must not be carrying one: left
-     to persist it survived into a village it was never measured from, and
-     the save then carried a mark for a village that has no goals past the
-     ladder at all. Written as what it IS rather than as something set once
-     and never taken back. */
-  afterMark = villageFinished()
-    ? (afterMark || { ship: Math.round(shipped()), orders: ordersDone })
-    : null;
+
   const g2 = next;
   if (!g2 || !g2.done()) return;
   /* Bank what will actually fit and report THAT. Announcing the offered amount

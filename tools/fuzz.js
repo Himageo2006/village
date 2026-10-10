@@ -8449,7 +8449,15 @@
 
       V.goalIdx = V.GOALS.length; V.goalDone = null; V.afterMark = null;
       V.away = null; V.panel = null;
-      V.sharedTotal = { wood: 1000, food: 0 }; V.ordersDone = 5;
+      /* A village that has been FINISHED for a while, not one that has just
+         started. The first version of this began at a thousand shipped, and
+         a thousand is under the fifty thousand the first generated goal asks
+         for when it is measured from nothing -- so a mark that was never
+         taken looked exactly like a mark that was. The real save had shipped
+         five and a half million, the first goal completed in the frame it
+         was created, and the player was congratulated for last week. Started
+         from millions here, so a missing mark cannot hide. */
+      V.sharedTotal = { wood: 3200000, food: 2300000 }; V.ordersDone = 34;
       /* The strip is third in line: a hint takes it before any goal, and the
          completion card covers the screen until it is dismissed. Both are
          correct and both hide the thing under test, so the village is put in
@@ -8461,7 +8469,7 @@
       V.step(0.001);                       // and the mark is taken from here
 
       after.mark = V.afterMark;
-      if (!after.mark || after.mark.ship !== 1000 || after.mark.orders !== 5)
+      if (!after.mark || after.mark.ship !== 5500000 || after.mark.orders !== 34)
         fails.push('the goals past the ladder did not take their mark from the village they started in,'
           + ' so they are measured from ' + JSON.stringify(after.mark));
 
