@@ -629,7 +629,7 @@ async function stageSet(key) {
     w: fr.w, h: fr.h,
     left: tx - feet[i].mid, top: ty - feet[i].bottom,
   }));
-  const moved = Math.max(...place.map(p => Math.max(Math.abs(p.left), Math.abs(p.top))));
+  const shift = Math.max(...place.map(p => Math.max(Math.abs(p.left), Math.abs(p.top))));
   const frames = await placeOnShared(raws, place);
 
   const box = unionBox(frames);
@@ -644,12 +644,21 @@ async function stageSet(key) {
       if (fr.data[(y * fr.w + x) * fr.ch + 3] >= 8) return y;
     return fr.h;
   });
-  const risen = Math.max(...tops) - Math.min(...tops);
-  if (risen < bh * 0.05)
+  /* Measured on the shared canvas and then put into the units of the files
+     that actually get written, which are not the same thing. The set is cut
+     to one box and that box is capped on its width, so everything in it is
+     scaled by the same factor on the way out -- and the first real set was
+     1493px across against a cap of 800. Reporting the raw figure said the
+     beacon rose 549px when the five files it had just written rose 294. A
+     number that describes a canvas nobody keeps is worse than no number: it
+     is the one you would reach for to check the files. */
+  const cap = CAP[key] || MAX_W;
+  const shrink = bw > cap ? cap / bw : 1;
+  const risen = Math.round((Math.max(...tops) - Math.min(...tops)) * shrink);
+  if (risen < bh * shrink * 0.05)
     console.log(String(key + ' stages').padEnd(26),
       'WARNING: tallest stage is only ' + risen + 'px above the shortest, so it will not read as rising');
 
-  const cap = CAP[key] || MAX_W;
   let wrote = 0, bytes = 0, dim = '';
   for (let i = 0; i < frames.length; i++) {
     const fr = frames[i];
@@ -662,7 +671,7 @@ async function stageSet(key) {
     dim = meta.width + 'x' + meta.height; bytes += out.length; wrote++;
   }
   console.log(String(key + ' stages').padEnd(26),
-    (wrote + ' stages on one foundation, moved up to ' + moved + 'px').padEnd(44),
+    (wrote + ' stages on one foundation, moved up to ' + Math.round(shift * shrink) + 'px').padEnd(44),
     '-> ' + dim + '  ' + (bytes / 1024).toFixed(0) + ' KB total, rises ' + risen + 'px');
   return wrote;
 }
