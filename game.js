@@ -1896,7 +1896,34 @@ function stepOrders(dt) {
 /* Room for the reward is part of the price. Without this an order filled while
    the paid resource is capped takes the goods and hands back nothing, silently
    -- I gave 40 food for 0 wood before this check existed. */
-const hasRoom = o => caps[o.getK] - res[o.getK] >= o.getN;
+/* ---------- the board at the ceiling ----------
+
+   A full barn used to lock the trade board solid, and for most of the game
+   that is right: "no room" is advice, and the answer to it is a storehouse.
+
+   At the end of the game it stops being advice and becomes a wall. Measured
+   on a finished village: four storehouses of four allowed, two markets of
+   two, both resources pinned at 8380 of 8380, and five offers on the board
+   of which not one could be taken -- 1135 food for 1065 wood, between two
+   resources that were already full, for ever. The board was not losing the
+   player anything. It was doing nothing at all, and there was no storehouse
+   left to build that would have changed it.
+
+   So once the village is finished, goods the barns cannot hold are not
+   refused -- they go over the water to the neighbours instead, and count as
+   shipped, which is the one tally in this game with no ceiling and the one
+   the goals past the ladder are measured in. A beacon makes them worth more,
+   like everything else that leaves the island.
+
+   Gated on FINISHED rather than on the barn being full, deliberately. The
+   pressure to build storage has to keep meaning something for as long as
+   there is storage left to build; this only relaxes at the point the player
+   can no longer do anything about it. */
+const shipsSpare = () => villageFinished();
+/* Whether any of this offer's payment would go to the neighbours rather than
+   into a barn. Used by the card, so the player is told before they tap. */
+const willShip = o => !!o && shipsSpare() && caps[o.getK] - res[o.getK] < o.getN;
+const hasRoom = o => shipsSpare() || caps[o.getK] - res[o.getK] >= o.getN;
 const canFill = o => !!o && res[o.giveK] >= o.giveN && hasRoom(o);
 function fillOrder(o) {
   if (!canFill(o)) return false;
@@ -1915,7 +1942,14 @@ function fillOrder(o) {
      is not production and must not count towards the rate the HUD reports. */
   const at = placed.find(q => q.key === 'market' && established(q)) || hallOf();
   const c = at ? centreOf(at) : { x: 0, y: 0 };
-  grant(o.getK, o.getN, c.x, c.y);
+  /* What the barns could not take. grant hands back what actually landed, so
+     the remainder is the part that would have been destroyed -- and on a
+     finished village it is not destroyed, it is sent on. Counted through the
+     same multiplier as everything else that leaves the island, so a beacon
+     pays on a trade exactly as it pays on an overflowing barn. */
+  const got = grant(o.getK, o.getN, c.x, c.y);
+  const over = o.getN - got;
+  if (over >= 0.5 && shipsSpare()) sharedTotal[o.getK] += over * shareMul();
   orders = orders.filter(q => q.id !== o.id);
   ordersDone++;
   SFX.goal();
@@ -4566,9 +4600,14 @@ function drawHUD() {
       /* How much is missing, as everywhere else in the game says it. "not enough"
          left the player to subtract 400 from 670 across a card and a chip. */
       const short = Math.ceil(r.o.giveN - res[r.o.giveK]);
+      /* Before it is tapped, not after. A card that pays into a barn with no
+         room in it is doing something different from every other card on the
+         board, and the player is entitled to know which one they are taking. */
       const why = short > 0 ? 'need ' + (r.o.giveK === 'wood' ? '🪵' : '🌾') + short
+        : willShip(r.o) ? 'to the neighbours'
         : !hasRoom(r.o) ? 'no room' : best ? 'best rate' : 'tap to trade';
-      g.fillStyle = why === 'tap to trade' ? DIM : best && short <= 0 && hasRoom(r.o) ? '#f0d894' : '#e59a86';
+      g.fillStyle = why === 'tap to trade' ? DIM
+        : short <= 0 && hasRoom(r.o) ? '#f0d894' : '#e59a86';
       const whyFit = fitLines(why, r.w - 16 * u, 20 * u, 13 * u, 1);
       g.font = `${Math.round(whyFit.px)}px Segoe UI, sans-serif`;
       g.fillText(whyFit.lines[0], r.x, r.y);
@@ -6534,7 +6573,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   afterGoal, shipped, AFTER_SHIP, AFTER_ORDERS, AFTER_MAX,
   get afterMark() { return afterMark; }, set afterMark(v) { afterMark = v; },
   get orders() { return orders; }, set orders(v) { orders = v; },
-  makeOrder, fillOrder, canFill, orderRects, orderSlotRects, nextTraderIn, seatOrders, freeStall, ORDER_EVERY, ORDER_SLOTS, orderSlots, orderEvery, marketCount, TRAY_ICON, TRAY_NAME, TRAY_ONE, TRAY_ROWS,
+  makeOrder, fillOrder, canFill, hasRoom, willShip, shipsSpare, orderRects, orderSlotRects, nextTraderIn, seatOrders, freeStall, ORDER_EVERY, ORDER_SLOTS, orderSlots, orderEvery, marketCount, TRAY_ICON, TRAY_NAME, TRAY_ONE, TRAY_ROWS,
   get ordersDone() { return ordersDone; }, set ordersDone(v) { ordersDone = v; },
   get orderT() { return orderT; }, set orderT(v) { orderT = v; },
   get goalDone() { return goalDone; }, set goalDone(v) { goalDone = v; },

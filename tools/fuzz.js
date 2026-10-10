@@ -7133,7 +7133,11 @@
   window.cardSweep = function () {
     const V = window.__v, cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
     const fails = [], orig = ctx.fillText;
-    const LINE = /^(need [^ ]*\d+|no room|best rate|tap to trade)$/;
+    /* Every line a card can say. A label missing from here is not read at all,
+       and the sweep then reports a board that "drew 0 lines" -- which is what
+       happened the moment the ceiling board started saying something new. The
+       list is the contract: add a label to the card, add it here. */
+    const LINE = /^(need [^ ]*\d+|no room|best rate|tap to trade|to the neighbours)$/;
     /* Read in the order the cards are laid out, which is the order orderRects
        gives and so the order they are drawn. */
     const lines = () => {
@@ -7193,6 +7197,13 @@
         } else if (t === 'no room') {
           if (short > 0) fails.push('the card ' + card + ' says "no room" and the village cannot pay for it either');
           else if (V.canFill(o)) fails.push('the card ' + card + ' says "no room" and the game would fill it');
+        } else if (t === 'to the neighbours') {
+          /* The card claims the payment leaves the island. It has to be true of
+             THIS offer -- the barn really has no room for what it pays -- and
+             the offer has to be takeable, which is the whole point of the
+             change that put this label on the board. */
+          if (!V.canFill(o)) fails.push('the card ' + card + ' says its payment goes to the neighbours and the game refuses it');
+          if (!V.willShip(o)) fails.push('the card ' + card + ' says its payment goes to the neighbours and the barn has room for all of it');
         } else {
           if (!V.canFill(o)) fails.push('the card ' + card + ' says "' + t + '" and the game refuses it');
           if (t === 'best rate') {
@@ -7219,6 +7230,24 @@
     /* ---- and with the payout side at its ceiling, so there is nowhere to put it ---- */
     V.res.wood = V.caps.wood; V.res.food = V.caps.food;
     check('a board with both barns at the ceiling');
+
+    /* ---- the same board on a village that has NOT finished ----
+
+       These villages are built finished -- goalIdx is set to the end of the
+       ladder by the helper above -- and a finished village now SENDS what its
+       barns cannot hold to the neighbours instead of refusing it. So the state
+       in which a full barn still means "no room" was no longer visited here at
+       all, and the check below that insists some card says it went from a rule
+       about the game to a rule about nothing.
+
+       It is a state worth having either way: a village with a storehouse still
+       left to build is the one the refusal is FOR, and this sweep had never
+       looked at it. */
+    const keepGoal = V.goalIdx;
+    V.goalIdx = 0;
+    V.res.wood = V.caps.wood; V.res.food = V.caps.food;
+    check('a ceiling board on a village still building');
+    V.goalIdx = keepGoal;
 
     /* ---- the board that outlived its ceiling ----
 
@@ -7290,7 +7319,7 @@
       }
     }
 
-    for (const k of ['need', 'no room', 'best rate', 'tap to trade'])
+    for (const k of ['need', 'no room', 'best rate', 'tap to trade', 'to the neighbours'])
       if (!seen.has(k)) fails.push('no trade card ever said "' + k + '"');
 
     V.orders.length = 0; V.barMode = 'build'; V.goalIdx = 0; V.step(0.001);
@@ -9969,7 +9998,80 @@
           fails.push('a board with an offer the player could take was changed under them');
       }
     }
-    return { cases: 3, fails };
+    /* ---- the board at the ceiling ----
+
+       A full barn locked the board solid, and on a finished village there is
+       no storehouse left to build that would unlock it: measured, four stores
+       of four allowed, two markets of two, both resources at 8380 of 8380,
+       and five offers of which NOT ONE could be taken. The board was not
+       costing the player anything. It was doing nothing at all, for ever, and
+       nothing in the game said so -- the cards sat there reading "no room"
+       about a room that could never be made.
+
+       Three things to get wrong, and the third is the one that would be easy
+       to break by accident: relaxing the rule everywhere, so that a village
+       with a storehouse still left to build stops being told to build it. */
+    let ceiling = { fillable: 0, ships: 0, credited: 0, blockedEarly: 0, said: 0 };
+    {
+      const full = finished => {
+        scene();
+        V.goalIdx = finished ? V.GOALS.length : 0;
+        V.goalDone = null; V.finished = null; V.away = null;
+        V.res.wood = V.caps.wood; V.res.food = V.caps.food;
+        V.step(0.001);
+        V.res.wood = V.caps.wood; V.res.food = V.caps.food;
+      };
+
+      /* Finished: the board is alive again. */
+      full(true);
+      ceiling.fillable = V.orders.filter(o => V.canFill(o)).length;
+      ceiling.ships = V.orders.filter(o => V.willShip(o)).length;
+      if (!ceiling.fillable)
+        fails.push('every offer on the board is unfillable on a finished village with full stores,'
+          + ' and there is no storehouse left to build that would change it');
+
+      /* And what the barns cannot take is sent on rather than refused. */
+      const o = V.orders.find(x => V.canFill(x) && V.willShip(x));
+      if (!o) fails.push('no offer on a full finished board would send its payment on');
+      else {
+        const was = V.sharedTotal[o.getK], room = V.caps[o.getK] - V.res[o.getK];
+        const want = (o.getN - room) * V.shareMul();
+        V.fillOrder(o);
+        ceiling.credited = Math.round(V.sharedTotal[o.getK] - was);
+        if (Math.abs(ceiling.credited - want) > 1)
+          fails.push('a trade the barns could not hold credited ' + ceiling.credited
+            + ' to the neighbours where it should have been ' + Math.round(want)
+            + ', so the goods were destroyed rather than sent');
+      }
+
+      /* Unfinished: a full barn still means build a storehouse. */
+      full(false);
+      ceiling.blockedEarly = V.orders.filter(o2 => !V.canFill(o2)).length;
+      if (V.orders.length && ceiling.blockedEarly !== V.orders.length)
+        fails.push('an offer could be taken into a full barn on a village that has NOT finished,'
+          + ' so the one thing that makes a storehouse worth building has been given away');
+
+      /* And the player is told before they tap, not after. */
+      full(true);
+      V.barMode = 'orders'; V.step(0.001);
+      V.res.wood = V.caps.wood; V.res.food = V.caps.food;
+      const cv4 = document.querySelector('canvas'), ctx4 = cv4.getContext('2d');
+      const rows = [], o4 = ctx4.fillText;
+      ctx4.fillText = function (t, ...a) { rows.push(String(t)); return o4.call(this, t, ...a); };
+      try { V.draw(); } finally { ctx4.fillText = o4; }
+      /* The exact label, not any line that mentions the neighbours. Matched
+         loosely it also caught the goal strip -- which on a finished village
+         reads "Ship 10.7M to the neighbours" -- so a mutation that silenced
+         the CARD still left one match and the check passed. Found by that
+         mutation, which is what they are for. */
+      const label = 'to the neighbours';
+      ceiling.said = rows.filter(t => t === label).length;
+      const willShip = V.orders.filter(x => V.willShip(x)).length;
+      if (willShip && ceiling.said !== willShip)
+        fails.push(ceiling.said + ' of ' + willShip + ' cards paying into the neighbours rather than the barn say so, so a card that sends its payment away reads the same as one that fills a storehouse');
+    }
+
+    return { cases: 4, ceiling, fails };
   };
 
 
