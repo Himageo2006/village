@@ -171,6 +171,20 @@ beacon is not offered in the tray at all. Three rules beyond the usual --
 the top growing -- or the tower jumps sideways each time it finishes a stage.
 Prompts are group 27 in PROMPTS.md.
 
+`prep-art.js` has a SEPARATE path for a stage set, and the difference from the
+walk path is the whole point of it. A walk cycle is fitted by silhouette so
+every frame comes out the same size; a stage set must NOT be, because a tower
+is supposed to get taller. Measured on test stages whose foundation is the same
+320px in every master: fitted the walk way the foundation came out 395, 356,
+320, 290, 253 -- shrinking by over a third as the tower rose, so the building
+would appear to sink into the ground. The stage path shifts the frames until
+their FOUNDATIONS coincide and never scales anything: 320 in all five, with the
+base line identical to the pixel.
+
+It also caps on WIDTH rather than the longest side, because `artRect` pins a
+building's width to its plot and lets the height follow the image -- the
+opposite of a villager, who is drawn to a height.
+
 **Scenery** (`tree_pine`, `tree_oak`, `rock`, `bush`) is anchored bottom-centre
 too, and sized by `SCENERY_H` in `game.js` — world height at scale 1, which each
 piece then varies by its own seeded factor. Set against a cottage at ~207px.

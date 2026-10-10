@@ -77,6 +77,11 @@ const WALK_FRAMES = 6;
    here, so the number is spelled out at both ends. */
 const STAND_AT = 5;
 const walkName = (key, i) => key + '_walk' + i;
+/* Buildings that are drawn as a SET of stages rather than one picture, and
+   how many. Must agree with SET_ART and BEACON_STAGES in game.js. */
+const STAGES_OF = ['beacon'];
+const STAGE_COUNT = 5;
+const stageName = (key, i) => key + '_stage' + i;
 const FLAT_BINS = 24, FLAT_MAX_GAIN = 2.4;
 
 function flatten(data, w, h, ch) {
@@ -122,6 +127,9 @@ const CAP = {
   villager_farmer: 320, villager_basket: 320, villager_woodcutter: 320,
   tree_pine: 560, tree_oak: 560, rock: 360, bush: 360,
   well: 420, hall: 800, mill: 800, market: 800,
+  /* The beacon is capped on its WIDTH, not its longest side -- see stageSet.
+     Same plot as a hall, so the same width. */
+  beacon: 800,
   path: 300, fence: 300, flowers: 300, hedge: 320, lamp: 380, statue: 400,
   ground: 1800,
   // the water is mirrored into a 2x2 tile at runtime, so its pixels cost four
@@ -370,6 +378,71 @@ function registerCycle(raws) {
   }
   return { fits, ref: ri };
 }
+/* ---- what every SET of drawings needs, whichever kind it is ----
+
+   There are two kinds now and they want opposite things from the middle
+   step. A walk cycle is six pictures of one figure that must all be the
+   SAME SIZE, so it is fitted by silhouette. A stage set is five pictures of
+   a building that is supposed to get BIGGER, so fitting it by silhouette is
+   the one thing that would destroy it.
+
+   What they share is everything either side of that: collecting the files,
+   refusing half a set, laying the frames on one canvas, and cutting them all
+   to a single box so the thing does not jump as they swap. */
+
+/* The masters for a set, or null. Dropped PNGs are promoted on the way past,
+   the same as a single image. */
+function setFiles(key, count, nameOf, label) {
+  const files = [];
+  for (let i = 1; i <= count; i++) {
+    const n = nameOf(key, i);
+    const dropped = path.join(ART, n + '.png'), master = path.join(ORIG, n + '.png');
+    if (fs.existsSync(dropped)) fs.renameSync(dropped, master);
+    if (fs.existsSync(master)) files.push(master);
+  }
+  if (!files.length) return null;
+  if (files.length < count) {
+    console.log(String(key + ' ' + label).padEnd(26),
+      'only ' + files.length + ' of ' + count
+      + ' frames -- the set is ignored until it is complete');
+    return null;
+  }
+  return files;
+}
+
+/* Every frame drawn onto one canvas at the size and place it was given, big
+   enough to hold all of them wherever they landed. */
+async function placeOnShared(raws, place) {
+  const CL = Math.min(...place.map(p => p.left)), CT = Math.min(...place.map(p => p.top));
+  const CW = Math.max(...place.map(p => p.left + p.w)) - CL;
+  const CH = Math.max(...place.map(p => p.top + p.h)) - CT;
+  const out = [];
+  for (let i = 0; i < raws.length; i++) {
+    const fr = raws[i], p = place[i];
+    const body = await sharp(fr.data, { raw: { width: fr.w, height: fr.h, channels: fr.ch } })
+      .resize({ width: p.w, height: p.h, fit: 'fill' }).png().toBuffer();
+    const { data, info } = await sharp({ create: { width: CW, height: CH, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
+      .composite([{ input: body, left: p.left - CL, top: p.top - CT }])
+      .raw().toBuffer({ resolveWithObject: true });
+    out.push({ data, w: info.width, h: info.height, ch: info.channels });
+  }
+  return out;
+}
+
+/* The union box. A pixel counts as part of the figure at the same threshold
+   sharp\'s own trim uses, so a soft rim is not mistaken for air. */
+function unionBox(frames) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const fr of frames) {
+    for (let y = 0; y < fr.h; y++) for (let x = 0; x < fr.w; x++) {
+      if (fr.data[(y * fr.w + x) * fr.ch + 3] < 8) continue;
+      if (x < x0) x0 = x; if (x > x1) x1 = x;
+      if (y < y0) y0 = y; if (y > y1) y1 = y;
+    }
+  }
+  return isFinite(x0) ? { x0, y0, x1, y1, bw: x1 - x0 + 1, bh: y1 - y0 + 1 } : null;
+}
+
 /* A whole walk cycle, registered against itself.
 
    Every frame is keyed on its own, and then the SET is trimmed as one: the
@@ -387,19 +460,8 @@ function registerCycle(raws) {
    All six or none. A cycle missing a frame is a limp, and the game is
    better off keeping the standing sprite until the set is complete. */
 async function walkSet(key) {
-  const files = [];
-  for (let i = 1; i <= WALK_FRAMES; i++) {
-    const n = walkName(key, i);
-    const dropped = path.join(ART, n + '.png'), master = path.join(ORIG, n + '.png');
-    if (fs.existsSync(dropped)) fs.renameSync(dropped, master);
-    if (fs.existsSync(master)) files.push(master);
-  }
-  if (!files.length) return null;
-  if (files.length < WALK_FRAMES) {
-    console.log(String(key + ' walk').padEnd(26),
-      'only ' + files.length + ' of ' + WALK_FRAMES + ' frames — the set is ignored until it is complete');
-    return null;
-  }
+  const files = setFiles(key, WALK_FRAMES, walkName, 'walk');
+  if (!files) return null;
 
   const raws = [];
   for (const file of files) raws.push(await keyOut(file, false));
@@ -421,20 +483,7 @@ async function walkSet(key) {
     h: Math.max(1, Math.round(fr.h * fits[i].s)),
     left: Math.round(fits[i].dx), top: Math.round(fits[i].dy),
   }));
-  const CL = Math.min(...place.map(p => p.left)), CT = Math.min(...place.map(p => p.top));
-  const CW = Math.max(...place.map(p => p.left + p.w)) - CL;
-  const CH = Math.max(...place.map(p => p.top + p.h)) - CT;
-
-  const frames = [];
-  for (let i = 0; i < raws.length; i++) {
-    const fr = raws[i], p = place[i];
-    const body = await sharp(fr.data, { raw: { width: fr.w, height: fr.h, channels: fr.ch } })
-      .resize({ width: p.w, height: p.h, fit: 'fill' }).png().toBuffer();
-    const { data, info } = await sharp({ create: { width: CW, height: CH, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
-      .composite([{ input: body, left: p.left - CL, top: p.top - CT }])
-      .raw().toBuffer({ resolveWithObject: true });
-    frames.push({ data, w: info.width, h: info.height, ch: info.channels });
-  }
+  const frames = await placeOnShared(raws, place);
 
   const apart = Math.max(...fits.map(ft => Math.abs(1 - ft.s)));
   const worst = Math.min(...fits.map(ft => ft.score));
@@ -442,18 +491,9 @@ async function walkSet(key) {
     ('fitted to frame ' + (ref + 1) + ', which the others were ' + (apart * 100).toFixed(0) + '% off').padEnd(44),
     'worst overlap ' + (100 * worst).toFixed(0) + '%');
 
-  /* The union box. A pixel counts as part of the figure at the same
-     threshold sharp's own trim uses, so a soft rim is not mistaken for air. */
-  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-  for (const fr of frames) {
-    for (let y = 0; y < fr.h; y++) for (let x = 0; x < fr.w; x++) {
-      if (fr.data[(y * fr.w + x) * fr.ch + 3] < 8) continue;
-      if (x < x0) x0 = x; if (x > x1) x1 = x;
-      if (y < y0) y0 = y; if (y > y1) y1 = y;
-    }
-  }
-  if (!isFinite(x0)) { console.log(String(key + ' walk').padEnd(26), 'every frame keyed away to nothing'); return null; }
-  const bw = x1 - x0 + 1, bh = y1 - y0 + 1;
+  const box = unionBox(frames);
+  if (!box) { console.log(String(key + ' walk').padEnd(26), 'every frame keyed away to nothing'); return null; }
+  const { x0, y0, bw, bh } = box, x1 = box.x1, y1 = box.y1;
 
 
   /* Which beat he should stand on, and a free way to make it the right one.
@@ -517,6 +557,115 @@ async function walkSet(key) {
   return wrote;
 }
 
+
+/* A building drawn in stages, registered on its own foundations.
+
+   The same shape of problem as a walk cycle and the opposite answer in the
+   middle of it, which is why this is not that function with a flag.
+
+   A cycle is six pictures of one figure that must all be the SAME SIZE, so
+   registerCycle fits them by silhouette and scales them to match. A stage set
+   is five pictures of a building that is SUPPOSED to get bigger -- the whole
+   point of it is that the player watches a tower rise over an hour -- and
+   fitting those by silhouette would shrink stage five back down to stage one
+   and throw away the only thing the set exists to show. Nothing here scales
+   anything.
+
+   What has to line up is the FOUNDATION. Every stage stands on the same
+   square of ground, so the frames are shifted until their bases coincide and
+   then left alone. The base is two measurements: the lowest row carrying real
+   figure, and the middle of the footing -- the horizontal centre of a band
+   just above that row, rather than of the whole silhouette, because the
+   silhouette of a tall stage is mostly tower and the tower is not what sits
+   on the plot.
+
+   Median rather than first, for the reason the cycle fit uses one: the first
+   stage is only whichever one was drawn first and may be the odd one out.
+
+   Capped on WIDTH, and that is the other thing this does differently. A
+   villager is drawn to a HEIGHT, so a cycle caps on height. A building is
+   not: artRect pins the sprite\'s width to the plot diamond and lets the
+   height follow the image\'s own aspect. So width is the dimension that has
+   to match the plot, and capping the longest side -- which on a lighthouse is
+   the height -- would leave the building a quarter of the width of its own
+   foundations. */
+const STAGE_FLOOR = 0.004;            // coverage at which a row is ground, not a stray pixel
+const STAGE_BAND = 0.05;              // how much of the canvas counts as the footing
+
+function footOf(fr) {
+  const { data, w, h, ch } = fr;
+  const on = (x, y) => data[(y * w + x) * ch + 3] >= 8;
+  let bottom = -1;
+  for (let y = h - 1; y >= 0 && bottom < 0; y--) {
+    let n = 0;
+    for (let x = 0; x < w; x++) if (on(x, y)) n++;
+    if (n >= Math.max(2, w * STAGE_FLOOR)) bottom = y;
+  }
+  if (bottom < 0) return null;
+  const band = Math.max(2, Math.round(h * STAGE_BAND));
+  let lo = w, hi = -1;
+  for (let y = Math.max(0, bottom - band + 1); y <= bottom; y++)
+    for (let x = 0; x < w; x++) if (on(x, y)) { if (x < lo) lo = x; if (x > hi) hi = x; }
+  return { bottom, mid: hi >= lo ? Math.round((lo + hi) / 2) : (w >> 1), wide: hi >= lo ? hi - lo + 1 : 0 };
+}
+
+async function stageSet(key) {
+  const files = setFiles(key, STAGE_COUNT, stageName, 'stages');
+  if (!files) return null;
+
+  const raws = [];
+  for (const file of files) raws.push(await keyOut(file, false));
+
+  const feet = raws.map(footOf);
+  if (feet.some(ft => !ft)) {
+    console.log(String(key + ' stages').padEnd(26), 'a stage keyed away to nothing');
+    return null;
+  }
+  const mid = arr => [...arr].sort((a, b) => a - b)[arr.length >> 1];
+  const ty = mid(feet.map(ft => ft.bottom)), tx = mid(feet.map(ft => ft.mid));
+
+  /* Shifted, never resized: w and h are the frame\'s own. */
+  const place = raws.map((fr, i) => ({
+    w: fr.w, h: fr.h,
+    left: tx - feet[i].mid, top: ty - feet[i].bottom,
+  }));
+  const moved = Math.max(...place.map(p => Math.max(Math.abs(p.left), Math.abs(p.top))));
+  const frames = await placeOnShared(raws, place);
+
+  const box = unionBox(frames);
+  if (!box) { console.log(String(key + ' stages').padEnd(26), 'every stage keyed away to nothing'); return null; }
+  const { x0, y0, bw, bh } = box;
+
+  /* How much taller the set gets, which is the thing it exists to do. Said
+     out loud because a set whose stages are all the same height is a set that
+     will look like nothing is happening, and nothing else would report it. */
+  const tops = frames.map(fr => {
+    for (let y = 0; y < fr.h; y++) for (let x = 0; x < fr.w; x++)
+      if (fr.data[(y * fr.w + x) * fr.ch + 3] >= 8) return y;
+    return fr.h;
+  });
+  const risen = Math.max(...tops) - Math.min(...tops);
+  if (risen < bh * 0.05)
+    console.log(String(key + ' stages').padEnd(26),
+      'WARNING: tallest stage is only ' + risen + 'px above the shortest, so it will not read as rising');
+
+  const cap = CAP[key] || MAX_W;
+  let wrote = 0, bytes = 0, dim = '';
+  for (let i = 0; i < frames.length; i++) {
+    const fr = frames[i];
+    let img = sharp(fr.data, { raw: { width: fr.w, height: fr.h, channels: fr.ch } })
+      .extract({ left: x0, top: y0, width: bw, height: bh });
+    if (bw > cap) img = img.resize({ width: cap, withoutEnlargement: true });
+    const out = await img.webp({ quality: 88, alphaQuality: 100, effort: 6 }).toBuffer();
+    fs.writeFileSync(path.join(ART, stageName(key, i + 1) + '.webp'), out);
+    const meta = await sharp(out).metadata();
+    dim = meta.width + 'x' + meta.height; bytes += out.length; wrote++;
+  }
+  console.log(String(key + ' stages').padEnd(26),
+    (wrote + ' stages on one foundation, moved up to ' + moved + 'px').padEnd(44),
+    '-> ' + dim + '  ' + (bytes / 1024).toFixed(0) + ' KB total, rises ' + risen + 'px');
+  return wrote;
+}
 (async () => {
   fs.mkdirSync(ORIG, { recursive: true });
   const argv = process.argv.slice(2);
@@ -524,13 +673,15 @@ async function walkSet(key) {
   const only = argv.filter(a => a !== '--walk');
   const keys = only.length ? only : KEYS;
 
-  /* Walk cycles first, and on every run rather than only with --walk: a set
-     dropped in art/ and forgotten is a villager who goes on hopping, and the
-     flag is there to do ONLY the cycles, not to be the only way to do them. */
+  /* Sets first, and on every run rather than only with the flag: a set dropped
+     in art/ and forgotten is a villager who goes on hopping or a beacon that
+     never appears, and the flag is there to do ONLY the sets, not to be the
+     only way to do them. */
   let cycles = 0;
   for (const k of WALK_OF) if (!only.length || only.includes(k)) cycles += (await walkSet(k)) ? 1 : 0;
+  for (const k of STAGES_OF) if (!only.length || only.includes(k)) cycles += (await stageSet(k)) ? 1 : 0;
   if (walkOnly) {
-    if (!cycles) console.log('No walk frames found in art/. See groups 24-26 in art/PROMPTS.md.');
+    if (!cycles) console.log('No set frames found in art/. See groups 24-26 and 27 in art/PROMPTS.md.');
     return;
   }
 
