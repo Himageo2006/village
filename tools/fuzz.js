@@ -8325,13 +8325,43 @@
         V.step(1 / 30);
         if (!V.goalDone) continue;
         const said = banner();
+        /* What the goal paid and what it destroyed, taken from the game's own
+           tally rather than from the change in the purse.
+
+           The purse is not a clean measurement here, and it took a village
+           with something to do to show it. The village is still RUNNING
+           during the step: a villager who finishes a delivery inside the same
+           thirtieth of a second drops eight more food into the purse, and
+           subtracting before from after then credits the goal with that
+           delivery. Measured on a finished village, where the farms are busy:
+           the goal paid 692 food of 800, the purse rose by 700, so this went
+           looking for "food 100" in a banner that correctly said "food 108",
+           and failed the game for being right. It passed for weeks because a
+           half-built test village delivers almost nothing.
+
+           So the two figures come from goalDone, which is the same object the
+           banner is drawn from. That makes this check what it was always
+           really for -- did the game TELL the player about the half it threw
+           away -- rather than a re-derivation of the arithmetic. Both are
+           already rounded there, and the card prints them unchanged, so the
+           text being searched for is exact rather than approximate.
+
+           The arithmetic is still watched, by the one comparison the purse
+           can honestly make. Nothing in a step takes resources away: a
+           delivery adds, a goal adds, and spending is a thing the player
+           does. So whatever the game claims it handed over must at the very
+           least have arrived, and a game that reports a gift it did not give
+           fails that however busy the village is. */
+        const paid = V.goalDone.got || {}, spilt = V.goalDone.lost || {};
         let gained = 0, missed = 0, missedAt = null;
         for (const k of ['wood', 'food']) {
-          const give = g.give[k] || 0;
-          if (!give) continue;
-          const got = V.res[k] - before[k];
-          if (got >= 0.5) gained++;
-          if (give - got >= 0.5) { missed = Math.round(give - got); missedAt = k; }
+          if (!(g.give[k] || 0)) continue;
+          if ((paid[k] || 0) >= 0.5) gained++;
+          if ((spilt[k] || 0) >= 0.5) { missed = spilt[k]; missedAt = k; }
+          const arrived = V.res[k] - before[k];
+          if (arrived + 0.5 < (paid[k] || 0))
+            fails.push('the card for "' + g.text.slice(0, 30) + '" says it paid ' + paid[k] + ' ' + k
+              + ' and the village is only ' + Math.round(arrived) + ' better off');
         }
         /* Only a goal where something arrived AND something did not is
            evidence: the all-or-nothing ends are the walks above. */
