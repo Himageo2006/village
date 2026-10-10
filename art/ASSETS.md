@@ -158,6 +158,19 @@ Two things they must be drawn with:
   to turn them round, and a strong key light would flip with them.
 - **Bold shapes.** They are drawn 60 world px tall.
 
+**The beacon** is the one building whose art is a SET rather than a single
+picture. It has five stages -- `beacon_stage1.webp` through `_stage5` -- and it
+is drawn at whichever one it has reached, so it visibly rises as it eats the
+village's surplus. There is no `beacon.webp` and there should never be one;
+`SET_ART` in game.js names the keys whose art works this way so the harness
+does not report a hole that is not there.
+
+All five or none, like the walk cycles: until the whole set is on disk the
+beacon is not offered in the tray at all. Three rules beyond the usual --
+**same footprint, same place in the frame, same base width in all five**, only
+the top growing -- or the tower jumps sideways each time it finishes a stage.
+Prompts are group 27 in PROMPTS.md.
+
 **Scenery** (`tree_pine`, `tree_oak`, `rock`, `bush`) is anchored bottom-centre
 too, and sized by `SCENERY_H` in `game.js` — world height at scale 1, which each
 piece then varies by its own seeded factor. Set against a cottage at ~207px.

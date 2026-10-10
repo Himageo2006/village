@@ -2094,3 +2094,221 @@ The set is all-or-nothing per character: six frames and the game walks that
 villager properly; fewer than six and it keeps the standing sprite and the
 faked walk for them. So one character's cycle can land on its own, and the
 other two are untouched until their frames arrive.
+
+---
+---
+
+# 27 — The Beacon, five stages → `art/beacon_stage1.png` … `beacon_stage5.png`
+
+The one building in the game with no ceiling, and the only thing a finished
+village has left to do. It **drinks** the surplus — the wood and food a maxed
+village was throwing away — and every stage it finishes sends more of what the
+village sheds over the water to the neighbours.
+
+So it has to **visibly rise**. A sink nobody can see is a number with a roof
+on it, and the whole point of this building is that the player watches it grow
+taller across an hour of play.
+
+**Five images, one per stage, and they are a SET.** The game takes all five or
+none: until every one is on disk the beacon is not offered in the tray at all,
+and `artSweep` will say so if three of five turn up. It has no
+`art/beacon.webp` and never will — these five are its art.
+
+Four rules, and the first is the one a generator will get wrong:
+
+- **One canvas, one footprint, one base.** All five stand on the same square of
+  ground, at the same place in the frame, at the same width at the base. Only
+  the TOP grows. If stage 4 is drawn wider or shifted, the beacon will appear
+  to jump sideways the moment it finishes a stage.
+- **It grows upward, not outward.** Stage 1 is a stone foundation and a stub.
+  Stage 5 is a finished lighthouse with a lit lamp. Roughly: each stage about
+  a third taller than the one before.
+- **Same even light in all five**, from the upper LEFT, like every other
+  building.
+- **No scaffolding, no workers, no ropes.** The game draws its own scaffolding
+  while a building is going up; a tower that already had scaffolding painted on
+  would wear two sets.
+
+| Stage | What it is | Height against a cottage |
+|---|---|---|
+| 1 | a squared stone footing with the first course laid, a low stub of tower | about the same |
+| 2 | a stubby round tower, waist height, rough stone, a wooden door | half again |
+| 3 | a proper tower with a narrow window and an iron band, unfinished top | twice |
+| 4 | tall, a railed gallery near the top, the lamp housing framed but dark | three times |
+| 5 | finished: white and slate bands, a glazed lantern room, the light LIT | three and a half times |
+
+Send them one per message, in order, in one conversation. After the fifth, drop
+all five PNGs into `art/` and run `node tools/prep-art.js`.
+
+---
+
+## 27.1 — Stage 1 → `art/beacon_stage1.png`
+
+```
+The stone footing of a coastal lighthouse under construction, as a game asset
+sprite. Same art style, same camera angle and same lighting as the cottage
+image.
+
+CAMERA: strict 2:1 isometric projection, viewed from a corner at 30 degrees
+above the horizon. No top-down view, no straight-on elevation.
+
+PLAN: SQUARE in plan. A broad square stone footing with a short round stub of
+tower rising from its centre.
+
+SUBJECT: a freshly laid foundation of pale grey quarried blocks, squared off,
+two courses high, with a low round stub of tower on top no taller than the
+footing itself. A few spare blocks resting on the footing. Weathered mortar
+between the stones. No roof, no door yet, no people.
+
+STYLE: stylised low-poly mobile strategy game art, in the vein of Clash of
+Clans or Rise of Kingdoms. Clean readable silhouette, chunky simplified
+forms, warm saturated colours, soft hand-painted shading. No photorealism.
+
+LIGHTING: single key light from the upper LEFT. Left-facing surfaces are lit;
+right-facing surfaces fall into soft shadow.
+
+BACKGROUND: fully transparent. No ground, no grass, no rocks, no sea, no
+baseplate, no drop shadow, no cast shadow.
+
+FRAMING: the square footing rests on the bottom edge, centred horizontally,
+and fills the width of the frame. THIS FOOTING IS THE SAME SIZE AND IN THE
+SAME PLACE IN ALL FIVE IMAGES OF THIS SET -- only what stands on it changes.
+
+DO NOT INCLUDE: text, labels, watermarks, UI, borders, scaffolding, cranes,
+ropes, workers, character figures, or any ground surface.
+```
+
+## 27.2 — Stage 2 → `art/beacon_stage2.png`
+
+```
+A coastal lighthouse part-built, as a game asset sprite. Same art style, same
+camera angle and same lighting as the cottage image.
+
+CAMERA: strict 2:1 isometric projection, viewed from a corner at 30 degrees
+above the horizon.
+
+PLAN: SQUARE in plan, on the SAME square stone footing as before.
+
+SUBJECT: the same pale grey stone footing, now carrying a stubby round tower
+about waist height on it -- rough coursed stone, slightly tapered, with a
+simple arched wooden door facing the viewer and an iron ring handle. The top
+is open and unfinished, the last course uneven. No roof, no windows, no
+people.
+
+STYLE: stylised low-poly mobile strategy game art, in the vein of Clash of
+Clans or Rise of Kingdoms. Clean readable silhouette, chunky simplified
+forms, warm saturated colours, soft hand-painted shading.
+
+LIGHTING: single key light from the upper LEFT.
+
+BACKGROUND: fully transparent. No ground, no sea, no baseplate, no shadow.
+
+FRAMING: the footing rests on the bottom edge, centred, SAME SIZE AND PLACE
+as stage 1. The tower is about half again the total height of stage 1. Only
+the top has grown.
+
+DO NOT INCLUDE: text, labels, watermarks, UI, borders, scaffolding, cranes,
+ropes, workers, character figures, or any ground surface.
+```
+
+## 27.3 — Stage 3 → `art/beacon_stage3.png`
+
+```
+A coastal lighthouse half-built, as a game asset sprite. Same art style, same
+camera angle and same lighting as the cottage image.
+
+CAMERA: strict 2:1 isometric projection, viewed from a corner at 30 degrees
+above the horizon.
+
+PLAN: SQUARE in plan, on the SAME square stone footing as before.
+
+SUBJECT: the tower now stands a proper storey tall -- tapered coursed stone,
+the arched wooden door at its base, one narrow slit window above it, and a
+band of dark iron strapping around the middle. The top course is still open
+and uneven, nothing above it. No roof, no lamp, no people.
+
+STYLE: stylised low-poly mobile strategy game art, in the vein of Clash of
+Clans or Rise of Kingdoms. Clean readable silhouette, chunky simplified
+forms, warm saturated colours, soft hand-painted shading.
+
+LIGHTING: single key light from the upper LEFT.
+
+BACKGROUND: fully transparent. No ground, no sea, no baseplate, no shadow.
+
+FRAMING: the footing rests on the bottom edge, centred, SAME SIZE AND PLACE
+as stages 1 and 2. Total height about twice a cottage. Only the top has
+grown.
+
+DO NOT INCLUDE: text, labels, watermarks, UI, borders, scaffolding, cranes,
+ropes, workers, character figures, or any ground surface.
+```
+
+## 27.4 — Stage 4 → `art/beacon_stage4.png`
+
+```
+A tall coastal lighthouse nearly finished but unlit, as a game asset sprite.
+Same art style, same camera angle and same lighting as the cottage image.
+
+CAMERA: strict 2:1 isometric projection, viewed from a corner at 30 degrees
+above the horizon.
+
+PLAN: SQUARE in plan, on the SAME square stone footing as before.
+
+SUBJECT: a tall tapered stone tower on the same footing, with the arched
+wooden door at its base, two narrow windows up its height, and near the top a
+railed gallery of dark iron on stone corbels. Above the gallery the lamp
+housing is framed in iron but UNGLAZED AND DARK -- an empty cage, no light.
+No people.
+
+STYLE: stylised low-poly mobile strategy game art, in the vein of Clash of
+Clans or Rise of Kingdoms. Clean readable silhouette, chunky simplified
+forms, warm saturated colours, soft hand-painted shading.
+
+LIGHTING: single key light from the upper LEFT. Nothing glows.
+
+BACKGROUND: fully transparent. No ground, no sea, no baseplate, no shadow.
+
+FRAMING: the footing rests on the bottom edge, centred, SAME SIZE AND PLACE
+as the earlier stages. Total height about three times a cottage. Only the top
+has grown.
+
+DO NOT INCLUDE: text, labels, watermarks, UI, borders, scaffolding, cranes,
+ropes, workers, character figures, or any ground surface.
+```
+
+## 27.5 — Stage 5 → `art/beacon_stage5.png`
+
+```
+A finished coastal lighthouse with its light burning, as a game asset sprite.
+Same art style, same camera angle and same lighting as the cottage image.
+
+CAMERA: strict 2:1 isometric projection, viewed from a corner at 30 degrees
+above the horizon.
+
+PLAN: SQUARE in plan, on the SAME square stone footing as before.
+
+SUBJECT: the completed lighthouse -- a tall tapered tower in broad bands of
+cream-white and slate grey, the arched wooden door at its base, narrow
+windows up its height, a railed iron gallery near the top, and above it a
+glazed lantern room with a brass frame. THE LAMP IS LIT: a warm golden glow
+inside the glass, spilling softly onto the gallery rail and the stonework
+just below it. A small weathervane on the cap. No people.
+
+STYLE: stylised low-poly mobile strategy game art, in the vein of Clash of
+Clans or Rise of Kingdoms. Clean readable silhouette, chunky simplified
+forms, warm saturated colours, soft hand-painted shading.
+
+LIGHTING: single key light from the upper LEFT, plus the lamp's own warm glow
+at the top. Keep the glow CONTAINED to the lantern room and the stone
+immediately around it -- no long beams, no rays across the frame, nothing
+that would need the background to be visible.
+
+BACKGROUND: fully transparent. No ground, no sea, no sky, no light beams
+across the frame, no baseplate, no drop shadow.
+
+FRAMING: the footing rests on the bottom edge, centred, SAME SIZE AND PLACE
+as every earlier stage. Total height about three and a half times a cottage.
+
+DO NOT INCLUDE: text, labels, watermarks, UI, borders, scaffolding, cranes,
+ropes, workers, character figures, light beams, or any ground surface.
+```

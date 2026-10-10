@@ -5950,10 +5950,26 @@
        villager with a cycle is covered the day somebody draws one. Split
        rather than matched, for the reason this file has written down
        twice: a pattern loses its backslashes on the way in. */
-    const WALK = '_walk';
+    /* More than one kind of set now. A villager's walk is six drawings and
+       the beacon is five, and the rule is the same for both: all of them or
+       none, because the game takes a whole set or ignores it, and the silent
+       failure is the HALF set -- frames on disk that are drawn nowhere, with
+       the artist seeing no change and nothing reporting a thing.
+
+       Named off the key rather than off a list kept here, so the next set
+       somebody invents is covered the day they name its keys in this shape. */
+    const SET_MARKS = ['_walk', '_stage'];
+    const markIn = k => { for (const m of SET_MARKS) { const at = k.indexOf(m); if (at >= 0) return at; } return -1; };
+    /* A building whose art IS the set has no single picture, and demanding one
+       reports a hole that is not there -- measured, on the beacon: "the game
+       asks for a picture of beacon and there is none", for a file that is not
+       supposed to exist. The game says which keys those are rather than this
+       file keeping a list of them. */
+    const SET_ONLY = new Set(Object.keys(V.SET_ART || {}));
     const cycles = new Map(), plain = [];
     for (const k of keys) {
-      const at = k.indexOf(WALK);
+      if (SET_ONLY.has(k)) continue;
+      const at = markIn(k);
       if (at < 0) { plain.push(k); continue; }
       const who = k.slice(0, at);
       if (!cycles.has(who)) cycles.set(who, []);
@@ -5984,7 +6000,7 @@
       if (!here.length) continue;                 // none drawn yet, which is allowed
       if (here.length < list.length) {
         fails.push(who + ' has ' + here.length + ' of its ' + list.length
-          + ' walk frames, and the game takes a whole cycle or none -- so those frames are drawn nowhere'
+          + ' drawings, and the game takes a whole set or none -- so those are drawn nowhere'
           + ' and nothing says so');
         continue;
       }
@@ -9948,6 +9964,125 @@
     return { cases: 3, fails };
   };
 
+
+  /* ---------- the beacon ----------
+
+     The one thing in the game with no ceiling, and the only answer it has to
+     a finished village. Four things about it fail silently.
+
+     It can be offered too early, which would put a post-game landmark in the
+     tray of a village still building its second house. It can fail to drink,
+     which leaves a building that says it is working and never finishes --
+     and nothing else would notice, because no resource is missing and no
+     error is thrown, it simply never moves. It can rise without being worth
+     anything, which makes every stage past the first decoration. And it can
+     rise without LOOKING like it, which is the whole point of a landmark: a
+     sink nobody can see is a number, not a building. */
+  window.beaconSweep = async function () {
+    const V = window.__v, fails = [];
+    const fresh = finished => {
+      V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
+      V.goalIdx = finished ? V.GOALS.length : 0;
+      V.goalDone = null; V.finished = null; V.away = null; V.panel = null; V.sel = null;
+      V.moving = null; V.claimAsk = false; V.orders = [];
+      V.ensureHall(); V.placed[0].lvl = 5; V.placed[0].t = 1;
+      V.grant('wood', 1e6, 0, 0); V.grant('food', 1e6, 0, 0);
+      V.step(0.001);
+      /* Straight into the purse, past grant, because grant clamps to the
+         storage ceiling and a village of one hall has a ceiling of three
+         hundred -- against a beacon costing two and a half thousand. Nothing
+         here is testing whether a hall can hold a beacon; it is testing what
+         the beacon does once it stands. */
+      V.res.wood = 1e6; V.res.food = 1e6;
+    };
+    const drop = () => {
+      const L = V.landBounds();
+      for (let c = L.lo; c <= L.hi; c++) for (let r = L.lo; r <= L.hi; r++)
+        if (V.canPlace(V.BEACON, c, r, V.occupied()) && V.place(V.BEACON, c, r)) {
+          const p = V.beaconOf(); p.t = 1; p.build = 0; return p;
+        }
+      return null;
+    };
+
+    /* Waited for, because artFor hands back null while a file is still
+       decoding and that is indistinguishable from one that is not there. */
+    for (let i = 0; i < 40 && !V.beaconSet(); i++) await new Promise(r => setTimeout(r, 50));
+    const drawn = !!V.beaconSet();
+
+    /* Not before the village is finished, drawings or no drawings. */
+    fresh(false);
+    if (V.allowedOf(V.BEACON) !== 0 || V.beaconOpen())
+      fails.push('the beacon is offered to a village that has not finished its goals');
+
+    if (!drawn) {
+      /* And with no drawings it is not offered to a finished one either,
+         which is the state this game ships in until somebody paints it. */
+      fresh(true);
+      if (V.allowedOf(V.BEACON) !== 0)
+        fails.push('the beacon is offered with none of its ' + V.BEACON_STAGES
+          + ' drawings on disk, so it would be built as a coloured box');
+      return { drawn: false, note: 'no beacon art yet: the rest of this sweep needs it', fails };
+    }
+
+    fresh(true);
+    if (!V.beaconOpen() || V.allowedOf(V.BEACON) !== 1)
+      fails.push('a finished village with every beacon drawing on disk is still not offered one');
+
+    const p = drop();
+    if (!p) { fails.push('the beacon could not be placed on a finished island'); return { drawn, fails }; }
+
+    /* It drinks, and what it drinks comes out of the stores.
+
+       Driven at the ceiling on purpose: that is the village this exists for,
+       and it is also the only way to tell drinking from not producing. */
+    const stages = [], took = [];
+    for (let i = 0; i < 4000 && V.beaconStage() < V.BEACON_STAGES; i++) {
+      V.res.wood = V.caps.wood; V.res.food = V.caps.food;
+      const was = V.res.wood + V.res.food;
+      V.step(1);
+      took.push(was - (V.res.wood + V.res.food));
+      const lvl = V.beaconStage();
+      if (!stages.length || stages[stages.length - 1] !== lvl) stages.push(lvl);
+    }
+    const drank = took.reduce((a, b) => a + b, 0);
+    if (drank <= 0)
+      fails.push('the beacon took nothing out of the stores, so it is not a sink for anything');
+    if (V.beaconStage() < V.BEACON_STAGES)
+      fails.push('the beacon stopped at stage ' + V.beaconStage() + ' of ' + V.BEACON_STAGES
+        + ', so it never finishes however long the village runs');
+    if (stages.length < V.BEACON_STAGES)
+      fails.push('the beacon showed ' + stages.length + ' of its ' + V.BEACON_STAGES
+        + ' stages, so it is skipping or not rising one at a time: ' + stages.join(', '));
+
+    /* Every stage is drawn as itself. A landmark that never changes shape is
+       a counter with a roof on it. */
+    const seen = new Set();
+    for (let lvl = 1; lvl <= V.BEACON_STAGES; lvl++) {
+      p.lvl = lvl;
+      const im = V.buildingArt(p);
+      seen.add(im && im.src ? im.src.split('/').pop() : 'none');
+    }
+    if (seen.size !== V.BEACON_STAGES)
+      fails.push('the beacon is drawn with ' + seen.size + ' pictures across its ' + V.BEACON_STAGES
+        + ' stages, so it does not visibly rise: ' + [...seen].join(', '));
+
+    /* And each stage is worth more. Measured through a delivery into a full
+       barn -- the thing a maxed village does all day -- rather than by asking
+       the multiplier what it thinks of itself. */
+    const shipped = lvl => {
+      p.lvl = lvl;
+      V.res.wood = V.caps.wood; V.res.food = V.caps.food;
+      V.sharedTotal = { wood: 0, food: 0 };
+      V.deliver('wood', 100, 0, 0);
+      return V.sharedTotal.wood;
+    };
+    const low = shipped(1), high = shipped(V.BEACON_STAGES);
+    if (!(high > low))
+      fails.push('a beacon at its top stage sends no more over the water than one at stage 1: ' + low + ' against ' + high + ', so every stage past the first is decoration');
+
+    V.sharedTotal = { wood: 0, food: 0 };
+    return { drawn, stages, drank: Math.round(drank), pictures: seen.size, low, high, fails };
+  };
   window.allSweeps = async function (opts) {
     const o = opts || {}, rounds = o.rounds === undefined ? 12000 : o.rounds;
     const arcMinutes = o.arcMinutes === undefined ? 90 : o.arcMinutes;
@@ -9999,6 +10134,7 @@
       ['pan', () => window.panSweep()],
       ['cost', () => window.costSweep()],
       ['art', () => window.artSweep()],
+      ['beacon', () => window.beaconSweep()],
       ['order', () => window.orderSweep()],
       ['tap', () => window.tapSweep()],
       ['text', () => window.textSweep()],

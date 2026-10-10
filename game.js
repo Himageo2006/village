@@ -690,12 +690,36 @@ function grant(k, n, x, y) {
    "wasting", because that pressure is what teaches storage and trade. */
 let sharedTotal = { wood: 0, food: 0 };
 const villageFinished = () => goalIdx >= GOALS.length;
+/* The beacon drinking, one tick's worth.
+
+   Out of the stores rather than out of thin air, and only while there is a
+   stage left to finish. Both resources at once, each limited by what is
+   actually there, so a village short of one of them pours the other and the
+   beacon simply rises more slowly. */
+function stepBeacon(dt) {
+  const p = beaconOf();
+  if (!p || p.t < 1) return;
+  const lvl = Math.min(BEACON_STAGES, Math.max(1, p.lvl | 0));
+  const need = BEACON_NEED[lvl - 1];
+  if (!need) return;                              // the top stage: nothing left to drink
+  let drank = 0;
+  for (const k of ['wood', 'food']) {
+    const take = Math.min(BEACON_POUR * dt, res[k]);
+    if (take <= 0) continue;
+    res[k] -= take; drank += take;
+  }
+  if (!drank) return;
+  p.stock = (p.stock || 0) + drank;
+  if (p.stock >= need) { p.stock = 0; p.lvl = lvl + 1; SFX.upgrade(); save(); }
+}
 function deliver(k, n, x, y) {
   const got = grant(k, n, x, y);
   rateAcc[k] += got;                  // a sale is not production, so only here
   if (got > 0.01) SFX.deliver();
   // only what the villagers carried: rewards and refunds are not the village's work
-  if (villageFinished()) sharedTotal[k] += Math.max(0, Math.min(n, n - got));
+  /* Worth more for every stage of the beacon, which is the only thing it is
+     for. Without one this is exactly what it always was. */
+  if (villageFinished()) sharedTotal[k] += Math.max(0, Math.min(n, n - got)) * shareMul();
   return got;
 }
 /* 1234 -> "1.2k", 1234567 -> "1.2M". A tally that runs for hours reaches seven
@@ -1423,6 +1447,36 @@ const BUILDINGS = [
   { key: 'market', name: 'Market',    w: 2, h: 2, cost: { wood: 200, food: 120 }, caps: { wood: 800, food: 800 }, makes: { wood: 0.55 }, jobs: 1, wallH: 62, icon: '🏪',
     blurb: 'Adds a trading stall and brings the traders round sooner.' },
 
+  /* ---------- the beacon ----------
+
+     What a finished village is FOR.
+
+     Measured on one: every building kind at its allowance, both resources
+     pinned at the ceiling, and sixty-nine villagers producing eighty a second
+     into a barn that cannot take a grain of it. The game says so itself --
+     "what villagers bring in now is thrown away" -- and it was right.
+
+     The beacon is the one thing in this game with no ceiling. It does not
+     have to be afforded, and that is deliberate rather than generous: every
+     stage past the first would cost more than a full barn holds, so an
+     ordinary upgrade button could never be pressed however long anyone
+     played. It DRINKS instead. While a stage is unfinished it draws steadily
+     out of the stores, so the surplus that was being destroyed goes into it,
+     and the thing a maxed village does all day stops being waste and starts
+     being a building getting taller.
+
+     And it pays for itself in the only currency left. Each stage sends more
+     of what the village sheds over the water, which is the number the goals
+     past the ladder are counted in -- so the loop closes: produce, overflow,
+     ship, and the beacon makes the shipping worth more.
+
+     Unlocked by finishing, not by the hall. It is deliberately NOT in the
+     hall's allowance: that table is what "build everything your hall allows"
+     is measured against, and a building that needs art nobody has drawn yet
+     would make that goal impossible to finish. */
+  { key: 'beacon', name: 'Beacon',    w: 2, h: 2, cost: { wood: 2500, food: 1600 }, unique: true, wallH: 150, icon: '🗼',
+    blurb: 'A light for your neighbours. It drinks your surplus and sends more of it over the water.' },
+
   /* ---------- decorations ----------
      Bought and placed like buildings, but they take no time to put up, have no
      level, and can be taken away again. `charm` is what they are for: a village
@@ -1577,6 +1631,12 @@ function upInfo(p) {
      charm is fixed -- and upgrading a statue spent 330 wood and 175 food to
      change nothing at all. The panel never offered it; the rule now agrees. */
   if (isDecor(p.key)) return { max: true, cost: null, gate: 0 };
+  /* Nor is the beacon, and for a harder reason than the statue's. Every stage
+     past the first costs more than a full barn can hold, so an upgrade button
+     here would be one no player could ever press however long they played.
+     It takes what it needs out of the stores itself, a little each second,
+     and the panel says how far along it is instead of offering a price. */
+  if (p.key === BEACON) return { max: true, cost: null, gate: 0 };
   if (p.key === 'hall') {
     const nx = HALL[l].up;
     return { max: !nx, cost: nx, gate: 0 };
@@ -2259,7 +2319,64 @@ const hallOf = () => placed.find(p => p.key === 'hall');
    The panel's title still names the level being built, the way it does for
    every building under scaffolding. This is what the village is given. */
 const hallLevel = () => { const h = hallOf(); return h ? Math.min(HALL_MAX, Math.max(1, lvlHeld(h))) : 1; };
-const allowedOf = key => (HALL[hallLevel()].allow[key] || 0);
+/* ---------- what the beacon is worth, and when it may be built ---------- */
+const BEACON = 'beacon';
+const BEACON_STAGES = 5;
+/* What each stage drinks before the next one starts. Rising steeply, and the
+   whole thing is about a hundred and ten thousand -- half an hour of a maxed
+   village's full output, which is the point: it is a sink for a village that
+   has nothing left to spend on, not an errand. */
+const BEACON_NEED = [6000, 12000, 24000, 48000, 0];   // the last stage is the top
+const BEACON_POUR = 18;               // each resource, per second, while it is drinking
+
+const beaconOf = () => placed.find(p => p.key === BEACON) || null;
+/* The stage it has REACHED, so one still going up counts as the one below. */
+const beaconStage = () => { const p = beaconOf(); return p && p.t >= 1 ? Math.min(BEACON_STAGES, Math.max(1, p.lvl | 0)) : 0; };
+/* How much further a village's surplus carries for having built it. Nothing
+   without one; half as much again at the first stage; three times at the top. */
+const shareMul = () => 1 + 0.4 * beaconStage();
+
+/* All five drawings or none, the same rule the walk cycles keep and for the
+   same reason: a building with no picture is a coloured box, and half a set
+   is an artist's work that appears nowhere and reports nothing. Until the
+   whole set is on disk the beacon is not in the tray, not in the hints and
+   not in anything that asks what may be built. */
+/* Keys whose art is a SET rather than a single picture, and how many.
+
+   The beacon has no beacon.webp and never will: its art is the five stages,
+   and asking for a sixth picture of it to stand in for the others would be a
+   drawing nothing ever shows. Said here so the harness can tell the
+   difference between a building with no art and a building whose art is not
+   one file -- otherwise it correctly reports a hole that is not there. */
+const SET_ART = { [BEACON]: BEACON_STAGES };
+const beaconArt = i => artFor(BEACON + '_stage' + i);
+/* Which picture a building is drawn with. One each for everything in the
+   game except the beacon, whose whole point is that it changes shape as it
+   rises -- a sink nobody can see is a number, not a landmark. */
+function buildingArt(p) {
+  if (p.key === BEACON) {
+    const set = beaconSet();
+    if (set) return set[Math.min(BEACON_STAGES, Math.max(1, p.lvl | 0)) - 1];
+  }
+  return artFor(p.key);
+}
+function beaconSet() {
+  const out = [];
+  for (let i = 1; i <= BEACON_STAGES; i++) { const im = beaconArt(i); if (!im) return null; out.push(im); }
+  return out;
+}
+/* Offered once the village is finished and the pictures exist. Deliberately
+   outside the hall table -- see the note on the building itself. */
+const beaconOpen = () => villageFinished() && !!beaconSet();
+/* What the panel says where every other building names a price. */
+function beaconLabel(p) {
+  const lvl = Math.min(BEACON_STAGES, Math.max(1, p.lvl | 0));
+  const need = BEACON_NEED[lvl - 1];
+  if (!need) return 'Finished  ·  stage ' + BEACON_STAGES + ' of ' + BEACON_STAGES;
+  return 'Stage ' + lvl + ' of ' + BEACON_STAGES + '  ·  ' + compact(Math.round(p.stock || 0))
+    + ' / ' + compact(need) + ' poured in';
+}
+const allowedOf = key => key === BEACON ? (beaconOpen() ? 1 : 0) : (HALL[hallLevel()].allow[key] || 0);
 const countOf = key => placed.reduce((n, p) => n + (p.key === key ? 1 : 0), 0);
 // a building type you cannot have yet is hidden entirely; one you have run out
 // of room for stays visible but locked, so the limit is legible
@@ -3103,6 +3220,7 @@ function step(dt) {
   if (document.hidden && !hiddenAt) { hiddenAt = Date.now(); hiddenSim = 0; }
   if (hiddenAt) hiddenSim += dt;      // what the throttled tick managed while away
   stepCam(dt);
+  stepBeacon(dt);
   if (backOpen()) armBack();          // so the back button can close it again
   else if (backArmed) disarmBack();   // closed some other way: take the entry back out
   if (sellArm) { sellArm.t -= dt; if (sellArm.t <= 0 || panel !== sellArm.id) sellArm = null; }
@@ -3428,7 +3546,7 @@ function drawVillager(v) {
    building standing and shows the scaffold. */
 const growOf = p => established(p) ? 1 : 0.35 + 0.65 * Math.max(0, Math.min(1, p.t));
 function artRect(p) {
-  const b = B(p.key), art = artFor(p.key);
+  const b = B(p.key), art = buildingArt(p);
   if (!art || isDecor(p.key)) return null;
   const a = tileToWorld(p.c, p.r), d = tileToWorld(p.c + b.w - 1, p.r + b.h - 1);
   const cx = (a.x + d.x) / 2, cy = (a.y + d.y) / 2;
@@ -3705,7 +3823,7 @@ function drawDecor(p, alpha) {
   /* Painted art if it exists, the drawn version if not -- the same optional-art
      path the buildings use, so a decoration sprite can be dropped in later
      without touching this function again. */
-  const art = artFor(p.key);
+  const art = buildingArt(p);
   if (art) {
     if (b.flat) {
       /* Forced to the tile's own diamond rather than to the art's aspect. The
@@ -5825,7 +5943,15 @@ function drawPanel() {
      the button would sit grey for ever with no hint why. Storage being a real
      constraint is the point -- it just has to say so. */
   const overCap = !canAfford(i.cost || {}) && overCaps(i.cost);
+  /* What the beacon is doing, which is never "nothing".
+
+     It comes through here as max:true, because there is no price to show and
+     no button to press -- and the label for that is "Highest level", which on
+     a beacon at stage two of five is simply false. It is the one building in
+     the game that is always working on something, so it says what it is
+     working on, and how far along, in the place the others name a cost. */
   const label = busy ? 'Building…'
+    : p.key === BEACON ? beaconLabel(p)
     : i.max ? 'Highest level'
     : i.gate ? 'Needs town hall level ' + i.gate
     /* Which of the two is actually open to them. A player with all four
@@ -6360,6 +6486,10 @@ for (const v of VILLAGERS) artFor(v);
    the moment he set off, and artFor remembers a miss, so doing it at boot
    costs the same misses at a moment when nothing is moving yet. */
 for (const v of VILLAGERS) for (let i = 1; i <= WALK_STEPS; i++) artFor(v + '_walk' + i);
+/* The beacon's five, asked for here for the same reason the walk frames are:
+   a village with none of them drawn would otherwise send five requests the
+   moment it finished, and artFor remembers a miss. */
+for (let i = 1; i <= BEACON_STAGES; i++) beaconArt(i);
 for (const k of ['ground', 'water', 'tree_pine', 'tree_oak', 'rock', 'bush']) artFor(k);
 
 /* test hooks */
@@ -6377,7 +6507,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   artRect, paintedAt, isDecor, decorCount, DECOR_MAX, charmTotal, charmMul, charmGainFrom, decorGainAt, deliveredAtMul, charmRoom, usefulCharm, CHARM_FULL,
   // the size of a load: the finest difference any delivery measurement can see
   CARRY,
-  tabRects, drawDecor, grant, flushBadges, get lastBadges() { return lastBadges; }, badgeScale, BADGE_TEXT_PX, POP_PX, camScale,
+  tabRects, drawDecor, grant, deliver, flushBadges, get lastBadges() { return lastBadges; }, badgeScale, BADGE_TEXT_PX, POP_PX, camScale,
   sparePeople, outOfRoom, noSpareHands, peopleComing, livedIn,
   sellBuilding, canSell, sellValue, investedIn, capsWithout, get moving() { return moving; }, set moving(v) { moving = v; },
   get armed() { return armed; }, set armed(v) { armed = v; },
@@ -6386,7 +6516,9 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   collectAway, grantAway, landTransit, duration, saleCost, get actx() { return actx; }, potentialRate, expectedRate, currentHint, get away() { return away; }, set away(v) { away = v; },
   get hiddenAt() { return hiddenAt; }, set hiddenAt(v) { hiddenAt = v; },
   get hiddenSim() { return hiddenSim; }, set hiddenSim(v) { hiddenSim = v; }, AWAY_MIN, AWAY_MAX,
-  GOALS, currentGoal, buyProgress, FINISH_ID, currentHint, get goalIdx() { return goalIdx; }, set goalIdx(v) { goalIdx = v; },
+  GOALS, currentGoal, buyProgress, FINISH_ID, currentHint,
+  BEACON, SET_ART, BEACON_STAGES, BEACON_NEED, BEACON_POUR, beaconOf, beaconStage, beaconSet, beaconOpen,
+  shareMul, stepBeacon, buildingArt, get goalIdx() { return goalIdx; }, set goalIdx(v) { goalIdx = v; },
   afterGoal, shipped, AFTER_SHIP, AFTER_ORDERS, AFTER_MAX,
   get afterMark() { return afterMark; }, set afterMark(v) { afterMark = v; },
   get orders() { return orders; }, set orders(v) { orders = v; },
