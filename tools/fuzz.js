@@ -10751,6 +10751,132 @@
       V.barMode = 'build'; V.rebuildCharm();
     }
   };
+
+  /* ---------- the walk, drawn ----------
+
+     The village has been quoting walking time for a long while: a badge on
+     any workplace losing more than half of itself to the carry, a round trip
+     in seconds on its panel, a delivered figure that counts what ARRIVES, and
+     now the seconds on a named villager's card. All numbers, and the fix for
+     every one of them is a PLACE. So the route is drawn.
+
+     The checks are the ways a drawn route can lie, and a drawn line that lies
+     is worse than no line: it is an instruction to lay a road in the wrong
+     place.
+
+     - it has to go where the arithmetic says. routeOf prices the journey by
+       sampling the straight line; the picture samples the same line a second
+       time with a different step. If those two disagree the player is being
+       shown one route and charged for another.
+     - it has to be drawn for the buildings that WALK and no others. A
+       storehouse carries nothing anywhere.
+     - it has to appear when the question is asked -- a road in hand -- and
+       not the rest of the time.
+     - and it has to be visible, which means a fixed width on the GLASS. This
+       was drawn at a flat four pixels inside the world transform, which at
+       the zoom that frames the whole island is under one pixel on a phone:
+       drawn every frame, correct every frame, and invisible. */
+  window.routeSweep = function () {
+    const V = window.__v, fails = [];
+
+    V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
+    V.away = null; V.goalDone = null; V.finished = null; V.panel = null; V.who = null;
+    V.sel = null; V.moving = null; V.claimAsk = false; V.orders = []; V.barMode = 'build';
+    V.goalIdx = V.GOALS.length; V.tutSeen.length = 0; for (const h of V.TUT) V.tutSeen.push(h.id);
+    V.ensureHall(); V.placed[0].lvl = 5; V.placed[0].t = 1;
+    {
+      const L = V.landBounds();
+      const seat = k => { for (let r = L.lo; r <= L.hi; r++) for (let c = L.lo; c <= L.hi; c++) {
+        V.res.wood = 9e5; V.res.food = 9e5;
+        if (V.canPlace(k, c, r, V.occupied()) && V.place(k, c, r)) return true; } return false; };
+      for (let i = 0; i < 4; i++) seat('house');
+      for (let i = 0; i < 3; i++) seat('farm');
+      for (let i = 0; i < 3; i++) seat('lumber');
+      seat('store');
+      for (let i = 0; i < 14; i++) seat('path');
+      for (const p of V.placed) { p.t = 1; p.build = 0; }
+      V.rebuildStores(); V.rebuildPaths(); V.rebuildCharm();
+      for (let i = 0; i < 90; i++) V.step(1 / 30);
+    }
+    const walkers = V.placed.filter(p => V.routeLine(p));
+    if (walkers.length < 3) { fails.push('the route check only raised ' + walkers.length + ' workplaces that walk'); return { walkers: walkers.length, fails }; }
+
+    /* 1. the line and the price sample the same journey. */
+    let apart = 0, worst = 0;
+    for (const p of walkers) {
+      const l = V.routeLine(p);
+      let hits = 0;
+      for (let i = 0; i < V.ROUTE_STEPS; i++) {
+        const fm = (i + 0.5) / V.ROUTE_STEPS;
+        if (V.onPath(l.from.x + (l.to.x - l.from.x) * fm, l.from.y + (l.to.y - l.from.y) * fm)) hits++;
+      }
+      const drawn = hits / V.ROUTE_STEPS, priced = V.routeOf(p).paved;
+      const gap = Math.abs(drawn - priced);
+      if (gap > 0.12) { apart++; if (gap > worst) worst = gap; }
+    }
+    if (apart)
+      fails.push(apart + ' of ' + walkers.length + ' routes are drawn along a different line from the one'
+        + ' the delivery figure is worked out on (paved share out by up to ' + Math.round(worst * 100)
+        + ' points), so the roads it tells you to lay are not the roads it would pay you for');
+
+    /* 2. drawn for what walks, and for nothing else. */
+    const wrong = V.placed.filter(p => {
+      const b = V.B(p.key), should = V.established(p) && !V.storesItself(p.key) && !!b.makes && !!b.jobs;
+      return should !== !!V.routeLine(p);
+    });
+    if (wrong.length)
+      fails.push(wrong.length + ' buildings disagree about whether they walk anywhere: '
+        + wrong.slice(0, 3).map(p => p.key).join(', '));
+
+    /* 3. shown when a road is in hand, and when a panel is open, and not
+       otherwise -- a village permanently criss-crossed with lines is a village
+       nobody can look at. */
+    V.sel = null; V.moving = null; V.panel = null; V.ghost = null;
+    if (V.routesShown()) fails.push('the routes are drawn over the village when nothing has been asked');
+    V.barMode = 'decor'; V.sel = 'path';
+    const withRoad = V.routesShown();
+    if (!withRoad || withRoad.list.length < walkers.length)
+      fails.push('picking up a road shows ' + (withRoad ? withRoad.list.length : 0)
+        + ' routes where ' + walkers.length + ' workplaces walk, so the one question a road asks is half answered');
+    V.sel = 'statue';
+    if (V.routesShown()) fails.push('a statue in hand draws the walking routes, which have nothing to do with it');
+    V.sel = null; V.panel = walkers[0].id;
+    const onPanel = V.routesShown();
+    if (!onPanel || onPanel.list.length !== 1)
+      fails.push('opening one workplace draws ' + (onPanel ? onPanel.list.length : 0) + ' routes rather than its own');
+    V.panel = null;
+
+    /* 4. and it can be seen at any zoom, which means a width on the GLASS. */
+    const cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
+    /* drawRoutes on its own, not a whole frame.
+
+       Measuring the whole frame measures the widest stroke in it, which is
+       whatever the well ring or a badge happens to be doing, and the route
+       can then be narrowed to nothing without the figure moving. And the
+       NARROWEST of the route's own strokes is the one that decides whether it
+       reads: this draws a dark run under a coloured one, and either of them
+       left in world units is a line that vanishes at the far zoom while the
+       other covers for it. */
+    const widthsAt = z => {
+      V.CAM.z = z; V.barMode = 'decor'; V.sel = 'path'; V.step(0.001);
+      const seen = [];
+      const os = ctx.stroke.bind(ctx);
+      ctx.stroke = function (...a) { seen.push(ctx.lineWidth * V.camScale()); return os(...a); };
+      try { V.drawRoutes(); } finally { ctx.stroke = os; }
+      return seen.length ? { lo: Math.min(...seen), hi: Math.max(...seen) } : { lo: 0, hi: 0 };
+    };
+    const out = widthsAt(V.ZMIN), near = widthsAt(V.ZMAX);
+    V.CAM.z = 1; V.sel = null; V.barMode = 'build'; V.step(0.001);
+    if (out.lo < 8)
+      fails.push('zoomed out, the thinnest stroke a route is drawn with is ' + out.lo.toFixed(1)
+        + ' screen pixels, so it cannot be seen at the zoom somebody plans a road at');
+    if (near.lo > out.lo * 1.4 || out.lo > near.lo * 1.4)
+      fails.push('a route stroke is ' + out.lo.toFixed(1) + ' screen pixels zoomed out and '
+        + near.lo.toFixed(1) + ' zoomed in, so its width is in world units and the camera decides'
+        + ' whether it can be read');
+
+    return { walkers: walkers.length, out: +out.lo.toFixed(1), near: +near.lo.toFixed(1), fails };
+  };
   window.allSweeps = async function (opts) {
     const o = opts || {}, rounds = o.rounds === undefined ? 12000 : o.rounds;
     const arcMinutes = o.arcMinutes === undefined ? 90 : o.arcMinutes;
@@ -10806,6 +10932,7 @@
       ['name', () => window.nameSweep()],
       ['who', () => window.whoSweep()],
       ['find', () => window.findSweep()],
+      ['route', () => window.routeSweep()],
       ['order', () => window.orderSweep()],
       ['tap', () => window.tapSweep()],
       ['text', () => window.textSweep()],

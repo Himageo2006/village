@@ -4239,6 +4239,7 @@ function drawWorld() {
     const wp = byId(panel);
     if (wp && B(wp.key).boost && established(wp)) drawWellReach(wp.c, wp.r, 0.8);
   }
+
   if (ghost && ghostKey()) {                            // placement preview
     const selKey = ghostKey(), b = B(selKey);
     for (let dc = 0; dc < b.w; dc++) for (let dr = 0; dr < b.h; dr++) {
@@ -4448,6 +4449,15 @@ function drawWorld() {
      See the note beside that call: they are information, not scenery. */
   /* The well's reach again, outline only, so the far side of the circle is not
      lost behind whatever is standing in it. */
+  /* OVER the village, not on the ground under it.
+
+     Drawn under the buildings first, which is where a line describing the
+     ground belongs, and in a village of fifty-two buildings not one pixel of
+     it could be seen -- the island is roofs. The village that most needs to
+     be told where its people walk is exactly the village dense enough to hide
+     the answer. The well's reach is drawn twice for this reason and the note
+     below says so; a route has the same problem and takes the same answer. */
+  drawRoutes();
   const ringOf = p => p && B(p.key).boost ? p : null;
   const ring = ringOf(panel != null ? byId(panel) : null)
     || (ghost && ghost.ok && ghostKey() === 'well' ? { c: ghost.c, r: ghost.r } : null);
@@ -5652,6 +5662,98 @@ function wellMoveGain(w, c, r) {
 }
 /* The reach, drawn on the ground. A circle in GRID space, which is an ellipse
    on screen -- the same two-to-one squash everything else lives in. */
+/* The ground a workplace's villagers actually cover, and which of it is paved.
+
+   The village has been telling the player about walking time for a while
+   now. A badge on a workplace losing more than half of itself to the carry.
+   A round-trip row on its panel. A delivered figure that quotes what ARRIVES
+   rather than what the building is rated for. And, on the card of any
+   villager, the seconds they spend walking each load.
+
+   Every one of those is a NUMBER, and the fix for all of them is a place.
+   The badge says a farm is losing 47 per cent and the honest advice under it
+   is 'a storehouse or a road' -- and then the player is on their own, because
+   nothing in the game has ever shown them where the walk goes. Roads went
+   unlaid not because the saving was hidden but because the ROUTE was: you
+   cannot pave a line you cannot see.
+
+   So: the line itself. It is a straight one, because a villager walks
+   straight at the thing they are walking to -- see step1 -- which is the same
+   assumption routeOf prices the journey with, so the picture and the
+   arithmetic cannot disagree. Sampled in the same way, and each stretch drawn
+   in the colour of what it is: pale where the ground is paved and the walk is
+   quick, amber where it is not and a road would pay. */
+const ROUTE_STEPS = 56;
+function routeLine(p) {
+  if (!established(p) || storesItself(p.key)) return null;
+  const b = B(p.key);
+  if (!b.makes || !b.jobs) return null;
+  const c = centreOf(p), st = nearestStore(c.x, c.y);
+  if (!st) return null;
+  const d = centreOf(st);
+  return { from: c, to: { x: d.x, y: d.y + DROP_Y }, store: st };
+}
+function drawRoute(p, alpha) {
+  const line = routeLine(p);
+  if (!line) return;
+  const { from, to } = line;
+  /* A fixed width ON SCREEN, so the camera cannot decide whether this can be
+     read. Drawn inside the world transform, a flat line width is a width in
+     WORLD pixels: at the zoom the village is usually looked at -- 0.56, the
+     whole island in frame, which is exactly when somebody is thinking about
+     where a road should go -- a four pixel line came out at 2.2 on the canvas
+     and under one on the glass of a phone. It was being drawn the whole time
+     and could not be seen. The badges above are in screen units for the same
+     reason, and the note beside them calls them information rather than
+     scenery; this is information. */
+  const sc = camScale();
+  g.save();
+  g.globalAlpha = alpha;
+  g.lineCap = 'round';
+  /* A dark stroke under the whole run first. Half of any route crosses roofs
+     and the other half crosses grass, and one colour is lost in one of them
+     whichever is picked -- the same thing the well's ring had to solve. */
+  g.strokeStyle = 'rgba(8,18,26,.75)'; g.lineWidth = 17 / sc;
+  g.beginPath(); g.moveTo(from.x, from.y); g.lineTo(to.x, to.y); g.stroke();
+  for (let i = 0; i < ROUTE_STEPS; i++) {
+    const f0 = i / ROUTE_STEPS, f1 = (i + 1) / ROUTE_STEPS;
+    const mx = from.x + (to.x - from.x) * (f0 + f1) / 2;
+    const my = from.y + (to.y - from.y) * (f0 + f1) / 2;
+    g.strokeStyle = onPath(mx, my) ? 'rgba(190,240,255,.95)' : 'rgba(255,200,110,.95)';
+    g.lineWidth = 10 / sc;
+    g.beginPath();
+    g.moveTo(from.x + (to.x - from.x) * f0, from.y + (to.y - from.y) * f0);
+    g.lineTo(from.x + (to.x - from.x) * f1, from.y + (to.y - from.y) * f1);
+    g.stroke();
+  }
+  g.restore();
+}
+/* Which routes the player is being shown, and why.
+
+   One when a workplace's panel is open: that building's walk, because its
+   panel is already quoting the round trip in seconds and this is where those
+   seconds go.
+
+   All of them while a road is in hand, which is the state the whole thing is
+   for. A player holding a path has exactly one question -- where do I put it
+   -- and the answer is the amber. Dimmer, because fifteen lines at full
+   strength is a cat's cradle rather than a village. */
+function routesShown() {
+  /* The moment the road is PICKED UP, not the moment a tile is first touched.
+
+     This asked for a ghost to exist, and a ghost does not exist until the
+     player has already tapped somewhere -- there is no hovering on a phone.
+     So the lines would have appeared after the first guess, which is after
+     the decision they are there to inform. A road in hand IS the question. */
+  if (ghostKey() === 'path') return { list: placed, alpha: 0.5 };
+  if (panel != null) { const p = byId(panel); return p ? { list: [p], alpha: 0.95 } : null; }
+  return null;
+}
+function drawRoutes() {
+  const r = routesShown();
+  if (!r) return;
+  for (const p of r.list) drawRoute(p, r.alpha);
+}
 function drawWellReach(c, r, alpha) {
   const bw = B('well'), w = tileToWorld(c + (bw.w - 1) / 2, r + (bw.h - 1) / 2);
   const rx = bw.boostR * TW / Math.SQRT2, ry = bw.boostR * TH / Math.SQRT2;
@@ -6878,6 +6980,7 @@ for (const k of ['ground', 'water', 'tree_pine', 'tree_oak', 'rock', 'bush']) ar
 window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, worldToTile,
   camProject, camUnproject, canPlace, placeProblem, occupied, place, step, draw, barRects, barList, tileAt,
   FINDS, FIND_KEYS, isFound, placeFinds, findSpot, LAND, LAND_MAX, DECOR_MAX, decorCount, BEST_CHARM, BUILDINGS, rebuildCharm, claimLand, ensureHall, rebuildStores, coverPlaced, charmTotal, canSell, ART,
+  routeLine, routesShown, drawRoutes, routeOf, onPath, nearestStore, storesItself, ROUTE_STEPS, DROP_Y, PATH_SPEED, VIL_SPD, rebuildPaths, established, get ghost() { return ghost; }, set ghost(v) { ghost = v; },
   get sel() { return selBuild; }, set sel(v) { selBuild = v; },
   tap, CAM, save, load, get caps() { return caps; },
   HALL, hallOf, hallLevel, allowedOf, countOf, atLimit, unlocked, buildable, permitted, hintText,

@@ -172,7 +172,7 @@ except where it says so.
 
 ### Tier 1 — stops the game ending
 
-**1. Make the surplus mean something: the Wonder.**
+**1. Make the surplus mean something: the Wonder.**  ✅ DONE
 A multi-stage landmark — a lighthouse, a cathedral, a harbour — that consumes
 wood and food *without a ceiling*, in large stages, each stage changing the
 island's skyline. It turns "thrown away" into "contributed", converts an
@@ -181,14 +181,14 @@ visible reason to keep producing. The game already tracks `sharedTotal`
 (5.4M wood, 5.1M food on the live save) — a number nobody can spend. Spend it.
 *Touches:* a new building kind with stages, one goal entry, the away banner.
 
-**2. Fix the trade board above the cap.**
+**2. Fix the trade board above the cap.**  ✅ DONE
 Orders between two capped resources are noise. At the cap, traders should
 want goods and offer **things that cannot be built**: decorations not in the
 tray, a rare building skin, Wonder materials, a named villager. Keep the
 existing order generator for the early game; add a late tier.
 *Touches:* `makeOrder`, order tiers, the orders panel.
 
-**3. Goals that do not run out.**
+**3. Goals that do not run out.**  ✅ DONE
 After goal 23, generate requests from the village's own state — "house 80
 villagers", "reach 900 charm", "lay 40 road tiles", "ship 100k to the
 neighbours". Not infinite difficulty, infinite *acknowledgement*. The strip at
@@ -206,13 +206,13 @@ change available, and it is also the riskiest: it touches the economy the
 harness measures. Do it after Tier 1, with the sweeps extended first.
 *Touches:* `BUILDINGS`, `res`, caps, orders, `deliveredAtMul`, several sweeps.
 
-**5. Put something ON the new land.**
+**5. Put something ON the new land.**  ✅ DONE
 Claiming a ring of land is the game's best moment and it currently reveals
 empty grass. Put a ruin to restore, a shipwreck, an overgrown orchard, a
 standing stone on each tier — found, not bought. A reveal, not a rectangle.
 *Touches:* `coverPlaced`/land tiers, a few art keys, one new interaction.
 
-**6. Name the villagers.**
+**6. Name the villagers.**  ✅ DONE
 72 anonymous figures become 72 people the moment they have names and trades,
 and the walk cycles just made them worth watching. Tap one: name, job, where
 they are going, how far they walk each day. Near-zero economic risk, very high
@@ -229,14 +229,14 @@ perceived freshness for a small, offline, server-free change. It is the League
 A "event" feeling without any of the League A machinery.
 *Touches:* the palette/light path, the ground and roof tints.
 
-**8. Lean into the thing Township gave up.**
+**8. Lean into the thing Township gave up.**  ✅ DONE
 Layout is this game's identity and the player used 14 decorations out of 60
 and almost no roads. Make the spatial truth visible: show a villager's walking
 time, show what a road saves before it is laid, show a well's radius while
 placing. The system is already honest — the player simply cannot see it.
 *Touches:* placement preview, the building panel.
 
-**9. Say the quiet part in the store listing.**
+**9. Say the quiet part in the store listing.**  ✅ DONE
 "No energy. No timers. No ads. No purchases. Works on a plane." That sentence
 is the whole of §3 and it is free.
 
