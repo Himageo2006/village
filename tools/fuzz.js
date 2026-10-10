@@ -1421,20 +1421,35 @@
       if (!fg) return orig(t, x, y, ...rest);
       const w = ctx.measureText(t).width, a = ctx.textAlign;
       const x0 = a === 'center' ? x - w / 2 : a === 'right' ? x - w : x;
-      /* Sampled just BESIDE the string, at its own baseline.
+      /* Sampled UNDER the string, at its own baseline, before it is painted.
 
-         Above and below was the obvious choice and it is wrong here: the tray
+         Above and below is the obvious choice and it is wrong here: the tray
          stacks two cost rows 28 logical pixels apart, and half a line clear of
          one lands inside the other's emoji -- so the checker measured a label
-         against its neighbour's icon and called white. Either side of the
-         string is background by construction, because the same row's glyphs
-         live between x0 and x0 + w, and the text is made to fit its pill.
+         against its neighbour's icon and called white.
 
-         The lighter of the two is used: pale text on a dark pill fails on the
-         light side first. */
+         Beside it was the second guess and it is wrong too, which took a real
+         failure to see. It assumed six pixels past the end of a string is
+         still the pill, "because the text is made to fit its pill". Sometimes
+         it is not: the build tray divides a fixed 1024 between however many
+         kinds there are, and at eight kinds a four digit price comes out 109
+         logical pixels wide in a 116 pixel card. Three pixels of margin. The
+         sampler stepped over the border on BOTH sides, read the sea, and
+         reported salmon-on-cyan at a ratio of 1.0 for text that is sitting
+         legibly on a dark brown card. A checker that cries wolf is worse than
+         one that is quiet: I came within an inch of rebuilding the tray.
+
+         There is no need to guess. This runs INSIDE fillText, before the
+         glyphs go down -- so whatever is on the canvas under them right now
+         is exactly the background they are about to be drawn against, pill
+         and world and all. Five points across the span rather than one,
+         because a pill can carry a gradient or an icon behind the words.
+
+         The lightest is used: pale text on a dark pill fails on the light
+         side first. */
       let lightest = -1, bg = null;
-      for (const sxRaw of [x0 - 6, x0 + w + 6]) {
-        const sx = Math.round(Math.max(0, Math.min(cv.width - 1, sxRaw)));
+      for (const at of [0.1, 0.3, 0.5, 0.7, 0.9]) {
+        const sx = Math.round(Math.max(0, Math.min(cv.width - 1, x0 + w * at)));
         const sy = Math.round(Math.max(0, Math.min(cv.height - 1, y + m.f)));
         const d = ctx.getImageData(sx, sy, 1, 1).data;
         const L = luminance(d[0], d[1], d[2]);
