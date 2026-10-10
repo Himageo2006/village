@@ -505,7 +505,12 @@
     const floor = maxMinutes >= 30 ? 5 : 1;
     if (goalTimes.length < floor) fails.push('the run reached only ' + goalTimes.length
       + ' goal(s) in ' + maxMinutes + ' simulated minutes, so it was blocked rather than slow');
-    return { goals: V.goalIdx + '/' + V.GOALS.length, hall: V.hallLevel(), land: V.landTier,
+    /* Past the ladder counts as past it, not as a bigger numerator. A run
+       that reaches the generated goals reports "23/23 +1" rather than
+       "24/23", which read like the arc had found a goal nobody wrote. */
+    const over = Math.max(0, V.goalIdx - V.GOALS.length);
+    return { goals: Math.min(V.goalIdx, V.GOALS.length) + '/' + V.GOALS.length + (over ? ' +' + over : ''),
+      hall: V.hallLevel(), land: V.landTier,
       placed: V.placed.length, villagers: V.villagers.length,
       res: { wood: Math.round(V.res.wood), food: Math.round(V.res.food) },
       caps: { ...V.caps }, trades: V.ordersDone, goalTimes, fails };
@@ -2484,7 +2489,17 @@
     const d = [];
     const walk = (x, y, p) => {
       if (typeof x !== typeof y) { d.push({ at: p, was: typeof x, now: typeof y }); return; }
-      if (x && typeof x === 'object') {
+      /* null is an object to typeof and not one to Object.keys, so a field
+         that is an object on one side and null on the other walked straight
+         past the type check and threw on the next line -- taking the whole
+         sweep down with "Cannot convert undefined or null to object" and
+         reporting nothing about the field that did it. Latent for as long
+         as this has existed; the first nullable field in a save found it. */
+      if (x === null || y === null) {
+        if (x !== y) d.push({ at: p, was: x, now: y });
+        return;
+      }
+      if (typeof x === 'object') {
         const kx = Object.keys(x), ky = Object.keys(y);
         for (const k of kx) if (!(k in y)) d.push({ at: p + '.' + k, dropped: true });
         for (const k of ky) if (!(k in x)) d.push({ at: p + '.' + k, added: true });
@@ -8376,9 +8391,133 @@
         fails.push('only ' + partial + ' goals paid half a reward, so the half-full card was barely asked');
     }
 
-    V.goalIdx = 0; V.goalDone = null; V.finished = null; V.step(0.001);
+    /* The ladder ends and the strip has to carry on.
+
+       That one line is always on screen, and for a finished village -- every
+       building kind locked at its allowance, both resources at their ceiling,
+       nothing left to ask for -- it used to say "Every goal done" for the rest
+       of the game. The goals past it are GENERATED, which fails quietly in
+       three separate ways, so all three are checked here.
+
+       Two of them are asked of the canvas, because what is being tested is
+       whether the player is told: a generator producing perfectly good goal
+       objects that nothing draws is the failure, not the fix. The third is
+       asked of a save, because that one cannot be seen at all. */
+    let after = { shown: 0, differed: 0, kept: null, mark: null };
+    {
+      const cv3 = document.querySelector('canvas'), ctx3 = cv3.getContext('2d');
+      const drawn = () => {
+        const rows = [], o = ctx3.fillText;
+        ctx3.fillText = function (t, ...a) { rows.push(String(t)); return o.call(this, t, ...a); };
+        try { V.draw(); } finally { ctx3.fillText = o; }
+        return rows;
+      };
+      /* Found by the target and the subject TOGETHER, on one row.
+
+         The strip wraps to two lines, so looking for the whole sentence finds
+         nothing -- the first attempt at this check failed for that reason and
+         not because the game was wrong. The number alone is no good either:
+         the HUD is full of numbers. Both on the same row is wrap-safe, since
+         the line breaks at a space and these two sit either side of none. */
+      const onStrip = gl => {
+        const tok = String(gl.text).split(' ')[1];
+        const word = String(gl.text).indexOf('neighbours') >= 0 ? 'neighbours' : 'trade orders';
+        return drawn().find(t => t.indexOf(tok) >= 0 && t.indexOf(word) >= 0) || '';
+      };
+
+      V.goalIdx = V.GOALS.length; V.goalDone = null; V.afterMark = null;
+      V.away = null; V.panel = null;
+      V.sharedTotal = { wood: 1000, food: 0 }; V.ordersDone = 5;
+      /* The strip is third in line: a hint takes it before any goal, and the
+         completion card covers the screen until it is dismissed. Both are
+         correct and both hide the thing under test, so the village is put in
+         the state a player reaches a minute after finishing -- hints read,
+         card tapped away -- rather than the instant they finish. */
+      for (let i = 0; i < 30 && V.currentHint(); i++) V.tutSeen.push(V.currentHint().id);
+      if (!V.tutSeen.includes(V.FINISH_ID)) V.tutSeen.push(V.FINISH_ID);
+      V.finished = null;
+      V.step(0.001);                       // and the mark is taken from here
+
+      after.mark = V.afterMark;
+      if (!after.mark || after.mark.ship !== 1000 || after.mark.orders !== 5)
+        fails.push('the goals past the ladder did not take their mark from the village they started in,'
+          + ' so they are measured from ' + JSON.stringify(after.mark));
+
+      const seen = [];
+      for (let i = 0; i < 4; i++) {
+        /* The card for the one just finished, which covers the strip for four
+           and a half seconds and is drawn INSTEAD of it. Cleared here rather
+           than before the step that raises it, which is where it was: the
+           step is what puts it up, so clearing it first cleared nothing and
+           the check read a banner where it expected a goal. */
+        V.goalDone = null;
+        const gl = V.currentGoal();
+        if (!gl) { fails.push('there was no goal at all ' + (i + 1) + ' past the end of the ladder,'
+          + ' so a finished village is left with a blank where its goal should be'); break; }
+        if (!onStrip(gl)) {
+          fails.push('goal ' + (i + 1) + ' past the ladder was never drawn: the game is keeping'
+            + ' "' + gl.text + '" to itself'); break;
+        }
+        if (gl.done()) { fails.push('goal ' + (i + 1) + ' past the ladder was already done when it was'
+          + ' handed over: "' + gl.text + '"'); break; }
+        seen.push(gl.text);
+        /* Finished the way the village would finish it -- by sending more away
+           or filling more orders, which are the only two things these ask for
+           -- rather than by reaching inside the goal.
+
+           One axis at a time, and gently. Driving both at once, hard, finished
+           the goal under test AND the next three behind it, and the check then
+           reported them as "already done the moment they were handed over" --
+           a fault in the checker wearing the costume of a fault in the game. */
+        const ships = String(gl.text).indexOf('neighbours') >= 0;
+        for (let n = 0; n < 400 && !gl.done(); n++) {
+          if (ships) V.sharedTotal = { wood: V.sharedTotal.wood + 20000, food: V.sharedTotal.food };
+          else V.ordersDone += 1;
+        }
+        if (!gl.done()) { fails.push('goal ' + (i + 1) + ' past the ladder could not be finished by'
+          + ' shipping or trading, which are the only two things it asks for'); break; }
+        const was = V.goalIdx;
+        V.step(0.001);
+        if (V.goalIdx !== was + 1) {
+          fails.push('finishing goal ' + (i + 1) + ' past the ladder did not move the strip on'
+            + ' (' + was + ' -> ' + V.goalIdx + ')'); break;
+        }
+      }
+      after.shown = seen.length;
+      /* Each has to be a DIFFERENT sentence from the one before. A generator
+         handing back the same target for ever draws a perfectly good pill that
+         never changes, which from the player\'s side is the flat line this
+         whole thing replaced. */
+      for (let i = 1; i < seen.length; i++) {
+        if (seen[i] === seen[i - 1])
+          fails.push('the strip asked for the same thing twice running past the ladder: "' + seen[i] + '"');
+        else after.differed++;
+      }
+      if (seen.length < 4)
+        fails.push('only ' + seen.length + ' of 4 goals past the ladder were read off the strip');
+
+      /* And it has to survive being put down and picked up again.
+
+         goalIdx was clamped to the length of the ladder on the way IN, which
+         was right while the ladder was all there was. Left alone it hands back
+         every goal earned past the ladder on every reload, for ever, and
+         nothing else in this file would notice -- the game looks perfectly
+         healthy each time it starts, it has simply forgotten. */
+      const far = V.GOALS.length + 3;
+      V.goalIdx = far; V.afterMark = { ship: 4242, orders: 17 };
+      V.save(); V.load();
+      after.kept = V.goalIdx;
+      if (V.goalIdx !== far)
+        fails.push('a village ' + (far - V.GOALS.length) + ' goals past the ladder came back from a save at '
+          + V.goalIdx + ', so everything earned past the ladder is handed back on every reload');
+      const m2 = V.afterMark;
+      if (!m2 || m2.ship !== 4242 || m2.orders !== 17)
+        fails.push('the mark the later goals are measured from did not survive a save: ' + JSON.stringify(m2));
+    }
+
+    V.goalIdx = 0; V.goalDone = null; V.finished = null; V.afterMark = null; V.step(0.001);
     return { goals: V.GOALS.length, withRoom: withRoom.length, withNone: withNone.length,
-      partial, sample: withRoom.slice(0, 3), fails };
+      partial, after, sample: withRoom.slice(0, 3), fails };
   };
 
   window.taughtSweep = function () {

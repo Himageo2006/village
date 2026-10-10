@@ -1971,7 +1971,73 @@ const GOALS = [
   { text: 'Claim the whole island',        buy: 'land', done: () => landTier >= LAND_MAX,
     give: { wood: 5000, food: 3200 } },
 ];
-const currentGoal = () => GOALS[goalIdx] || null;
+/* ---------- after the ladder ----------
+
+   The twenty-three goals above are the spine of the game and they END, and
+   the strip at the top of the screen -- the one line that is always there --
+   has said the same sentence ever since, for as long as the player keeps
+   playing. Measured on a finished village: every building kind locked at its
+   allowance, both resources pinned at their ceiling, charm past its cap,
+   nothing left to name and nothing left to ask for.
+
+   There are exactly two things a finished village can still do more of.
+   Everything else in this game has a ceiling, deliberately: buildings have
+   the hall's allowance, charm has CHARM_FULL, land stops at LAND_MAX,
+   villagers at VILLAGER_MAX, decorations at DECOR_MAX. What has no ceiling
+   is what the village sends AWAY -- the surplus the neighbours take, and the
+   orders it fills. So those are what the strip goes on naming.
+
+   Counted from where the player stood when the ladder ran out, not from
+   zero. A village that has already shipped five million would otherwise be
+   handed a dozen goals it passed weeks ago, one banner after another, and
+   the first thing the new system ever did would be to scroll.
+
+   The steps grow triangularly rather than evenly. The first few land quickly,
+   which is the point of them; a village that has been running for a week is
+   not asked for the same step it was asked for in its first hour.
+
+   THEY PAY NOTHING, and that is not an oversight. At this point in the game
+   there is nothing left worth receiving: the stores are full, so a reward in
+   wood or food is announced and destroyed in the same breath, and the card
+   would read "spilled -- stores full" every single time. A goal that hands
+   you something you then watch being thrown away is worse than a goal that
+   hands you nothing. What these give is the one thing the village still
+   lacks, which is somebody to notice. */
+const AFTER_SHIP = 50000;             // the first shipping step; it grows
+const AFTER_ORDERS = 10;
+/* How far past the ladder a SAVE is allowed to claim to be.
+
+   The generator will happily make goal number nine billion, so the bound is
+   not about the generator -- it is the same job the clamp on goalIdx has
+   always done, which is to refuse a damaged file. Two thousand is a thousand
+   shipping goals past the end of the game, the last of them asking for
+   twenty-five billion sent over the water; at the eighty a second a maxed
+   village manages that is about ten years of play. It bounds the nonsense
+   without being reachable. */
+const AFTER_MAX = 2000;
+let afterMark = null;                 // where the counters stood when the ladder ended
+const shipped = () => sharedTotal.wood + sharedTotal.food;
+
+function afterGoal(n) {
+  const m = afterMark || { ship: 0, orders: 0 };
+  const round = Math.floor(n / 2) + 1;
+  if (n % 2 === 0) {
+    const want = m.ship + AFTER_SHIP * round * (round + 1) / 2;
+    return { after: true, give: {},
+      text: 'Ship ' + compact(want) + ' to the neighbours',
+      done: () => shipped() >= want,
+      praise: compact(want) + ' sent over the water' };
+  }
+  const want = m.orders + AFTER_ORDERS * round;
+  return { after: true, give: {},
+    text: 'Fill ' + want + ' trade orders in all',
+    done: () => ordersDone >= want,
+    at: () => [ordersDone, want],
+    praise: want + ' trade orders filled' };
+}
+/* Never null any more. The ladder running out is no longer the end of the
+   list, it is the point the list starts generating itself. */
+const currentGoal = () => GOALS[goalIdx] || afterGoal(goalIdx - GOALS.length);
 
 function stepGoals(dt) {
   /* One at a time. The goals are a queue, and finishing one often reveals
@@ -2008,6 +2074,20 @@ function stepGoals(dt) {
     finished = { villagers: villagers.length,
                  buildings: placed.filter(q => !isDecor(q.key)).length,
                  trades: ordersDone, charm: charmTotal() };
+  /* Where the counters stood when the ladder ended, which is what every goal
+     after it is measured from. Taken here rather than at the moment goalIdx
+     passes the end, because a village finished before this existed has no
+     mark at all -- it gets one the first time it ticks, from where it
+     actually is, rather than being asked to catch up with its own history. */
+  /* And cleared when it does not. The mark only means anything past the end
+     of the ladder, so a village short of it must not be carrying one: left
+     to persist it survived into a village it was never measured from, and
+     the save then carried a mark for a village that has no goals past the
+     ladder at all. Written as what it IS rather than as something set once
+     and never taken back. */
+  afterMark = villageFinished()
+    ? (afterMark || { ship: Math.round(shipped()), orders: ordersDone })
+    : null;
   const g2 = next;
   if (!g2 || !g2.done()) return;
   /* Bank what will actually fit and report THAT. Announcing the offered amount
@@ -2547,7 +2627,13 @@ function save() {
   } catch (e) {}
   try { localStorage.setItem(KEY, JSON.stringify({
     v: SAVE_V, res, placed, t: simNow(), rate: rateNow, seen: tutSeen, mute: muted, transit: inTransit(),
-    goal: goalIdx, land: landTier, orders, ordersDone, shared: sharedTotal }));
+    goal: goalIdx, land: landTier, orders, ordersDone, shared: sharedTotal,
+    /* Only when there is one. A village short of the ladder's end has no
+       mark, and writing the field as null put a field in the file that
+       cannot be missed when it goes -- which is precisely what the save
+       sweep tests every field for, and it would have reported the check
+       going blind rather than the field being empty. */
+    ...(afterMark ? { mark: afterMark } : {}) }));
     saveFailed = false; savedMs = Date.now();
   } catch (e) {
     /* Storage can be full, or blocked outright in a private window. Swallowing
@@ -2590,7 +2676,12 @@ function load() {
       pendingTransit[k] = Math.min(VILLAGER_MAX * CARRY, s.transit[k]);
   if (Array.isArray(s.seen)) tutSeen = s.seen.filter(x => typeof x === 'string');
   if (typeof s.mute === 'boolean') muted = s.mute;
-  if (Number.isFinite(s.goal)) goalIdx = Math.max(0, Math.min(GOALS.length, s.goal | 0));
+  /* Past the end of the ladder on purpose. This clamped to GOALS.length, which
+     was right while that was the last goal there was and is now a quiet reset:
+     every goal the player had earned past the ladder would be handed back on
+     the next reload, for ever, and the strip would start again from the first
+     shipping step each time they opened the app. */
+  if (Number.isFinite(s.goal)) goalIdx = Math.max(0, Math.min(GOALS.length + AFTER_MAX, s.goal | 0));
   if (Number.isFinite(s.land)) landTier = Math.max(0, Math.min(LAND_MAX, s.land | 0));
   if (Number.isFinite(s.ordersDone)) ordersDone = Math.max(0, s.ordersDone | 0);
   /* Not | 0: a tally that runs for hours passes the 32-bit range, and a wrapped
@@ -2599,6 +2690,16 @@ function load() {
   if (s.shared && typeof s.shared === 'object') for (const k of ['wood', 'food'])
     if (typeof s.shared[k] === 'number' && isFinite(s.shared[k]) && s.shared[k] >= 0)
       sharedTotal[k] = Math.min(1e15, s.shared[k]);
+  /* Cleared first. load() is not only called once at boot -- the harness calls
+     it, and so does the recovery path -- and a mark left over from the village
+     before this one would measure the new one's goals from the old one's
+     history. A save written before the mark existed correctly leaves it null,
+     and stepGoals takes a fresh one from wherever that village actually is. */
+  afterMark = null;
+  if (s.mark && typeof s.mark === 'object'
+      && Number.isFinite(s.mark.ship) && Number.isFinite(s.mark.orders))
+    afterMark = { ship: Math.max(0, Math.min(1e15, s.mark.ship)),
+                  orders: Math.max(0, s.mark.orders | 0) };
   if (Array.isArray(s.orders)) {
     orders = s.orders.filter(o => o && ['wood', 'food'].includes(o.giveK) && ['wood', 'food'].includes(o.getK)
       && Number.isFinite(o.giveN) && Number.isFinite(o.getN))
@@ -4529,7 +4630,11 @@ function drawGoal() {
     /* Nothing fitted at all, which the card has always said. Naming the
        figures as well would only repeat the reward the player can read in
        the goal strip behind it. */
-    const parts = !Object.keys(banked).length ? 'stores already full'
+    /* A goal past the ladder has nothing to bank and says what it was for
+       instead. Without this it would fall into the branch below and report
+       "stores already full", which is true and is not what happened. */
+    const parts = goalDone.g.after ? goalDone.g.praise
+      : !Object.keys(banked).length ? 'stores already full'
       : Object.entries(banked).map(([k, v]) => icon(k) + ' +' + v).join('   ')
         + (Object.keys(spilled).length
             ? '   ·   ' + Object.entries(spilled).map(([k, v]) => icon(k) + v).join(' ')
@@ -4553,30 +4658,21 @@ function drawGoal() {
   const gl = currentGoal();
   g.save();
   g.textAlign = 'center'; g.textBaseline = 'middle';
-  if (!gl) {
-    /* On a pill, like the goals it replaces.
-
-       Every goal the strip has ever shown sits on a dark pill. This one -- the
-       only thing it says for the rest of the game, once the village is finished
-       -- was bare text at 55% alpha painted straight onto the world: 0.132 of
-       luminance between open sea and the village, and unreadable over either if
-       the colour behind it happened to be pale. The third string in this game to
-       be drawn without a background, and the last one: the backing sweep now
-       visits the finished state on purpose rather than stumbling into it. */
-    const txt2 = 'Every goal done — the village is yours';
-    g.font = `bold ${Math.round(21 * u)}px Segoe UI, sans-serif`;
-    const w2 = Math.min(W - 40 * u, g.measureText(txt2).width + 56 * u);
-    const h2 = 46 * u;
-    g.fillStyle = 'rgba(16,26,14,.72)'; g.strokeStyle = 'rgba(255,255,255,.12)'; g.lineWidth = 2;
-    g.beginPath(); g.roundRect(W / 2 - w2 / 2, y - h2 / 2, w2, h2, h2 / 2); g.fill(); g.stroke();
-    g.fillStyle = '#b2c4a0';
-    g.fillText(txt2, W / 2, y);
-    g.restore(); return;
-  }
+  /* There is no longer a state where the strip has nothing to say. It used to
+     end on "Every goal done — the village is yours", once, for ever; the goals
+     past the ladder replaced it, and a line that cannot be reached is not kept
+     for sentiment. The completion CARD still marks the moment -- that is what
+     it is for, and it is shown once rather than every frame after. */
   /* Named as a reward. Bare, it read as a price: 'Build a storehouse · 🪵70'
      over a storehouse costing 🪵60 🌾20, 'Build a farm · 🪵30 🌾20' over a farm
      costing 🪵45 -- the same icons-and-numbers the tray uses for what things cost. */
-  const reward = 'reward ' + Object.entries(gl.give).map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join(' ');
+  /* Past the ladder there is no reward to name, so the clause names the
+     running total instead -- which is the number the goal is actually about,
+     and the only one in the game that never stops going up. Better than a
+     blank: the line would otherwise read "reward" with nothing after it. */
+  const reward = gl.after
+    ? 'shipped 🪵' + compact(sharedTotal.wood) + ' 🌾' + compact(sharedTotal.food)
+    : 'reward ' + Object.entries(gl.give).map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join(' ');
   /* How far along, for the goals that can count.
 
      "Raise every workplace to level 5" is thirty-one minutes and a hundred and
@@ -6264,7 +6360,9 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   collectAway, grantAway, landTransit, duration, saleCost, get actx() { return actx; }, potentialRate, expectedRate, currentHint, get away() { return away; }, set away(v) { away = v; },
   get hiddenAt() { return hiddenAt; }, set hiddenAt(v) { hiddenAt = v; },
   get hiddenSim() { return hiddenSim; }, set hiddenSim(v) { hiddenSim = v; }, AWAY_MIN, AWAY_MAX,
-  GOALS, currentGoal, buyProgress, get goalIdx() { return goalIdx; }, set goalIdx(v) { goalIdx = v; },
+  GOALS, currentGoal, buyProgress, FINISH_ID, currentHint, get goalIdx() { return goalIdx; }, set goalIdx(v) { goalIdx = v; },
+  afterGoal, shipped, AFTER_SHIP, AFTER_ORDERS, AFTER_MAX,
+  get afterMark() { return afterMark; }, set afterMark(v) { afterMark = v; },
   get orders() { return orders; }, set orders(v) { orders = v; },
   makeOrder, fillOrder, canFill, orderRects, orderSlotRects, nextTraderIn, seatOrders, freeStall, ORDER_EVERY, ORDER_SLOTS, orderSlots, orderEvery, marketCount, TRAY_ICON, TRAY_NAME, TRAY_ONE, TRAY_ROWS,
   get ordersDone() { return ordersDone; }, set ordersDone(v) { ordersDone = v; },
