@@ -591,6 +591,7 @@ async function walkSet(key) {
    foundations. */
 const STAGE_FLOOR = 0.004;            // coverage at which a row is ground, not a stray pixel
 const STAGE_BAND = 0.05;              // how much of the canvas counts as the footing
+const PLINTH_DRIFT = 1.5;             // a footing half the width of another is a different building
 
 function footOf(fr) {
   const { data, w, h, ch } = fr;
@@ -607,6 +608,40 @@ function footOf(fr) {
   for (let y = Math.max(0, bottom - band + 1); y <= bottom; y++)
     for (let x = 0; x < w; x++) if (on(x, y)) { if (x < lo) lo = x; if (x > hi) hi = x; }
   return { bottom, mid: hi >= lo ? Math.round((lo + hi) / 2) : (w >> 1), wide: hi >= lo ? hi - lo + 1 : 0 };
+}
+
+/* How much ground the building covers, in pixels across.
+
+   Not simply the widest row of the silhouette. In isometric art a row low
+   down can catch the far corner of one wall and the near corner of the other
+   with nothing but air between them, and come back half again as wide as
+   anything that is really standing there -- the finished beacon has exactly
+   such a row, 534px across where the building is 422. So a row only counts
+   towards the footing if it is mostly filled.
+
+   Over the bottom two fifths of the FIGURE, not of the canvas. The canvas
+   belongs to the whole set and is sized for the tallest stage, so the first
+   stage sits in the bottom quarter of it and a band measured off the canvas
+   would be reading the tower on one stage and the footing on another. */
+const PLINTH_BAND = 0.4;              // how far up the figure a footing may reach
+const PLINTH_SOLID = 0.5;             // a row of air with two corners in it is not a footing
+
+function plinthOf(fr) {
+  const { data, w, h, ch } = fr;
+  const span = [], fill = [];
+  for (let y = 0; y < h; y++) {
+    let lo = w, hi = -1, n = 0;
+    for (let x = 0; x < w; x++)
+      if (data[(y * w + x) * ch + 3] >= 8) { if (x < lo) lo = x; if (x > hi) hi = x; n++; }
+    span.push(hi >= lo ? hi - lo + 1 : 0); fill.push(n);
+  }
+  let y1 = h - 1; while (y1 >= 0 && !span[y1]) y1--;
+  if (y1 < 0) return 0;
+  let y0 = 0; while (y0 < y1 && !span[y0]) y0++;
+  let wide = 0;
+  for (let y = Math.max(y0, y1 - Math.round((y1 - y0 + 1) * PLINTH_BAND) + 1); y <= y1; y++)
+    if (fill[y] >= span[y] * PLINTH_SOLID && span[y] > wide) wide = span[y];
+  return wide;
 }
 
 async function stageSet(key) {
@@ -659,6 +694,36 @@ async function stageSet(key) {
     console.log(String(key + ' stages').padEnd(26),
       'WARNING: tallest stage is only ' + risen + 'px above the shortest, so it will not read as rising');
 
+  /* And does it cover the same ground at every stage?
+
+     It has to, and until this nothing would have noticed that it did not.
+     artRect pins a sprite's WIDTH to the plot diamond, and every stage in a
+     set comes out the same width, so a stage whose footing is drawn half as
+     wide is a stage drawn half as wide ON THE PLOT. The player watches the
+     tower go up and the ground underneath it shrink away.
+
+     The fit cannot repair it, which is why this reports rather than corrects.
+     Frames here are shifted and never scaled; scaling them to a common
+     footing is precisely the thing that would flatten the rise, and on the
+     first real set it did worse than that -- the lit lighthouse has a wider
+     stone apron than the unlit one, so matching the footings scaled the
+     finished building DOWN and the beacon got shorter at the moment it was
+     done. There is no measurement of five independently drawn pictures that
+     tells you whether a wider base is a different zoom or a different base.
+     A person looking at them knows at once. So: hand it to the person.
+
+     Half is the line. Stages of one building dress their base differently as
+     it goes up -- the beacon's last three sit within 1.2x of each other and
+     read as one tower -- but a footing half the width of another is a
+     different building, and the first two stages came back at 2.5x. */
+  const plinth = frames.map(plinthOf);
+  const fat = plinth.indexOf(Math.max(...plinth)), thin = plinth.indexOf(Math.min(...plinth));
+  const drift = plinth[thin] ? plinth[fat] / plinth[thin] : 0;
+  if (drift >= PLINTH_DRIFT)
+    console.log(String(key + ' stages').padEnd(26),
+      'WARNING: stage ' + (fat + 1) + ' stands on a footing ' + drift.toFixed(1)
+      + 'x the width of stage ' + (thin + 1) + ', so the building shrinks as it is built');
+
   let wrote = 0, bytes = 0, dim = '';
   for (let i = 0; i < frames.length; i++) {
     const fr = frames[i];
@@ -673,6 +738,9 @@ async function stageSet(key) {
   console.log(String(key + ' stages').padEnd(26),
     (wrote + ' stages on one foundation, moved up to ' + Math.round(shift * shrink) + 'px').padEnd(44),
     '-> ' + dim + '  ' + (bytes / 1024).toFixed(0) + ' KB total, rises ' + risen + 'px');
+  console.log(''.padEnd(26),
+    ('footings ' + plinth.map(p => Math.round(p * shrink)).join(' ') + ' px').padEnd(44),
+    'widest is ' + drift.toFixed(1) + 'x the narrowest');
   return wrote;
 }
 (async () => {
