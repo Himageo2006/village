@@ -2315,7 +2315,7 @@ ropes, workers, character figures, light beams, or any ground surface.
 
 ---
 
-## 27b — Stages 1 and 2, redrawn (what the delivered set got wrong)
+## 27b — Stages 1 and 2, redrawn  ✅ DONE
 
 The five images arrived and are in the game. Three to five are excellent and
 agree with one another. **One and two do not**: they were drawn as a close-up
@@ -2421,3 +2421,8 @@ surface.
 
 After dropping both in, run `node tools/prep-art.js beacon` and read the
 footing line. Under 1.5x and it stops warning.
+
+**Both were generated and are in the game.** The footings went from
+`799 765 382 320 420` (2.5x, warning) to `726 726 708 593 779` (1.3x, quiet),
+and the set now cuts to 800x1496 and rises 1022px where it managed 295px
+before. Nothing in group 27b is outstanding.

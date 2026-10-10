@@ -186,15 +186,33 @@ beacon stages   WARNING: stage 1 stands on a footing 2.5x the width of stage 4,
 ```
 
 It warns above 1.5x. Below that is normal -- stages dress their base
-differently as they go up, and the delivered beacon's last three sit within
-1.2x of one another. **The first two stages of the delivered set are drawn at
-roughly twice the zoom of the last three**, which is what the warning above is
-about: they show a broad stepped plinth that stages three to five do not have.
-Redrawing stages 1 and 2 on the narrow stepped skirt the tower actually uses
-would close it. Matching the footings in code was tried and is wrong -- the lit
-lighthouse has a wider stone apron than the unlit one, so normalising on the
-footing scaled the finished building DOWN and the beacon got shorter at the
-moment it was completed.
+differently as they go up. The delivered set first came back at **2.5x**: its
+first two stages were drawn as a close-up of a broad stepped plinth while
+three to five drew the whole tower on a narrow skirt, so the ground halved at
+the 2 to 3 step. Redrawing those two to the prompts in group 27b closed it, and
+the set now reads:
+
+```
+footings 726 726 708 593 779 px        widest is 1.3x the narrowest
+```
+
+Matching the footings in code was tried and is wrong -- the lit lighthouse has
+a wider stone apron than the unlit one, so normalising on the footing scaled
+the finished building DOWN and the beacon got shorter at the moment it was
+completed. It is an art fix, and the tool's job is to say so.
+
+**Litter decides how big a set is drawn, so the box ignores it.** keyOut stops
+its background flood at anything it cannot prove is background -- the building,
+and also every speck the generator painted into the empty air. Forty of
+forty-six sprites carry some; only art drawn small in a large empty frame has
+any that land OUTSIDE the figure, which is why the beacon was the first to show
+it. Stage five had two specks of sixteen pixels at the far edges of its canvas,
+and since `unionBox` was looking for the leftmost lit pixel, the set was cut to
+a box 800 wide around a lighthouse 482 wide and drawn at 60% of its plot.
+`bodyBox()` now takes the largest island and absorbs every island reaching into
+its box, so a loose corner block is kept and litter in the open air is not.
+Size cannot make that distinction -- the biggest speck here is 175px and the
+lumber camp has a real detached piece of 1948px.
 
 One more thing a stage set must not do: **outgrow the tray**. The beacon is an
 eighth kind in a build bar that divides a fixed 1024 between however many kinds
@@ -202,6 +220,11 @@ there are, so every other card lost 13% of its width the moment the art landed
 and the beacon's own four-digit price now sits three pixels from its card's
 border. It fits at every HUD scale the game allows, but there is no room left:
 a ninth kind, or a price that reaches five digits, will not fit.
+
+That margin is also why `contrastFrame` no longer samples beside a string to
+find what is behind it -- at three pixels of clearance it stepped off the card
+and measured the sea. It samples under the string instead, inside `fillText`,
+before the glyphs are painted.
 
 `prep-art.js` has a SEPARATE path for a stage set, and the difference from the
 walk path is the whole point of it. A walk cycle is fitted by silhouette so
