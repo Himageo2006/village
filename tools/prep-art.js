@@ -429,16 +429,84 @@ async function placeOnShared(raws, place) {
   return out;
 }
 
-/* The union box. A pixel counts as part of the figure at the same threshold
-   sharp\'s own trim uses, so a soft rim is not mistaken for air. */
+/* The figure, as against whatever the keyer left lying around it.
+
+   keyOut floods the background in from the edges and stops wherever it meets
+   something it cannot prove is background. Mostly that is the building. It is
+   also every speck the generator painted into the empty air -- a stray block,
+   a scrap of rim light, a square of checkerboard that came out the wrong
+   colour -- and those survive, fully opaque, a long way from the thing they
+   belong to.
+
+   Nobody ever saw them. Twenty pixels in a three million pixel frame, and
+   fainter still once the set has been scaled down. The BOX saw them. The
+   beacon stage five had specks at the far left and the far right of its
+   canvas, so the box the whole set gets cut to came out 800 wide around a
+   lighthouse 482 wide -- and artRect fits a building to its plot by WIDTH, so
+   that is a lighthouse drawn at sixty per cent of its plot with the rest air.
+   Stage one had one high above the foundation, and reported a figure 1030
+   pixels tall where the stonework is 378.
+
+   Size cannot tell a speck from art, and it is worth saying why, because size
+   is the obvious rule: the largest speck in that first stage is 175 pixels and
+   the lumber camp has a genuine detached piece of 1948. Any threshold between
+   those two is a threshold picked to suit two particular drawings.
+
+   POSITION tells them apart. A building is one big island, and a piece of it
+   that happens to be drawn as a separate island -- a loose block at a corner,
+   a shutter, a sign -- still sits within the building own bounds. Empty air
+   does not. So: take the largest island, absorb every island that reaches into
+   its box, and repeat until none do. What is still outside is not the
+   building.
+
+   A pixel joins an island at the same threshold sharp uses for its own trim,
+   so a soft rim is not mistaken for air. */
+function bodyBox(fr) {
+  const { data, w, h, ch } = fr;
+  const on = i => data[i * ch + 3] >= 8;
+  const seen = new Uint8Array(w * h), isles = [];
+  for (let seed = 0; seed < w * h; seed++) {
+    if (seen[seed] || !on(seed)) continue;
+    const stack = [seed]; seen[seed] = 1;
+    let n = 0, x0 = w, y0 = h, x1 = -1, y1 = -1;
+    while (stack.length) {
+      const i = stack.pop(); n++;
+      const x = i % w, y = (i / w) | 0;
+      if (x < x0) x0 = x; if (x > x1) x1 = x;
+      if (y < y0) y0 = y; if (y > y1) y1 = y;
+      if (x > 0 && !seen[i - 1] && on(i - 1)) { seen[i - 1] = 1; stack.push(i - 1); }
+      if (x < w - 1 && !seen[i + 1] && on(i + 1)) { seen[i + 1] = 1; stack.push(i + 1); }
+      if (y > 0 && !seen[i - w] && on(i - w)) { seen[i - w] = 1; stack.push(i - w); }
+      if (y < h - 1 && !seen[i + w] && on(i + w)) { seen[i + w] = 1; stack.push(i + w); }
+    }
+    isles.push({ n, x0, y0, x1, y1 });
+  }
+  if (!isles.length) return null;
+  let big = isles[0];
+  for (const c of isles) if (c.n > big.n) big = c;
+  const box = { x0: big.x0, y0: big.y0, x1: big.x1, y1: big.y1 };
+  const taken = new Set([big]);
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const c of isles) {
+      if (taken.has(c)) continue;
+      if (c.x1 < box.x0 || c.x0 > box.x1 || c.y1 < box.y0 || c.y0 > box.y1) continue;
+      taken.add(c); grew = true;
+      if (c.x0 < box.x0) box.x0 = c.x0; if (c.x1 > box.x1) box.x1 = c.x1;
+      if (c.y0 < box.y0) box.y0 = c.y0; if (c.y1 > box.y1) box.y1 = c.y1;
+    }
+  }
+  return box;
+}
+
+/* The box that holds every frame figure, and nothing else. */
 function unionBox(frames) {
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   for (const fr of frames) {
-    for (let y = 0; y < fr.h; y++) for (let x = 0; x < fr.w; x++) {
-      if (fr.data[(y * fr.w + x) * fr.ch + 3] < 8) continue;
-      if (x < x0) x0 = x; if (x > x1) x1 = x;
-      if (y < y0) y0 = y; if (y > y1) y1 = y;
-    }
+    const b = bodyBox(fr);
+    if (!b) continue;
+    if (b.x0 < x0) x0 = b.x0; if (b.x1 > x1) x1 = b.x1;
+    if (b.y0 < y0) y0 = b.y0; if (b.y1 > y1) y1 = b.y1;
   }
   return isFinite(x0) ? { x0, y0, x1, y1, bw: x1 - x0 + 1, bh: y1 - y0 + 1 } : null;
 }
@@ -674,11 +742,10 @@ async function stageSet(key) {
   /* How much taller the set gets, which is the thing it exists to do. Said
      out loud because a set whose stages are all the same height is a set that
      will look like nothing is happening, and nothing else would report it. */
-  const tops = frames.map(fr => {
-    for (let y = 0; y < fr.h; y++) for (let x = 0; x < fr.w; x++)
-      if (fr.data[(y * fr.w + x) * fr.ch + 3] >= 8) return y;
-    return fr.h;
-  });
+  /* Off the figure, not off the topmost lit pixel. One speck left in the air
+     above a short stage makes the whole set look as though it barely rose:
+     the beacon reported 438px where its stonework climbs 806. */
+  const tops = frames.map(fr => { const b = bodyBox(fr); return b ? b.y0 : fr.h; });
   /* Measured on the shared canvas and then put into the units of the files
      that actually get written, which are not the same thing. The set is cut
      to one box and that box is capped on its width, so everything in it is
