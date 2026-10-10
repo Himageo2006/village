@@ -2312,3 +2312,112 @@ as every earlier stage. Total height about three and a half times a cottage.
 DO NOT INCLUDE: text, labels, watermarks, UI, borders, scaffolding, cranes,
 ropes, workers, character figures, light beams, or any ground surface.
 ```
+
+---
+
+## 27b — Stages 1 and 2, redrawn (what the delivered set got wrong)
+
+The five images arrived and are in the game. Three to five are excellent and
+agree with one another. **One and two do not**: they were drawn as a close-up
+of a broad stepped plinth filling a landscape frame, and three to five draw
+the whole tower standing on a narrow stepped skirt. Measured footings, in the
+set's own output pixels:
+
+```
+stage      1     2     3     4     5
+footing  799   765   382   320   420   px
+```
+
+Two and a half to one. `artRect` pins a building's sprite width to its plot,
+so that is the ground under the lighthouse halving at the 2→3 step while the
+tower goes up. `prep-art.js` warns about it now but cannot repair it: the fit
+shifts frames and never scales them, and matching the footings in code was
+tried and is worse — the lit lighthouse has a wider apron than the unlit one,
+so normalising shrank the FINISHED building and the beacon got shorter at the
+moment it was completed.
+
+So it is an art fix, and only for the first two. The thing to change is the
+subject, not the framing: **there is no broad plinth.** The tower stands on a
+low stepped skirt barely wider than itself, with a few loose blocks at the
+corners — the base stages 3, 4 and 5 already draw. Generate these two and drop
+them in over the existing `beacon_stage1.png` / `beacon_stage2.png`; the other
+three stay as they are.
+
+### 27b.1 → `art/beacon_stage1.png`
+
+```
+The stone footing of a coastal lighthouse under construction, as a game asset
+sprite. Same art style, same camera angle and same lighting as the cottage
+image.
+
+CAMERA: strict 2:1 isometric projection, viewed from a corner at 30 degrees
+above the horizon. No top-down view, no straight-on elevation.
+
+PLAN: SQUARE in plan. A low square stone skirt, only slightly wider than the
+tower that will stand on it -- NOT a broad platform or plinth.
+
+SUBJECT: a freshly laid foundation of pale grey quarried blocks, squared off,
+two courses high, with a low round stub of wall rising from its centre no
+taller than the skirt itself. A few loose blocks at the corners. Weathered
+mortar between the stones. No roof, no door yet, no people.
+
+STYLE: stylised low-poly mobile strategy game art, in the vein of Clash of
+Clans or Rise of Kingdoms. Clean readable silhouette, chunky simplified
+forms, warm saturated colours, soft hand-painted shading. No photorealism.
+
+LIGHTING: single key light from the upper LEFT. Left-facing surfaces are lit;
+right-facing surfaces fall into soft shadow.
+
+BACKGROUND: fully transparent. No ground, no grass, no rocks, no sea, no
+baseplate, no drop shadow, no cast shadow.
+
+FRAMING: a TALL PORTRAIT frame. The footing sits at the bottom, small,
+occupying about one third of the frame's width, with the upper two thirds of
+the frame empty -- this is the first of five images of a lighthouse that will
+grow to fill that space, and it must be drawn at the same distance as the
+others. Leave a clear margin below it; do not let it touch the bottom edge.
+
+DO NOT INCLUDE: text, labels, watermarks, UI, borders, scaffolding, cranes,
+ropes, workers, character figures, a wide platform or plinth, or any ground
+surface.
+```
+
+### 27b.2 → `art/beacon_stage2.png`
+
+```
+A coastal lighthouse part-built, as a game asset sprite. Same art style, same
+camera angle and same lighting as the cottage image.
+
+CAMERA: strict 2:1 isometric projection, viewed from a corner at 30 degrees
+above the horizon.
+
+PLAN: SQUARE in plan, on the SAME low square stone skirt as stage 1 -- barely
+wider than the tower, NOT a broad platform.
+
+SUBJECT: the same pale grey stone footing, now carrying a stubby tower about
+waist height -- rough coursed stone, slightly tapered, with a simple arched
+wooden door facing the viewer and an iron ring handle. A few loose blocks at
+the corners. The top is open and unfinished, the last course uneven. No roof,
+no windows, no people.
+
+STYLE: stylised low-poly mobile strategy game art, in the vein of Clash of
+Clans or Rise of Kingdoms. Clean readable silhouette, chunky simplified
+forms, warm saturated colours, soft hand-painted shading.
+
+LIGHTING: single key light from the upper LEFT.
+
+BACKGROUND: fully transparent. No ground, no sea, no baseplate, no shadow.
+
+FRAMING: a TALL PORTRAIT frame, the same distance as stage 1 -- the footing
+the same width in the frame, about one third of it, with most of the frame
+above still empty. The building is about half again the height of stage 1.
+Only the top has grown. Leave a clear margin below it; do not let it touch
+the bottom edge.
+
+DO NOT INCLUDE: text, labels, watermarks, UI, borders, scaffolding, cranes,
+ropes, workers, character figures, a wide platform or plinth, or any ground
+surface.
+```
+
+After dropping both in, run `node tools/prep-art.js beacon` and read the
+footing line. Under 1.5x and it stops warning.

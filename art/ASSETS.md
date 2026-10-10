@@ -171,6 +171,38 @@ beacon is not offered in the tray at all. Three rules beyond the usual --
 the top growing -- or the tower jumps sideways each time it finishes a stage.
 Prompts are group 27 in PROMPTS.md.
 
+Two of those three the pipeline now enforces for you. Place in the frame and
+the base line are *fitted*: the first real set arrived with its bases scattered
+and came out registered to the pixel. **Footprint is not**, and cannot be. The
+fit shifts frames and never scales them, because scaling a set to one size is
+exactly what would flatten the rise -- so if the stages are drawn at different
+zooms, the building changes size as it is built and only the artist can fix it.
+The tool measures it and says so:
+
+```
+beacon stages   WARNING: stage 1 stands on a footing 2.5x the width of stage 4,
+                so the building shrinks as it is built
+                footings 799 765 382 320 420 px        widest is 2.5x the narrowest
+```
+
+It warns above 1.5x. Below that is normal -- stages dress their base
+differently as they go up, and the delivered beacon's last three sit within
+1.2x of one another. **The first two stages of the delivered set are drawn at
+roughly twice the zoom of the last three**, which is what the warning above is
+about: they show a broad stepped plinth that stages three to five do not have.
+Redrawing stages 1 and 2 on the narrow stepped skirt the tower actually uses
+would close it. Matching the footings in code was tried and is wrong -- the lit
+lighthouse has a wider stone apron than the unlit one, so normalising on the
+footing scaled the finished building DOWN and the beacon got shorter at the
+moment it was completed.
+
+One more thing a stage set must not do: **outgrow the tray**. The beacon is an
+eighth kind in a build bar that divides a fixed 1024 between however many kinds
+there are, so every other card lost 13% of its width the moment the art landed
+and the beacon's own four-digit price now sits three pixels from its card's
+border. It fits at every HUD scale the game allows, but there is no room left:
+a ninth kind, or a price that reaches five digits, will not fit.
+
 `prep-art.js` has a SEPARATE path for a stage set, and the difference from the
 walk path is the whole point of it. A walk cycle is fitted by silhouette so
 every frame comes out the same size; a stage set must NOT be, because a tower
