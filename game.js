@@ -2506,7 +2506,27 @@ function sellBuilding(p) {
    an ornament that was no longer there. Nothing called it. */
 
 /* ---------- save ---------- */
-const KEY = 'vil_save';
+/* Where the village is written down.
+
+   A let rather than a const, and that is not an accident of style -- it is
+   the only thing standing between the test harness and the player's village.
+
+   The harness drives a real, running game: it empties the island, drops fifty
+   buildings on it, clamps the stores to twenty and steps the clock, all inside
+   the same page the player left open. Meanwhile this game autosaves every five
+   seconds off whatever is in memory, and the first autosave after a load
+   promotes the primary to the backup. So a sweep would restore the file it had
+   carefully copied aside, and three seconds later the game wrote its scratch
+   village straight back over it, and over the one copy that could have rescued
+   it. Twice, measured, on a finished village that took hours to build.
+
+   Restoring afterwards is the wrong shape of fix, because it is a race the
+   game can always win. Pointing the game at somewhere else entirely is not a
+   race at all: while the harness holds these, every save in the game -- the
+   autosave, the one after a goal, the ones the save sweep makes on purpose --
+   lands on a key nobody reads. The player's file is not protected, it is
+   unreachable. */
+let KEY = 'vil_save';
 /* A second, older copy of the save.
 
    A village is hours of work held in one string. If that string is truncated by
@@ -2515,10 +2535,16 @@ const KEY = 'vil_save';
    explanation and no way back. The backup lags by roughly a minute and was
    itself a primary that loaded cleanly, so falling back to it costs a minute
    rather than everything. */
-const KEY_BAK = 'vil_save_bak';
+let KEY_BAK = 'vil_save_bak';
 const BACKUP_EVERY = 12;              // saves between backups; saves are ~5s apart
 let saveN = 0, saveFailed = false, loadedFromBackup = false;
 const SAVE_V = 4;      // 2: house 2x1. 3: hall and jobs. 4: every building levels
+/* Send every save somewhere else, and back again. All three together, because
+   a run with the primary moved and the backup left behind would promote the
+   scratch village into the player's backup on the very first autosave -- the
+   same hole in a smaller frame. */
+function setSaveKeys(k, b, o) { KEY = k; KEY_BAK = b; KEY_OTHER = o; }
+const SAVE_KEYS = { key: 'vil_save', bak: 'vil_save_bak', other: 'vil_save_other' };
 /* Whether a string in storage is a save this game would actually load. load()
    has always asked it of what it reads; save() did not ask it of what it
    PROMOTES, which is the other half of the same question and the half the
@@ -2544,7 +2570,7 @@ const usableSave = x => !!x && typeof x === 'object' && x.v === SAVE_V && Array.
    own key, once, and the player is told it is there. That is not a
    migration and does not pretend to be one; it is the difference between a
    village that can be brought back by a later build and one that cannot. */
-const KEY_OTHER = 'vil_save_other';
+let KEY_OTHER = 'vil_save_other';
 let otherBuild = 0;                   // the version of a save this build cannot read
 const isVillage = x => !!x && typeof x === 'object' && Array.isArray(x.placed);
 function setAside(raw2, v) {
@@ -6369,7 +6395,12 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   get orderT() { return orderT; }, set orderT(v) { orderT = v; },
   get goalDone() { return goalDone; }, set goalDone(v) { goalDone = v; },
   SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; },
-  KEY, KEY_BAK, KEY_OTHER, BACKUP_EVERY, SAVE_V, usableSave, readSave,
+  /* Read through getters. Captured by value these went stale the moment the
+     harness moved them, and a sweep would have cleaned up the key the game
+     was no longer using. */
+  get KEY() { return KEY; }, get KEY_BAK() { return KEY_BAK; }, get KEY_OTHER() { return KEY_OTHER; },
+  setSaveKeys, SAVE_KEYS,
+  BACKUP_EVERY, SAVE_V, usableSave, readSave,
   get otherBuild() { return otherBuild; }, set otherBuild(v) { otherBuild = v; },
   get saveFailed() { return saveFailed; }, set saveFailed(v) { saveFailed = v; },
   get loadedFromBackup() { return loadedFromBackup; }, set loadedFromBackup(v) { loadedFromBackup = v; },

@@ -7222,9 +7222,15 @@
       V.orders.push(old, { ...V.makeOrder(0), slot: 1 }, { ...V.makeOrder(1), slot: 2 });
       V.save();
       try {
-        const raw = JSON.parse(localStorage.getItem('vil_save'));
+        /* V.KEY, not the name of it. Spelled out, this wrote the legacy board
+           straight into the PLAYER'S primary save -- past every guard this
+           file has ever had, because a guard that moves the keys cannot move a
+           string. Found by the guard that watches the real keys, on its first
+           run against a real battery, which is the best argument for it there
+           is. */
+        const raw = JSON.parse(localStorage.getItem(V.KEY));
         for (const o of raw.orders || []) delete o.tier;
-        localStorage.setItem('vil_save', JSON.stringify(raw));
+        localStorage.setItem(V.KEY, JSON.stringify(raw));
         V.load(); V.landTransit();
       } catch (e) { fails.push('the legacy-board check could not write a save: ' + (e && e.message)); }
       V.barMode = 'orders';
@@ -10013,70 +10019,25 @@
         || r.cropped || r.mismatched || r.conflicts || r.unplayable || r.diffs || 0;
       return n || 0;
     };
-    /* The player's village is not the harness's to spend.
+    /* No guard here any more, and that is the fix rather than a removal.
 
-       Every sweep that disturbs the save already puts it back -- each one
-       takes a copy of KEY on the way in and writes it out again on the way
-       out, and has for a long time. It is not enough, and the reason is that
-       the harness is not the only thing writing.
+       This used to hold the three save keys across the run and put them back
+       in a finally. It worked, and it was the wrong shape: restoring after
+       the fact is a race against an autosave that fires every five seconds,
+       and it only ever covered the BATTERY. Running one sweep on its own --
+       which is what mutation testing is -- had no guard at all, and destroyed
+       a finished village twice.
 
-       The GAME is still running underneath all of this. Its autosave fires
-       every five seconds off whatever is in memory, and what is in memory
-       during a battery is a scratch village with fifty buildings dropped on
-       it, resources clamped to twenty, and the odd test constant. So a sweep
-       restores the file, and three seconds later the game writes its scratch
-       state straight back over it. Worse, the FIRST autosave after a page
-       load promotes the primary to the backup, so the one copy that could
-       have rescued the village is overwritten too.
-
-       Found the hard way, on a finished village: two batteries and the
-       player's trades-filled had gone from 34 to 42 and their shared tally
-       had been replaced by a constant out of this file. The layout survived
-       because no sweep rearranges it. Nothing warned, and nothing could
-       have: every individual sweep did exactly what it promised.
-
-       So the battery holds all three save keys itself, across the whole run,
-       and puts them back at the end -- and then LOADS them, because leaving
-       the scratch village in memory means the next autosave undoes the
-       restore five seconds later. Restoring the file without restoring the
-       game is restoring nothing. */
-    const SAVE_KEYS = [V.KEY, V.KEY_BAK, V.KEY_OTHER];
-    const held = SAVE_KEYS.map(k => { try { return localStorage.getItem(k); } catch (e) { return null; } });
-
+       Every checker in this file is now wrapped at the bottom of it, and the
+       wrapper moves the game's save keys somewhere else for the duration
+       instead of copying files about. See there. */
     const detail = {}, failed = [];
-    let saveGuard = 'not reached';
-    try {
-      for (const [name, fn] of jobs) {
-        try { detail[name] = await fn(); } catch (e) { detail[name] = 'THREW ' + (e && e.message); }
-        const bad = complaints(detail[name]);
-        if (bad) failed.push(name + ': ' + (typeof bad === 'string' ? bad : bad));
-        await new Promise(r => setTimeout(r, 20));
-      }
-    } finally {
-      /* In a finally, because a sweep that throws is exactly when the village
-         is most likely to be left in pieces. */
-      try {
-        for (let i = 0; i < SAVE_KEYS.length; i++) {
-          if (held[i] === null) localStorage.removeItem(SAVE_KEYS[i]);
-          else localStorage.setItem(SAVE_KEYS[i], held[i]);
-        }
-        /* Checked before the village is loaded rather than after, so that what
-           is being proved is that the restore landed -- and not merely that
-           the game then saved something over it that happens to match. */
-        const back = SAVE_KEYS.map(k => { try { return localStorage.getItem(k); } catch (e) { return null; } });
-        const off = SAVE_KEYS.filter((k, i) => back[i] !== held[i]);
-        if (off.length) {
-          saveGuard = 'FAILED';
-          failed.push('the player\'s save was not put back after the battery: ' + off.join(', ')
-            + ' -- their village is now whatever the sweeps left behind');
-        } else saveGuard = 'restored';
-        V.load();              // and back into memory, or the next autosave undoes it
-      } catch (e) {
-        saveGuard = 'THREW';
-        failed.push('the player\'s save could not be put back after the battery: ' + (e && e.message));
-      }
-    }
-    /* Every checker in the harness is in the list above. The game itself has a
+    for (const [name, fn] of jobs) {
+      try { detail[name] = await fn(); } catch (e) { detail[name] = 'THREW ' + (e && e.message); }
+      const bad = complaints(detail[name]);
+      if (bad) failed.push(name + ': ' + (typeof bad === 'string' ? bad : bad));
+      await new Promise(r => setTimeout(r, 20));
+    }    /* Every checker in the harness is in the list above. The game itself has a
        top-level ptrSweep() -- stale pointer records, nothing to do with
        testing -- and script-level function declarations land on window, so it
        is named here rather than silently matched away. Anything else ending in
@@ -10094,7 +10055,134 @@
       && typeof window[k + 'Sweep'] !== 'function');
     if (missing.length) failed.push('listed but gone: ' + missing.join(', '));
     return { ran: jobs.length, failed, arc: detail.arc && detail.arc.goals,
-      fuzzRounds: rounds * 2, saveGuard, detail };
+      fuzzRounds: rounds * 2, detail };
   };
   console.log('textSweep ready: window.textSweep(), window.contrastSweep(), window.backingSweep(), window.saveSweep(), window.allSweeps(), window.paintSweep(), window.soundSweep(), window.unitSweep(), window.reachSweep(), window.scaffoldSweep(), window.handoverSweep(), window.promiseSweep()');
+})();
+
+/* ---------- the player's village is not the harness's to spend ----------
+
+   Every sweep that disturbs the save already copies it aside and writes it
+   back. That was never enough, and it took two destroyed villages to see why.
+
+   The GAME is still running underneath all of this. It autosaves every five
+   seconds off whatever is in memory, and what is in memory during a sweep is
+   a scratch village with fifty buildings dropped on it and its stores clamped
+   to twenty. So a sweep restores the file, and three seconds later the game
+   writes its scratch village straight back over it. Worse, the first autosave
+   after a page load promotes the primary to the backup, so the one copy that
+   could have rescued the village goes the same way inside five seconds.
+
+   The battery grew a guard for this: hold the three keys, put them back in a
+   finally. It worked and it was still the wrong shape, for two reasons. It is
+   a RACE -- the guard restores at the end and the autosave fires throughout,
+   so a page killed mid-run still loses everything. And it covered the battery
+   only: calling one sweep from the console, which is exactly what mutation
+   testing is, had no guard at all. A finished village was destroyed that way
+   the day after the first guard shipped.
+
+   So the game is pointed somewhere else instead. While a checker runs, KEY,
+   KEY_BAK and KEY_OTHER name throwaway keys, and every save in the game --
+   the autosave, the one after a goal, the ones the save sweep makes on
+   purpose -- lands on a file nobody reads. The player's village is not
+   protected from the writes, it is out of their reach. A page killed halfway
+   through now loses nothing at all, because nothing was ever going to be
+   written over in the first place.
+
+   All three keys together. Moving the primary and leaving the backup behind
+   would promote the scratch village into the player's backup on the very
+   first autosave, which is the same hole in a smaller frame.
+
+   Wrapped here, at the end of the file, rather than inside each checker:
+   every one of them is covered including the ones nobody has written yet,
+   which is the same reason the walk-cycle rule is named off the key rather
+   than off a list kept by hand. */
+(function () {
+  const V = window.__v;
+  if (!V || !V.setSaveKeys || window.__held) return;
+  window.__held = true;
+
+  const SCRATCH = { key: 'vil_test', bak: 'vil_test_bak', other: 'vil_test_other' };
+  const real = () => [V.SAVE_KEYS.key, V.SAVE_KEYS.bak, V.SAVE_KEYS.other];
+  const readAll = () => real().map(k => { try { return localStorage.getItem(k); } catch (e) { return null; } });
+  let depth = 0, heldBytes = null;
+
+  function hold() {
+    if (depth++) return;
+    /* Written down first. What is in memory is the player's village and it
+       may be ahead of the file by up to five seconds -- and for a player who
+       has never saved, there is no file at all, so the restore at the end
+       would have nothing to put back and would leave the scratch village in
+       place. Their own village, through their own save path, at a moment when
+       it is still theirs. */
+    try { V.save(); } catch (e) {}
+    /* All three, not just the primary. The comment above promises that moving
+       the primary alone would let the first autosave promote the scratch
+       village into the player's BACKUP -- and a check that watches only the
+       primary cannot see that happen, which would have made this the second
+       guard in a row to be weaker than its own description. */
+    heldBytes = readAll();
+    V.setSaveKeys(SCRATCH.key, SCRATCH.bak, SCRATCH.other);
+  }
+
+  /* Hands back a complaint, or null. */
+  function release() {
+    if (depth > 0) depth--;
+    if (depth) return null;
+    V.setSaveKeys(V.SAVE_KEYS.key, V.SAVE_KEYS.bak, V.SAVE_KEYS.other);
+    /* Asked BEFORE the village is loaded back, so that what is proved is that
+       nothing reached the real keys while the harness held them -- and not
+       that the game afterwards happened to write something over them that
+       matches. */
+    const now = readAll();
+    const touched = real().filter((k, i) => now[i] !== heldBytes[i]);
+    const strayed = touched.length
+      ? 'something wrote to ' + touched.join(', ') + ' while the harness was running,'
+        + ' so the keys are not being held and the player\'s village is whatever the'
+        + ' sweeps left behind'
+      : null;
+    try { V.load(); } catch (e) {}
+    for (const k of [SCRATCH.key, SCRATCH.bak, SCRATCH.other]) {
+      try { localStorage.removeItem(k); } catch (e) {}
+    }
+    return strayed;
+  }
+
+  const finish = r => {
+    const msg = release();
+    if (r && typeof r === 'object') {
+      r.saveGuard = msg ? 'FAILED' : 'held';
+      /* Reported where it will be counted. allSweeps reads r.failed of its own
+         result and r.fails of every checker's, and a guard that fails quietly
+         is the one thing this must never be. */
+      if (msg) {
+        if (Array.isArray(r.failed)) r.failed.push(msg);
+        else if (Array.isArray(r.fails)) r.fails.push(msg);
+      }
+    }
+    return r;
+  };
+
+  /* ptrSweep is the game's own -- stale pointer records, nothing to do with
+     testing -- and script-level declarations land on window, so it is named
+     here rather than silently matched away. */
+  const NOT_OURS = new Set(['ptrSweep']);
+  const mine = k => typeof window[k] === 'function'
+    && (k === 'fuzz' || k === 'allSweeps' || (k.slice(-5) === 'Sweep' && !NOT_OURS.has(k)));
+
+  let wrapped = 0;
+  for (const name of Object.keys(window)) {
+    if (!mine(name)) continue;
+    const inner = window[name];
+    window[name] = function (...a) {
+      hold();
+      let out;
+      try { out = inner.apply(this, a); } catch (e) { release(); throw e; }
+      if (out && typeof out.then === 'function')
+        return out.then(finish, e => { release(); throw e; });
+      return finish(out);
+    };
+    wrapped++;
+  }
+  console.log('save guard: ' + wrapped + ' checkers run on throwaway keys; the village is out of reach');
 })();
