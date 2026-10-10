@@ -2426,3 +2426,177 @@ footing line. Under 1.5x and it stops warning.
 `799 765 382 320 420` (2.5x, warning) to `726 726 708 593 779` (1.3x, quiet),
 and the set now cuts to 800x1496 and rises 1022px where it managed 295px
 before. Nothing in group 27b is outstanding.
+
+---
+---
+
+# 28 — What was already on the island → `art/find_stones.png` … `find_wreck.png`
+
+Claiming a ring of land is the best moment this game has, and until now it
+revealed grass. Each of the four rings now has something on it that was there
+before the village was — standing stones, an orchard gone feral, the cottage of
+whoever tried this island first, and their boat.
+
+They are **found, not bought.** No cost, not in the tray, not rationed, cannot
+be sold. You cannot decide to have one; you can only go and look.
+
+**Until the art exists they are not placed at all.** The game checks for the
+picture before putting a landmark down, so right now the feature is dormant and
+nothing is broken — the same rule the beacon uses. Drop the four PNGs in and
+every ring you have already claimed gets its landmark the next time the game
+opens, put where it should always have been.
+
+Four images, one per ring. They are **2×2 plots**, the same footprint as a farm
+or a storehouse, so they should read at that size. All four share the cottage's
+camera and lighting.
+
+After generating them, drop all four into `art/` and run:
+
+```bash
+cd "D:\Claude ai\Remotion\village"; node tools/prep-art.js
+```
+
+### 28.1 → `art/find_stones.png`  (ring 1 — *The Old Stones*, 20 charm)
+
+```
+A ring of ancient standing stones on grass, as a game asset sprite. Same art
+style, same camera angle and same lighting as the cottage image.
+
+CAMERA: strict 2:1 isometric projection, viewed from a corner at 30 degrees
+above the horizon. No top-down view, no straight-on elevation.
+
+PLAN: SQUARE in plan, filling a square plot about twice the width of a
+cottage.
+
+SUBJECT: five rough grey standing stones set in a circle, the tallest about
+the height of a man, leaning at slightly different angles. Weathered, pitted,
+patched with pale green and yellow lichen. Tufts of long grass at their bases.
+Much older than anything else in the village. No carvings, no runes, no
+markings of any kind. No people.
+
+STYLE: stylised low-poly mobile strategy game art, in the vein of Clash of
+Clans or Rise of Kingdoms. Clean readable silhouette, chunky simplified forms,
+warm saturated colours, soft hand-painted shading. No photorealism.
+
+LIGHTING: single key light from the upper LEFT. Left-facing surfaces are lit;
+right-facing surfaces fall into soft shadow.
+
+BACKGROUND: fully transparent. No ground plane, no grass field, no baseplate,
+no drop shadow, no cast shadow -- only the stones and the small tufts at their
+feet.
+
+FRAMING: centred, the whole group filling the frame with a small clear margin
+all round. Do not let it touch any edge.
+
+DO NOT INCLUDE: text, labels, watermarks, UI, borders, people, animals,
+buildings, fences, paths, or any ground surface.
+```
+
+### 28.2 → `art/find_orchard.png`  (ring 2 — *The Wild Orchard*, 30 charm)
+
+```
+A small overgrown orchard of old fruit trees, as a game asset sprite. Same art
+style, same camera angle and same lighting as the cottage image.
+
+CAMERA: strict 2:1 isometric projection, viewed from a corner at 30 degrees
+above the horizon.
+
+PLAN: SQUARE in plan, filling a square plot about twice the width of a
+cottage.
+
+SUBJECT: six or seven old apple trees still standing in the rows somebody
+planted them in, now gone wild -- gnarled trunks, uneven crowns, branches
+crossing into one another. A scatter of small red fruit in the leaves and a
+few fallen in the long grass between them. One tree leaning badly. Nettles and
+tall weeds have taken the rows. Abandoned, not tended. No people.
+
+STYLE: stylised low-poly mobile strategy game art, in the vein of Clash of
+Clans or Rise of Kingdoms. Clean readable silhouette, chunky simplified forms,
+warm saturated colours, soft hand-painted shading.
+
+LIGHTING: single key light from the upper LEFT.
+
+BACKGROUND: fully transparent. No ground plane, no grass field, no baseplate,
+no drop shadow.
+
+FRAMING: centred, the whole group filling the frame with a small clear margin
+all round. Keep the trees SHORT enough to read as an orchard on a plot rather
+than as forest -- about twice the height of a cottage door, not forest-tall.
+
+DO NOT INCLUDE: text, labels, watermarks, UI, borders, people, animals,
+fences, walls, buildings, paths, or any ground surface.
+```
+
+### 28.3 → `art/find_ruin.png`  (ring 3 — *The Old Cottage*, 45 charm)
+
+```
+The ruin of a small stone cottage, as a game asset sprite. Same art style,
+same camera angle and same lighting as the cottage image.
+
+CAMERA: strict 2:1 isometric projection, viewed from a corner at 30 degrees
+above the horizon.
+
+PLAN: SQUARE in plan, filling a square plot about twice the width of a
+cottage.
+
+SUBJECT: a roofless cottage of pale grey stone, walls standing to about
+shoulder height on three sides and crumbled low on the fourth. An empty
+doorway with no door, one empty window opening. A stone chimney breast still
+standing at one gable, taller than the walls, with a cold dark hearth at its
+foot. Fallen stones heaped where the walls gave way. Ivy up one corner, grass
+and small shrubs growing inside the walls. Long abandoned. No people.
+
+STYLE: stylised low-poly mobile strategy game art, in the vein of Clash of
+Clans or Rise of Kingdoms. Clean readable silhouette, chunky simplified forms,
+warm saturated colours, soft hand-painted shading.
+
+LIGHTING: single key light from the upper LEFT.
+
+BACKGROUND: fully transparent. No ground plane, no grass field, no baseplate,
+no drop shadow.
+
+FRAMING: centred, filling the frame with a small clear margin all round. It
+must read clearly as a RUIN and not as a building under construction -- no
+scaffolding, no neat stacks of cut stone, no timber frame, no tools.
+
+DO NOT INCLUDE: text, labels, watermarks, UI, borders, people, animals,
+scaffolding, cranes, ropes, tools, a roof of any kind, or any ground surface.
+```
+
+### 28.4 → `art/find_wreck.png`  (ring 4 — *The Old Wreck*, 60 charm)
+
+```
+The wreck of a small wooden fishing boat up on a shingle shore, as a game
+asset sprite. Same art style, same camera angle and same lighting as the
+cottage image.
+
+CAMERA: strict 2:1 isometric projection, viewed from a corner at 30 degrees
+above the horizon.
+
+PLAN: SQUARE in plan, filling a square plot about twice the width of a
+cottage.
+
+SUBJECT: an old clinker-built fishing boat lying canted over on its side on
+grey shingle, well above the water. The hull is broken open along one flank
+and the ribs show through like a cage. Planking grey and silvered with age,
+the last of its paint -- a faded blue stripe -- peeling along the gunwale. A
+stub of broken mast. A coil of rotted rope and a cracked lobster pot in the
+shingle beside it. Long abandoned. No people.
+
+STYLE: stylised low-poly mobile strategy game art, in the vein of Clash of
+Clans or Rise of Kingdoms. Clean readable silhouette, chunky simplified forms,
+warm saturated colours, soft hand-painted shading.
+
+LIGHTING: single key light from the upper LEFT.
+
+BACKGROUND: fully transparent. NO SEA, no water, no waves, no ground plane, no
+baseplate, no drop shadow -- the boat is a long way up the beach and the game
+puts it on grass. Keep the small patch of shingle immediately under the hull
+and nothing more.
+
+FRAMING: centred, filling the frame with a small clear margin all round.
+
+DO NOT INCLUDE: text, labels, watermarks, UI, borders, people, animals, sea,
+water, waves, harbour, jetty, other boats, or any ground surface beyond the
+shingle directly under the hull.
+```

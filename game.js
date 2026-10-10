@@ -1616,7 +1616,42 @@ const BUILDINGS = [
     blurb: 'An iron lamp on a post, lit at dusk.' },
   { key: 'statue',  name: 'Statue',    w: 1, h: 1, cost: { wood: 150, food: 80 }, decor: true, charm: 45, icon: '🗿',
     blurb: 'A stone figure on a plinth. The pride of the village.' },
+
+  /* ---------- what is already out there ----------
+
+     Claiming a ring of land is the best moment this game has, and until now
+     it revealed grass. You paid five thousand wood for a rectangle.
+
+     So each ring has something on it, and the something was there before you
+     were: standing stones, an orchard gone feral, the cottage of whoever
+     tried this island first, and their boat. They are FOUND, not bought.
+     There is no cost, they are not in the tray, and they are not rationed --
+     you cannot decide to have one, you can only go and look.
+
+     They are decorations as far as charm is concerned, which is the one
+     reward that costs the economy nothing to hand out: charm already has a
+     ceiling, already multiplies what the village makes, and is already
+     measured. What they must NOT do is count as decorations anywhere else --
+     not against the sixty the village is allowed, not in the tray, and not in
+     BEST_CHARM, which decides whether the charm goal is still reachable and
+     would otherwise be told the best ornament available is one nobody can
+     buy. Hence `found`. */
+  { key: 'find_stones',  name: 'The Old Stones',   w: 2, h: 2, cost: {}, decor: true, found: true, charm: 20, icon: '🗿',
+    blurb: 'Five standing stones, lichened over. Older than the village and nobody knows who set them.' },
+  { key: 'find_orchard', name: 'The Wild Orchard', w: 2, h: 2, cost: {}, decor: true, found: true, charm: 30, icon: '🍎',
+    blurb: 'Fruit trees gone feral in rows. Somebody planted these and did not come back.' },
+  { key: 'find_ruin',    name: 'The Old Cottage',  w: 2, h: 2, cost: {}, decor: true, found: true, charm: 45, icon: '🏚️',
+    blurb: 'A roofless cottage with a cold hearth. The first people to try this island lived here.' },
+  { key: 'find_wreck',   name: 'The Old Wreck',    w: 2, h: 2, cost: {}, decor: true, found: true, charm: 60, icon: '🛶',
+    blurb: 'A fishing boat up on the shingle, ribs open to the weather. This is how they left.' },
 ];
+
+/* Which ring hides which. Index is the land tier, so nothing is on the
+   founding claim -- that ground is yours from the first minute and a find
+   there would be a gift, not a discovery. */
+const FINDS = [null, 'find_stones', 'find_orchard', 'find_ruin', 'find_wreck'];
+const FIND_KEYS = FINDS.filter(Boolean);
+const isFound = key => { const b = B(key); return !!(b && b.found); };
 /* The hottest primitive in the file by a distance -- centreOf, isDecor, jobsOf,
    every draw and every hit-test starts by looking a building up by key. It was
    a linear scan of the table, which is nothing on its own and everything at the
@@ -1652,6 +1687,7 @@ function claimLand() {
   if (!canClaim()) return false;
   for (const [k, v] of Object.entries(landNext())) res[k] -= v;
   landTier++;
+  placeFinds();                          // and what was already on it
   camFit(false, true);                   // the whole island, to show what was bought
   claimAsk = false;
   save();
@@ -1661,6 +1697,70 @@ function claimLand() {
 /* A save made before land existed, or edited, can hold buildings outside the
    current claim. Rather than strand them somewhere unreachable, the claim is
    widened to include what is already there. */
+/* A free spot for a find, somewhere in the ring that was just claimed.
+
+   The band only, not the whole island: the point of the thing is that it
+   comes with the new land. Ordered by the same hash the scenery uses, so it
+   lands somewhere different in each corner of the map rather than always the
+   top-left tile of the band, and so it lands in the SAME place every time
+   this island is played -- it was supposed to have been there for years. */
+function findSpot(key, tier) {
+  const L = LAND[tier], inner = LAND[tier - 1];
+  const occ = occupied(), spots = [];
+  for (let r = L.lo; r <= L.hi - 1; r++) for (let c = L.lo; c <= L.hi - 1; c++) {
+    const outside = c < inner.lo || r < inner.lo || c + 1 > inner.hi || r + 1 > inner.hi;
+    if (!outside) continue;                    // inside the old border: not new land
+    if (!canPlace(key, c, r, occ)) continue;
+    spots.push({ c, r, n: hash(c * 13 + tier, r * 17 + tier) });
+  }
+  if (!spots.length) return null;
+  spots.sort((a, b) => a.n - b.n);
+  return spots[0];
+}
+
+/* Everything the claimed land should be holding, put there if it is not.
+
+   Reconciled rather than placed once at the moment of claiming, for two
+   reasons. The art may not have arrived yet -- a find with no picture would
+   draw as a coloured box, so it simply is not placed until there is
+   something to draw, and appears when the file turns up. And a save from
+   before any of this existed has claimed land with nothing on it; those
+   finds are put where they always should have been, the next time the game
+   opens.
+
+   Nothing is ever moved or removed by this. If a find is already in `placed`
+   it is left exactly where it is, wherever the player has since dragged it. */
+/* Asked once a second rather than once at boot.
+
+   Two things arrive late and neither announces itself. The art is fetched
+   asynchronously, so on a cold start there is nothing to draw for the first
+   second or so and a find placed then would be a coloured box. And a village
+   packed to its border may have no room for a 2x2 landmark today and plenty
+   tomorrow, after something is sold or moved.
+
+   Cheap enough to leave running: four keys, each answered by a `some` over
+   the placements, and it stops doing even that once every claimed ring has
+   its find. */
+let findClock = 0;
+function stepFinds(dt) {
+  findClock += dt;
+  if (findClock < 1) return;
+  findClock = 0;
+  placeFinds();
+}
+function placeFinds() {
+  for (let tier = 1; tier <= Math.min(LAND_MAX, landTier); tier++) {
+    const key = FINDS[tier];
+    if (!key || !artFor(key)) continue;        // no picture yet, so nothing to reveal
+    if (placed.some(p => p.key === key)) continue;
+    const at = findSpot(key, tier);
+    if (!at) continue;                         // no room today; asked again later
+    placed.push({ id: nextId++, key, c: at.c, r: at.r, t: 1, lvl: 1, stock: 0, build: 0 });
+    rebuildCharm();
+    save();
+  }
+}
+
 function coverPlaced() {
   for (const p of placed) {
     const b = B(p.key);
@@ -2560,7 +2660,9 @@ const isDecor = key => { const b = B(key); return !!(b && b.decor); };
    fiddle -- but there is a ceiling on the total, so a village cannot be carpeted
    into an unreadable mess or a performance problem. */
 const DECOR_MAX = 60;
-const decorCount = () => placed.reduce((n, p) => n + (isDecor(p.key) ? 1 : 0), 0);
+/* Bought decorations only. A find does not spend one of the sixty slots --
+   it is not a thing the player chose to put there. */
+const decorCount = () => placed.reduce((n, p) => n + (isDecor(p.key) && !isFound(p.key) ? 1 : 0), 0);
 const unlocked = key => key === 'hall' || isDecor(key) || allowedOf(key) > 0;
 const atLimit = key => isDecor(key) ? decorCount() >= DECOR_MAX : countOf(key) >= allowedOf(key);
 /* Whether "build one of these" is advice the player can actually take: the hall
@@ -2607,7 +2709,7 @@ const CHARM_FULL = 600, CHARM_CAP = 0.20;
 /* The most charm one ornament slot can be worth, which decides whether the
    charm goal is still reachable. Read off the table so that retuning a
    statue cannot leave this behind. */
-const BEST_CHARM = BUILDINGS.reduce((n, b) => b.decor ? Math.max(n, b.charm || 0) : n, 0);
+const BEST_CHARM = BUILDINGS.reduce((n, b) => b.decor && !b.found ? Math.max(n, b.charm || 0) : n, 0);
 /* Cached for the same reason as the stores: every rate the interface quotes
    multiplies by charm, so this whole-village scan ran twice per producer per
    frame. Decorations only appear and disappear through the paths that already
@@ -2748,7 +2850,12 @@ const sellValue = p => {
   for (const k of ['wood', 'food']) if (t[k]) o[k] = Math.floor(t[k] / 2);
   return o;
 };
-const canSell = p => !!p && p.key !== 'hall';      // the hall is the village
+/* The hall is the village, and a find was here before the village was: it
+   cost nothing, so there is nothing to get back, and knocking down the
+   standing stones for no wood at all is a button that can only be a
+   mistake. Moving one is still allowed -- a 2x2 landmark in the wrong place
+   would otherwise wall off the corner it landed in. */
+const canSell = p => !!p && p.key !== 'hall' && !isFound(p.key);
 function sellBuilding(p) {
   if (!canSell(p)) return false;
   const c = centreOf(p);
@@ -3395,6 +3502,7 @@ function step(dt) {
   if (hiddenAt) hiddenSim += dt;      // what the throttled tick managed while away
   stepCam(dt);
   stepBeacon(dt);
+  stepFinds(dt);
   if (backOpen()) armBack();          // so the back button can close it again
   else if (backArmed) disarmBack();   // closed some other way: take the entry back out
   if (sellArm) { sellArm.t -= dt; if (sellArm.t <= 0 || panel !== sellArm.id) sellArm = null; }
@@ -4417,7 +4525,7 @@ function drawWorld() {
    never on it -- there is exactly one and it is founded for you. */
 let barMode = 'build';                 // 'build' | 'decor' | 'orders'
 const barList = () => barMode === 'decor'
-  ? BUILDINGS.filter(b => b.decor)
+  ? BUILDINGS.filter(b => b.decor && !b.found)
   : barMode === 'orders' ? []
   : BUILDINGS.filter(b => b.key !== 'hall' && !b.decor && unlocked(b.key));
 
@@ -6769,6 +6877,7 @@ for (const k of ['ground', 'water', 'tree_pine', 'tree_oak', 'rock', 'bush']) ar
 /* test hooks */
 window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, worldToTile,
   camProject, camUnproject, canPlace, placeProblem, occupied, place, step, draw, barRects, barList, tileAt,
+  FINDS, FIND_KEYS, isFound, placeFinds, findSpot, LAND, LAND_MAX, DECOR_MAX, decorCount, BEST_CHARM, BUILDINGS, rebuildCharm, claimLand, ensureHall, rebuildStores, coverPlaced, charmTotal, canSell, ART,
   get sel() { return selBuild; }, set sel(v) { selBuild = v; },
   tap, CAM, save, load, get caps() { return caps; },
   HALL, hallOf, hallLevel, allowedOf, countOf, atLimit, unlocked, buildable, permitted, hintText,

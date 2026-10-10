@@ -4459,7 +4459,17 @@
         try { V.draw(); } finally { ctx2.fillText = o; }
         return rows.find(t2 => /^Fill the village/.test(t2)) || '';
       };
-      const best = V.BUILDINGS.reduce((n, b) => b.decor ? Math.max(n, b.charm || 0) : n, 0);
+      /* Read off the game, not worked out again here.
+
+         This line used to recompute BEST_CHARM from BUILDINGS, and a copy of
+         a rule is a rule that can disagree with itself. It did, the moment
+         four decorations were added that are found rather than bought: the
+         game excludes those from BEST_CHARM -- the charm goal is about what
+         you can go and BUY -- and this copy did not, so the sweep worked out
+         its edge at 60 charm a slot while the strip it was checking worked
+         its own out at 45. The strip was right and the checker called it
+         broken. */
+      const best = V.BEST_CHARM;
       /* The most roads that still leave room for the statues the goal needs. */
       const edge = (() => { let r = V.DECOR_MAX;
         while (r > 0 && r + best * (V.DECOR_MAX - r) < V.CHARM_FULL) r--;
@@ -6003,9 +6013,23 @@
        supposed to exist. The game says which keys those are rather than this
        file keeping a list of them. */
     const SET_ONLY = new Set(Object.keys(V.SET_ART || {}));
+    /* And art the game is designed to manage WITHOUT.
+
+       The things found on claimed land are placed only once their picture
+       exists, so an absent file is a feature that has not arrived rather than
+       a building drawn as a coloured box. Demanding it would report a hole
+       that is not there -- the same mistake the beacon taught, so the same
+       answer: the game says which keys those are.
+
+       Optional about EXISTING, not about being right. A find whose art has
+       turned up is checked like any other picture; and findSweep is what
+       holds the game to the other half of the bargain, that an absent file
+       really does mean an absent landmark rather than a box on the grass. */
+    const OPTIONAL = new Set(V.FIND_KEYS || []);
     const cycles = new Map(), plain = [];
     for (const k of keys) {
       if (SET_ONLY.has(k)) continue;
+      if (OPTIONAL.has(k) && !V.artFor(k)) continue;
       const at = markIn(k);
       if (at < 0) { plain.push(k); continue; }
       const who = k.slice(0, at);
@@ -10618,6 +10642,115 @@
     V.who = null; V.panel = null; V.CAM.z = 1;
     return { people, onscreen, checked, standing, roofs, fails };
   }
+
+  /* ---------- what was already on the land ----------
+
+     Claiming a ring used to reveal grass. Each ring now has something on it
+     that was there before the village was, and the checks are the four ways
+     that can go wrong -- three of which are silent.
+
+     The loud one first: a find whose picture has not been drawn yet must not
+     appear at all. The game places these on its own, so without that rule a
+     missing file is a coloured box sitting on the best moment in the game.
+
+     Then the quiet ones. A find is a decoration as far as CHARM is concerned
+     and must not be one anywhere else: not against the sixty bought ones the
+     village is allowed, not in the tray where it could be bought again, and
+     not in BEST_CHARM, which decides whether the charm goal is still
+     reachable and would otherwise be measuring an ornament nobody can buy. */
+  window.findSweep = function () {
+    const V = window.__v, fails = [];
+    const keys = V.FIND_KEYS || [];
+    if (keys.length < 2) { fails.push('the game names only ' + keys.length + ' things to find'); return { fails }; }
+
+    /* The art is swapped out and back. artFor hands back whatever is in ART
+       once it is loaded, so a picture that already exists can stand in for one
+       that does not yet -- which is the only way to test both states today. */
+    const keep = {};
+    for (const k of keys) keep[k] = V.ART[k];
+    const stand = V.artFor('statue') || V.artFor('house') || V.artFor('hall');
+    if (!stand) { fails.push('no loaded picture to stand in for a find, so this sweep could not run'); return { fails }; }
+
+    const fresh = () => {
+      V.placed.length = 0; V.villagers.length = 0; V.landTier = 0; V.coverPlaced();
+      V.away = null; V.goalDone = null; V.finished = null; V.panel = null; V.who = null;
+      V.sel = null; V.moving = null; V.claimAsk = false; V.orders = [];
+      V.ensureHall(); V.placed[0].t = 1;
+      V.rebuildStores(); V.rebuildCharm();
+    };
+    const foundNow = () => V.placed.filter(p => V.isFound(p.key));
+
+    try {
+      /* 1. no picture, no landmark. */
+      for (const k of keys) V.ART[k] = null;
+      fresh();
+      for (let i = 0; i < V.LAND_MAX; i++) { V.res.wood = 9e6; V.res.food = 9e6; V.claimLand(); }
+      V.placeFinds();
+      if (V.landTier !== V.LAND_MAX)
+        fails.push('the check could only claim ' + V.landTier + ' of ' + V.LAND_MAX + ' rings');
+      if (foundNow().length)
+        fails.push(foundNow().length + ' landmarks were put on the island with no picture to draw them with,'
+          + ' so the best moment in the game is a coloured box');
+
+      /* 2. with pictures: one per ring, and not before its ring is claimed. */
+      for (const k of keys) V.ART[k] = stand;
+      fresh();
+      V.placeFinds();
+      if (foundNow().length)
+        fails.push('a landmark appeared on land nobody has claimed yet');
+      for (let tier = 1; tier <= V.LAND_MAX; tier++) {
+        V.res.wood = 9e6; V.res.food = 9e6;
+        if (!V.claimLand()) { fails.push('could not claim ring ' + tier); break; }
+        const want = V.FINDS[tier];
+        const got = V.placed.find(p => p.key === want);
+        if (!got) { fails.push('ring ' + tier + ' was claimed and ' + want + ' is not on it'); continue; }
+        /* On the NEW ground, not tucked inside the border the player already
+           had. A find that lands on old land is not a discovery, it is a
+           decoration that appeared in the middle of the village. */
+        const inner = V.LAND[tier - 1];
+        const outside = got.c < inner.lo || got.r < inner.lo || got.c + 1 > inner.hi || got.r + 1 > inner.hi;
+        if (!outside)
+          fails.push(want + ' was placed at ' + got.c + ',' + got.r + ', which is inside the border the player already had');
+      }
+      const all = foundNow();
+      if (all.length !== keys.length)
+        fails.push('a fully claimed island holds ' + all.length + ' of ' + keys.length + ' landmarks');
+
+      /* 3. asking twice does not put two of anything down. */
+      const before = V.placed.length;
+      V.placeFinds(); V.placeFinds();
+      if (V.placed.length !== before)
+        fails.push('asking for the landmarks again added ' + (V.placed.length - before) + ' more of them');
+
+      /* 4. they are not decorations anywhere it would cost the player. */
+      if (V.decorCount() !== 0)
+        fails.push('the ' + all.length + ' found landmarks eat ' + V.decorCount() + ' of the ' + V.DECOR_MAX
+          + ' decoration slots the village is allowed, which the player never spent');
+      V.barMode = 'decor';
+      const tray = V.barList().map(b => b.key).filter(k => keys.includes(k));
+      if (tray.length) fails.push('the tray offers ' + tray.join(', ') + ' for sale, and they are not for sale');
+      V.barMode = 'build';
+      const sellable = all.filter(p => V.canSell(p));
+      if (sellable.length)
+        fails.push(sellable.length + ' landmarks can be sold, and they cost nothing, so selling one returns nothing'
+          + ' and destroys the only thing on that ring');
+
+      /* 5. but they ARE worth charm, and they do not distort the charm goal. */
+      const charmOfFinds = all.reduce((n, p) => n + V.B(p.key).charm, 0);
+      if (!charmOfFinds) fails.push('the landmarks are worth no charm at all, so finding them changes nothing');
+      if (V.charmTotal() !== charmOfFinds)
+        fails.push('the village counts ' + V.charmTotal() + ' charm where its landmarks are worth ' + charmOfFinds);
+      const bought = V.BUILDINGS.filter(b => b.decor && !b.found).reduce((n, b) => Math.max(n, b.charm || 0), 0);
+      if (V.BEST_CHARM !== bought)
+        fails.push('the best ornament available is reckoned at ' + V.BEST_CHARM + ' where the best BUYABLE one is '
+          + bought + ', so the charm goal is measured against something nobody can buy');
+
+      return { finds: all.length, charm: charmOfFinds, fails };
+    } finally {
+      for (const k of keys) V.ART[k] = keep[k];
+      V.barMode = 'build'; V.rebuildCharm();
+    }
+  };
   window.allSweeps = async function (opts) {
     const o = opts || {}, rounds = o.rounds === undefined ? 12000 : o.rounds;
     const arcMinutes = o.arcMinutes === undefined ? 90 : o.arcMinutes;
@@ -10672,6 +10805,7 @@
       ['beacon', () => window.beaconSweep()],
       ['name', () => window.nameSweep()],
       ['who', () => window.whoSweep()],
+      ['find', () => window.findSweep()],
       ['order', () => window.orderSweep()],
       ['tap', () => window.tapSweep()],
       ['text', () => window.textSweep()],

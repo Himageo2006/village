@@ -240,6 +240,19 @@ It also caps on WIDTH rather than the longest side, because `artRect` pins a
 building's width to its plot and lets the height follow the image -- the
 opposite of a villager, who is drawn to a height.
 
+**What was already on the island** (`find_stones`, `find_orchard`, `find_ruin`,
+`find_wreck`) is art the game is designed to manage WITHOUT. Each claimed ring
+of land has one landmark on it that was there before the village was -- found,
+not bought, not in the tray, cannot be sold -- and the game checks for the
+picture before placing one. No file means no landmark, rather than a coloured
+box sitting on the best moment in the game; drop the files in and every ring
+already claimed gets its landmark the next time the game opens.
+
+They are **2x2 plots**, the same footprint as a farm, and the default 800px
+width cap suits them. `artSweep` skips them while they are absent and checks
+them like any other picture once they arrive; `findSweep` is what holds the
+game to the rest of the bargain. Prompts are group 28 in PROMPTS.md.
+
 **Scenery** (`tree_pine`, `tree_oak`, `rock`, `bush`) is anchored bottom-centre
 too, and sized by `SCENERY_H` in `game.js` — world height at scale 1, which each
 piece then varies by its own seeded factor. Set against a cottage at ~207px.
