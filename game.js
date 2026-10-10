@@ -912,6 +912,70 @@ function freeSeed() {
 /* Everyone working here, in the order they joined, which is the order their
    seeds were handed out and so the order their names come back in. */
 const workersOf = id => villagers.filter(v => v.job === id);
+const whoIs = () => who == null ? null : villagers.find(v => v.seed === who) || null;
+
+/* A villager's trade, in the words the player would use.
+
+   Taken from the building they are posted to rather than stored on them: a
+   villager IS whatever they are currently doing, and the game moves them
+   between posts whenever the workforce plan changes. Storing a trade would
+   mean a farmer standing in a lumber camp. */
+function tradeOf(v) {
+  const p = v.job == null ? null : byId(v.job);
+  if (!p) return { name: 'Between jobs', at: null };
+  const b = B(p.key);
+  /* Named on the building rather than worked out from what it produces. The
+     first version read the trade off b.makes and called the market trader a
+     woodcutter, because a market really does make wood -- it is the stall
+     taking a cut, and it is also the only building in the game that both
+     produces and stores. Three of the five workplaces make wood and they are
+     not three of the same job. */
+  return { name: b.trade || ('Keeps the ' + b.name.toLowerCase()), at: p };
+}
+
+/* What they are doing at this instant, in one line.
+
+   The states are the same four the step loop runs on, said out loud. A
+   village of seventy-two people walking about is the most alive thing on the
+   screen and the game has never once told the player what any of it is for. */
+function doingOf(v) {
+  const p = v.job == null ? null : byId(v.job);
+  if (v.carry) {
+    const st = nearestStore(v.x, v.y);
+    return 'Carrying ' + (v.carry.k === 'wood' ? '\u{1FAB5}' : '\u{1F33E}') + Math.round(v.carry.n)
+      + ' to the ' + (st ? B(st.key).name.toLowerCase() : 'store');
+  }
+  if (v.st === 'toWork' && p) return 'Walking to the ' + B(p.key).name.toLowerCase();
+  if (v.st === 'work' && p) {
+    const b = B(p.key);
+    if (!established(p)) return 'Waiting for the scaffolding to come down';
+    if (!b.makes) return 'On duty at the ' + b.name.toLowerCase();
+    return 'Filling a load  \u00b7  ' + Math.floor(p.stock || 0) + ' / ' + CARRY;
+  }
+  return 'Nothing to do';
+}
+
+/* The round trip this villager actually walks, in seconds.
+
+   Post to store and back, at the speed they really move -- which is why it
+   is worth printing. The whole economy of this game is walking time: a farm
+   seven tiles from a storehouse delivers a fraction of its rated output, and
+   until now nothing anywhere said so. A number attached to a person is the
+   one place a player will believe it. */
+function roundTripOf(v) {
+  const p = v.job == null ? null : byId(v.job);
+  if (!p) return null;
+  const c = centreOf(p), st = nearestStore(c.x, c.y);
+  if (!st) return null;
+  /* A market holds goods AND makes them, so its own trader walks nowhere --
+     the nearest store is the building they are standing in. Worth saying
+     rather than printing a round trip of nought point three seconds, because
+     it is the best deal in the game and nothing has ever pointed at it. */
+  if (st.id === p.id) return { secs: 0, store: st, here: true };
+  const sc = centreOf(st);
+  const d = Math.hypot(sc.x - c.x, sc.y - c.y + DROP_Y);
+  return { secs: 2 * d / VIL_SPD, store: st, here: false };
+}
 /* "Mara", "Mara and Tomas", "Mara, Tomas and Jens". */
 const nameList = vs => vs.length < 2 ? (vs.length ? villagerName(vs[0]) : '')
   : vs.slice(0, -1).map(villagerName).join(', ') + ' and ' + villagerName(vs[vs.length - 1]);
@@ -1466,19 +1530,19 @@ const BUILDINGS = [
      impossible. Two houses and a farm at level 1 leave you 15 wood, no wood
      income, and a lumber camp costs 20: without this the game is over. */
   { key: 'hall',   name: 'Town Hall', w: 2, h: 2, cost: { wood: 0 }, unique: true, wallH: 88, icon: '🏛️',
-    makes: { wood: 0.15 }, jobs: 1,
+    makes: { wood: 0.15 }, jobs: 1, trade: 'Woodcutter',
     blurb: 'The heart of the village. Spare villagers keep its woodpile.' },
   { key: 'house',  name: 'House',     w: 2, h: 1, cost: { wood: 30 },            pop: 2,   icon: '🏠',
     // said "two more villagers" flat, while the panel beneath it counts up to
     // six -- a level five house takes three times what the description claims
     blurb: 'Villagers live here. Every level makes room for one more.' },
-  { key: 'farm',   name: 'Farm',      w: 2, h: 2, cost: { wood: 45 },            makes: { food: 0.7 },  jobs: 2, wallH: 26, icon: '🌾',
+  { key: 'farm',   name: 'Farm',      w: 2, h: 2, cost: { wood: 45 },            makes: { food: 0.7 },  jobs: 2, trade: 'Farmhand', wallH: 26, icon: '🌾',
     blurb: 'Grows food. Needs villagers to work it.' },
   /* short: what the tray calls it. The full name is two words and the tray
      divides a fixed 1024 between however many kinds are unlocked, so at a size
      anyone can read on a phone "Lumber Camp" runs into "Storehouse" beside it.
      The panel, which has the room, still says Lumber Camp. */
-  { key: 'lumber', name: 'Lumber Camp', short: 'Lumber', w: 2, h: 1, cost: { wood: 20, food: 15 }, makes: { wood: 0.6 },  jobs: 2, icon: '🪵',
+  { key: 'lumber', name: 'Lumber Camp', short: 'Lumber', w: 2, h: 1, cost: { wood: 20, food: 15 }, makes: { wood: 0.6 },  jobs: 2, trade: 'Woodcutter', icon: '🪵',
     blurb: 'Cuts wood. Needs villagers to work it.' },
   // short: see the note on the lumber camp -- "Storehouse" is 137 logical
   // pixels wide in a 115 pixel tray button
@@ -1498,9 +1562,9 @@ const BUILDINGS = [
     // no percentage here on purpose: it would be a rate figure, and the line
     // below the blurb reports what the well is really adding where it stands
     blurb: 'Speeds up the workplaces around it. Keep it close to them.' },
-  { key: 'mill',   name: 'Mill',      w: 2, h: 2, cost: { wood: 120, food: 60 }, makes: { food: 1.8 },  jobs: 2, wallH: 96, icon: '🌬️',
+  { key: 'mill',   name: 'Mill',      w: 2, h: 2, cost: { wood: 120, food: 60 }, makes: { food: 1.8 },  jobs: 2, trade: 'Miller', wallH: 96, icon: '🌬️',
     blurb: 'Grinds grain. Far more food than a farm, for two workers.' },
-  { key: 'market', name: 'Market',    w: 2, h: 2, cost: { wood: 200, food: 120 }, caps: { wood: 800, food: 800 }, makes: { wood: 0.55 }, jobs: 1, wallH: 62, icon: '🏪',
+  { key: 'market', name: 'Market',    w: 2, h: 2, cost: { wood: 200, food: 120 }, caps: { wood: 800, food: 800 }, makes: { wood: 0.55 }, jobs: 1, trade: 'Trader', wallH: 62, icon: '🏪',
     blurb: 'Adds a trading stall and brings the traders round sooner.' },
 
   /* ---------- the beacon ----------
@@ -1726,6 +1790,14 @@ let nextId = 1;
 let selBuild = null;                  // key being placed
 let ghost = null;                     // {c,r,ok}
 let panel = null;                     // id of the building whose panel is open
+/* The SEED of the villager whose card is open, not an index into the list.
+
+   Villagers are spliced out of the middle when a house goes, so an index
+   would quietly become a different person -- and the whole point of giving
+   them names was that they stop being interchangeable. A seed belongs to one
+   villager for as long as that villager exists, and survives the rebuild the
+   game does on every load. */
+let who = null;
 let moving = null;                    // id of the building being relocated
 /* Placement takes two taps: the first puts the ghost down, the second commits.
 
@@ -3612,6 +3684,13 @@ function drawVillager(v) {
   g.save();
   g.fillStyle = 'rgba(10,18,8,.34)';
   g.beginPath(); g.ellipse(v.x, v.y + 2, HGT * 0.24, HGT * 0.11, 0, 0, 7); g.fill();
+  /* Whose card is open. On the ground rather than over their head, because a
+     marker above a villager is a marker lost behind whatever building they
+     happen to be standing in front of. */
+  if (who != null && v.seed === who) {
+    g.strokeStyle = '#9fe86b'; g.lineWidth = 2.5;
+    g.beginPath(); g.ellipse(v.x, v.y + 2, HGT * 0.3, HGT * 0.14, 0, 0, 7); g.stroke();
+  }
   if (ready(im)) {
     const w = im.width * (HGT / im.height);
     g.translate(v.x, v.y); g.rotate(lean); g.scale(v.face * sx, sy);
@@ -4737,6 +4816,7 @@ function drawHUD() {
   }
   drawMute();
   drawPanel();
+  drawWho();
   drawGoal();
   drawSaveState();
   drawHint();
@@ -5625,6 +5705,35 @@ function panelRow(text, x, y, maxW, px, colour, weight) {
   g.fillStyle = colour;
   g.fillText(fit.lines[0], x, y);
 }
+/* One villager's card.
+
+   Deliberately not pinned to the villager: they walk, and a label that walks
+   with them is a label nobody can read. It sits where the building panel
+   sits, and the person it belongs to gets a ring round their feet so there
+   is no doubt which of seventy-two it is. */
+function drawWho() {
+  const v = whoIs();
+  if (!v) { who = null; return; }
+  const u = US(), tabs = tabRects();
+  const w = Math.min(W - 48 * u, 960), h = 152 * u;
+  const y = tabs[0].y - tabs[0].h / 2 - 14 * u - h / 2;
+  g.save();
+  g.fillStyle = 'rgba(14,22,13,.95)'; g.strokeStyle = 'rgba(255,255,255,.18)'; g.lineWidth = 2.5;
+  g.beginPath(); g.roundRect(W / 2 - w / 2, y - h / 2, w, h, 20 * u); g.fill(); g.stroke();
+  g.textAlign = 'left'; g.textBaseline = 'middle';
+  const lx = W / 2 - w / 2 + 26 * u, tw = w - 56 * u;
+  const trade = tradeOf(v);
+  const head = villagerName(v) + ROW_SEP + trade.name
+    + (trade.at ? ' at the ' + B(trade.at.key).name.toLowerCase() : '');
+  panelRow(head, lx, y - h / 2 + 38 * u, tw, 30 * u, '#fff');
+  panelRow(doingOf(v), lx, y - h / 2 + 80 * u, tw, 22 * u, '#bccfae', '');
+  const trip = roundTripOf(v);
+  panelRow(!trip ? 'No post, so nowhere to walk'
+    : trip.here ? 'Works where the goods are kept, so barely walks at all'
+    : 'Walks ' + trip.secs.toFixed(1) + 's to the ' + B(trip.store.key).name.toLowerCase() + ' and back, every load',
+    lx, y - h / 2 + 118 * u, tw, 22 * u, DIM, '');
+  g.restore();
+}
 function drawPanel() {
   if (panel == null) return;
   const p = byId(panel); if (!p) { panel = null; return; }
@@ -6339,13 +6448,14 @@ let backArmed = false;
    backClose then refused to touch, and the player's next back press did
    nothing at all. */
 function backOpen() {
-  return !!(away || finishedUp() || claimAsk || panel != null || moving != null || selBuild || barMode !== 'build');
+  return !!(away || finishedUp() || claimAsk || panel != null || who != null || moving != null || selBuild || barMode !== 'build');
 }
 function backClose() {
   if (away) { away = null; return true; }
   if (finishedUp()) { closeFinished(); return true; }
   if (claimAsk) { claimAsk = false; return true; }
   if (panel != null) { panel = null; sellArm = null; return true; }
+  if (who != null) { who = null; return true; }
   if (moving != null) { moving = null; ghost = null; armed = null; return true; }
   if (selBuild) { selBuild = null; ghost = null; armed = null; return true; }
   if (barMode !== 'build') { barMode = 'build'; return true; }
@@ -6430,6 +6540,39 @@ function paintedAt(p, wx, wy) {
   return m.a[v * m.w + u] > 96;
 }
 const depthOf = p => { const b = B(p.key); return tileToWorld(p.c + b.w - 1, p.r + b.h - 1).y; };
+/* The villager under the thumb, if any.
+
+   Measured on SCREEN rather than in the world, because a thumb is a fixed
+   size and the world is not: at the far zoom out a villager is eleven pixels
+   tall, and no world-space box around them could ever be hit.
+
+   Two boxes, and the difference between them is the whole design. `pad` off
+   is the drawn figure: where the villager actually IS. `pad` on grows that
+   to a fingertip, TOUCH_MIN across, the same allowance padHit gives every
+   other control in the game.
+
+   They are separate because a thumb is 128 logical pixels and a villager is
+   about 36 across, so one padded box covers a great deal of ground that has
+   a building under it. Used as the only test, it made a village of seventy-
+   two people into a village where you cannot tap a house. See tap(), which
+   asks for the figure first, the building next, and the fingertip last.
+
+   Nearest the camera wins, the same rule buildingAt uses, so tapping into a
+   crowd picks the one in front -- which is the one drawn over the others. */
+function villagerAt(sx, sy, pad) {
+  const sc = camScale();
+  let best = null, bestY = -Infinity;
+  for (const v of villagers) {
+    const pt = camProject(v.x, v.y);
+    const fw = VILLAGER_H * 0.3 * sc, fh = VILLAGER_H * sc;
+    const hw = pad ? Math.max(fw, TOUCH_MIN / 2) : fw;
+    const hh = pad ? Math.max(fh, TOUCH_MIN) : fh;
+    if (Math.abs(sx - pt.x) > hw) continue;
+    if (sy > pt.y + hh * 0.18 || sy < pt.y - hh) continue;
+    if (v.y >= bestY) { best = v; bestY = v.y; }
+  }
+  return best;
+}
 function buildingAt(sx, sy) {
   const w = camUnproject(sx, sy), t = tileAt(w.x, w.y);
   let best = null, bestY = -Infinity;
@@ -6473,7 +6616,7 @@ function tap(sx, sy) {
       panel = null; sellArm = null; return; }
     const hit = r2 => r2 && Math.abs(sx - r2.x) < r2.w / 2
       && Math.abs(sy - r2.y) < padHit(r2.h / 2, 20 * R.u);
-    if (p && hit(R.move)) { moving = p.id; panel = null; selBuild = null; ghost = null; armed = null; sellArm = null; SFX.tap(); return; }
+    if (p && hit(R.move)) { moving = p.id; panel = null; who = null; selBuild = null; ghost = null; armed = null; sellArm = null; SFX.tap(); return; }
     if (p && hit(R.sell)) {
       if (!canSell(p)) { SFX.deny(); return; }
       if (!sellArm || sellArm.id !== p.id) { sellArm = { id: p.id, t: SELL_ARM }; SFX.tap(); return; }
@@ -6534,8 +6677,27 @@ function tap(sx, sy) {
     ghost = null; armed = null;
     return;
   }
+  /* Three questions in order, and the order is the design.
+
+     A villager where they are DRAWN comes first. They stand on the building
+     they work at, so asking the building first would make the only things in
+     the village worth tapping the only things you cannot tap.
+
+     The building comes second, before the fingertip allowance, because that
+     allowance is 128 logical pixels around a figure 36 across -- enough to
+     blanket the house behind. Giving villagers the padded box outright turned
+     a crowded village into one where no building could be opened at all.
+
+     The fingertip comes last, over open ground, which is where it is worth
+     having: a villager at the far zoom out is eleven pixels tall and nobody
+     hits that, so a near miss onto grass still opens the person aimed at. */
+  const on = villagerAt(sx, sy, false);
+  if (on) { SFX.tap(); who = on.seed; panel = null; return; }
   const hit = buildingAt(sx, sy);
-  if (hit) { SFX.tap(); panel = hit.id; return; }
+  if (hit) { SFX.tap(); panel = hit.id; who = null; return; }
+  const near = villagerAt(sx, sy, true);
+  if (near) { SFX.tap(); who = near.seed; panel = null; return; }
+  who = null;
   panel = null;
   const w = camUnproject(sx, sy), t = tileAt(w.x, w.y);
   const tc = t.c, tr = t.r;
@@ -6614,12 +6776,13 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   shortfall, shortText, overCaps, remedy, villageStats, wellGain, wellGainAtLevel, wellGainAt, wellMoveGain, wellReachAt, charmDelivered, deliveredOf, deliveringNow, deliveredWith, travelSecondsOf, handsFor,
   bestDeliveredOf, reachOf, snugWalkOf,
   panelRects, TOUCH_MIN, padHit, TEXT_MIN, get panel() { return panel; }, set panel(v) { panel = v; },
+  get who() { return who; }, set who(v) { who = v; }, whoIs, villagerAt, tradeOf, doingOf, roundTripOf, drawWho,
   get villagers() { return villagers; }, workersAt, workersOf, villagerName, nameList, NAMES, freeSeed, boostAt, producers, stores,
   assignJobs, desiredJobs, computeJobs, invalidateJobs, established, lvlHeld, buildingAt, ensureHall, jobsOf, VILLAGER_MAX, rebuildStores, nearestStore,
   artRect, paintedAt, isDecor, decorCount, DECOR_MAX, charmTotal, charmMul, charmGainFrom, decorGainAt, deliveredAtMul, charmRoom, usefulCharm, CHARM_FULL,
   // the size of a load: the finest difference any delivery measurement can see
   CARRY,
-  tabRects, drawDecor, grant, deliver, flushBadges, get lastBadges() { return lastBadges; }, badgeScale, BADGE_TEXT_PX, POP_PX, camScale,
+  tabRects, drawDecor, grant, deliver, flushBadges, get lastBadges() { return lastBadges; }, badgeScale, BADGE_TEXT_PX, POP_PX, camScale, ZMIN, ZMAX, VILLAGER_H, centreOf, get W() { return W; }, get H() { return H; },
   sparePeople, outOfRoom, noSpareHands, peopleComing, livedIn,
   sellBuilding, canSell, sellValue, investedIn, capsWithout, get moving() { return moving; }, set moving(v) { moving = v; },
   get armed() { return armed; }, set armed(v) { armed = v; },

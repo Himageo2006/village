@@ -2205,6 +2205,20 @@
         /* Two warnings the player only ever sees when something has gone wrong,
            which is exactly when they must be readable, and neither had been
            drawn in a sweep before. */
+        /* A villager's card, in the two shapes it comes in: somebody with a
+           post, whose longest line names a trade, a building and a walk, and
+           somebody with none. Added with the card, because a card no sweep
+           draws is a card nothing measures -- which is how the tray's own
+           shortfall rows went unseen until a contrast check tripped over
+           them. */
+        villager: () => { V.saveFailed = false;
+          const v = V.villagers.find(x => x.job != null) || V.villagers[0];
+          if (v) V.who = v.seed; },
+        villagerSpare: () => {
+          const v = V.villagers.find(x => x.job == null) || V.villagers[0];
+          if (v) { const k = v.job; v.job = null; V.who = v.seed; window.__keptJob = { v, k }; } },
+        villagerDone: () => { if (window.__keptJob) { window.__keptJob.v.job = window.__keptJob.k; window.__keptJob = null; }
+          V.who = null; },
         saveFailed: () => { V.goalDone = null; V.saveFailed = true; },
         fromBackup: () => { V.saveFailed = false; V.loadedFromBackup = true; },
         /* A panel on something still under scaffolding: a different set of rows
@@ -2322,6 +2336,14 @@
                 if (!q) continue; V.panel = q.id; V.step(0.001); take();
               }
               V.panel = null;
+              /* The villager card sits where the panel sits and is read over
+                 the same moving world, so it needs the same treatment. */
+              for (const pick of [x => x.job != null, x => x.job == null]) {
+                const v = V.villagers.find(pick);
+                if (!v) continue;
+                V.who = v.seed; V.step(0.001); take();
+              }
+              V.who = null;
             }
           }
         }
@@ -10316,6 +10338,286 @@
 
     return { people, distinct, named, fails };
   };
+
+  /* ---------- tapping a person ----------
+
+     Seventy-two figures walk about this island and until now not one of them
+     could be touched. The checks are the four things that can go wrong with
+     making them touchable, and the first is the one nobody would notice:
+
+     - a villager you can SEE but cannot hit. The figure is drawn in world
+       space and shrinks with the camera, so at the far zoom out it is eleven
+       pixels tall; a hit box in world units would be untouchable there and
+       the feature would simply not exist at the zoom most people play at.
+     - the wrong person. Villagers are spliced out of the middle of the list,
+       so anything that remembers an INDEX opens somebody else's card.
+     - the building instead of the person. A villager stands ON the building
+       they work at, and buildingAt is perfectly happy to answer first.
+     - a card that outlives its subject. Sell the house and the villager goes;
+       the card must go with them rather than reading a corpse. */
+  window.whoSweep = function () {
+    const V = window.__v, fails = [];
+
+    /* The back button, stubbed, exactly as backSweep does it.
+
+       This sweep drives tap() for real, dozens of times, and the game arms
+       the hardware back button whenever something is open and disarms it
+       when nothing is -- and disarming calls history.back(). Run inside the
+       whole battery that NAVIGATED THE TAB mid-run: the next sweep along
+       lost every one of its forty-six fetches and reported the entire art
+       tree missing from www/. The sweep was right about its own subject and
+       wrecked the one after it. */
+    const realPush = history.pushState.bind(history), realBack = history.back.bind(history);
+    history.pushState = () => {}; history.back = () => {};
+    try {
+      return whoBody(V, fails);
+    } finally { history.pushState = realPush; history.back = realBack; }
+  };
+
+  function whoBody(V, fails) {
+
+    V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
+    V.away = null; V.goalDone = null; V.finished = null; V.panel = null; V.sel = null;
+    V.moving = null; V.claimAsk = false; V.orders = []; V.who = null;
+    V.goalIdx = V.GOALS.length; V.tutSeen.length = 0; for (const h of V.TUT) V.tutSeen.push(h.id);
+    V.ensureHall(); V.placed[0].lvl = 5; V.placed[0].t = 1;
+    {
+      const L = V.landBounds();
+      const seat = k => { for (let r = L.lo; r <= L.hi; r++) for (let c = L.lo; c <= L.hi; c++) {
+        V.res.wood = 9e5; V.res.food = 9e5;
+        if (V.canPlace(k, c, r, V.occupied()) && V.place(k, c, r)) return true; } return false; };
+      for (let i = 0; i < 6; i++) seat('house');
+      for (let i = 0; i < 2; i++) seat('farm');
+      for (let i = 0; i < 2; i++) seat('lumber');
+      seat('store');
+      for (const p of V.placed) { p.t = 1; p.build = 0; p.lvl = 5; }
+      V.rebuildStores();
+      for (let i = 0; i < 120; i++) V.step(1 / 30);
+    }
+    const people = V.villagers.length;
+    if (people < 6) { fails.push('the villager-card check could only house ' + people + ' people'); return { people, fails }; }
+
+    /* Where a tap reaches the world at all. The chips sit across the top and
+       the tray across the bottom, and a villager drawn behind either of them
+       is not reachable by tapping -- which is the HUD's business, not the hit
+       test's. Checking those positions measured the tray and blamed the
+       villager. */
+    const tabs = V.tabRects()[0];
+    const worldTop = () => V.hudTop() + 150, worldBot = () => tabs.y - tabs.h / 2 - 20;
+    const inWorld = (x, y) => x > 8 && x < V.W - 8 && y > worldTop() && y < worldBot();
+
+    /* 1. seen means touchable, at every zoom the camera allows -- and
+       touchable by a THUMB, not by a cursor.
+
+       Two earlier versions of this check were worth less than nothing. The
+       first probed the middle of the figure, which is inside any box you care
+       to draw, so it passed happily on a build where the box had been shrunk
+       to world units and a villager at the far zoom out was an eleven pixel
+       target. The second probed half a thumb out from the middle of the
+       FIGURE -- and the box is not centred on the figure, it reaches a long
+       way above the head and barely below the feet, so the downward probe
+       landed outside a box that was the right size all along.
+
+       So measure the thing itself. Walk outward from a point that does hit
+       until it stops hitting, in each of the four directions, and that is the
+       hit area. It has to be at least a fingertip across in both axes, which
+       is what TOUCH_MIN means everywhere else in this game.
+
+       Landing on a DIFFERENT villager still counts: in a crowd the boxes
+       overlap and the player gets somebody either way. */
+    let narrow = 0, onscreen = 0, worstZ = null, worstW = Infinity, worstH = Infinity;
+    const STEP = 6, FAR = V.TOUCH_MIN * 1.5;
+    const reach = (x, y, dx, dy) => {
+      let d = 0;
+      while (d < FAR) {
+        const nx = x + dx * (d + STEP), ny = y + dy * (d + STEP);
+        if (nx < 0 || nx > V.W || ny < 0 || ny > V.H) break;
+        if (!V.villagerAt(nx, ny, true)) break;
+        d += STEP;
+      }
+      return d;
+    };
+    for (const z of [V.ZMIN, 1, V.ZMAX]) {
+      V.CAM.z = z; V.step(0.001);
+      const sc = V.camScale();
+      for (const v of V.villagers) {
+        const pt = V.camProject(v.x, v.y);
+        const cy = pt.y - V.VILLAGER_H * sc * 0.4;
+        /* Only figures with room all round them on screen: a villager at the
+           edge has a box running off the glass and that is the glass's fault,
+           not the hit test's. */
+        if (!inWorld(pt.x - FAR, cy - FAR) || !inWorld(pt.x + FAR, cy + FAR)) continue;
+        if (!V.villagerAt(pt.x, cy, true)) { narrow++; worstZ = z; worstW = 0; worstH = 0; continue; }
+        onscreen++;
+        const wide = reach(pt.x, cy, -1, 0) + reach(pt.x, cy, 1, 0) + 1;
+        const tall = reach(pt.x, cy, 0, -1) + reach(pt.x, cy, 0, 1) + 1;
+        /* Two steps of slack, not one: the walk stops at the last multiple of
+           STEP that still hits, and BOTH directions round down, so a box that
+           is exactly TOUCH_MIN across measures as little as TOUCH_MIN minus
+           two steps plus one. One step of slack reported a 128-wide box as a
+           121-wide failure. */
+        if (wide + 2 * STEP < V.TOUCH_MIN || tall + 2 * STEP < V.TOUCH_MIN) {
+          narrow++; worstZ = z;
+          if (wide < worstW) worstW = wide;
+          if (tall < worstH) worstH = tall;
+        }
+      }
+    }
+    if (narrow)
+      fails.push(narrow + ' of ' + onscreen + ' on-screen villagers answer to an area smaller than a fingertip'
+        + ' (down to ' + (worstW === Infinity ? '?' : worstW) + 'x' + (worstH === Infinity ? '?' : worstH)
+        + ' against ' + V.TOUCH_MIN + ', worst at zoom ' + worstZ + '), so the camera decides whether people can be tapped');
+
+    /* 2. the tap opens the card of the person tapped, and nobody else. */
+    V.CAM.z = 1; V.step(0.001);
+    let checked = 0, empty = 0, behind = 0, far = 0, why = '';
+    for (const v of V.villagers) {
+      const pt = V.camProject(v.x, v.y);
+      const sy0 = pt.y - V.VILLAGER_H * V.camScale() * 0.4;
+      if (!inWorld(pt.x, sy0)) continue;
+      /* Every card a tap could be swallowed by, not just the villager one.
+
+         Two of these cost real time to find. A tap on unclaimed ground raises
+         the claim dialog, so the NEXT tap goes to the dialog instead of the
+         world. And this village is built FINISHED -- goalIdx past the last
+         goal -- so stepping it raises the "village complete" card, and the
+         very first tap of the loop closed that card instead of opening
+         anybody. Both are the game behaving correctly and the sweep handing
+         it a screen it had not looked at. One in thirty-six, always villager
+         nought, and only inside the full battery. */
+      V.who = null; V.panel = null; V.claimAsk = false; V.sellArm = null;
+      V.ghost = null; V.armed = null; V.sel = null; V.moving = null;
+      V.away = null; V.finished = null; V.goalDone = null;
+      const sy = sy0;
+      V.tap(pt.x, sy);
+      checked++;
+      const got = V.whoIs();
+      if (!got) {
+        empty++;
+        /* Say what happened instead. A count on its own sent me guessing at
+           this three times; the state at the moment of the miss says it. */
+        if (!why) why = 'tapped ' + Math.round(pt.x) + ',' + Math.round(sy)
+          + ' where villager ' + v.seed + ' is drawn'
+          + ' -- exact box ' + (V.villagerAt(pt.x, sy, false) ? 'hits' : 'MISSES')
+          + ', padded ' + (V.villagerAt(pt.x, sy, true) ? 'hits' : 'MISSES')
+          + ', building ' + (V.buildingAt(pt.x, sy) ? 'hits' : 'misses')
+          + ', after the tap panel=' + V.panel + ' who=' + V.who
+          + ' claimAsk=' + V.claimAsk + ' away=' + !!V.away + ' barMode=' + V.barMode
+          + ' sel=' + V.sel + ' moving=' + V.moving;
+        continue;
+      }
+      /* NOT 'is it the villager I aimed at'. That was the first version of
+         this check and it failed six times out of thirty-six on a village
+         where nothing was wrong: a thumb is a fixed size on the glass, so at
+         any zoom below about two the box round a villager is wider than the
+         villager, and in a crowd several boxes cover the same point. Picking
+         one of them is not a bug; picking the wrong one is.
+
+         So the two things that are actually promised. The one that opens must
+         be drawn no further back than the one aimed at -- a hit test that
+         reaches past the figure in front to the one behind it is the bug this
+         is for -- and it must be under the thumb rather than across the
+         island. */
+      if (got.y < v.y - 1) behind++;
+      const gp = V.camProject(got.x, got.y);
+      if (Math.abs(gp.x - pt.x) > V.TOUCH_MIN || Math.abs(gp.y - sy) > V.TOUCH_MIN + V.VILLAGER_H * V.camScale()) far++;
+    }
+    if (empty)
+      fails.push(empty + ' of ' + checked + ' taps where a villager is drawn opened nobody at all: ' + why);
+    if (behind)
+      fails.push(behind + ' of ' + checked + ' taps opened a villager standing BEHIND the one under the thumb, so a crowd answers back to front');
+    if (far)
+      fails.push(far + ' of ' + checked + ' taps opened a villager who is not under the thumb at all');
+
+    /* 3. a person standing on a building wins the tap. */
+    let shadowed = 0, standing = 0;
+    for (const v of V.villagers) {
+      const pt = V.camProject(v.x, v.y);
+      const sy = pt.y - V.VILLAGER_H * V.camScale() * 0.4;
+      if (!inWorld(pt.x, sy)) continue;
+      if (!V.buildingAt(pt.x, sy)) continue;          // nothing behind them to lose to
+      if (!V.villagerAt(pt.x, sy, false)) continue;   // not actually drawn there
+      standing++;
+      /* Every card a tap could be swallowed by, not just the villager one.
+
+         Two of these cost real time to find. A tap on unclaimed ground raises
+         the claim dialog, so the NEXT tap goes to the dialog instead of the
+         world. And this village is built FINISHED -- goalIdx past the last
+         goal -- so stepping it raises the "village complete" card, and the
+         very first tap of the loop closed that card instead of opening
+         anybody. Both are the game behaving correctly and the sweep handing
+         it a screen it had not looked at. One in thirty-six, always villager
+         nought, and only inside the full battery. */
+      V.who = null; V.panel = null; V.claimAsk = false; V.sellArm = null;
+      V.ghost = null; V.armed = null; V.sel = null; V.moving = null;
+      V.away = null; V.finished = null; V.goalDone = null;
+      V.tap(pt.x, sy);
+      if (V.who == null) shadowed++;
+    }
+    if (shadowed)
+      fails.push(shadowed + ' of ' + standing + ' villagers standing in front of a building opened the BUILDING instead of themselves');
+
+    /* 4. and the other half of that bargain: a building with nobody drawn on
+       it still opens.
+
+       This is the check that forced the design. A fingertip is 128 logical
+       pixels and a villager is 36 across, so when the padded box was the ONLY
+       test, seventy-two people blanketed the island and a house could not be
+       tapped at all -- the feature would have shipped having quietly removed
+       the main interaction in the game. The figure is asked for first, the
+       building second, the fingertip last, and this is what holds that in
+       place. */
+    V.who = null; V.panel = null;
+    let roofs = 0, stolen = 0;
+    for (const p of V.placed) {
+      const c = V.centreOf(p), pt = V.camProject(c.x, c.y);
+      if (!inWorld(pt.x, pt.y)) continue;
+      if (!V.buildingAt(pt.x, pt.y)) continue;
+      if (V.villagerAt(pt.x, pt.y, false)) continue;    // somebody really is standing there
+      roofs++;
+      /* Every card a tap could be swallowed by, not just the villager one.
+
+         Two of these cost real time to find. A tap on unclaimed ground raises
+         the claim dialog, so the NEXT tap goes to the dialog instead of the
+         world. And this village is built FINISHED -- goalIdx past the last
+         goal -- so stepping it raises the "village complete" card, and the
+         very first tap of the loop closed that card instead of opening
+         anybody. Both are the game behaving correctly and the sweep handing
+         it a screen it had not looked at. One in thirty-six, always villager
+         nought, and only inside the full battery. */
+      V.who = null; V.panel = null; V.claimAsk = false; V.sellArm = null;
+      V.ghost = null; V.armed = null; V.sel = null; V.moving = null;
+      V.away = null; V.finished = null; V.goalDone = null;
+      V.tap(pt.x, pt.y);
+      if (V.panel == null) stolen++;
+    }
+    if (stolen)
+      fails.push(stolen + ' of ' + roofs + ' buildings with nobody standing on them could not be opened,'
+        + ' because a villager nearby took the tap');
+
+    /* 5. the card does not outlive the person. */
+    V.who = null; V.panel = null;
+    const victim = V.villagers.find(v => v.job != null) || V.villagers[0];
+    V.who = victim.seed;
+    const seed = victim.seed;
+    V.villagers.splice(V.villagers.indexOf(victim), 1);
+    V.draw();
+    if (V.who != null && !V.whoIs())
+      fails.push('the card stayed open on villager ' + seed + ' after they left the village, so it is reading somebody who is not there');
+
+    /* 6. and it closes with Back, like everything else that opens. */
+    V.who = null; V.panel = null;
+    const live = V.villagers[0];
+    if (live) {
+      V.who = live.seed;
+      if (!V.backOpen()) fails.push('Back does not know the villager card is open, so the hardware button leaves the game instead of closing it');
+      V.backClose();
+      if (V.who != null) fails.push('Back did not close the villager card');
+    }
+
+    V.who = null; V.panel = null; V.CAM.z = 1;
+    return { people, onscreen, checked, standing, roofs, fails };
+  }
   window.allSweeps = async function (opts) {
     const o = opts || {}, rounds = o.rounds === undefined ? 12000 : o.rounds;
     const arcMinutes = o.arcMinutes === undefined ? 90 : o.arcMinutes;
@@ -10369,6 +10671,7 @@
       ['art', () => window.artSweep()],
       ['beacon', () => window.beaconSweep()],
       ['name', () => window.nameSweep()],
+      ['who', () => window.whoSweep()],
       ['order', () => window.orderSweep()],
       ['tap', () => window.tapSweep()],
       ['text', () => window.textSweep()],
