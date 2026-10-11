@@ -10877,7 +10877,52 @@
 
     return { walkers: walkers.length, out: +out.lo.toFixed(1), near: +near.lo.toFixed(1), fails };
   };
+
+  /* The battery runs with the browser's history neutralised, from the first
+     sweep to the last.
+
+     The game arms the hardware back button whenever anything is open and
+     disarms it when nothing is, and disarming calls history.back(). A sweep
+     opens and closes panels, trays, cards and dialogs hundreds of times, so a
+     full battery is hundreds of pushState/back pairs -- and Chrome eventually
+     says so out loud: 'Throttling navigation to prevent the browser from
+     hanging'. Before it gets there the tab starts actually navigating, which
+     wipes the page mid-run.
+
+     That cost most of an afternoon, blamed on everything else first: a sweep
+     reported the entire art tree missing from www/ because its forty-six
+     fetches were cancelled by a navigation; two batteries died with their
+     results on a page that no longer existed; and the pane went into what
+     looked like an outside reload loop.
+
+     whoSweep already stubbed these for itself, which fixed whoSweep and left
+     every other sweep doing it. It belongs here, around all of them, because
+     the thing being protected is the RUN, not the sweep. */
+  /* Except for the one sweep whose SUBJECT is the back button.
+
+     backSweep stubs these itself, to count how deep the history gets, and
+     then drives real navigations through them. Handed a pair of no-ops it
+     counts no-ops: it binds whatever it finds, so the stub below became the
+     thing it was measuring, and it reported four failures about a back button
+     that works perfectly. The real functions go back for the length of that
+     sweep and the stub returns afterwards. */
+  let realPush = null, realBack = null;
+  const holdHistory = () => {
+    if (realPush) return;
+    realPush = history.pushState.bind(history); realBack = history.back.bind(history);
+    history.pushState = () => {}; history.back = () => {};
+  };
+  const freeHistory = () => {
+    if (!realPush) return;
+    history.pushState = realPush; history.back = realBack;
+    realPush = null; realBack = null;
+  };
   window.allSweeps = async function (opts) {
+    holdHistory();
+    try { return await allSweepsBody(opts); }
+    finally { freeHistory(); }
+  };
+  async function allSweepsBody(opts) {
     const o = opts || {}, rounds = o.rounds === undefined ? 12000 : o.rounds;
     const arcMinutes = o.arcMinutes === undefined ? 90 : o.arcMinutes;
     const jobs = [
@@ -10967,7 +11012,10 @@
        instead of copying files about. See there. */
     const detail = {}, failed = [];
     for (const [name, fn] of jobs) {
+      const ownsHistory = name === 'back';
+      if (ownsHistory) freeHistory();
       try { detail[name] = await fn(); } catch (e) { detail[name] = 'THREW ' + (e && e.message); }
+      finally { if (ownsHistory) holdHistory(); }
       const bad = complaints(detail[name]);
       if (bad) failed.push(name + ': ' + (typeof bad === 'string' ? bad : bad));
       await new Promise(r => setTimeout(r, 20));
