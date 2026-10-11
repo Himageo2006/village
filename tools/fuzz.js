@@ -11214,10 +11214,32 @@
    every one of them is covered including the ones nobody has written yet,
    which is the same reason the walk-cycle rule is named off the key rather
    than off a list kept by hand. */
+/* The latch that used to be here was a flag on window, set the first time this
+   file was evaluated and checked on the way in. It read like belt and braces
+   and it was the hole.
+
+   This file is not loaded once. Every sweep in it was written by fetching it
+   into a page that was already running and evaluating it again -- that is the
+   whole development loop, dozens of times an afternoon. The second evaluation
+   redefines every checker on window and then, finding the flag already set,
+   returns without wrapping any of them. So the guard covered exactly the
+   sweeps that existed when the page last loaded, and never the one being
+   worked on, which is the only one anybody runs on its own.
+
+   It cost the test village: fifty-two buildings, every goal finished, four
+   rings of land, built up across weeks of sessions, flattened by the first run
+   of a brand-new checker that builds its own scene over the top. The guard's
+   own comment promises it covers 'the ones nobody has written yet'. It covered
+   them only if the page happened to be reloaded between writing one and
+   running it, and nothing anywhere said so.
+
+   The mark goes on the FUNCTION instead. A wrapper carries it and a fresh
+   definition does not, so a re-evaluated file gets its checkers wrapped again
+   and an already wrapped one is left alone -- and wrapping is no longer
+   something that can only happen once in the life of a page. */
 (function () {
   const V = window.__v;
-  if (!V || !V.setSaveKeys || window.__held) return;
-  window.__held = true;
+  if (!V || !V.setSaveKeys) return;
 
   const SCRATCH = { key: 'vil_test', bak: 'vil_test_bak', other: 'vil_test_other' };
   const real = () => [V.SAVE_KEYS.key, V.SAVE_KEYS.bak, V.SAVE_KEYS.other];
@@ -11284,7 +11306,7 @@
      testing -- and script-level declarations land on window, so it is named
      here rather than silently matched away. */
   const NOT_OURS = new Set(['ptrSweep']);
-  const mine = k => typeof window[k] === 'function'
+  const mine = k => typeof window[k] === 'function' && !window[k].__guarded
     && (k === 'fuzz' || k === 'allSweeps' || (k.slice(-5) === 'Sweep' && !NOT_OURS.has(k)));
 
   let wrapped = 0;
@@ -11299,7 +11321,23 @@
         return out.then(finish, e => { release(); throw e; });
       return finish(out);
     };
+    window[name].__guarded = true;
     wrapped++;
   }
+  /* And the same protection for a hand-written probe.
+
+     Working out what a checker should measure means poking at the live game
+     from the console -- clear the village, build a hall, set a level, draw a
+     frame, read the pixels back. Every one of those is the same kind of write
+     a sweep makes, and none of them is a sweep, so none of them was covered.
+     That is the other half of how the test village was lost. A probe can now
+     say so:
+
+       __holdSave(); ...poke at the game...; __freeSave();
+
+     or, for the common case, wrap the whole thing: __probe(() => { ... }). */
+  window.__holdSave = hold;
+  window.__freeSave = () => { release(); };
+  window.__probe = fn => { hold(); try { return fn(); } finally { release(); } };
   console.log('save guard: ' + wrapped + ' checkers run on throwaway keys; the village is out of reach');
 })();
