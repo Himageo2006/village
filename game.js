@@ -649,6 +649,40 @@ const SFX = {
                    tone({ f: [523, 659, 784, 1047][i], type: 'sine', dur: 0.30, vol: 0.30, delay: d })),
 };
 
+/* ---------- what the village keeps ----------
+
+   Two kinds of goods, and "wood and food" was written out by hand in
+   thirty-eight places: sixteen loops over a literal ['wood', 'food'] and
+   twenty-two copies of the ternary that turns a key into an icon. Every one
+   of them is somewhere a third kind has to be remembered, and somewhere it
+   can be forgotten -- the loops silently skipping it, the ternaries quietly
+   calling it food. None of that would throw; it would simply be wrong, in
+   thirty-eight places at once, on a save migration or a trade board or an
+   offline reckoning.
+
+   The order is the order they are shown in: the chips along the top, and the
+   lines of a price. */
+const RES = ['wood', 'food', 'stone'];
+const RES_SET = new Set(RES);
+/* A tally with one slot per kind, so a new kind cannot be left out of one.
+
+   There were thirteen `{ wood: 0, food: 0 }` literals in this file -- the
+   smoothed rates, the window they are averaged over, what has been shipped,
+   what a building has had put into it, what is in a carrier's arms at the
+   moment of a save, the ceilings. Thirteen places to remember, and a slot
+   that gets forgotten is not zero: it is undefined, which turns the first +=
+   into NaN and every comparison after it into false. A barn with a NaN
+   ceiling is never full and never empty. */
+const tally = (v) => { const o = {}; for (const k of RES) o[k] = v || 0; return o; };
+/* The icon for a kind of goods, in one place. */
+const RES_ICON = { wood: '🪵', food: '🌾', stone: '🪨' };
+/* And the colour, where a figure is tinted by what it counts rather than by
+   what it means -- the delivery pops over a storehouse are the only ones. */
+const RES_TINT = { wood: '#f0d49a', food: '#cdeb9a', stone: '#d6dde6' };
+/* And the colour of the figure on its chip, which is a different question:
+   these sit on a dark pill rather than over the island, and were chosen
+   against it. */
+const RES_CHIP = { wood: '#e8c98a', food: '#bfe08a', stone: '#cfd8e2' };
 /* ---------- feedback ----------
    Deliveries used to change a number in the corner and nothing else, which
    makes a working village indistinguishable from a stalled one. Everything that
@@ -657,8 +691,8 @@ const SFX = {
    for -- the gap between the two is walking time, and it is large. */
 const pops = [];
 const POP_MAX = 24, POP_LIFE = 1.5;
-let rateNow = { wood: 0, food: 0 };          // smoothed, shown in the HUD
-let rateAcc = { wood: 0, food: 0 }, rateT = 0;
+let rateNow = tally();                       // smoothed, shown in the HUD
+let rateAcc = tally(), rateT = 0;
 const RATE_WINDOW = 5;                       // long enough that a sparse village does not flicker
 
 /* Hand the player a resource and SHOW what actually arrived.
@@ -688,7 +722,7 @@ function grant(k, n, x, y) {
    the point: it is a record, not a new economy, and it does not reach back into
    the game before it is finished. Before that, a full store still says
    "wasting", because that pressure is what teaches storage and trade. */
-let sharedTotal = { wood: 0, food: 0 };
+let sharedTotal = tally();
 const villageFinished = () => goalIdx >= GOALS.length;
 /* The beacon drinking, one tick's worth.
 
@@ -1101,14 +1135,26 @@ const isFull = k => !hasRoomFor(k);
 /* One bit per resource. The plan is cached, so it must be thrown away when this
    changes -- and only when it changes, or the cache would be rebuilt every
    frame that anything arrives. */
-const fullMask = () => (hasRoomFor('wood') ? 1 : 0) | (hasRoomFor('food') ? 2 : 0);
+/* One bit per kind of goods, built from the list rather than written out.
+
+   This is what tells the cached job plan it has gone stale, and it was two
+   bits: wood and food. A third kind of goods filling or emptying its barn
+   changed the plan and did not change the mask, so the village went on
+   using a plan made for a different barn -- villagers at posts producing
+   into a full store while an empty one went unworked. The soak test caught
+   it on the first resume: the cache and a fresh computation disagreed.
+
+   The comment above desiredJobs says room is the one input no list of
+   mutation points can cover, which is why the mask exists. A mask that
+   covers some of the rooms is the same bug in a smaller frame. */
+const fullMask = () => RES.reduce((m, k, i) => m | (hasRoomFor(k) ? 1 << i : 0), 0);
 let jobMask = -1;
 function computeJobs(handsIn) {
   const posts = producers().filter(p => jobsOf(p) > 0);
   /* Falls back to the plain rate when NOTHING has room: with both barns full
      every post is worth zero, and an arbitrary order would have the village
      reshuffling its whole workforce for no reason. */
-  const anyRoom = hasRoomFor('wood') || hasRoomFor('food');
+  const anyRoom = RES.some(hasRoomFor);
   const worth = p => {
     const b = B(p.key);
     if (!b.makes) return 0;
@@ -1385,10 +1431,20 @@ function builtBounds() {
   core.x0 = Math.min(core.x0, mid.x - minHalfW); core.x1 = Math.max(core.x1, mid.x + minHalfW);
   core.y0 = Math.min(core.y0, mid.y - minHalfH); core.y1 = Math.max(core.y1, mid.y + minHalfH);
   /* Held inside the whole grid, not the claimed diamond: a painting on the
-     edge of the claim stands out past it, and clamping to the claim cropped it. */
-  const b = worldBounds();
-  return { x0: Math.max(core.x0, b.x0), x1: Math.min(core.x1, b.x1),
-           y0: Math.max(core.y0, b.y0), y1: Math.min(core.y1, b.y1) };
+     edge of the claim stands out past it, and clamping to the claim cropped it.
+
+     And half a tile past the grid as well, for the same reason one step up.
+     A painting is fitted to the WIDTH of its plot, and the plots on the very
+     edge of the fourth ring sit on the edge of the grid -- so a wide sprite
+     there stands out over the water, which is exactly what it is supposed to
+     do and exactly what this clamp then cut off. Measured on a packed island
+     at the largest ring: a lumber camp framed from -26 to 152 on a 360 wide
+     phone, twenty-six pixels of it past the edge of the screen in the one view
+     whose whole job is to show the village. Half a tile is the overhang a
+     plot-wide sprite can have and no more. */
+  const b = worldBounds(), over = TW / 2;
+  return { x0: Math.max(core.x0, b.x0 - over), x1: Math.min(core.x1, b.x1 + over),
+           y0: Math.max(core.y0, b.y0 - over), y1: Math.min(core.y1, b.y1 + over) };
 }
 function landFitZoom(wide) {
   const b = wide ? landWorldBounds() : builtBounds();
@@ -1544,9 +1600,34 @@ const BUILDINGS = [
      The panel, which has the room, still says Lumber Camp. */
   { key: 'lumber', name: 'Lumber Camp', short: 'Lumber', w: 2, h: 1, cost: { wood: 20, food: 15 }, makes: { wood: 0.6 },  jobs: 2, trade: 'Woodcutter', icon: '🪵',
     blurb: 'Cuts wood. Needs villagers to work it.' },
+  /* The third kind of goods, and the first one that is not simply another
+     pile to grow.
+
+     Wood and food are interchangeable in every way that matters: both are
+     made by a camp with workers in it, both are spent on everything, and a
+     village short of one builds the other building. Nothing in that is a
+     decision. Stone is spent on the three things a village WANTS -- the mill,
+     the market, the beacon -- and on the statue, and it is made nowhere else
+     but here. So the hall reaching level three stops being "now you may have
+     a mill" and becomes "now you may have a mill, once you have taken two
+     villagers off wood or food and put them on stone", which is the first
+     time the game asks the player to give something up.
+
+     Slower than either of the others on purpose -- 0.4 against a farm's 0.7
+     and a lumber camp's 0.6 -- because what it buys is bought once, and a
+     third pile that fills as fast as the other two is a third pile nobody
+     has to think about.
+
+     standIn: it is drawn by the procedural building in drawBuilding until
+     somebody generates the picture (prompt group 29). The rest of the game
+     is finished; this is a sprite that does not exist yet, and gating the
+     whole kind of goods on it would have shipped an economy that cannot be
+     played. artSweep knows to let it past until the file appears. */
+  { key: 'quarry', name: 'Quarry',    w: 2, h: 1, cost: { wood: 80, food: 40 },  makes: { stone: 0.4 }, jobs: 2, trade: 'Stonecutter', wallH: 34, icon: '🪨', standIn: true,
+    blurb: 'Cuts stone. The mill and the market are built of it.' },
   // short: see the note on the lumber camp -- "Storehouse" is 137 logical
   // pixels wide in a 115 pixel tray button
-  { key: 'store',  name: 'Storehouse', short: 'Store', w: 2, h: 2, cost: { wood: 60, food: 20 },  caps: { wood: 400, food: 400 }, wallH: 74, icon: '📦',
+  { key: 'store',  name: 'Storehouse', short: 'Store', w: 2, h: 2, cost: { wood: 60, food: 20 },  caps: { wood: 400, food: 400, stone: 400 }, wallH: 74, icon: '📦',
     /* The second sentence is the one that matters and it was doing no work.
        Carrying is half this economy: a storehouse near a distant farm shortens
        every trip that farm ever makes, which is usually worth more than the
@@ -1562,9 +1643,9 @@ const BUILDINGS = [
     // no percentage here on purpose: it would be a rate figure, and the line
     // below the blurb reports what the well is really adding where it stands
     blurb: 'Speeds up the workplaces around it. Keep it close to them.' },
-  { key: 'mill',   name: 'Mill',      w: 2, h: 2, cost: { wood: 120, food: 60 }, makes: { food: 1.8 },  jobs: 2, trade: 'Miller', wallH: 96, icon: '🌬️',
+  { key: 'mill',   name: 'Mill',      w: 2, h: 2, cost: { wood: 120, stone: 60 }, makes: { food: 1.8 },  jobs: 2, trade: 'Miller', wallH: 96, icon: '🌬️',
     blurb: 'Grinds grain. Far more food than a farm, for two workers.' },
-  { key: 'market', name: 'Market',    w: 2, h: 2, cost: { wood: 200, food: 120 }, caps: { wood: 800, food: 800 }, makes: { wood: 0.55 }, jobs: 1, trade: 'Trader', wallH: 62, icon: '🏪',
+  { key: 'market', name: 'Market',    w: 2, h: 2, cost: { wood: 200, stone: 120 }, caps: { wood: 800, food: 800, stone: 800 }, makes: { wood: 0.55 }, jobs: 1, trade: 'Trader', wallH: 62, icon: '🏪',
     blurb: 'Adds a trading stall and brings the traders round sooner.' },
 
   /* ---------- the beacon ----------
@@ -1594,7 +1675,7 @@ const BUILDINGS = [
      hall's allowance: that table is what "build everything your hall allows"
      is measured against, and a building that needs art nobody has drawn yet
      would make that goal impossible to finish. */
-  { key: 'beacon', name: 'Beacon',    w: 2, h: 2, cost: { wood: 2500, food: 1600 }, unique: true, wallH: 150, icon: '🗼',
+  { key: 'beacon', name: 'Beacon',    w: 2, h: 2, cost: { wood: 2500, stone: 1600 }, unique: true, wallH: 150, icon: '🗼',
     blurb: 'A light for your neighbours. It drinks your surplus and sends more of it over the water.' },
 
   /* ---------- decorations ----------
@@ -1614,7 +1695,7 @@ const BUILDINGS = [
     blurb: 'A clipped green hedge.' },
   { key: 'lamp',    name: 'Lamp',      w: 1, h: 1, cost: { wood: 30 },            decor: true, charm: 12, icon: '🏮',
     blurb: 'An iron lamp on a post, lit at dusk.' },
-  { key: 'statue',  name: 'Statue',    w: 1, h: 1, cost: { wood: 150, food: 80 }, decor: true, charm: 45, icon: '🗿',
+  { key: 'statue',  name: 'Statue',    w: 1, h: 1, cost: { wood: 150, stone: 80 }, decor: true, charm: 45, icon: '🗿',
     blurb: 'A stone figure on a plinth. The pride of the village.' },
 
   /* ---------- what is already out there ----------
@@ -1779,9 +1860,9 @@ const HALL = [
   null,
   { allow: { house: 2,  farm: 1, lumber: 1 },                                       up: { wood: 150,  food: 80 } },
   { allow: { house: 4,  farm: 2, lumber: 2, store: 1, well: 1 },                    up: { wood: 400,  food: 220 } },
-  { allow: { house: 6,  farm: 3, lumber: 3, store: 2, well: 2, mill: 1 },           up: { wood: 900,  food: 500 } },
-  { allow: { house: 9,  farm: 4, lumber: 4, store: 3, well: 3, mill: 2, market: 1 }, up: { wood: 2000, food: 1100 } },
-  { allow: { house: 12, farm: 6, lumber: 6, store: 4, well: 4, mill: 3, market: 2 }, up: null },
+  { allow: { house: 6,  farm: 3, lumber: 2, quarry: 1, store: 2, well: 2, mill: 1 }, up: { wood: 900,  food: 500 } },
+  { allow: { house: 9,  farm: 4, lumber: 3, quarry: 1, store: 3, well: 3, mill: 2, market: 1 }, up: { wood: 2000, food: 1100 } },
+  { allow: { house: 12, farm: 6, lumber: 4, quarry: 2, store: 4, well: 4, mill: 3, market: 2 }, up: null },
 ];
 const HALL_MAX = HALL.length - 1;
 const HALL_TIME = 6;                  // seconds an upgrade takes
@@ -1883,28 +1964,8 @@ function upgradeBuilding(p) {
   return true;
 }
 
-/* ---------- what the village keeps ----------
-
-   Two kinds of goods, and "wood and food" was written out by hand in
-   thirty-eight places: sixteen loops over a literal ['wood', 'food'] and
-   twenty-two copies of the ternary that turns a key into an icon. Every one
-   of them is somewhere a third kind has to be remembered, and somewhere it
-   can be forgotten -- the loops silently skipping it, the ternaries quietly
-   calling it food. None of that would throw; it would simply be wrong, in
-   thirty-eight places at once, on a save migration or a trade board or an
-   offline reckoning.
-
-   The order is the order they are shown in: the chips along the top, and the
-   lines of a price. */
-const RES = ['wood', 'food'];
-const RES_SET = new Set(RES);
-/* The icon for a kind of goods, in one place. */
-const RES_ICON = { wood: '🪵', food: '🌾' };
-/* And the colour, where a figure is tinted by what it counts rather than by
-   what it means -- the delivery pops over a storehouse are the only ones. */
-const RES_TINT = { wood: '#f0d49a', food: '#cdeb9a' };
-let res = { wood: 120, food: 60 };
-let caps = { wood: 300, food: 300 };
+let res = { ...tally(), wood: 120, food: 60 };
+let caps = tally(300);
 let placed = [];                      // {id,key,c,r,t,lvl,stock} t = build progress 0..1
 let nextId = 1;
 let selBuild = null;                  // key being placed
@@ -1997,9 +2058,19 @@ function nearestTier(n, kind) {
   return best;
 }
 function makeOrder(tier) {
-  // ask for whichever resource the village is currently richer in
-  const richWood = (res.wood / Math.max(1, caps.wood)) > (res.food / Math.max(1, caps.food));
-  const giveK = richWood ? 'wood' : 'food', getK = richWood ? 'food' : 'wood';
+  /* Ask for whatever the village is fullest of and pay in whatever it is
+     shortest of. With two kinds that is the same sentence as "the richer of
+     the two", which is what this was; with three it is the only version of
+     it that still means anything.
+
+     Ties break towards the LATER kind, which is what the comparison it
+     replaces did -- a village holding exactly half of each offered to give
+     food, not wood -- and the order sweep sets both stores to half a barn on
+     purpose, so a tie is not a corner case here, it is the usual case. */
+  const fullness = k => res[k] / Math.max(1, caps[k]);
+  const order = RES.slice().sort((a, b) =>
+    (fullness(b) - fullness(a)) || (RES.indexOf(b) - RES.indexOf(a)));
+  const giveK = order[0], getK = order[order.length - 1];
   /* Prefer a size that is not already on the board, so the stalls stay
      distinct even though they are filled one at a time. */
   /* Round to fives once the numbers are big enough to look untidy otherwise --
@@ -2824,7 +2895,7 @@ function capsSum(skip) {
   // the hall itself holds more as it grows, so an upgrade is worth something
   // even before you have spent the room it unlocks
   const base = 200 + 100 * hallLevel();
-  const out = { wood: base, food: base };
+  const out = tally(base);
   for (const p of placed) {
     if (p === skip || !B(p.key).caps) continue;
     /* A storehouse being UPGRADED keeps the capacity it already had. Counting
@@ -2857,7 +2928,7 @@ function recomputeCaps() {
    than a farm's worth put into it. Derived from the level, so nothing extra
    has to be stored or kept in step. */
 function investedIn(p) {
-  const t = { wood: 0, food: 0 };
+  const t = tally();
   for (const [k, v] of Object.entries(B(p.key).cost)) t[k] += v;
   for (let l = 1; l < lvlOf(p); l++) {
     const c = p.key === 'hall' ? (HALL[l] && HALL[l].up) : upCostOf({ key: p.key, lvl: l });
@@ -2889,6 +2960,19 @@ function sellBuilding(p) {
   if (panel === p.id) panel = null;
   if (moving === p.id) moving = null;
   recomputeCaps();
+  /* And what the new ceiling cannot hold is gone, which is exactly what the
+     warning on the button promises: "-- would spoil".
+
+     That used to happen by accident. The refund goes through grant(), and
+     grant clamps to the ceiling, so a building that paid back some of every
+     kind it STORED carried the overflow away with it. It only held while
+     those two sets were the same set. A market is built of wood and stone
+     and stores food as well, so the moment its price stopped naming food the
+     warning "800 would spoil" became a sentence about nothing: the food sat
+     there above a ceiling that no longer existed until some later delivery
+     quietly clamped it, which is both a lie on the button and free storage
+     for as long as nobody delivered anything. */
+  for (const k of RES) res[k] = Math.min(res[k], caps[k]);
   for (const [k, v] of Object.entries(sellValue(p))) grant(k, v, c.x, c.y);
   /* And whatever it had already made. A workplace holds up to two loads waiting
      for a carrier, and selling it binned them: sixteen goods, measured, with
@@ -3042,7 +3126,7 @@ const simNow = () => hiddenAt ? Math.min(Date.now(), hiddenAt + hiddenSim * 1000
    Measured in a thirty-eight building village: 34.6 goods in hands on average,
    peaking at 72, thrown away on every start. */
 const inTransit = () => {
-  const out = { wood: 0, food: 0 };
+  const out = tally();
   for (const v of villagers) if (v.carry) out[v.carry.k] += v.carry.n;
   return out;
 };
@@ -3114,7 +3198,7 @@ function load() {
   /* Held until the village exists to receive it: caps are not known until the
      hall and the storehouses are back, and a load cannot arrive into a barn
      that has not been read yet. */
-  pendingTransit = { wood: 0, food: 0 };
+  pendingTransit = tally();
   if (s.transit && typeof s.transit === 'object') for (const k of RES)
     if (typeof s.transit[k] === 'number' && isFinite(s.transit[k]) && s.transit[k] >= 0)
       pendingTransit[k] = Math.min(VILLAGER_MAX * CARRY, s.transit[k]);
@@ -3262,7 +3346,7 @@ function load() {
    back after an hour and you find full storehouses, which is the honest result
    and quietly makes upgrading storage worth more. Anything under a minute is
    ignored so a reload is not a reward. */
-let pendingTransit = { wood: 0, food: 0 };
+let pendingTransit = tally();
 /* The loads that were in villagers' hands when the game was last written down,
    put back into the village once it is standing again.
 
@@ -3274,7 +3358,7 @@ let pendingTransit = { wood: 0, food: 0 };
 function landTransit() {
   const c = hallOf() ? centreOf(hallOf()) : { x: 0, y: 0 };
   for (const k of RES) if (pendingTransit[k] > 0) grant(k, pendingTransit[k], c.x, c.y);
-  pendingTransit = { wood: 0, food: 0 };
+  pendingTransit = tally();
 }
 const AWAY_MIN = 60, AWAY_MAX = 12 * 3600;
 let savedAt = 0;
@@ -3356,7 +3440,7 @@ const FINISH_ID = 'complete';
    the number above it visibly climbed. Measured against the eased rate in a
    full village the two agree within a few per cent. */
 function expectedRate() {
-  const out = { wood: 0, food: 0 };
+  const out = tally();
   for (const p of producers()) {
     const b = B(p.key);
     if (!b.makes) continue;
@@ -3381,7 +3465,7 @@ function potentialRate(withoutHome) {
   let pop = 0;
   for (const p of placed) if (p.id !== withoutHome) pop += livedIn(p);
   const { want, posts } = desiredJobs(Math.min(pop, VILLAGER_MAX));
-  const out = { wood: 0, food: 0 };
+  const out = tally();
   for (const p of posts) {
     const hands = want.get(p.id) || 0;
     if (!hands) continue;
@@ -4865,6 +4949,44 @@ function barRects() {
   if (!list.length) return [];
   return stripLay(list.length, CARD_W).map((r, i) => ({ b: list[i], ...r }));
 }
+/* ---------- the chips along the top ----------
+
+   Two pills and a charm pill, at 24, 250 and 476 HUD units. Three numbers
+   written out by hand, and they were written when there were two kinds of
+   goods. A third kind puts the charm pill at 702 units, which on a tall
+   phone is 1195 logical pixels of a 1024 screen: through the speaker button
+   and off the side.
+
+   Same answer as the strip along the bottom. Lay them out rather than write
+   them down, and wrap when a row is full. The first row stops short of the
+   mute button, which lives in the top right and is not one of them; the rows
+   under it have the whole width. Everything below the chips -- the goal
+   strip, the hint, the warning about a save that would not write -- hangs
+   off the bottom of the block rather than off a number that assumed one
+   row. */
+const CHIP_W = 210, CHARM_W = 190, CHIP_H = 76, CHIP_GAP = 16, CHIP_X = 24, CHIP_DROP = 10;
+function chipRects() {
+  const u = US(), gap = CHIP_GAP * u, x0 = CHIP_X * u;
+  /* The charm pill only exists once there is charm to report. */
+  const kinds = charmTotal() > 0 ? [...RES, 'charm'] : RES.slice();
+  const M = muteRect();
+  const out = [];
+  let row = 0, x = x0;
+  for (const k of kinds) {
+    const w = (k === 'charm' ? CHARM_W : CHIP_W) * u;
+    const lim = row === 0 ? M.x - M.r - 10 * u : W - x0;
+    if (x > x0 && x + w > lim) { row++; x = x0; }
+    out.push({ k, x, row, w, h: CHIP_H * u, y: 0 });
+    x += w + gap;
+  }
+  const ry = hudTop() + 52 * u;
+  for (const c of out) c.y = ry + c.row * (CHIP_H + CHIP_DROP) * u;
+  return out;
+}
+const chipsBot = () => {
+  const u = US(), cs = chipRects();
+  return cs.length ? Math.max(...cs.map(c => c.y + c.h / 2)) : hudTop() + 90 * u;
+};
 function drawHUD() {
   const u = US();
   // resources
@@ -4882,8 +5004,8 @@ function drawHUD() {
      cached workforce plan. */
   const wasting = RES.some(isFull)
     ? potentialRate() : null;
-  const chip = (x, icon, k, val, cap, col, rate, lost) => {
-    const wch = 210 * u, h = 76 * u, full = isFull(k);
+  const chip = (c, icon, k, val, cap, col, rate, lost) => {
+    const x = c.x, ry = c.y, wch = c.w, h = c.h, full = isFull(k);
     g.fillStyle = 'rgba(16,26,14,.80)';
     g.strokeStyle = full ? 'rgba(235,150,110,.75)' : 'rgba(255,255,255,.14)';
     g.lineWidth = full ? 3 : 2;
@@ -4937,11 +5059,13 @@ function drawHUD() {
   const expect = expectedRate();
   const shown = k => expect[k] <= 0.02 ? 0
     : expect[k] * RATE_WINDOW >= 4 * CARRY && rateNow[k] > 0.02 ? rateNow[k] : expect[k];
-  chip(24 * u, '🪵', 'wood', res.wood, caps.wood, '#e8c98a', shown('wood'), wasting && wasting.wood);
-  chip(24 * u + 226 * u, '🌾', 'food', res.food, caps.food, '#bfe08a', shown('food'), wasting && wasting.food);
   const ch = charmTotal();
-  if (ch > 0) {
-    const x = 24 * u + 452 * u, wch = 190 * u, hh = 76 * u;
+  for (const c of chipRects()) {
+    if (c.k !== 'charm') {
+      chip(c, RES_ICON[c.k], c.k, res[c.k], caps[c.k], RES_CHIP[c.k], shown(c.k), wasting && wasting[c.k]);
+      continue;
+    }
+    const x = c.x, ry = c.y, wch = c.w, hh = c.h;
     g.fillStyle = 'rgba(16,26,14,.80)'; g.strokeStyle = 'rgba(255,255,255,.14)'; g.lineWidth = 2;
     g.beginPath(); g.roundRect(x, ry - hh / 2, wch, hh, hh / 2); g.fill(); g.stroke();
     g.textAlign = 'left'; g.font = `${Math.round(28 * u)}px Segoe UI, sans-serif`;
@@ -5233,7 +5357,7 @@ function drawHUD() {
    older copy so the last minute is missing. */
 function drawSaveState() {
   if (!saveFailed && !loadedFromBackup && !otherBuild) return;
-  const u = US(), y = hudTop() + 190 * u;
+  const u = US(), y = chipsBot() + 100 * u;
   /* Not "storage", which in this village means the barns. The resource bar
      says "storage full" when a barn is at its ceiling and the trade card says
      "no room" for the same reason, and both have an answer the player can act
@@ -5352,7 +5476,7 @@ function buyProgress(kind) {
 }
 function drawGoal() {
   if (away) return;
-  const u = US(), y = hudTop() + 132 * u;
+  const u = US(), y = chipsBot() + 42 * u;
   if (goalDone) {
     const t = goalDone.age / GOAL_SHOW;
     const banked = goalDone.got || goalDone.g.give;
@@ -5542,7 +5666,7 @@ const hintVisible = () => !(away || finished || goalDone || document.hidden);
 function drawHint() {
   if (!hintVisible()) return;
   const h = currentHint(); if (!h) return;
-  const u = US(), y = hudTop() + 132 * u;
+  const u = US(), y = chipsBot() + 42 * u;
   g.save();
   const fit = fitLines(hintText(h), W - 108 * u, 23 * u, 13 * u, 2);
   const tw = Math.max(...fit.lines.map(l => g.measureText(l).width));
@@ -6353,7 +6477,7 @@ function drawPanel() {
        long. What it holds is most of what it costs; the well bonus is on the
        well's own panel. */
     // what it is holding, for the same reason -- and the row already says why
-    if (b.caps) line += '   ·   holds 🪵' + capsHeld(p, 'wood') + ' 🌾' + capsHeld(p, 'food');
+    if (b.caps) line += '   ·   holds ' + RES.map(k => RES_ICON[k] + capsHeld(p, k)).join(' ');
     const boost = boostAt(p);
     if (boost > 1 && n) line += '   ·   +' + Math.round((boost - 1) * 100) + '% from wells';
     /* And WHO they are. Last on the row on purpose: panelRow drops clauses
@@ -6411,7 +6535,7 @@ function drawPanel() {
        arrow to the level beyond, because a building that has not finished the
        step it is on has no business being sold the step after it. */
     const up = p.t < 1;
-    line = 'Holds 🪵' + capsHeld(p, 'wood') + '  🌾' + capsHeld(p, 'food');
+    line = 'Holds ' + RES.map(k => RES_ICON[k] + capsHeld(p, k)).join('  ');
     if (up) line += '   ·   under scaffolding   ·   🪵' + capsOf(p, 'wood')
       + '  🌾' + capsOf(p, 'food') + ' when it is done';
     else if (nl > lvlOf(p)) line += '  →  🪵' + at(nl, q => capsOf(q, 'wood')) + '  🌾' + at(nl, q => capsOf(q, 'food'));
@@ -7277,7 +7401,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   artRect, paintedAt, isDecor, decorCount, DECOR_MAX, charmTotal, charmMul, charmGainFrom, decorGainAt, deliveredAtMul, charmRoom, usefulCharm, CHARM_FULL,
   // the size of a load: the finest difference any delivery measurement can see
   CARRY,
-  tabRects, modalUp, buildList, decorList, stripRows, stripH, stripTop, stripBot, cardStrings, stallStrings, US, drawDecor, grant, deliver, flushBadges, get lastBadges() { return lastBadges; }, badgeScale, BADGE_TEXT_PX, POP_PX, camScale, ZMIN, ZMAX, VILLAGER_H, centreOf, get W() { return W; }, get H() { return H; },
+  tabRects, modalUp, chipRects, chipsBot, buildList, decorList, stripRows, stripH, stripTop, stripBot, cardStrings, stallStrings, US, drawDecor, grant, deliver, flushBadges, get lastBadges() { return lastBadges; }, badgeScale, BADGE_TEXT_PX, POP_PX, camScale, ZMIN, ZMAX, VILLAGER_H, centreOf, get W() { return W; }, get H() { return H; },
   sparePeople, outOfRoom, noSpareHands, peopleComing, livedIn,
   sellBuilding, canSell, sellValue, investedIn, capsWithout, get moving() { return moving; }, set moving(v) { moving = v; },
   get armed() { return armed; }, set armed(v) { armed = v; },

@@ -197,7 +197,7 @@ the top of the screen is the game's pulse and it currently flatlines.
 
 ### Tier 2 — makes it a different game to play
 
-**4. A third resource and one production chain.**
+**4. A third resource and one production chain.**  ✅ DONE
 One intermediate good — stone from a quarry, or bread from a bakery taking
 wood + food — is the smallest change that turns the economy into a puzzle.
 Suddenly an order is a question, the storehouse layout matters, and a farm

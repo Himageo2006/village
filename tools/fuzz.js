@@ -39,7 +39,7 @@
      walking to work after eighty frames, which is true of a perfectly healthy
      one mid-cycle. */
   const INVARIANTS = [
-    ['no negative resources', () => V.res.wood >= 0 && V.res.food >= 0],
+    ['no negative resources', () => V.RES.every(k => V.res[k] >= 0)],
     // the goal strip's "ready" must be a purchase the game will actually make
     ['a goal that says ready can be bought', () => {
       if (V.buyProgress('hall').startsWith('ready') && !V.canUpgrade(V.hallOf())) return false;
@@ -306,7 +306,7 @@
      island and reports a confident pass. */
   function seed() {
     V.landTier = 2; V.placed[0].lvl = 4;
-    V.grant('wood', 9000, 0, 0); V.grant('food', 9000, 0, 0);
+    for (const kAll of V.RES) V.grant(kAll, 9000, 0, 0);
     const L = V.landBounds();
     for (const k of ['store', 'farm', 'farm', 'lumber', 'lumber', 'well',
                      'house', 'house', 'house', 'house', 'flowers', 'path']) {
@@ -412,11 +412,17 @@
        the early game: the first version of this bought statues with the wood
        and finished ninety simulated minutes at hall 2 and goal 5. Decorations
        come last, and only once the charm goal is the one on the strip. */
+    /* The quarry goes in front of the mill, because the mill is built of what
+       it makes. A policy that does not know that never gets past hall three. */
     const ORDER = ['house', 'lumber', 'farm', 'house', 'store', 'well', 'farm',
-                   'lumber', 'mill', 'house', 'store', 'market', 'farm', 'lumber',
-                   'well', 'mill', 'house', 'store', 'market'];
+                   'quarry', 'mill', 'house', 'store', 'market', 'farm', 'lumber',
+                   'well', 'quarry', 'mill', 'house', 'store', 'market'];
     const budget = maxMinutes * 60 * 30;
-    const afford = c => (c.wood || 0) <= V.res.wood && (c.food || 0) <= V.res.food;
+    /* Every kind of goods in the price, not two of them. A mill is built of
+       wood and stone now: read as wood and food alone it looked free, the
+       policy tried to build one on an empty stone pile every tick for ninety
+       simulated minutes, and the playthrough stopped at goal nineteen. */
+    const afford = c => Object.entries(c).every(([k, v]) => (v || 0) <= V.res[k]);
     // when each goal was reached, in simulated minutes -- where the dead stretches are
     const goalTimes = []; let lastGoal = V.goalIdx;
     for (let i = 0; i < budget; i++) {
@@ -539,7 +545,7 @@
     V.ensureHall(); V.placed[0].lvl = 4;
     const L = V.landBounds();
     for (const k of ['house', 'farm', 'lumber', 'store', 'well']) {
-      V.grant('wood', 9999, 0, 0); V.grant('food', 9999, 0, 0);
+      for (const kAll of V.RES) V.grant(kAll, 9999, 0, 0);
       let done = false;
       for (let c = L.lo; c <= L.hi && !done; c++) for (let r = L.lo; r <= L.hi && !done; r++)
         if (V.canPlace(k, c, r, V.occupied())) { V.place(k, c, r); done = true; }
@@ -643,13 +649,13 @@
     V.placed.length = 0; V.villagers.length = 0; V.landTier = 2;
     V.ensureHall(); V.placed[0].lvl = 3;
     const L = V.landBounds();
-    const put = k => { V.grant('wood', 99999, 0, 0); V.grant('food', 99999, 0, 0);
+    const put = k => { for (const kAll of V.RES) V.grant(kAll, 99999, 0, 0);
       for (let c = L.lo; c <= L.hi; c++) for (let r = L.lo; r <= L.hi; r++)
         if (V.canPlace(k, c, r, V.occupied())) return V.place(k, c, r); };
     for (const k of ['house', 'house', 'store', 'farm', 'farm', 'lumber', 'lumber', 'mill']) put(k);
     /* One workplace in the far corner, so the "losing it to the walk" badge has
        something to appear on. */
-    V.grant('wood', 99999, 0, 0); V.grant('food', 99999, 0, 0);
+    for (const kAll of V.RES) V.grant(kAll, 99999, 0, 0);
     outer: for (let c = L.hi; c >= L.lo; c--) for (let r = L.hi; r >= L.lo; r--)
       if (V.canPlace('farm', c, r, V.occupied())) { V.place('farm', c, r); break outer; }
     for (let i = 0; i < 200 * 30; i++) V.step(1 / 30);
@@ -816,7 +822,7 @@
        the far corner of a full island measures 0.49, and the badge appears. */
     V.placed.length = 0; V.villagers.length = 0;
     V.landTier = V.LAND_MAX; V.coverPlaced(); V.ensureHall(); V.placed[0].lvl = 3;
-    V.grant('wood', 1e6, 0, 0); V.grant('food', 1e6, 0, 0); V.step(0.001);
+    for (const kAll of V.RES) V.grant(kAll, 1e6, 0, 0); V.step(0.001);
     {
       const L2 = V.landBounds();
       const seat = (k, fromFar) => {
@@ -989,7 +995,7 @@
         else if (act === 'build') {
           // afford it, then let place() decide whether it is legal
           const b2 = pick(V.BUILDINGS.filter(x => x.key !== 'hall'));
-          V.grant('wood', 300, 0, 0); V.grant('food', 300, 0, 0);
+          for (const kAll of V.RES) V.grant(kAll, 300, 0, 0);
           const L = V.landBounds();
           /* A decoration's label promises "+X/s delivered" before it is bought;
              what the village delivers afterwards must move by exactly that. */
@@ -1047,7 +1053,7 @@
         }
         else if (act === 'upgrade') {
           const q = pick(V.placed);
-          if (q) { V.grant('wood', 400, 0, 0); V.grant('food', 400, 0, 0);
+          if (q) { for (const kAll of V.RES) V.grant(kAll, 400, 0, 0);
             /* Starting an upgrade must never take anything away. Storehouses,
                houses, wells and markets each lost what they gave for the length
                of the work, one at a time, and each was found separately -- this
@@ -1500,7 +1506,7 @@
     V.ensureHall(); V.placed[0].lvl = maxed ? 5 : 4;
     const L = V.landBounds();
     const put = k => {
-      V.grant('wood', 999999, 0, 0); V.grant('food', 999999, 0, 0);
+      for (const kAll of V.RES) V.grant(kAll, 999999, 0, 0);
       for (let c = L.lo; c <= L.hi; c++) for (let r = L.lo; r <= L.hi; r++)
         if (V.place(k, c, r)) return V.placed[V.placed.length - 1];
       return null;
@@ -1516,7 +1522,7 @@
                        'path', 'flowers', 'statue']) put(k);
     }
     for (let i = 0; i < 200 * 30; i++) V.step(1 / 30);
-    if (maxed) { V.res.wood = V.caps.wood; V.res.food = V.caps.food; }
+    if (maxed) { for (const k of V.RES) V.res[k] = V.caps[k]; }
     V.tutSeen.length = 0;
   }
   /* A hint's twenty seconds are twenty seconds ON SCREEN. The clock used to run
@@ -1581,7 +1587,7 @@
       V.placed.length = 0; V.villagers.length = 0; V.landTier = 1; V.coverPlaced();
       V.away = null; V.goalDone = null; V.finished = null; V.panel = null; V.sel = null; V.barMode = 'build';
       V.ensureHall(); V.placed[0].lvl = 3; V.placed[0].t = 1;
-      V.res.wood = 400; V.res.food = 400;
+      for (const k of V.RES) V.res[k] = 400;
       const L2 = V.landBounds();
       /* Two storehouses, because the hall's next level costs more than a bare
          village can physically hold: res is clamped to the ceiling by the first
@@ -1593,7 +1599,7 @@
       for (const q of V.placed) { q.t = 1; q.build = 0; }
       V.rebuildStores();
       V.goalIdx = V.GOALS.findIndex(x => x.text === 'Claim a third ring of land');
-      V.res.wood = 0; V.res.food = 0;
+      for (const k of V.RES) V.res[k] = 0;
       /* One step to let whatever the case before left on the strip settle out,
          and only then the seeding. The hint on the strip is not reset by
          building a new village, and its condition will have gone false under
@@ -1611,14 +1617,14 @@
       } else {
         // a hall upgrade is now affordable; held there, since a delivery clamps
         // whatever is over the ceiling back down to it
-        for (let i = 0; i < 30; i++) { V.res.wood = 1e5; V.res.food = 1e5; V.step(1 / 30); }
+        for (let i = 0; i < 30; i++) { for (const k of V.RES) V.res[k] = 1e5; V.step(1 / 30); }
         const now = V.currentHint() && V.currentHint().id;
         if (now !== 'hall') fails.push('the earlier hint did not take the strip (got ' + now + '; canUpgrade ' + V.canUpgrade(V.hallOf()) + ', res ' + Math.round(V.res.wood) + '/' + Math.round(V.res.food) + ', cost ' + JSON.stringify(V.upInfo(V.hallOf()).cost) + ', gate ' + V.upInfo(V.hallOf()).gate + ', seen ' + V.tutSeen.join('|') + ')');
         else if (V.tutSeen.includes('land'))
           fails.push('a hint pushed off the strip by an earlier one was written off as read');
         else {
           // the hall hint runs its course, with the upgrade still affordable
-          for (let i = 0; i < 25 * 30; i++) { V.res.wood = 1e5; V.res.food = 1e5; V.step(1 / 30); }
+          for (let i = 0; i < 25 * 30; i++) { for (const k of V.RES) V.res[k] = 1e5; V.step(1 / 30); }
           const back = V.currentHint() && V.currentHint().id;
           if (back !== 'land') fails.push('the displaced hint never came back (got ' + back + ')');
         }
@@ -1672,7 +1678,7 @@
         V.away = null; V.goalDone = null; V.finished = null; V.panel = null;
         V.tutSeen.length = 0;
         V.ensureHall(); V.placed[0].lvl = hallLvl;
-        V.res.wood = 1e6; V.res.food = 1e6;
+        for (const k of V.RES) V.res[k] = 1e6;
         const LB = V.landBounds();
         const put = k => { for (let r2 = LB.lo; r2 <= LB.hi; r2++) for (let c2 = LB.lo; c2 <= LB.hi; c2++)
           if (V.canPlace(k, c2, r2, V.occupied())) return V.place(k, c2, r2); return false; };
@@ -1684,8 +1690,8 @@
            last hint is about, and stores with room, which is every other one. */
         for (const full of [true, false]) {
           V.tutSeen.length = 0;
-          if (full) { V.res.wood = V.caps.wood; V.res.food = V.caps.food; }
-          else { V.res.wood = 0; V.res.food = 0; }
+          if (full) { for (const k of V.RES) V.res[k] = V.caps[k]; }
+          else { for (const k of V.RES) V.res[k] = 0; }
           for (let guard = 0; guard < V.TUT.length + 1; guard++) {
             const h = V.currentHint();
             if (!h) break;
@@ -1713,7 +1719,7 @@
     const V = window.__v, keepZ = V.CAM.z;
     sweepVillage(true);
     for (const p of V.placed) if (V.B(p.key).jobs && p.key !== 'hall') p.lvl = 3;   // leave room to upgrade
-    V.grant('wood', 1e6, 0, 0); V.grant('food', 1e6, 0, 0);
+    for (const kAll of V.RES) V.grant(kAll, 1e6, 0, 0);
     let frames = 0, drawn = 0; const bad = [];
     for (const z of [0.35, 0.5, 0.55, 0.8, 1.2, 2.2]) {
       V.CAM.z = z; V.step(0.001); V.draw(); frames++;
@@ -1744,7 +1750,7 @@
       for (const tier of [1, 2, 3, V.LAND_MAX]) {
         V.placed.length = 0; V.villagers.length = 0; V.landTier = tier; V.ensureHall(); V.placed[0].lvl = 5;
         const L = V.landBounds();
-        const put = k => { V.grant('wood', 1e6, 0, 0); V.grant('food', 1e6, 0, 0);
+        const put = k => { for (const kAll of V.RES) V.grant(kAll, 1e6, 0, 0);
           for (let c = L.lo; c <= L.hi; c++) for (let r = L.lo; r <= L.hi; r++) if (V.place(k, c, r)) return V.placed[V.placed.length - 1]; };
         const allow = V.HALL[V.HALL.length - 1].allow;
         for (let round = 0; round < 4; round++) for (const k of Object.keys(allow)) { const q = put(k); if (q) q.t = 1; }
@@ -1781,7 +1787,7 @@
       V.away = null; V.goalDone = null; V.finished = null; V.panel = null; V.claimAsk = false;
       V.goalIdx = V.GOALS.length;
       V.ensureHall(); V.placed[0].lvl = 5; V.placed[0].t = 1;
-      V.grant('wood', 1e6, 0, 0); V.grant('food', 1e6, 0, 0);
+      for (const kAll of V.RES) V.grant(kAll, 1e6, 0, 0);
       const L = V.landBounds();
       for (const [k, dc, dr] of [['house', 1, 1], ['house', 1, 3], ['farm', 4, 1], ['lumber', 4, 4],
                                  ['mill', 7, 1], ['store', 7, 5], ['market', 10, 1]])
@@ -1989,7 +1995,7 @@
           V.away = null; V.goalDone = null; V.finished = null; V.panel = null; V.sel = null;
           V.claimAsk = false; V.barMode = 'build'; V.moving = null;
           V.ensureHall(); V.placed[0].lvl = 5; V.placed[0].t = 1;
-          V.res.wood = 1e5; V.res.food = 1e5; V.tutSeen.length = 0;
+          for (const k of V.RES) V.res[k] = 1e5; V.tutSeen.length = 0;
           V.goalIdx = V.GOALS.length - 1;
           V.step(1 / 30);
           V.landTier = V.LAND_MAX; V.coverPlaced();          // the last goal is done
@@ -2157,7 +2163,7 @@
           V.placed.length = 0; V.villagers.length = 0; V.landTier = 1; V.ensureHall(); V.rebuildStores();
           V.res.wood = 120; V.res.food = 60; V.invalidateJobs(); },
         // and short of both, which stacks two shortfalls instead
-        brokeTray: () => { V.res.wood = 0; V.res.food = 0; },
+        brokeTray: () => { for (const k of V.RES) V.res[k] = 0; },
         build: () => { V.barMode = 'build'; V.panel = null; V.sel = null; V.away = null; V.claimAsk = false;
           if (keptVillage) {
             V.placed.length = 0; V.placed.push(...keptVillage.placed);
@@ -2175,7 +2181,7 @@
         decorateFull: () => { V.barMode = 'decor';
           const L2 = V.landBounds();
           for (let i = 0; i < 16 && V.charmRoom() > 0; i++) {
-            V.grant('wood', 999999, 0, 0); V.grant('food', 999999, 0, 0);
+            for (const kAll of V.RES) V.grant(kAll, 999999, 0, 0);
             let done = false;
             for (let c = L2.lo; c <= L2.hi && !done; c++) for (let r2 = L2.lo; r2 <= L2.hi && !done; r2++)
               if (V.canPlace('statue', c, r2, V.occupied())) { V.place('statue', c, r2); done = true; }
@@ -2187,7 +2193,7 @@
         /* An empty board says something the full one never does, and nothing
            had ever drawn it in a sweep. */
         // offers the village cannot pay for, each saying how much is missing
-        ordersShort: () => { V.barMode = 'orders'; V.orders = [V.makeOrder(0), V.makeOrder(1), V.makeOrder(2)]; window.__keptRes = { w: V.res.wood, f: V.res.food }; V.res.wood = 3; V.res.food = 3; },
+        ordersShort: () => { V.barMode = 'orders'; V.orders = [V.makeOrder(0), V.makeOrder(1), V.makeOrder(2)]; window.__keptRes = { w: V.res.wood, f: V.res.food }; for (const k of V.RES) V.res[k] = 3; },
         ordersShortDone: () => { V.res.wood = window.__keptRes.w; V.res.food = window.__keptRes.f; },
         noOrders: () => { V.orders = []; },
         // a purchase goal part-way saved: the longest strip there is, two short resources and a reward
@@ -2213,7 +2219,7 @@
            panel, which a sweep only saw by accident, from a save left behind. */
         awaySharedHuge: () => { V.away = { secs: 43200, capped: true, spilled: true,
           got: { wood: 8380, food: 8380 }, shared: { wood: 1e15, food: 999999 } }; },
-        hint: () => { V.away = null; V.tutSeen.length = 0; V.res.wood = V.caps.wood; V.res.food = V.caps.food; },
+        hint: () => { V.away = null; V.tutSeen.length = 0; for (const k of V.RES) V.res[k] = V.caps[k]; },
         goalBanner: () => { V.goalDone = { g: V.GOALS[V.GOALS.length - 1], got: { wood: 2500, food: 1600 }, age: 0 }; },
         /* Two warnings the player only ever sees when something has gone wrong,
            which is exactly when they must be readable, and neither had been
@@ -2289,7 +2295,7 @@
     const L = V.landBounds();
     for (const k of ['store', 'farm', 'lumber', 'house', 'house', 'well', 'mill', 'market',
                      'path', 'flowers', 'statue']) {
-      V.grant('wood', 9999, 0, 0); V.grant('food', 9999, 0, 0);
+      for (const kAll of V.RES) V.grant(kAll, 9999, 0, 0);
       let ok = false;
       for (let c = L.lo; c <= L.hi && !ok; c++) for (let r = L.lo; r <= L.hi && !ok; r++) if (V.place(k, c, r)) ok = true;
     }
@@ -2336,14 +2342,14 @@
               // and a card picked before it is affordable, which shows its shortfall in red
               V.ghost = null;
               const keepRes = { wood: V.res.wood, food: V.res.food };
-              V.res.wood = 0; V.res.food = 0; V.step(0.001); take();
+              for (const k of V.RES) V.res[k] = 0; V.step(0.001); take();
               V.res.wood = keepRes.wood; V.res.food = keepRes.food;
               V.ghost = null; V.sel = null;
               // a half-empty board: its countdown and empty stalls, never measured before
               { const keepO = V.orders; V.barMode = 'orders'; V.orders = [V.makeOrder(1)]; V.orderT = 0;
                 V.step(0.001); take();
                 // and the same stalls when nothing can be paid for: the red "need" line
-                const kw = V.res.wood, kf = V.res.food; V.res.wood = 3; V.res.food = 3; V.step(0.001); take();
+                const kw = V.res.wood, kf = V.res.food; for (const k of V.RES) V.res[k] = 3; V.step(0.001); take();
                 V.res.wood = kw; V.res.food = kf; V.orders = keepO; }
               for (const q of [V.placed[0], V.placed[5], V.placed[7]]) {
                 if (!q) continue; V.panel = q.id; V.step(0.001); take();
@@ -2427,7 +2433,7 @@
       if (V.canPlace(k, c, r, V.occupied())) return [c, r]; return null; };
     for (const k of ['house', 'house', 'farm', 'lumber', 'store', 'well', 'market',
                      'path', 'path', 'statue']) {
-      V.grant('wood', 99999, 0, 0); V.grant('food', 99999, 0, 0);
+      for (const kAll of V.RES) V.grant(kAll, 99999, 0, 0);
       const sp = free(k); if (sp) V.place(k, sp[0], sp[1]);
     }
     for (let i = 0; i < 200 * 30; i++) V.step(1 / 30);
@@ -2445,7 +2451,7 @@
       ['build',    () => { V.barMode = 'build'; V.sel = null; V.moving = null; V.panel = null;
                            V.res.wood = 800; V.res.food = 600; }],
       ['full',     () => { V.barMode = 'build'; V.sel = null; V.moving = null; V.panel = null;
-                           V.res.wood = V.caps.wood; V.res.food = V.caps.food; }],
+                           for (const k of V.RES) V.res[k] = V.caps[k]; }],
       /* Once every goal is done the strip says one thing for the rest of the
          game, and that one thing had no pill for as long as it has existed. A
          state the player ends in is worth a state in the sweep. */
@@ -2566,7 +2572,7 @@
     const free = k => { for (let c = L.lo; c <= L.hi; c++) for (let r = L.lo; r <= L.hi; r++)
       if (V.canPlace(k, c, r, V.occupied())) return [c, r]; return null; };
     for (const k of spec.build) {
-      V.grant('wood', 99999, 0, 0); V.grant('food', 99999, 0, 0);
+      for (const kAll of V.RES) V.grant(kAll, 99999, 0, 0);
       const sp = free(k); if (sp) V.place(k, sp[0], sp[1]);
     }
     for (let i = 0; i < 120 * 30; i++) V.step(1 / 30);
@@ -2860,7 +2866,7 @@
         V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
         V.goalIdx = V.GOALS.length; V.tutSeen.length = 0; V.away = null; V.goalDone = null; V.finished = null;
         V.ensureHall(); V.placed[0].lvl = 4; V.placed[0].t = 1;
-        V.res.wood = 1e5; V.res.food = 1e5;
+        for (const k of V.RES) V.res[k] = 1e5;
         const LB = V.landBounds();
         for (const [key, dc, dr] of [['house', 1, 1], ['farm', 4, 1], ['lumber', 7, 1], ['store', 1, 10]])
           V.place(key, LB.lo + dc, LB.lo + dr);
@@ -2870,7 +2876,7 @@
         for (let i = 0; i < 120 * 30; i++) V.step(1 / 30);
         /* One of each kind of unfinished work: a building going up for the
            first time, and a building being improved. */
-        V.res.wood = 1e5; V.res.food = 1e5;
+        for (const k of V.RES) V.res[k] = 1e5;
         V.place('house', LB.lo + 4, LB.lo + 10);
         const fresh = V.placed[V.placed.length - 1];
         V.place('store', LB.lo + 10, LB.lo + 10);
@@ -2916,12 +2922,12 @@
         V.away = null; V.goalDone = null; V.finished = null; V.panel = null;
         V.sharedTotal.wood = 0; V.sharedTotal.food = 0;
         V.ensureHall(); V.placed[0].lvl = 5;
-        V.res.wood = 1e6; V.res.food = 1e6;
+        for (const k of V.RES) V.res[k] = 1e6;
         for (const k of ['house', 'house', 'house', 'farm', 'lumber', 'store', 'mill']) put(k);
         for (const q of V.placed) if (q.key !== 'hall') q.lvl = 3;
-        V.res.wood = 1e6; V.res.food = 1e6;
+        for (const k of V.RES) V.res[k] = 1e6;
         for (let i = 0; i < 90 * 30; i++) V.step(1 / 30);     // and the levels land through a real finish
-        for (const k of ['wood', 'food']) V.res[k] = Math.floor(V.caps[k] * fill);
+        for (const k of V.RES) V.res[k] = Math.floor(V.caps[k] * fill);
       };
       for (const [name, finished, fill, secs] of [
         ['an hour away with room to spare', false, 0.2, 3600],
@@ -3299,7 +3305,7 @@
       V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
       V.goalIdx = 0; V.tutSeen.length = 0; V.away = null; V.goalDone = null; V.finished = null;
       V.ensureHall(); V.placed[0].lvl = workLvl ? 5 : 4; V.placed[0].t = 1;
-      V.res.wood = 1e5; V.res.food = 1e5;
+      for (const k of V.RES) V.res[k] = 1e5;
       const LB = V.landBounds();
       let c = LB.lo + 1, r = LB.lo + 1;
       const order = ['house', 'farm', 'lumber', 'store', 'well', 'mill', 'market'];
@@ -3319,7 +3325,7 @@
     let upgrades = 0, changed = 0, produced = 0;
     for (const p of [...V.placed]) {
       if (V.isDecor(p.key)) continue;
-      V.res.wood = 1e5; V.res.food = 1e5;
+      for (const k of V.RES) V.res[k] = 1e5;
       for (let i = 0; i < 30; i++) V.step(1 / 30);
       const before = give();
       if (!V.canUpgrade(p)) continue;
@@ -3373,7 +3379,7 @@
       if (!p) continue;
       p.lvl = 2; V.rebuildStores();
       for (let i = 0; i < 30 * 30; i++) V.step(1 / 30);
-      V.res.wood = 1e5; V.res.food = 1e5;
+      for (const k of V.RES) V.res[k] = 1e5;
       if (!V.canUpgrade(p)) continue;
       V.upgradeBuilding(p);
       p.build = 1e7;                     // the scaffolding stays up to be measured against
@@ -3442,7 +3448,7 @@
     {
       scene(3);
       const LB2 = V.landBounds();
-      V.res.wood = 1e5; V.res.food = 1e5;
+      for (const k of V.RES) V.res[k] = 1e5;
       for (let i = 0; i < 8; i++) V.place('statue', LB2.lo + 3 + i, LB2.lo + 12);
       for (const q of V.placed) if (q.key === 'statue') { q.t = 1; q.build = 0; }
       V.rebuildStores();
@@ -3451,7 +3457,7 @@
       let pinned = 0;
       for (const q of [...V.placed]) {
         if (!(V.B(q.key).makes && V.B(q.key).jobs)) continue;
-        V.res.wood = 1e5; V.res.food = 1e5;
+        for (const k of V.RES) V.res[k] = 1e5;
         if (!V.canUpgrade(q)) continue;
         V.upgradeBuilding(q); q.build = 1e7; pinned++;
       }
@@ -3497,7 +3503,7 @@
          too; but a comment describing a village that was never built is the
          thing this file exists to stop. */
       if (well) { V.placed.splice(V.placed.indexOf(well), 1); V.rebuildStores(); }
-      V.res.wood = 1e5; V.res.food = 1e5;
+      for (const k of V.RES) V.res[k] = 1e5;
       if (!farm || !V.canUpgrade(farm)) fails.push('the well check could not put a farm under scaffolding');
       else {
         V.upgradeBuilding(farm); farm.build = 1e7;
@@ -3511,7 +3517,7 @@
         if (!hands) fails.push('the well check left nobody on the scaffolded farm, so it proves nothing');
         else if (!spot) fails.push('the well check found nowhere beside the farm to put a well');
         else {
-          V.res.wood = 1e5; V.res.food = 1e5;
+          for (const k of V.RES) V.res[k] = 1e5;
           const said = V.wellGainAt(spot[0], spot[1], 1);
           const was = V.deliveredAtMul(V.charmMul());
           V.place('well', spot[0], spot[1]);
@@ -3579,7 +3585,7 @@
       else {
         const hands0 = V.workersAt(p.id), mine = hands0 * V.deliveringNow(p);
         held.before = +rate2().toFixed(3);
-        V.res.wood = 1e5; V.res.food = 1e5;
+        for (const k of V.RES) V.res[k] = 1e5;
         const up = V.canUpgrade(p) && V.upgradeBuilding(p);
         p.build = 1e7;                      // the scaffolding stays up to be measured against
         for (let i = 0; i < 30 * 30; i++) V.step(1 / 30);
@@ -3620,29 +3626,30 @@
      if its own stores filled up, because then losing goods would be correct. */
   window.handoverSweep = function () {
     const V = window.__v, fails = [];
-    const held = () => V.res.wood + V.res.food
+    const held = () => V.RES.reduce((n, k) => n + V.res[k], 0)
       + V.villagers.reduce((n, g) => n + (g.carry ? g.carry.n : 0), 0)
       + V.placed.reduce((n, p) => n + (p.stock || 0), 0);
     const scene = (houseLvl, extra) => {
       V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
       V.away = null; V.goalDone = null; V.finished = null; V.goalIdx = 0;
       V.ensureHall(); V.placed[0].lvl = 5; V.placed[0].t = 1;
-      V.res.wood = 5e4; V.res.food = 5e4;
+      for (const k of V.RES) V.res[k] = 5e4;
       const LB = V.landBounds();
       for (const [k, c, r] of [['house',0,0],['house',0,3],[extra,3,0],
         ['store',9,0],['store',9,3],['store',9,6],['store',3,9]]) V.place(k, LB.lo + c, LB.lo + r);
       for (const p of V.placed) { p.t = 1; if (p.key === 'house') p.lvl = houseLvl; if (p.key === 'store') p.lvl = 5; }
       V.rebuildStores();
       for (let i = 0; i < 120; i++) V.step(1 / 30);          // villagers appear and take posts
-      V.res.wood = 200; V.res.food = 200;                     // room to spare for refund and loads
+      for (const k of V.RES) V.res[k] = 200;                     // room to spare for refund and loads
       for (const g of V.villagers) g.carry = { k: 'wood', n: 8 };
     };
     const law = (name, act) => {
-      const before = held(), refund = act.refund ? act.refund() : { wood: 0, food: 0 };
+      const before = held(), refund = act.refund ? act.refund() : {};
       act.go();
       V.step(1 / 30);
-      const want = before + (refund.wood || 0) + (refund.food || 0), got = held();
-      if (Math.min(V.caps.wood - V.res.wood, V.caps.food - V.res.food) < 0)
+      const paid = V.RES.reduce((n, k) => n + (refund[k] || 0), 0);
+      const want = before + paid, got = held();
+      if (Math.min(...V.RES.map(k => V.caps[k] - V.res[k])) < 0)
         { fails.push(name + ': the sweep filled its own stores, so it proved nothing'); return; }
       // one frame of the village's own work is allowed in the other direction
       if (want - got > 0.01) fails.push(name + ' lost ' + (want - got).toFixed(1) + ' goods the village had already made');
@@ -3725,7 +3732,7 @@
     V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
     V.away = null; V.goalDone = null; V.finished = null; V.tutSeen.length = 0;
     V.ensureHall(); V.placed[0].lvl = 5; V.placed[0].t = 1;
-    V.res.wood = 5e4; V.res.food = 5e4;
+    for (const k of V.RES) V.res[k] = 5e4;
     const LB = V.landBounds();
     for (const [k, c, r] of [['house',0,0],['house',0,3],['house',0,6],['farm',3,0],['lumber',3,3],
       ['mill',3,6],['store',9,0],['store',9,3],['store',9,6],['store',6,9]]) V.place(k, LB.lo + c, LB.lo + r);
@@ -3737,7 +3744,7 @@
       if (!p) continue;
       for (let lvl = 1; lvl <= 4; lvl++) {
         for (let i = 0; i < 60 * 30; i++) V.step(1 / 30);
-        V.res.wood = 5e3; V.res.food = 5e3;
+        for (const k of V.RES) V.res[k] = 5e3;
         const m = /([\d.]+)\/s delivered\s+→\s+([\d.]+)\/s/.exec(rateRow(p));
         if (!m) { skipped++; continue; }
         /* The hands the PROMISE was quoted for, not the hands there now.
@@ -3803,7 +3810,7 @@
       V.away = null; V.goalDone = null; V.finished = null; V.panel = null; V.sel = null;
       V.goalIdx = V.GOALS.length; V.tutSeen.length = 0;
       V.ensureHall(); V.placed[0].lvl = 5; V.placed[0].t = 1;
-      V.res.wood = 1e6; V.res.food = 1e6;
+      for (const k of V.RES) V.res[k] = 1e6;
       const LB = V.landBounds();
       V.place('house', LB.lo + 1, LB.lo + 1);
       V.place('store', LB.lo + 10, LB.lo + 10);
@@ -3864,7 +3871,7 @@
       V.away = null; V.goalDone = null; V.finished = null; V.panel = null; V.sel = null;
       V.goalIdx = V.GOALS.length; V.tutSeen.length = 0;
       V.ensureHall(); V.placed[0].lvl = 5; V.placed[0].t = 1;
-      V.res.wood = 1e6; V.res.food = 1e6;
+      for (const k of V.RES) V.res[k] = 1e6;
       const LB = V.landBounds();
       V.place('house', LB.lo + 1, LB.lo + 1);
       V.place('store', LB.lo + 5, LB.lo + 1);
@@ -3903,7 +3910,7 @@
         if (+h0[1] !== V.villagers.length)
           fails.push('the only house in the village says it houses ' + h0[1]
             + ' villagers and ' + V.villagers.length + ' are walking about');
-        V.res.wood = 1e6; V.res.food = 1e6;
+        for (const k of V.RES) V.res[k] = 1e6;
         if (!V.canUpgrade(store) || !V.canUpgrade(house)) continue;
         V.upgradeBuilding(store); V.upgradeBuilding(house);
         store.build = 1e7; house.build = 1e7;
@@ -3940,7 +3947,7 @@
          going up has nothing in it and nobody in it yet, and both rows used to
          promise a level nobody had reached on a plot that was still a hole in
          the ground. */
-      V.res.wood = 1e6; V.res.food = 1e6;
+      for (const k of V.RES) V.res[k] = 1e6;
       const fresh = [];
       for (const [key, c, r2] of [['store', 9, 1], ['house', 1, 4]])
         if (V.place(key, LB.lo + c, LB.lo + r2)) fresh.push(V.placed[V.placed.length - 1]);
@@ -3990,7 +3997,7 @@
       V.goalIdx = V.GOALS.length; V.tutSeen.length = 0;
       V.away = null; V.goalDone = null; V.finished = null; V.panel = null;
       V.ensureHall(); V.placed[0].lvl = 5; V.placed[0].t = 1;
-      V.res.wood = 1e6; V.res.food = 1e6;
+      for (const k of V.RES) V.res[k] = 1e6;
       const LB = V.landBounds();
       const put = k => { for (let r = LB.lo; r <= LB.hi; r++) for (let c = LB.lo; c <= LB.hi; c++)
         if (V.canPlace(k, c, r, V.occupied())) return V.place(k, c, r); return false; };
@@ -4007,7 +4014,7 @@
       if (!spot) fails.push('the well check found nowhere worth putting a well');
       else {
         const said = V.wellGainAt(spot[0], spot[1], 1);
-        V.res.wood = 1e6; V.res.food = 1e6;
+        for (const k of V.RES) V.res[k] = 1e6;
         V.place('well', spot[0], spot[1]);
         const w = V.placed.find(q => q.key === 'well');
         w.build = 1e7;                     // the hole stays open to be read
@@ -4034,7 +4041,7 @@
           fails.push('a well promised +' + mWhen[1] + '/s when it was done and lifts +' + mNow[1]);
         /* And an upgrade in progress keeps its lift, says why there is no more
            yet, and does not point past the step it is on. */
-        V.res.wood = 1e6; V.res.food = 1e6;
+        for (const k of V.RES) V.res[k] = 1e6;
         if (!V.canUpgrade(w)) fails.push('the well check could not improve its well');
         else {
           const before = mNow ? +mNow[1] : 0;
@@ -4202,7 +4209,7 @@
       V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
       V.tutSeen.length = 0; V.away = null; V.goalDone = null; V.finished = null; V.panel = null;
       V.ensureHall(); V.placed[0].lvl = 5;
-      V.res.wood = 1e6; V.res.food = 1e6;
+      for (const k of V.RES) V.res[k] = 1e6;
       const L = V.landBounds();
       const put = k => { for (let r = L.lo; r <= L.hi; r++) for (let c = L.lo; c <= L.hi; c++)
         if (V.canPlace(k, c, r, V.occupied())) return V.place(k, c, r); return false; };
@@ -4211,10 +4218,10 @@
          has to be left open for it. */
       for (let i = 0; i < 3; i++) put('store');
       for (const q of V.placed) if (q.key !== 'hall') q.lvl = 5;
-      V.res.wood = 1e6; V.res.food = 1e6;
+      for (const k of V.RES) V.res[k] = 1e6;
       for (let i = 0; i < 60 * 30; i++) V.step(1 / 30);     // the levels land through a real finish
       parkGoals();
-      const purse = () => { V.res.wood = Math.floor(V.caps.wood * 0.3); V.res.food = Math.floor(V.caps.food * 0.3); };
+      const purse = () => { for (const k of V.RES) V.res[k] = Math.floor(V.caps[k] * 0.3); };
       const moved = fn => { const w = V.res.wood, f = V.res.food; const ok = fn();
         return { ok, wood: V.res.wood - w, food: V.res.food - f }; };
       for (const key of ['farm', 'lumber', 'house', 'store', 'statue']) {
@@ -4235,7 +4242,7 @@
         p.stock = 0;
         /* Low enough that the refund cannot be clamped on the way in, and the
            storehouse taking its own capacity away with it is allowed for. */
-        V.res.wood = Math.floor(V.caps.wood * 0.15); V.res.food = Math.floor(V.caps.food * 0.15);
+        for (const k of V.RES) V.res[k] = Math.floor(V.caps[k] * 0.15);
         const back = moved(() => V.sellBuilding(p));
         if (!back.ok) { fails.push('the refund rule check could not sell a ' + key); continue; }
         halves++;
@@ -4269,9 +4276,16 @@
     let quotes = 0;
     {
       const isBtn = new RegExp('^(Sell|Remove)($|[  \u00b7])');
-      const pick = text => { const o = { wood: 0, food: 0 };
-        for (const m of text.matchAll(new RegExp('(🪵|🌾)[^0-9]*([0-9]+)', 'g')))
-          o[m[1] === '🪵' ? 'wood' : 'food'] += +m[2];
+      /* Built from the game's own icon table rather than from two characters
+         written here. A kind of goods this did not know about read as nought
+         -- so a market, which is now built of stone, was 'quoted 0 food back
+         and the village gained 0', which is two true statements about the
+         wrong resource. */
+      const BY_ICON = new Map(Object.entries(V.RES_ICON).map(([k, i]) => [i, k]));
+      const ICONS = new RegExp('(' + [...BY_ICON.keys()].join('|') + ')[^0-9]*([0-9]+)', 'g');
+      const pick = text => { const o = {};
+        for (const k of V.RES) o[k] = 0;
+        for (const m of text.matchAll(ICONS)) o[BY_ICON.get(m[1])] += +m[2];
         return o; };
       const rowsArmed = (p, armed) => {
         V.panel = p.id; V.sellArm = armed ? { id: p.id, t: V.SELL_ARM } : null;
@@ -4293,7 +4307,7 @@
         V.goalIdx = V.GOALS.length; V.tutSeen.length = 0;
         V.away = null; V.goalDone = null; V.finished = null; V.panel = null;
         V.ensureHall(); V.placed[0].lvl = 5;
-        V.res.wood = 1e6; V.res.food = 1e6;
+        for (const k of V.RES) V.res[k] = 1e6;
         const LB = V.landBounds();
         for (const k of ['store', 'statue', 'farm', 'house', 'market'])
           for (let r2 = LB.lo; r2 <= LB.hi; r2++) { let done = false;
@@ -4304,7 +4318,7 @@
         for (const q of V.placed) if (q.key !== 'hall' && !V.isDecor(q.key)) q.lvl = lvl;
         /* Let the levels land through a real finish, which is what rebuilds the
            ceiling: caps is a cache and this block sets levels by hand. */
-        V.res.wood = 1e6; V.res.food = 1e6;
+        for (const k of V.RES) V.res[k] = 1e6;
         for (let i = 0; i < 20 * 30; i++) V.step(1 / 30);
         const p = V.placed.find(q => q.key === key);
         if (!p) { fails.push('the refund check could not place a ' + key); continue; }
@@ -4399,15 +4413,15 @@
       V.goalIdx = 0; V.tutSeen.length = 0; V.away = null; V.goalDone = null;
       V.finished = null; V.panel = null;
       V.ensureHall(); V.placed[0].lvl = hallLvl; V.placed[0].t = 1;
-      V.res.wood = 1e6; V.res.food = 1e6;
+      for (const k of V.RES) V.res[k] = 1e6;
       for (const [k, lvl] of kinds) { if (put(k)) { const q = V.placed[V.placed.length - 1]; q.lvl = lvl; q.t = 1; q.build = 0; } }
       put('path');
-      V.res.wood = 0; V.res.food = 0;
+      for (const k of V.RES) V.res[k] = 0;
     };
     const ask = kind => V.buyProgress(kind);
     const want = (kind, got, re, what) => { cases++;
       if (!re.test(got)) fails.push('the strip for a ' + kind + ' ' + what + ' said "' + got + '"'); };
-    const RICHLY = () => { V.res.wood = 1e6; V.res.food = 1e6; };
+    const RICHLY = () => { for (const k of V.RES) V.res[k] = 1e6; };
 
     // --- a price the village cannot hold -------------------------------------
     scene(4, 0, []);                                    // hall 4, no storehouses
@@ -4509,16 +4523,16 @@
         V.goalIdx = 0; V.tutSeen.length = 0; V.away = null; V.goalDone = null;
         V.finished = null; V.panel = null; V.sel = null; V.moving = null;
         V.ensureHall(); V.placed[0].lvl = 5; V.placed[0].t = 1;
-        V.res.wood = 1e6; V.res.food = 1e6;
+        for (const k of V.RES) V.res[k] = 1e6;
         const L = V.landBounds();
-        for (let i = 0; i < n; i++) { V.res.wood = 1e6; V.res.food = 1e6;
+        for (let i = 0; i < n; i++) { for (const k of V.RES) V.res[k] = 1e6;
           let put = false;
           for (let r = L.lo; r <= L.hi && !put; r++) for (let c = L.lo; c <= L.hi && !put; c++)
             if (V.canPlace('path', c, r, V.occupied())) put = !!V.place('path', c, r);
           if (!put) break; }
         for (const q of V.placed) if (q.t < 1) { q.t = 0.9; }
         for (let i = 0; i < 40; i++) V.step(1 / 30);
-        V.res.wood = 1e6; V.res.food = 1e6; V.step(0.001);
+        for (const k of V.RES) V.res[k] = 1e6; V.step(0.001);
         return V.decorCount();
       };
       if (edge < 2 || edge >= V.DECOR_MAX)
@@ -4552,19 +4566,19 @@
           else {
             V.placed.splice(V.placed.indexOf(gone), 1); V.rebuildStores();
             for (let i = 0; i < 20; i++) V.step(1 / 30);
-            V.res.wood = 1e6; V.res.food = 1e6; V.step(0.001);
+            for (const k of V.RES) V.res[k] = 1e6; V.step(0.001);
             want('charm', line(), /ready/, 'once the thing it named was removed');
           }
         }
         /* And it asks for what is missing when the purse is empty. */
         lay(0);
-        V.res.wood = 0; V.res.food = 0; V.step(0.001);
+        for (const k of V.RES) V.res[k] = 0; V.step(0.001);
         want('charm', line(), /\d+\/\d+/, 'the village is saving for');
         /* And says nothing once there is nothing left to want. */
         lay(0);
         { const L = V.landBounds();
           for (let i = 0; i < 40 && V.charmTotal() < V.CHARM_FULL; i++) {
-            V.res.wood = 1e6; V.res.food = 1e6;
+            for (const k of V.RES) V.res[k] = 1e6;
             let put = false;
             for (let r = L.lo; r <= L.hi && !put; r++) for (let c = L.lo; c <= L.hi && !put; c++)
               if (V.canPlace('statue', c, r, V.occupied())) put = !!V.place('statue', c, r);
@@ -4637,13 +4651,13 @@
     V.tutSeen.length = 0;
     V.away = null; V.goalDone = null; V.finished = null; V.panel = null; V.sel = null;
     V.ensureHall(); V.placed[0].lvl = 5;
-    V.res.wood = 1e6; V.res.food = 1e6;
+    for (const k of V.RES) V.res[k] = 1e6;
     const L = V.landBounds();
     const put = k => { for (let r = L.lo; r <= L.hi; r++) for (let c = L.lo; c <= L.hi; c++)
       if (V.canPlace(k, c, r, V.occupied())) return V.place(k, c, r); return false; };
     for (const k of ['house', 'house', 'farm', 'lumber', 'store']) put(k);
     for (const q of V.placed) if (q.key !== 'hall') q.lvl = 3;
-    V.res.wood = 1e6; V.res.food = 1e6;
+    for (const k of V.RES) V.res[k] = 1e6;
     for (let i = 0; i < 90 * 30; i++) V.step(1 / 30);        // and the levels land through a real finish
     parkGoals();
     const farm = V.placed.find(q => q.key === 'farm');
@@ -4655,8 +4669,13 @@
          it and reading it. The plan is worked out fresh from res on every
          call, so there is no need to step again. */
       V.step(1 / 30);
+      /* Every OTHER store half full, so the only thing near its ceiling is
+         the one being walked. Written as wood and food, it left a third kind
+         wherever the scene had put it -- at a million, which is full -- and
+         the chip then said 'storage full' at every step of the walk because
+         it was telling the truth about a different barn. */
+      for (const k of V.RES) V.res[k] = Math.floor(V.caps[k] / 2);
       V.res.food = V.caps.food - room;
-      V.res.wood = Math.floor(V.caps.wood / 2);   // the other store always has room to go to
       const want = V.desiredJobs().want;
       const lines = []; const orig = ctx.fillText;
       ctx.fillText = function (x, ...a) { lines.push(String(x)); return orig.call(this, x, ...a); };
@@ -4725,7 +4744,7 @@
     V.goalIdx = V.GOALS.length; V.tutSeen.length = 0;
     V.away = null; V.goalDone = null; V.finished = null; V.panel = null; V.sel = null;
     V.ensureHall(); V.placed[0].lvl = 5; V.placed[0].t = 1;
-    V.res.wood = 1e6; V.res.food = 1e6;
+    for (const k of V.RES) V.res[k] = 1e6;
     const L = V.landBounds();
     const put = k => { for (let r = L.lo; r <= L.hi; r++) for (let c = L.lo; c <= L.hi; c++)
       if (V.canPlace(k, c, r, V.occupied())) return V.place(k, c, r); return false; };
@@ -4778,7 +4797,7 @@
       for (let i = 0; i < steps; i++) { const fr = (i + 0.5) / steps;
         const t2 = V.tileAt(c0.x + (d.x - c0.x) * fr, c0.y + (d.y - c0.y) * fr);
         want.add(t2.c + ',' + t2.r); }
-      V.res.wood = 1e6; V.res.food = 1e6;
+      for (const k of V.RES) V.res[k] = 1e6;
       for (const key of want) { const [cc, rr] = key.split(',').map(Number);
         if (V.canPlace('path', cc, rr, V.occupied()) && V.place('path', cc, rr)) laid++; }
       for (const q of V.placed) { q.t = 1; q.build = 0; }
@@ -4909,13 +4928,13 @@
     V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
     V.tutSeen.length = 0; V.away = null; V.goalDone = null; V.finished = null; V.panel = null;
     V.ensureHall(); V.placed[0].lvl = 5;
-    V.res.wood = 1e9; V.res.food = 1e9;
+    for (const k of V.RES) V.res[k] = 1e9;
     const L = V.landBounds();
     const put = k => { for (let r = L.lo; r <= L.hi; r++) for (let c = L.lo; c <= L.hi; c++)
       if (V.canPlace(k, c, r, V.occupied())) return V.place(k, c, r); return false; };
     for (const k of ['house', 'house', 'house', 'farm', 'lumber', 'store', 'mill']) put(k);
     for (const q of V.placed) if (q.key !== 'hall') q.lvl = 4;
-    V.res.wood = 1e9; V.res.food = 1e9;
+    for (const k of V.RES) V.res[k] = 1e9;
     for (let i = 0; i < 90 * 30; i++) V.step(1 / 30);     // the levels land through a real finish
     parkGoals();
     /* Statues, because they are the biggest step and so reach the ceiling
@@ -4928,7 +4947,7 @@
       for (let c = L.lo; c <= L.hi && !spot; c++) for (let r = L.lo; r <= L.hi && !spot; r++)
         if (V.canPlace('statue', c, r, V.occupied())) spot = [c, r];
       if (!spot) break;
-      V.res.wood = 1e9; V.res.food = 1e9;
+      for (const k of V.RES) V.res[k] = 1e9;
       const charmWas = V.charmTotal(), roomWas = V.charmRoom(), usefulWas = V.usefulCharm('statue');
       const said = V.decorGainAt('statue', spot[0], spot[1]);
       const was = V.deliveredAtMul(V.charmMul());
@@ -5134,13 +5153,13 @@
     V.tutSeen.length = 0; V.away = null; V.goalDone = null; V.finished = null;
     V.panel = null; V.sel = null; V.sellArm = null;
     V.ensureHall(); V.placed[0].lvl = 5;
-    V.res.wood = 1e6; V.res.food = 1e6;
+    for (const k of V.RES) V.res[k] = 1e6;
     const L = V.landBounds();
     const put = k => { for (let r = L.lo; r <= L.hi; r++) for (let c = L.lo; c <= L.hi; c++)
       if (V.canPlace(k, c, r, V.occupied())) return V.place(k, c, r); return false; };
     for (const k of ['house', 'house', 'farm', 'lumber', 'store']) put(k);
     for (const q of V.placed) if (q.key !== 'hall') q.lvl = 3;
-    V.res.wood = 1e6; V.res.food = 1e6;
+    for (const k of V.RES) V.res[k] = 1e6;
     for (let i = 0; i < 90 * 30; i++) V.step(1 / 30);     // the levels land through a real finish
     parkGoals();
 
@@ -6055,7 +6074,13 @@
        turned up is checked like any other picture; and findSweep is what
        holds the game to the other half of the bargain, that an absent file
        really does mean an absent landmark rather than a box on the grass. */
-    const OPTIONAL = new Set(V.FIND_KEYS || []);
+    /* The kinds whose picture may not exist yet: the landmarks, which appear
+       only once their art does, and anything marked standIn, which is drawn by
+       the procedural building until somebody draws it. Both are checked as
+       soon as the file appears -- this only says that its absence is not a
+       failure. */
+    const OPTIONAL = new Set([...(V.FIND_KEYS || []),
+      ...V.BUILDINGS.filter(b => b.standIn).map(b => b.key)]);
     const cycles = new Map(), plain = [];
     for (const k of keys) {
       if (SET_ONLY.has(k)) continue;
@@ -6193,7 +6218,7 @@
       return { ...ops, total };
     };
     const put = (k, c, r) => V.canPlace(k, c, r, V.occupied()) ? V.place(k, c, r) : false;
-    const seat = k => { const L = V.landBounds(); V.res.wood = 9e5; V.res.food = 9e5;
+    const seat = k => { const L = V.landBounds(); for (const k of V.RES) V.res[k] = 9e5;
       for (let r = L.lo; r <= L.hi; r++) for (let c = L.lo; c <= L.hi; c++) if (put(k, c, r)) return true;
       return false; };
     const settle = () => {
@@ -6227,7 +6252,7 @@
       V.sel = null; V.moving = null; V.claimAsk = false; V.orders.length = 0;
       V.goalIdx = 0; V.tutSeen.length = 0; for (const h of V.TUT) V.tutSeen.push(h.id);
       V.ensureHall(); V.placed[0].lvl = hall; V.placed[0].t = 1;
-      V.res.wood = 9e5; V.res.food = 9e5; settle();
+      for (const k of V.RES) V.res[k] = 9e5; settle();
       if (kinds) for (const k of kinds) seat(k);
       else { const allow = V.HALL[V.HALL.length - 1].allow;
         for (const [k, n] of Object.entries(allow)) for (let i = 0; i < n; i++) seat(k); }
@@ -6314,7 +6339,7 @@
     V.sel = null; V.moving = null; V.claimAsk = false; V.orders.length = 0;
     V.goalIdx = 0; V.tutSeen.length = 0; for (const h of V.TUT) V.tutSeen.push(h.id);
     V.ensureHall(); V.placed[0].lvl = 3; V.placed[0].t = 1;
-    V.res.wood = 9e5; V.res.food = 9e5;
+    for (const k of V.RES) V.res[k] = 9e5;
     for (let i = 0; i < 10 * 30; i++) V.step(1 / 30);
 
     const WAYS = [[900, 0], [-900, 0], [0, 900], [0, -900],
@@ -6430,7 +6455,7 @@
     const V = window.__v, cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
     const fails = [], orig = ctx.fillText;
     const put = (k, c, r) => V.canPlace(k, c, r, V.occupied()) ? V.place(k, c, r) : false;
-    const seat = k => { const L = V.landBounds(); V.res.wood = 9e5; V.res.food = 9e5;
+    const seat = k => { const L = V.landBounds(); for (const k of V.RES) V.res[k] = 9e5;
       for (let r = L.lo; r <= L.hi; r++) for (let c = L.lo; c <= L.hi; c++)
         if (put(k, c, r)) return V.placed[V.placed.length - 1];
       return null; };
@@ -6445,7 +6470,7 @@
       V.sellArm = null; V.armed = null;
       V.tutSeen.length = 0; for (const h of V.TUT) V.tutSeen.push(h.id);
       V.ensureHall(); V.placed[0].lvl = 5; V.placed[0].t = 1;
-      V.res.wood = 9e5; V.res.food = 9e5; done(); clear();
+      for (const k of V.RES) V.res[k] = 9e5; done(); clear();
     };
     const sellLabel = () => {
       const lines = [];
@@ -6462,7 +6487,7 @@
     /* ---- one tap waits, two taps sell ---- */
     fresh();
     { const farm = seat('farm'); seat('lumber'); done(); clear();
-      V.res.wood = 100; V.res.food = 100; V.step(0.001); clear();
+      for (const k of V.RES) V.res[k] = 100; V.step(0.001); clear();
       if (!farm || farm.t < 1) fails.push('the sell check had no finished building to sell');
       else {
         V.panel = farm.id; V.step(0.001); clear();
@@ -6630,7 +6655,7 @@
       return lines;
     };
     const put = (k, c, r) => V.canPlace(k, c, r, V.occupied()) ? V.place(k, c, r) : false;
-    const seat = k => { const L = V.landBounds(); V.res.wood = 9e5; V.res.food = 9e5;
+    const seat = k => { const L = V.landBounds(); for (const k of V.RES) V.res[k] = 9e5;
       for (let r = L.lo; r <= L.hi; r++) for (let c = L.lo; c <= L.hi; c++) if (put(k, c, r)) return true;
       return false; };
     const settle = () => {
@@ -6658,7 +6683,7 @@
       V.sel = null; V.moving = null; V.orders.length = 0;
       V.tutSeen.length = 0; for (const h of V.TUT) V.tutSeen.push(h.id);
       V.ensureHall(); V.placed[0].lvl = 5; V.placed[0].t = 1;
-      V.res.wood = 9e5; V.res.food = 9e5; settle();
+      for (const k of V.RES) V.res[k] = 9e5; settle();
       /* Roads and a statue among them, because the count has to include what
          is not a building. */
       for (const k of ['house', 'farm', 'statue', 'path', 'path']) seat(k);
@@ -6666,7 +6691,7 @@
       V.goalIdx = parkGoals();
 
       const before = emptyTiles(), cost = V.landNext();
-      V.res.wood = 9e5; V.res.food = 9e5; V.step(0.001);
+      for (const k of V.RES) V.res[k] = 9e5; V.step(0.001);
       const lines = card();
       rings++;
 
@@ -6712,7 +6737,7 @@
       seen.add('claim it');
 
       /* Short of it, and short of ever holding it. */
-      V.res.wood = 0; V.res.food = 0; V.step(0.001);
+      for (const k of V.RES) V.res[k] = 0; V.step(0.001);
       const poor = card();
       const short = poor.find(t => /^Need /.test(t)) || '';
       const held = poor.find(t => /stores cannot hold/.test(t)) || '';
@@ -6736,7 +6761,7 @@
       }
 
       /* And buying it does what the card said it would. */
-      V.res.wood = 9e5; V.res.food = 9e5; V.step(0.001);
+      for (const k of V.RES) V.res[k] = 9e5; V.step(0.001);
       const purse = { wood: V.res.wood, food: V.res.food };
       if (!V.claimLand()) {
         fails.push('ring ' + tier + ' could not be claimed by a village holding everything');
@@ -6781,7 +6806,7 @@
       return lines.find(x => /villager/.test(x)) || '';
     };
     const put = (k, c, r) => V.canPlace(k, c, r, V.occupied()) ? V.place(k, c, r) : false;
-    const seat = k => { const L = V.landBounds(); V.res.wood = 9e5; V.res.food = 9e5;
+    const seat = k => { const L = V.landBounds(); for (const k of V.RES) V.res[k] = 9e5;
       for (let r = L.lo; r <= L.hi; r++) for (let c = L.lo; c <= L.hi; c++)
         if (put(k, c, r)) return V.placed[V.placed.length - 1];
       return null; };
@@ -6791,15 +6816,18 @@
     };
     const run = secs => { for (let i = 0; i < secs * 30; i++) V.step(1 / 30); };
     /* Comfortably off, so that nothing in the row is about money. */
-    const mid = () => { V.res.wood = Math.floor(V.caps.wood * 0.3);
-      V.res.food = Math.floor(V.caps.food * 0.3); V.step(0.001); };
+    /* Every kind of them, not two by name: a store left at its ceiling is a
+       "store full" hint, and a hint outranks the advice this sweep came to
+       read. */
+    const mid = () => { for (const k of V.RES) V.res[k] = Math.floor(V.caps[k] * 0.3);
+      V.step(0.001); };
     const fresh = lvl => {
       V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
       V.away = null; V.goalDone = null; V.finished = null; V.panel = null;
       V.sel = null; V.moving = null; V.claimAsk = false; V.orders.length = 0;
       V.tutSeen.length = 0; for (const h of V.TUT) V.tutSeen.push(h.id);
       V.ensureHall(); V.placed[0].lvl = lvl; V.placed[0].t = 1;
-      V.res.wood = 9e5; V.res.food = 9e5; settle();
+      for (const k of V.RES) V.res[k] = 9e5; settle();
       V.goalIdx = parkGoals();
     };
     const seen = new Set();
@@ -7032,7 +7060,7 @@
        c - r = 0, so nothing else may be. Scanning for the first free tile put
        three of them on that diagonal and the hall was handed somebody else's
        badge twice over. */
-    const at = (k, c, r) => { V.res.wood = 9e5; V.res.food = 9e5;
+    const at = (k, c, r) => { for (const k of V.RES) V.res[k] = 9e5;
       return put(k, c, r) ? V.placed[V.placed.length - 1] : null; };
     /* And the scene says so itself, rather than trusting the layout to stay
        right through the next edit. */
@@ -7052,7 +7080,7 @@
       V.sel = null; V.moving = null; V.claimAsk = false; V.orders.length = 0;
       V.tutSeen.length = 0; for (const h of V.TUT) V.tutSeen.push(h.id);
       V.ensureHall(); V.placed[0].lvl = hallLvl; V.placed[0].t = 1;
-      V.res.wood = 9e5; V.res.food = 9e5; settle();
+      for (const k of V.RES) V.res[k] = 9e5; settle();
       V.goalIdx = parkGoals();
     };
 
@@ -7104,13 +7132,13 @@
       at('house', 0, 4); at('house', 4, 0); at('house', 10, 8);
       columnsDiffer('a village that can afford to grow');
       settle(); for (let i = 0; i < 120 * 30; i++) V.step(1 / 30);
-      V.res.wood = 9e5; V.res.food = 9e5; V.step(0.001);
+      for (const k of V.RES) V.res[k] = 9e5; V.step(0.001);
       judge('a village that can afford to grow', on => {
         if (on.get(farm.id) !== 'up' || on.get(lum.id) !== 'up')
           fails.push('a village rich enough to improve everything showed no tick on a workplace');
       });
       /* ---- and the same village with an empty purse: no ticks ---- */
-      V.res.wood = 0; V.res.food = 0; V.step(0.001);
+      for (const k of V.RES) V.res[k] = 0; V.step(0.001);
       judge('the same village with nothing in the stores', on => {
         for (const p of V.placed) if (on.get(p.id) === 'up')
           fails.push('a village with nothing in its stores showed a tick on the ' + p.key);
@@ -7122,7 +7150,7 @@
     { const lum = at('lumber', 8, 2), farm = at('farm', 2, 8);
       columnsDiffer('a village with one pair of hands');
       settle(); for (let i = 0; i < 120 * 30; i++) V.step(1 / 30);
-      V.res.wood = 0; V.res.food = 0; V.step(0.001);
+      for (const k of V.RES) V.res[k] = 0; V.step(0.001);
       const empty = [lum, farm].filter(p => p && !V.workersAt(p.id));
       if (!empty.length) fails.push('the alarm check could not leave a workplace empty');
       judge('a village with one pair of hands and two workplaces', on => {
@@ -7183,7 +7211,7 @@
       columnsDiffer('a village with its storehouse in one corner');
       if (farm) farm.lvl = V.LVL_MAX;
       settle(); for (let i = 0; i < 150 * 30; i++) V.step(1 / 30);
-      V.res.wood = 0; V.res.food = 0; V.step(0.001);
+      for (const k of V.RES) V.res[k] = 0; V.step(0.001);
       if (!farm) fails.push('the walk check could not put a farm in the far corner');
       else {
         const { on, texts } = marks();
@@ -7266,11 +7294,11 @@
       V.sel = null; V.moving = null; V.claimAsk = false; V.orders.length = 0;
       V.goalIdx = V.GOALS.length; V.tutSeen.length = 0; for (const h of V.TUT) V.tutSeen.push(h.id);
       V.ensureHall(); V.placed[0].lvl = hallLvl; V.placed[0].t = 1;
-      V.res.wood = 9e5; V.res.food = 9e5; settle();
+      for (const k of V.RES) V.res[k] = 9e5; settle();
       V.barMode = 'orders';
     };
     const grow = n => {
-      for (let i = 0; i < n; i++) { V.res.wood = 9e5; V.res.food = 9e5; seat('store'); }
+      for (let i = 0; i < n; i++) { for (const k of V.RES) V.res[k] = 9e5; seat('store'); }
       for (const q of V.placed) if (q.key === 'store') q.lvl = 5;
       settle();
     };
@@ -7328,11 +7356,11 @@
     check('a fresh board the village can pay for');
 
     /* ---- and with an empty purse, so every card has to say what is missing ---- */
-    V.res.wood = 0; V.res.food = 0;
+    for (const k of V.RES) V.res[k] = 0;
     check('a board with nothing in the stores');
 
     /* ---- and with the payout side at its ceiling, so there is nowhere to put it ---- */
-    V.res.wood = V.caps.wood; V.res.food = V.caps.food;
+    for (const k of V.RES) V.res[k] = V.caps[k];
     check('a board with both barns at the ceiling');
 
     /* ---- the same board on a village that has NOT finished ----
@@ -7349,7 +7377,7 @@
        looked at it. */
     const keepGoal = V.goalIdx;
     V.goalIdx = 0;
-    V.res.wood = V.caps.wood; V.res.food = V.caps.food;
+    for (const k of V.RES) V.res[k] = V.caps[k];
     check('a ceiling board on a village still building');
     V.goalIdx = keepGoal;
 
@@ -7434,6 +7462,9 @@
     const V = window.__v, cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
     const fails = [], orig = ctx.fillText;
     const grab = re => { const got = [];
+      /* Nothing dimming the screen at the moment of the draw: the panel yields
+         to any card that washes it, and this scene finishes its goals. */
+      V.away = null; V.finished = null; V.goalDone = null; V.claimAsk = false;
       ctx.fillText = function (t, ...r) { if (re.test(String(t))) got.push(String(t)); return orig.call(this, t, ...r); };
       try { V.draw(); } finally { ctx.fillText = orig; }
       return got; };
@@ -7452,7 +7483,7 @@
       for (const q of V.placed) if (q.t >= 1) q.t = 0.9;
       for (let i = 0; i < 40; i++) V.step(1 / 30);
     };
-    const RICH = () => { V.res.wood = 9e5; V.res.food = 9e5; };
+    const RICH = () => { for (const k of V.RES) V.res[k] = 9e5; };
     const pill = (key, c, r) => {
       V.sel = key; V.ghost = { c, r, fits: true, ok: true, why: null };
       V.step(0.001);
@@ -7602,7 +7633,7 @@
       const c = L.lo + 1, r = L.lo + 6;
       if (!V.canPlace('mill', c, r, V.occupied())) fails.push('the price check had nowhere to stand a mill');
       else {
-        V.res.wood = 0; V.res.food = 0; V.step(0.001);
+        for (const k of V.RES) V.res[k] = 0; V.step(0.001);
         const poor = pill('mill', c, r);
         const cost = V.B('mill').cost;
         if (!/^need /.test(poor || ''))
@@ -7634,9 +7665,9 @@
       for (let r = L.lo; r <= L.hi; r++) for (let c = L.lo; c <= L.hi; c++)
         if (V.canPlace(k, c, r, V.occupied())) return V.place(k, c, r);
       return false; };
-    /* The chip draws its two lines in order: the amount, then this. So the
-       line under the wood chip is the first of these the draw puts out and the
-       line under the food chip is the second. */
+    /* A chip draws its two lines in order: the amount, then this. So these
+       come out in the order the chips are laid out, which is the order of the
+       list of goods -- the first is the first kind, and so on. */
     const LINE = /^(\+[\d.]+\/s|idle|storage full|(?:wasting|sharing) [\d.]+\/s)$/;
     const chips = () => {
       const lines = [];
@@ -7651,16 +7682,18 @@
        ever leaves a villager by being delivered, so the second is the village's
        work counted without asking the village. */
     const run = (secs, hold) => {
-      const carried = { wood: 0, food: 0 };
-      const r0 = { wood: V.res.wood, food: V.res.food };
+      const carried = {}, r0 = {};
+      for (const k of V.RES) { carried[k] = 0; r0[k] = V.res[k]; }
       for (let i = 0; i < secs * 30; i++) {
         const held = V.villagers.map(v => [v, v.carry ? { k: v.carry.k, n: v.carry.n } : null]);
         V.orders = [];                                   // a trade is not production
-        if (hold) for (const k of ['wood', 'food']) V.res[k] = V.caps[k];
+        if (hold) for (const k of V.RES) V.res[k] = V.caps[k];
         V.step(1 / 30);
         for (const [v, h] of held) if (h && !v.carry) carried[h.k] += h.n;
       }
-      return { carried, gained: { wood: V.res.wood - r0.wood, food: V.res.food - r0.food } };
+      const gained = {};
+      for (const k of V.RES) gained[k] = V.res[k] - r0[k];
+      return { carried, gained };
     };
     /* A measurement made of loads cannot be finer than a load. */
     const near = (said, real, secs) =>
@@ -7673,8 +7706,8 @@
       V.sel = null; V.moving = null; V.claimAsk = false; V.orders = [];
       V.tutSeen.length = 0; for (const h of V.TUT) V.tutSeen.push(h.id);
       V.ensureHall(); V.placed[0].lvl = hall; V.placed[0].t = 1;
-      V.res.wood = 9e5; V.res.food = 9e5; V.step(0.001);
-      for (const k of kinds) { V.res.wood = 9e5; V.res.food = 9e5; put(k); }
+      for (const k of V.RES) V.res[k] = 9e5; V.step(0.001);
+      for (const k of kinds) { for (const k of V.RES) V.res[k] = 9e5; put(k); }
       for (const q of V.placed) if (q.key !== 'hall' && !V.isDecor(q.key)) q.lvl = 3;
       for (let i = 0; i < 150 * 30; i++) V.step(1 / 30);   // the levels land through a real finish
       /* Parked, or a goal pays out in the middle of the measurement and the
@@ -7682,8 +7715,11 @@
       V.goalIdx = finished ? V.GOALS.length : parkGoals();
       V.goalDone = null; V.finished = null; V.away = null; V.orders = [];
     };
+    /* One workplace for every kind the village keeps, because the thing being
+       read is a chip PER KIND: a kind nobody makes reads "idle", which is one
+       of the five lines, but it can never read any of the other four. */
     const WORKING = ['house', 'house', 'house', 'house', 'farm', 'farm',
-      'lumber', 'lumber', 'store', 'mill', 'well'];
+      'lumber', 'lumber', 'quarry', 'store', 'mill', 'well'];
 
     let scenes = 0;
     for (const [what, kinds, hall, finished, fill] of [
@@ -7694,17 +7730,19 @@
       ['a hall and one house', ['house'], 3, false, 0.1],
     ]) {
       scene(kinds, hall, finished);
-      for (const k of ['wood', 'food']) V.res[k] = Math.floor(V.caps[k] * fill);
+      for (const k of V.RES) V.res[k] = Math.floor(V.caps[k] * fill);
       V.step(0.001);
       const said = chips();
       scenes++;
-      if (said.length !== 2) {
-        fails.push('the chips said ' + said.length + ' things in ' + what + ': ' + said.join(' / '));
+      if (said.length !== V.RES.length) {
+        fails.push('the chips said ' + said.length + ' things in ' + what + ' and the village keeps '
+          + V.RES.length + ' kinds of goods: ' + said.join(' / '));
         continue;
       }
       const full = fill === 1;
       const r = run(SECS, full);
-      for (const [i, k] of [[0, 'wood'], [1, 'food']]) {
+      /* In the order the chips are laid out, which is the order of the list. */
+      for (const [i, k] of V.RES.map((k2, i2) => [i2, k2])) {
         const t = said[i];
         seen.add(/^\+/.test(t) ? 'rate' : /wasting/.test(t) ? 'wasting'
           : /sharing/.test(t) ? 'sharing' : t);
@@ -7781,7 +7819,7 @@
       V.tutSeen.length = 0; for (const h of V.TUT) V.tutSeen.push(h.id);
     };
     const build = kinds => {
-      for (const k of kinds) { V.res.wood = 9e5; V.res.food = 9e5; put(k); }
+      for (const k of kinds) { for (const k of V.RES) V.res[k] = 9e5; put(k); }
       for (const q of V.placed) q.t = 1;
       V.step(0.001);
     };
@@ -7801,7 +7839,7 @@
         V.placed.length = 0; V.villagers.length = 0; V.landTier = land; V.coverPlaced();
         clear();
         V.ensureHall(); V.placed[0].lvl = hall; V.placed[0].t = 1;
-        V.res.wood = 9e5; V.res.food = 9e5; V.step(0.001);
+        for (const k of V.RES) V.res[k] = 9e5; V.step(0.001);
         build(kinds);
         V.goalIdx = i; V.goalDone = null; V.finished = null;
         V.res.wood = purse === 'poor' ? 0 : purse === 'full' ? V.caps.wood : 9e5;
@@ -7815,7 +7853,7 @@
     V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
     clear();
     V.ensureHall(); V.placed[0].lvl = 5; V.placed[0].t = 1;
-    V.res.wood = 9e5; V.res.food = 9e5; V.step(0.001);
+    for (const k of V.RES) V.res[k] = 9e5; V.step(0.001);
     build(FULL);
     for (let i = 0; i < 90 * 30; i++) V.step(1 / 30);     // villagers at work, stock moving
     for (const p of V.placed.slice()) {
@@ -7927,14 +7965,14 @@
       V.goalIdx = 0;
       V.ensureHall();
       V.placed[0].lvl = H; V.placed[0].t = 1;
-      V.res.wood = 9e5; V.res.food = 9e5; V.step(0.001);
+      for (const k of V.RES) V.res[k] = 9e5; V.step(0.001);
       for (let n = 0; n < storeCount; n++) {
-        V.res.wood = 9e5; V.res.food = 9e5;
+        for (const k of V.RES) V.res[k] = 9e5;
         if (V.atLimit('store') || !put('store')) break;
       }
       for (const b of V.BUILDINGS) {
         if (b.key === 'hall' || b.decor || b.key === 'store') continue;
-        V.res.wood = 9e5; V.res.food = 9e5;
+        for (const k of V.RES) V.res[k] = 9e5;
         if (!V.atLimit(b.key)) put(b.key);
       }
       for (const q of V.placed) if (q.key === 'store') q.lvl = storeLvl;
@@ -8025,7 +8063,7 @@
                   V.placed[0].lvl = n;
                   for (const q of V.placed) q.t = 1;
                   settle();
-                  V.res.wood = V.caps.wood; V.res.food = V.caps.food; V.step(0.001);
+                  for (const k of V.RES) V.res[k] = V.caps[k]; V.step(0.001);
                   return labelOn(p);
                 };
                 if (want - 1 >= 1) {
@@ -8042,7 +8080,7 @@
                 /* Taken as far as the hall allows. One more shed need not be
                    enough on its own; running out of shed must be. */
                 for (let n = 0; n < 9 && !V.atLimit('store'); n++) {
-                  V.res.wood = 9e5; V.res.food = 9e5;
+                  for (const k of V.RES) V.res[k] = 9e5;
                   if (!put('store')) break;
                 }
                 for (const q of V.placed) if (q.key === 'store' && q !== p) {
@@ -8050,7 +8088,7 @@
                   while (!i.max && !i.gate && guard++ < 9) { q.lvl++; i = V.upInfo(q); }
                 }
                 settle();
-                V.res.wood = V.caps.wood; V.res.food = V.caps.food; V.step(0.001);
+                for (const k of V.RES) V.res[k] = V.caps[k]; V.step(0.001);
                 const now = labelOn(p);
                 if (now.kind === 'another' || now.kind === 'bigger')
                   fails.push('the button for ' + who + ' said "' + lab.text
@@ -8172,12 +8210,12 @@
     let steps = 0;
     for (let L = 1; L < V.HALL.length - 1; L++) {
       hall.lvl = L; hall.t = 1;
-      V.res.wood = 5e5; V.res.food = 5e5; V.step(0.001);
+      for (const k of V.RES) V.res[k] = 5e5; V.step(0.001);
       /* Storage up to what this level allows, or the village cannot HOLD the
          price of the last step and the game rightly refuses to sell it. */
-      while (!V.atLimit('store')) { V.res.wood = 5e5; V.res.food = 5e5; if (!put('store')) break; }
+      while (!V.atLimit('store')) { for (const k of V.RES) V.res[k] = 5e5; if (!put('store')) break; }
       for (const q of V.placed) if (q.key === 'store') { q.t = 1; q.lvl = 5; }
-      V.res.wood = 5e5; V.res.food = 5e5; V.step(0.001);
+      for (const k of V.RES) V.res[k] = 5e5; V.step(0.001);
 
       const before = allowNow();
       const settledLines = rowsOf(hall);
@@ -8185,7 +8223,7 @@
       if (settledLines.some(x => /under scaffolding/.test(x)))
         fails.push('a hall settled at level ' + L + ' says it is under scaffolding');
 
-      V.res.wood = 5e5; V.res.food = 5e5;
+      for (const k of V.RES) V.res[k] = 5e5;
       if (!V.upgradeBuilding(hall)) {
         fails.push('a hall at level ' + L + ' could not be sent to level ' + (L + 1)
           + ', so the promise was never tested');
@@ -8257,7 +8295,7 @@
       V.ensureHall(); V.placed[0].lvl = 5;
       for (const k of ['house', 'house', 'house', 'house', 'farm', 'farm',
         'lumber', 'lumber', 'store', 'mill', 'well', 'statue']) {
-        V.res.wood = 1e6; V.res.food = 1e6; put(k);
+        for (const k of V.RES) V.res[k] = 1e6; put(k);
       }
       for (const q of V.placed) if (q.key !== 'hall' && !V.isDecor(q.key)) q.lvl = 3;
       for (let i = 0; i < 120 * 30; i++) V.step(1 / 30);
@@ -8356,7 +8394,7 @@
     V.ensureHall(); V.placed[0].lvl = 3; V.step(0.001);
     {
       const L = V.landBounds();
-      const seat = k => { V.grant('wood', 9e5, 0, 0); V.grant('food', 9e5, 0, 0);
+      const seat = k => { for (const kAll of V.RES) V.grant(kAll, 9e5, 0, 0);
         for (let c = L.lo; c <= L.hi; c++) for (let r = L.lo; r <= L.hi; r++)
           if (V.canPlace(k, c, r, V.occupied())) return V.place(k, c, r);
         return null; };
@@ -8424,7 +8462,7 @@
   window.rewardSweep = function () {
     const V = window.__v, fails = [];
     const seat = k => { const L = V.landBounds();
-      V.grant('wood', 9e6, 0, 0); V.grant('food', 9e6, 0, 0);
+      for (const kAll of V.RES) V.grant(kAll, 9e6, 0, 0);
       for (let c = L.lo; c <= L.hi; c++) for (let r = L.lo; r <= L.hi; r++)
         if (V.canPlace(k, c, r, V.occupied())) return V.place(k, c, r);
       return null; };
@@ -8448,17 +8486,18 @@
       V.goalIdx = 0; V.goalDone = null; V.finished = null;
       for (let guard = 0; V.goalIdx < V.GOALS.length && guard < 300; guard++) {
         const g = V.GOALS[V.goalIdx];
-        for (const k of ['wood', 'food']) V.res[k] = full ? V.caps[k] : V.caps[k] * 0.05;
-        const before = { wood: V.res.wood, food: V.res.food };
-        const room = { wood: V.caps.wood - before.wood, food: V.caps.food - before.food };
+        for (const k of V.RES) V.res[k] = full ? V.caps[k] : V.caps[k] * 0.05;
+        const before = {}, room = {};
+        for (const k of V.RES) { before[k] = V.res[k]; room[k] = V.caps[k] - before[k]; }
         V.goalDone = null;
         V.step(1 / 30);
         const card = V.goalDone;
         if (!card) continue;                    // not this tick; the next one will do it
         const got = card.got || {};
-        const gain = { wood: V.res.wood - before.wood, food: V.res.food - before.food };
+        const gain = {};
+        for (const k of V.RES) gain[k] = V.res[k] - before[k];
         const name = '"' + g.text.slice(0, 30) + '"';
-        for (const k of ['wood', 'food']) {
+        for (const k of V.RES) {
           const said = got[k] || 0, meant = Math.min(g.give[k] || 0, room[k]);
           if (said > (g.give[k] || 0) + 0.01)
             fails.push('the banner for ' + name + ' claims ' + said + ' ' + k
@@ -8733,7 +8772,7 @@
       V.ensureHall(); V.res.wood = 120; V.res.food = 60; V.step(0.001);
     };
     const seat = k => { const L = V.landBounds();
-      V.grant('wood', 9e5, 0, 0); V.grant('food', 9e5, 0, 0);
+      for (const kAll of V.RES) V.grant(kAll, 9e5, 0, 0);
       for (let c = L.lo; c <= L.hi; c++) for (let r = L.lo; r <= L.hi; r++)
         if (V.canPlace(k, c, r, V.occupied())) return V.place(k, c, r);
       return null; };
@@ -8754,14 +8793,14 @@
       tap: () => { fresh(0); seat('house'); seat('lumber'); settle(8); after('tap'); },
       /* A hall that can grow. */
       hall: () => { fresh(0); seat('house'); seat('lumber'); settle(8);
-        V.grant('wood', 9e5, 0, 0); V.grant('food', 9e5, 0, 0); V.step(0.001); after('hall'); },
+        for (const kAll of V.RES) V.grant(kAll, 9e5, 0, 0); V.step(0.001); after('hall'); },
       /* A goal asking for land, and land to be had. */
       land: () => { fresh(0); seat('house'); seat('lumber'); settle(8);
         const g = V.GOALS.findIndex(q => /land|island/i.test(q.text));
         V.goalIdx = g < 0 ? 0 : g; V.goalDone = null; V.step(0.001); after('land'); },
       /* Barns at the ceiling with somebody still carrying into them. */
       full: () => { fresh(0); seat('house'); seat('lumber'); settle(8);
-        V.res.wood = V.caps.wood; V.res.food = V.caps.food; V.step(0.001); after('full'); },
+        for (const k of V.RES) V.res[k] = V.caps[k]; V.step(0.001); after('full'); },
     };
 
     const taught = {};
@@ -8798,7 +8837,7 @@
       const L = V.landBounds();
       /* Paid for one at a time: a grant is clamped to the ceiling, so a village
          handed everything at once can only afford the first few buildings. */
-      const seat = k => { V.grant('wood', 9e6, 0, 0); V.grant('food', 9e6, 0, 0);
+      const seat = k => { for (const kAll of V.RES) V.grant(kAll, 9e6, 0, 0);
         for (let c = L.lo; c <= L.hi; c++) for (let r = L.lo; r <= L.hi; r++)
           if (V.canPlace(k, c, r, V.occupied())) return V.place(k, c, r);
         return null; };
@@ -8822,7 +8861,7 @@
        village has and what it earns, with a fifth held back, and never under
        the floor the game ignores. */
     const rate = V.potentialRate();
-    V.res.wood = 0; V.res.food = 0; V.away = null; V.step(0.001);
+    for (const k of V.RES) V.res[k] = 0; V.away = null; V.step(0.001);
     let secs = 300;
     for (const k of ['wood', 'food'])
       if (rate[k] > 0) secs = Math.min(secs, 0.8 * V.caps[k] / rate[k]);
@@ -8845,7 +8884,7 @@
     /* Then the same village actually plays it. grantAway moves nobody -- it
        credits the stores and puts a card up -- so the walk the villagers are
        in the middle of is the one they were in the middle of a moment ago. */
-    V.away = null; V.res.wood = 0; V.res.food = 0; V.step(0.001);
+    V.away = null; for (const k of V.RES) V.res[k] = 0; V.step(0.001);
     const live = { wood: 0, food: 0 };
     for (let i = 0; i < secs * 30; i++) {
       const was = { wood: V.res.wood, food: V.res.food };
@@ -8893,11 +8932,11 @@
         sizes: new Set(V.orders.map(o => o.tier)).size,
         stalls: new Set(V.orders.map(o => o.slot)).size });
       V.away = null; V.panel = null;
-      V.res.wood = Math.floor(V.caps.wood / 2); V.res.food = Math.floor(V.caps.food / 2);
+      for (const k of V.RES) V.res[k] = Math.floor(V.caps[k] / 2);
       V.orders = []; V.orderT = 0; V.step(0.001);
       for (let i = 0; i < stretch * 30; i++) V.step(1 / 30);
       const played = shape();
-      V.res.wood = Math.floor(V.caps.wood / 2); V.res.food = Math.floor(V.caps.food / 2);
+      for (const k of V.RES) V.res[k] = Math.floor(V.caps[k] / 2);
       V.orders = []; V.orderT = 0; V.away = null; V.step(0.001);
       V.grantAway(stretch);
       const slept = shape();
@@ -8973,7 +9012,7 @@
 
     /* 1. The corner the source names. */
     reset(0);
-    V.res.wood = 9e5; V.res.food = 9e5; V.step(0.001);
+    for (const k of V.RES) V.res[k] = 9e5; V.step(0.001);
     seat('house'); seat('house'); seat('farm');
     for (const p of V.placed) p.t = 1;
     for (let i = 0; i < 60 * 30; i++) V.step(1 / 30);
@@ -8987,7 +9026,7 @@
 
     /* 2. And from nothing whatever. */
     reset(0);
-    V.res.wood = 0; V.res.food = 0; V.step(0.001);
+    for (const k of V.RES) V.res[k] = 0; V.step(0.001);
     parkGoals();
     const makers = V.BUILDINGS.filter(b => b.makes && b.jobs && b.cost
       && Object.keys(b.cost).length && Object.values(b.cost).some(v => v > 0));
@@ -9035,7 +9074,7 @@
     V.goalIdx = 0; V.tutSeen.length = 0; V.finished = null; V.goalDone = null;
     V.away = null; V.panel = null; V.sel = null; V.moving = null; V.claimAsk = false;
     V.ensureHall(); V.placed[0].lvl = 5;
-    V.grant('wood', 9e6, 0, 0); V.grant('food', 9e6, 0, 0); V.step(0.001);
+    for (const kAll of V.RES) V.grant(kAll, 9e6, 0, 0); V.step(0.001);
     {
       const L = V.landBounds();
       const seat = k => { for (let c = L.lo; c <= L.hi; c++) for (let r = L.lo; r <= L.hi; r++)
@@ -9097,10 +9136,10 @@
        chip must say so rather than holding the best figure it ever saw.
        Measured: 1.44 falls to 0.005 within a minute and to nothing by ninety
        seconds. */
-    V.res.wood = V.caps.wood; V.res.food = V.caps.food;
+    for (const k of V.RES) V.res[k] = V.caps[k];
     for (let i = 0; i < 90 * 30; i++) {
       V.step(1 / 30);
-      V.res.wood = V.caps.wood; V.res.food = V.caps.food; V.orders = [];
+      for (const k of V.RES) V.res[k] = V.caps[k]; V.orders = [];
     }
     const quiet = { wood: +V.rateNow.wood.toFixed(4), food: +V.rateNow.food.toFixed(4) };
     for (const k of ['wood', 'food'])
@@ -9108,7 +9147,7 @@
         fails.push('the ' + k + ' chip still reads ' + quiet[k]
           + ' a second after a minute and a half of nothing arriving');
 
-    V.res.wood = V.caps.wood / 2; V.res.food = V.caps.food / 2; V.step(0.001);
+    for (const k of V.RES) V.res[k] = V.caps[k] / 2; V.step(0.001);
     return { arriving, quiet, slack: SLACK, fails };
   };
 
@@ -9133,7 +9172,7 @@
     V.goalIdx = 0; V.tutSeen.length = 0; V.finished = null; V.goalDone = null;
     V.away = null; V.panel = null; V.sel = null; V.moving = null; V.claimAsk = false;
     V.ensureHall(); V.placed[0].lvl = 3;
-    V.grant('wood', 9e6, 0, 0); V.grant('food', 9e6, 0, 0); V.step(0.001);
+    for (const kAll of V.RES) V.grant(kAll, 9e6, 0, 0); V.step(0.001);
     for (let i = 0; i < 30 * 30; i++) V.step(1 / 30);
 
     const pairs = [];
@@ -9150,10 +9189,10 @@
 
     V.barMode = 'build'; V.panel = null; V.sel = null; V.step(0.001);
     say('a build card you can and cannot afford', () => V.barRects()[0],
-      () => { V.res.wood = 9e6; V.res.food = 9e6; },
-      () => { V.res.wood = 0; V.res.food = 0; });
+      () => { for (const k of V.RES) V.res[k] = 9e6; },
+      () => { for (const k of V.RES) V.res[k] = 0; });
 
-    V.res.wood = 9e6; V.res.food = 9e6; V.step(0.001);
+    for (const k of V.RES) V.res[k] = 9e6; V.step(0.001);
     {
       /* A kind at its allowance. The hall's limit is what makes this state
          reachable, so the houses are built out until it refuses another. */
@@ -9176,15 +9215,15 @@
     V.barMode = 'orders'; V.orders = [V.makeOrder(1)]; V.orderT = 0; V.step(0.001);
     if (V.orderRects()[0])
       say('a trade you can and cannot fill', () => V.orderRects()[0],
-        () => { V.res.wood = 9e6; V.res.food = 9e6; },
-        () => { V.res.wood = 1; V.res.food = 1; });
+        () => { for (const k of V.RES) V.res[k] = 9e6; },
+        () => { for (const k of V.RES) V.res[k] = 1; });
     else fails.push('no trade was on the board, so that pair went unasked');
 
     V.barMode = 'build'; V.panel = V.placed[0].id; V.step(0.001);
     say('an upgrade you can and cannot reach', () => V.panelRects().up,
-      () => { V.res.wood = 9e6; V.res.food = 9e6; },
-      () => { V.res.wood = 0; V.res.food = 0; });
-    V.panel = null; V.res.wood = 9e6; V.res.food = 9e6; V.step(0.001);
+      () => { for (const k of V.RES) V.res[k] = 9e6; },
+      () => { for (const k of V.RES) V.res[k] = 0; });
+    V.panel = null; for (const k of V.RES) V.res[k] = 9e6; V.step(0.001);
 
     /* And the one the source wrote the rule for. The refused outline is dashed
        and the allowed one is not, so this is asked of the dash pattern rather
@@ -9224,7 +9263,7 @@
     V.away = null; V.moving = null; V.claimAsk = false;
     V.ensureHall(); V.placed[0].lvl = 4; V.step(1 / 30);
     for (const [k, c, r] of [['store', 4, 4], ['farm', 7, 4], ['house', 4, 7]]) {
-      V.grant('wood', 9999, 0, 0); V.grant('food', 9999, 0, 0);
+      for (const kAll of V.RES) V.grant(kAll, 9999, 0, 0);
       if (V.place(k, c, r)) V.placed[V.placed.length - 1].t = 1;
     }
     for (let i = 0; i < 60 * 30; i++) V.step(1 / 30);
@@ -9324,7 +9363,7 @@
     V.goalIdx = 0; V.tutSeen.length = 0; V.finished = null; V.goalDone = null;
     V.away = null; V.panel = null; V.sel = null; V.moving = null; V.claimAsk = false;
     V.ensureHall(); V.placed[0].lvl = 3;
-    V.grant('wood', 1e6, 0, 0); V.grant('food', 1e6, 0, 0); V.step(0.001);
+    for (const kAll of V.RES) V.grant(kAll, 1e6, 0, 0); V.step(0.001);
     {
       const L = V.landBounds();
       const seat = k => { for (let c = L.lo; c <= L.hi; c++) for (let r = L.lo; r <= L.hi; r++)
@@ -9716,7 +9755,7 @@
     V.goalIdx = 0; V.tutSeen.length = 0; V.finished = null; V.goalDone = null;
     V.away = null; V.panel = null; V.sel = null; V.moving = null; V.claimAsk = false;
     V.ensureHall(); V.placed[0].lvl = 3;
-    V.grant('wood', 1e6, 0, 0); V.grant('food', 1e6, 0, 0); V.step(0.001);
+    for (const kAll of V.RES) V.grant(kAll, 1e6, 0, 0); V.step(0.001);
     {
       const L = V.landBounds();
       const seat = (k, far) => { const cs = [];
@@ -9857,7 +9896,7 @@
     V.tutSeen.length = 0; V.away = null; V.goalDone = null; V.finished = null;
     V.panel = null; V.sel = null; V.moving = null; V.reduceMotion = false;
     V.ensureHall(); V.placed[0].lvl = 3;
-    V.grant('wood', 1e6, 0, 0); V.grant('food', 1e6, 0, 0); V.step(0.001);
+    for (const kAll of V.RES) V.grant(kAll, 1e6, 0, 0); V.step(0.001);
     const L = V.landBounds();
     const put = k => { for (let c = L.lo; c <= L.hi; c++) for (let r = L.lo; r <= L.hi; r++)
       if (V.canPlace(k, c, r, V.occupied())) return V.place(k, c, r); return null; };
@@ -9978,7 +10017,7 @@
     V.placed.length = 0; V.villagers.length = 0; V.landTier = 2; V.coverPlaced();
     V.away = null; V.goalDone = null; V.finished = null; V.panel = null; V.sel = null;
     V.ensureHall(); V.placed[0].lvl = 5; V.placed[0].t = 1;
-    V.res.wood = 5e4; V.res.food = 5e4;
+    for (const k of V.RES) V.res[k] = 5e4;
     const LB = V.landBounds();
     V.place('house', LB.lo + 1, LB.lo + 1); V.place('house', LB.lo + 1, LB.lo + 3);
     for (let i = 0; i < 60 * 30; i++) V.step(1 / 30);
@@ -10001,7 +10040,7 @@
     };
     let checked = 0;
     for (const [tag, res] of [['a full purse', 5e4], ['an empty one', 3]]) {
-      V.res.wood = res; V.res.food = res;
+      for (const k of V.RES) V.res[k] = res;
       for (const card of rowsFor()) {
         if (!card.rows.length) continue;                 // locked, or nobody spare
         const afford = Object.entries(card.cost).every(([k, v]) => V.res[k] >= v);
@@ -10049,7 +10088,7 @@
       V.goalIdx = V.GOALS.length; V.away = null; V.goalDone = null; V.finished = null;
       V.panel = null; V.sel = null; V.barMode = 'build'; V.tutSeen.length = 0;
       V.ensureHall(); V.placed[0].lvl = 5; V.placed[0].t = 1;
-      V.res.wood = 1e6; V.res.food = 1e6;
+      for (const k of V.RES) V.res[k] = 1e6;
       const L = V.landBounds();
       for (const [k, dc, dr] of [['house', 1, 1], ['store', 10, 10], ['farm', 1, 5],
                                  ['lumber', 4, 5], ['market', 7, 1]]) V.place(k, L.lo + dc, L.lo + dr);
@@ -10169,9 +10208,9 @@
         scene();
         V.goalIdx = finished ? V.GOALS.length : 0;
         V.goalDone = null; V.finished = null; V.away = null;
-        V.res.wood = V.caps.wood; V.res.food = V.caps.food;
+        for (const k of V.RES) V.res[k] = V.caps[k];
         V.step(0.001);
-        V.res.wood = V.caps.wood; V.res.food = V.caps.food;
+        for (const k of V.RES) V.res[k] = V.caps[k];
       };
 
       /* Finished: the board is alive again. */
@@ -10206,7 +10245,7 @@
       /* And the player is told before they tap, not after. */
       full(true);
       V.barMode = 'orders'; V.step(0.001);
-      V.res.wood = V.caps.wood; V.res.food = V.caps.food;
+      for (const k of V.RES) V.res[k] = V.caps[k];
       const cv4 = document.querySelector('canvas'), ctx4 = cv4.getContext('2d');
       const rows = [], o4 = ctx4.fillText;
       ctx4.fillText = function (t, ...a) { rows.push(String(t)); return o4.call(this, t, ...a); };
@@ -10248,14 +10287,14 @@
       V.goalDone = null; V.finished = null; V.away = null; V.panel = null; V.sel = null;
       V.moving = null; V.claimAsk = false; V.orders = [];
       V.ensureHall(); V.placed[0].lvl = 5; V.placed[0].t = 1;
-      V.grant('wood', 1e6, 0, 0); V.grant('food', 1e6, 0, 0);
+      for (const kAll of V.RES) V.grant(kAll, 1e6, 0, 0);
       V.step(0.001);
       /* Straight into the purse, past grant, because grant clamps to the
          storage ceiling and a village of one hall has a ceiling of three
          hundred -- against a beacon costing two and a half thousand. Nothing
          here is testing whether a hall can hold a beacon; it is testing what
          the beacon does once it stands. */
-      V.res.wood = 1e6; V.res.food = 1e6;
+      for (const k of V.RES) V.res[k] = 1e6;
     };
     const drop = () => {
       const L = V.landBounds();
@@ -10299,7 +10338,7 @@
        and it is also the only way to tell drinking from not producing. */
     const stages = [], took = [];
     for (let i = 0; i < 4000 && V.beaconStage() < V.BEACON_STAGES; i++) {
-      V.res.wood = V.caps.wood; V.res.food = V.caps.food;
+      for (const k of V.RES) V.res[k] = V.caps[k];
       const was = V.res.wood + V.res.food;
       V.step(1);
       took.push(was - (V.res.wood + V.res.food));
@@ -10333,7 +10372,7 @@
        the multiplier what it thinks of itself. */
     const shipped = lvl => {
       p.lvl = lvl;
-      V.res.wood = V.caps.wood; V.res.food = V.caps.food;
+      for (const k of V.RES) V.res[k] = V.caps[k];
       V.sharedTotal = { wood: 0, food: 0 };
       V.deliver('wood', 100, 0, 0);
       return V.sharedTotal.wood;
@@ -10369,11 +10408,11 @@
     V.moving = null; V.claimAsk = false; V.orders = [];
     V.goalIdx = V.GOALS.length; V.tutSeen.length = 0; for (const h of V.TUT) V.tutSeen.push(h.id);
     V.ensureHall(); V.placed[0].lvl = 5; V.placed[0].t = 1;
-    V.res.wood = 9e5; V.res.food = 9e5;
+    for (const k of V.RES) V.res[k] = 9e5;
     {
       const L = V.landBounds();
       const seat = k => { for (let r = L.lo; r <= L.hi; r++) for (let c = L.lo; c <= L.hi; c++) {
-        V.res.wood = 9e5; V.res.food = 9e5;
+        for (const k of V.RES) V.res[k] = 9e5;
         if (V.canPlace(k, c, r, V.occupied()) && V.place(k, c, r)) return true; } return false; };
       for (let i = 0; i < 8; i++) seat('house');
       for (let i = 0; i < 3; i++) seat('farm');
@@ -10497,7 +10536,7 @@
     {
       const L = V.landBounds();
       const seat = k => { for (let r = L.lo; r <= L.hi; r++) for (let c = L.lo; c <= L.hi; c++) {
-        V.res.wood = 9e5; V.res.food = 9e5;
+        for (const k of V.RES) V.res[k] = 9e5;
         if (V.canPlace(k, c, r, V.occupied()) && V.place(k, c, r)) return true; } return false; };
       for (let i = 0; i < 6; i++) seat('house');
       for (let i = 0; i < 2; i++) seat('farm');
@@ -10773,7 +10812,7 @@
       /* 1. no picture, no landmark. */
       for (const k of keys) V.ART[k] = null;
       fresh();
-      for (let i = 0; i < V.LAND_MAX; i++) { V.res.wood = 9e6; V.res.food = 9e6; V.claimLand(); }
+      for (let i = 0; i < V.LAND_MAX; i++) { for (const k of V.RES) V.res[k] = 9e6; V.claimLand(); }
       V.placeFinds();
       if (V.landTier !== V.LAND_MAX)
         fails.push('the check could only claim ' + V.landTier + ' of ' + V.LAND_MAX + ' rings');
@@ -10788,7 +10827,7 @@
       if (foundNow().length)
         fails.push('a landmark appeared on land nobody has claimed yet');
       for (let tier = 1; tier <= V.LAND_MAX; tier++) {
-        V.res.wood = 9e6; V.res.food = 9e6;
+        for (const k of V.RES) V.res[k] = 9e6;
         if (!V.claimLand()) { fails.push('could not claim ring ' + tier); break; }
         const want = V.FINDS[tier];
         const got = V.placed.find(p => p.key === want);
@@ -10876,7 +10915,7 @@
     {
       const L = V.landBounds();
       const seat = k => { for (let r = L.lo; r <= L.hi; r++) for (let c = L.lo; c <= L.hi; c++) {
-        V.res.wood = 9e5; V.res.food = 9e5;
+        for (const k of V.RES) V.res[k] = 9e5;
         if (V.canPlace(k, c, r, V.occupied()) && V.place(k, c, r)) return true; } return false; };
       for (let i = 0; i < 4; i++) seat('house');
       for (let i = 0; i < 3; i++) seat('farm');
@@ -11124,7 +11163,7 @@
       if (want.length) {
         const L = V.landBounds();
         const seat = k => { for (let r = L.lo; r <= L.hi; r++) for (let c = L.lo; c <= L.hi; c++) {
-          V.res.wood = 9e5; V.res.food = 9e5;
+          for (const k of V.RES) V.res[k] = 9e5;
           if (V.canPlace(k, c, r, V.occupied()) && V.place(k, c, r)) return true; } return false; };
         for (const [k, n] of want) while (V.countOf(k) < n) if (!seat(k)) break;
         for (const p of V.placed) { p.t = 1; p.build = 0; }
@@ -11376,7 +11415,7 @@
     {
       const L = V.landBounds();
       const seat = k => { for (let r = L.lo; r <= L.hi; r++) for (let c = L.lo; c <= L.hi; c++) {
-        V.res.wood = 9e5; V.res.food = 9e5;
+        for (const k of V.RES) V.res[k] = 9e5;
         if (V.canPlace(k, c, r, V.occupied()) && V.place(k, c, r)) return true; } return false; };
       for (let i = 0; i < 10; i++) seat('house');
       for (let i = 0; i < 5; i++) seat('farm');

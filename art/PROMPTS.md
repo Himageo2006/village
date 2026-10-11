@@ -2600,3 +2600,66 @@ DO NOT INCLUDE: text, labels, watermarks, UI, borders, people, animals, sea,
 water, waves, harbour, jetty, other boats, or any ground surface beyond the
 shingle directly under the hull.
 ```
+
+# 29 — The quarry → `art/quarry.png`
+
+Stone is the third thing the village keeps, and the quarry is the only place it
+comes from. The mill, the market, the statue and the beacon are built of it, so
+the hall reaching level three stops being "now you may have a mill" and becomes
+"now you may have a mill, once you have taken two villagers off wood or food
+and put them on stone".
+
+**The game ships with it already working.** Until this picture exists the
+quarry is drawn by the procedural building — timber walls and a shingled roof,
+the same stand-in every building had before its art arrived — so the economy is
+complete and the sprite is the only thing missing. Drop the PNG in and it takes
+over everywhere, with no other change.
+
+It is a **2×1 plot**, the same footprint as the lumber camp, which is what two
+of them replace in a full village's allowance. It should read at that size and
+sit at the same height in the world: low and wide, not a tower.
+
+After generating it, drop it into `art/` and run:
+
+```bash
+cd "D:\Claude ai\Remotion\village"; node tools/prep-art.js
+```
+
+### 29.1 → `art/quarry.png`
+
+```
+A small stone quarry with a cutting shed, as a game asset sprite. Same art
+style, same camera angle and same lighting as the lumber camp image.
+
+CAMERA: strict 2:1 isometric projection, viewed from a corner at 30 degrees
+above the horizon. No top-down view, no straight-on elevation.
+
+PLAN: RECTANGULAR in plan, twice as wide as it is deep -- the same footprint
+as the lumber camp, lying along the wide axis.
+
+SUBJECT: a shallow cut into pale grey rock at one end, with two or three
+squared-off blocks of stone part-cut from the face and chisel marks still on
+them. Beside it a low open-sided timber shed with a shingled roof, its posts
+set on stone footings, sheltering a work bench and a stack of finished blocks.
+A wooden mallet and two iron chisels left on the bench. A small heap of
+rubble and grey dust at the foot of the cut. Low and wide and workmanlike --
+no tower, no chimney, no wheel, no machinery. No people.
+
+STYLE: stylised low-poly mobile strategy game art, in the vein of Clash of
+Clans or Rise of Kingdoms. Clean readable silhouette, chunky simplified forms,
+warm saturated colours, soft hand-painted shading. No photorealism.
+
+LIGHTING: single key light from the upper LEFT. Left-facing surfaces are lit;
+right-facing surfaces fall into soft shadow.
+
+BACKGROUND: fully transparent. No ground plane, no grass field, no baseplate,
+no drop shadow, no cast shadow -- only the cut, the shed and the stone around
+their feet.
+
+FRAMING: centred, the whole thing filling the frame with a small clear margin
+all round. Do not let it touch any edge.
+
+DO NOT INCLUDE: text, labels, watermarks, UI, borders, people, animals, carts,
+rails, wagons, water, or any ground surface beyond the rubble at the foot of
+the cut.
+```
