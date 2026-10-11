@@ -11047,6 +11047,7 @@
       return seen;
     };
 
+    const cards0 = () => V.buildList().length + ',' + V.decorList().length;
     let cardsSeen = 0, rowsSeen = 0;
     let widest = null, smallest = null;
     /* Where the tabs are. They are the control the player presses to change
@@ -11093,6 +11094,27 @@
               {
                 const t = V.tabRects()[0];
                 lastTabs = +t.y.toFixed(1);
+                /* How much of the screen the strip has taken.
+
+                   A tray that wraps can wrap too far, and nothing here could
+                   see that: every card is bigger, every string fits, every
+                   card clears the touch floor -- the layout passes its own
+                   tests by overshooting them. It happened immediately. One
+                   term in the fit test was about the card's HEIGHT, which no
+                   number of rows can change, so it answered no for every row
+                   count and the strip fell through to its maximum: three rows
+                   on a desktop window where two were plenty, 27.7 per cent of
+                   the canvas given to a tray.
+
+                   So: the tabs, the band and the gap under it together, as a
+                   share of the canvas. Two rows is 19 to 21 per cent at every
+                   scale; three is 28. A quarter is the line. */
+                const took = (V.stripBot() - (t.y - t.h / 2)) / cv.height;
+                if (took > 0.25)
+                  note('band|' + sw + 'x' + sh + '|' + cards0(),
+                    'the tabs and the strip take ' + (took * 100).toFixed(1)
+                    + ' per cent of the screen on a ' + sw + 'x' + sh + ' screen with '
+                    + V.stripRows() + ' rows of cards, which is more of it than a tray may have');
                 if (!tabAt) tabAt = { y: t.y, mode };
                 else if (Math.abs(t.y - tabAt.y) > 0.5)
                   note('tabs|' + sw + 'x' + sh + '|' + lvl + '|' + done + '|' + !!fill,

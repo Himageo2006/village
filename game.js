@@ -4731,12 +4731,26 @@ function stallStrings(u) {
   out.push(['need ' + RES_ICON.wood + big, 16 * u, lowPx(20 * u), false]);
   return out;
 }
-/* Does a strip of these cards fit on `rows` rows? */
+/* Does a strip of these cards fit on `rows` rows?
+
+   Only things a row count can CHANGE belong in here. The card's height is
+   118 units whatever happens, and asking whether that clears the touch floor
+   -- which it does not at a HUD scale of 1, where 118 logical is under the
+   128 the floor is written in -- made this answer no for every row count
+   there is. The strip then fell through to its maximum and drew three rows
+   on a desktop window where two were plenty: a quarter of the screen given
+   to a tray, on the one shape I had not looked at.
+
+   The height is not a thing wrapping can fix, and on the shapes this app
+   ships in -- portrait, where the HUD scale is 1.185 or more -- a card is 140
+   logical pixels tall and clears the floor anyway. roomSweep measures the
+   card that actually got drawn, on those shapes, and is where that question
+   belongs. */
 function stripFits(cards, rows, u, cap) {
   const n = cards.length;
   const per = Math.ceil(n / rows), pad = STRIP_PAD * u;
   const w = Math.min(cap * u, (W - pad * (per + 1)) / per);
-  if (w < TOUCH_MIN || STRIP_H * u < TOUCH_MIN) return false;
+  if (w < TOUCH_MIN) return false;
   const keep = g.font;
   let ok = true;
   for (const rowsOf of cards) {
