@@ -1865,6 +1865,19 @@
   window.moveLabelSweep = function () {
     const V = window.__v, cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
     const grab = re => { const got = []; const o = ctx.fillText;
+      /* Nothing dimming the screen at the moment of the draw.
+
+         The game yields the building panel to any card that washes the whole
+         screen -- the claim question, the welcome-back card, the one that says
+         the village is finished -- because tap() has always answered the card
+         and never what is under it. These checkers read the panel, and they
+         build villages with every goal done and tutSeen emptied, which is a
+         village that raises the finished card again on every tick. So the
+         panel they were reading was not being drawn at all.
+
+         Cleared immediately before the draw rather than once at the top, for
+         that same reason: the card comes back every tick until it is put away. */
+      V.away = null; V.finished = null; V.goalDone = null; V.claimAsk = false;
       ctx.fillText = function (t, ...r) { if (re.test(String(t))) got.push(String(t)); return o.call(this, t, ...r); };
       try { V.draw(); } finally { ctx.fillText = o; } return got; };
     const bad = [], split = [], fails = []; let checks = 0, levelled = 0;
@@ -3689,6 +3702,19 @@
     const rowsOf = p => {
       V.panel = p.id; V.step(0.001);
       const lines = [];
+      /* Nothing dimming the screen at the moment of the draw.
+
+         The game yields the building panel to any card that washes the whole
+         screen -- the claim question, the welcome-back card, the one that says
+         the village is finished -- because tap() has always answered the card
+         and never what is under it. These checkers read the panel, and they
+         build villages with every goal done and tutSeen emptied, which is a
+         village that raises the finished card again on every tick. So the
+         panel they were reading was not being drawn at all.
+
+         Cleared immediately before the draw rather than once at the top, for
+         that same reason: the card comes back every tick until it is put away. */
+      V.away = null; V.finished = null; V.goalDone = null; V.claimAsk = false;
       ctx.fillText = function (t, ...a) { lines.push(String(t)); return orig.call(this, t, ...a); };
       try { V.draw(); } finally { ctx.fillText = orig; }
       V.panel = null;
@@ -4251,6 +4277,10 @@
         V.panel = p.id; V.sellArm = armed ? { id: p.id, t: V.SELL_ARM } : null;
         V.step(0.001);
         const lines = [];
+        /* Nothing dimming the screen at the moment of the draw: the panel
+           yields to any card that washes the whole screen, and this scene's
+           goals are all finished, so the card comes back on every tick. */
+        V.away = null; V.finished = null; V.goalDone = null; V.claimAsk = false;
         ctx.fillText = function (t, ...a) { lines.push(String(t)); return orig.call(this, t, ...a); };
         try { V.draw(); } finally { ctx.fillText = orig; }
         V.panel = null; V.sellArm = null;
@@ -6975,6 +7005,19 @@
     const rowsOf = p => {
       V.panel = p.id; V.step(0.001);
       const lines = [];
+      /* Nothing dimming the screen at the moment of the draw.
+
+         The game yields the building panel to any card that washes the whole
+         screen -- the claim question, the welcome-back card, the one that says
+         the village is finished -- because tap() has always answered the card
+         and never what is under it. These checkers read the panel, and they
+         build villages with every goal done and tutSeen emptied, which is a
+         village that raises the finished card again on every tick. So the
+         panel they were reading was not being drawn at all.
+
+         Cleared immediately before the draw rather than once at the top, for
+         that same reason: the card comes back every tick until it is put away. */
+      V.away = null; V.finished = null; V.goalDone = null; V.claimAsk = false;
       ctx.fillText = function (t, ...a) { lines.push(String(t)); return orig.call(this, t, ...a); };
       try { V.draw(); } finally { ctx.fillText = orig; }
       V.panel = null;
@@ -7826,6 +7869,19 @@
     const rowsOf = p => {
       V.panel = p.id; V.step(0.001);
       const lines = [];
+      /* Nothing dimming the screen at the moment of the draw.
+
+         The game yields the building panel to any card that washes the whole
+         screen -- the claim question, the welcome-back card, the one that says
+         the village is finished -- because tap() has always answered the card
+         and never what is under it. These checkers read the panel, and they
+         build villages with every goal done and tutSeen emptied, which is a
+         village that raises the finished card again on every tick. So the
+         panel they were reading was not being drawn at all.
+
+         Cleared immediately before the draw rather than once at the top, for
+         that same reason: the card comes back every tick until it is put away. */
+      V.away = null; V.finished = null; V.goalDone = null; V.claimAsk = false;
       ctx.fillText = function (t, ...a) { lines.push(String(t)); return orig.call(this, t, ...a); };
       try { V.draw(); } finally { ctx.fillText = orig; }
       V.panel = null;
@@ -8059,6 +8115,19 @@
     const rowsOf = p => {
       V.panel = p.id; V.step(0.001);
       const lines = [];
+      /* Nothing dimming the screen at the moment of the draw.
+
+         The game yields the building panel to any card that washes the whole
+         screen -- the claim question, the welcome-back card, the one that says
+         the village is finished -- because tap() has always answered the card
+         and never what is under it. These checkers read the panel, and they
+         build villages with every goal done and tutSeen emptied, which is a
+         village that raises the finished card again on every tick. So the
+         panel they were reading was not being drawn at all.
+
+         Cleared immediately before the draw rather than once at the top, for
+         that same reason: the card comes back every tick until it is put away. */
+      V.away = null; V.finished = null; V.goalDone = null; V.claimAsk = false;
       ctx.fillText = function (t, ...a) { lines.push(String(t)); return orig.call(this, t, ...a); };
       try { V.draw(); } finally { ctx.fillText = orig; }
       V.panel = null;
@@ -9919,8 +9988,15 @@
       ctx.fillText = function (t, x, y) { seen.push({ t: String(t), x, y }); return orig.apply(this, arguments); };
       try { V.step(0.001); V.draw(); } finally { ctx.fillText = orig; }
       const cards = V.barRects(), u = V.US ? V.US() : 1;
+      /* Inside the card, not merely below it. A row was claimed by any card
+         whose x it fell within and whose centre it sat below -- true of one
+         card while the tray was one row, and true of the card ABOVE as well
+         the moment it was two. It read the well's price off the house's card
+         and reported nine wrong numbers on a tray that was drawing all of
+         them correctly. */
       return cards.map(c => ({ key: c.b.key, cost: c.b.cost,
-        rows: seen.filter(s2 => Math.abs(s2.x - c.x) < c.w / 2 && s2.y > c.y && /[🪵🌾]/.test(s2.t))
+        rows: seen.filter(s2 => Math.abs(s2.x - c.x) < c.w / 2
+                    && s2.y > c.y && s2.y < c.y + c.h / 2 && /[🪵🌾]/.test(s2.t))
                   .map(s2 => s2.t) }));
     };
     let checked = 0;
@@ -10346,6 +10422,19 @@
       if (p.key === 'hall' || n < 1) continue;
       V.panel = p.id;
       const rows = [], o5 = ctx5.fillText;
+      /* Nothing dimming the screen at the moment of the draw.
+
+         The game yields the building panel to any card that washes the whole
+         screen -- the claim question, the welcome-back card, the one that says
+         the village is finished -- because tap() has always answered the card
+         and never what is under it. These checkers read the panel, and they
+         build villages with every goal done and tutSeen emptied, which is a
+         village that raises the finished card again on every tick. So the
+         panel they were reading was not being drawn at all.
+
+         Cleared immediately before the draw rather than once at the top, for
+         that same reason: the card comes back every tick until it is put away. */
+      V.away = null; V.finished = null; V.goalDone = null; V.claimAsk = false;
       ctx5.fillText = function (t, ...a) { rows.push(String(t)); return o5.call(this, t, ...a); };
       try { V.draw(); } finally { ctx5.fillText = o5; }
       const row = rows.find(t => t.indexOf('workers ') >= 0) || '';
@@ -10878,6 +10967,241 @@
     return { walkers: walkers.length, out: +out.lo.toFixed(1), near: +near.lo.toFixed(1), fails };
   };
 
+
+  /* ---------- a card has room for its own words, and for a finger ----------
+
+     The build tray divides a fixed 1024 between however many kinds the hall
+     has unlocked. Every figure written down about it -- a 118.4 pixel budget,
+     'no spare' at 103.1, a shortfall at 99.2 -- was measured when SEVEN kinds
+     could be unlocked. The beacon made eight and nobody measured again.
+
+     Nothing else in this file can see it. textSweep checks the screen edge, and
+     a tray card is nowhere near one; it checks text against text, and a price
+     that runs out of its button lands on the GAP between buttons, not on its
+     neighbour's words. traySweep checks the arithmetic of the same rows and
+     never asks how wide they came out. So the one question that matters here
+     -- does the writing stay inside the card it was drawn into -- was asked by
+     hand, once, against a tray that has since grown.
+
+     Two measurements, both of them about the card rather than the screen:
+     every HUD string drawn into a card lies within that card's own sides, and
+     every card is still big enough for a finger. The second is the quieter of
+     the two -- a button can shrink a long way before it looks wrong and still
+     be under what either platform asks of a touch target. */
+  window.roomSweep = function () {
+    const V = window.__v, cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
+    const fails = [];
+    /* One complaint per fault. Eight cards on one tray that is too small is
+       one fault, and eight copies of that sentence pushed the OTHER fault --
+       a different measurement of the same tray -- off the end of the list. */
+    const said = new Set();
+    const note = (sig, msg) => { if (said.has(sig)) return; said.add(sig); fails.push(msg); };
+    const keep = { w: window.innerWidth, h: window.innerHeight, bar: V.barMode,
+                   panel: V.panel, sel: V.sel, ask: V.claimAsk, goal: V.goalIdx };
+
+    /* Everything the hall allows, at level five, with the goals finished -- so
+       the beacon is on the tray too. The longest prices in the game are on the
+       last kinds to appear, and a tray that is never filled cannot overflow. */
+    const scene = (lvl, done, fill) => {
+      V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
+      V.away = null; V.goalDone = null; V.finished = null; V.panel = null; V.sel = null;
+      V.who = null; V.moving = null; V.claimAsk = false; V.orders = [];
+      V.goalIdx = done ? V.GOALS.length : 1;
+      V.tutSeen.length = 0; for (const h of V.TUT) V.tutSeen.push(h.id);
+      V.ensureHall(); V.placed[0].lvl = lvl; V.placed[0].t = 1;
+      /* Two markets, because the board is three stalls plus one per market and
+         the narrowest stall is the one to measure -- five of them.
+
+         And, when asked for, every kind up to its allowance: that is the state
+         the card prints a LOCK row in, '12/12 (lock)' rather than a price, and
+         it is the one most of a long game is played in. An empty village never
+         prints it, and an empty village is all this had been looking at. */
+      const want = fill ? Object.entries(V.HALL[lvl].allow) : (lvl >= 5 ? [['market', 2]] : []);
+      if (want.length) {
+        const L = V.landBounds();
+        const seat = k => { for (let r = L.lo; r <= L.hi; r++) for (let c = L.lo; c <= L.hi; c++) {
+          V.res.wood = 9e5; V.res.food = 9e5;
+          if (V.canPlace(k, c, r, V.occupied()) && V.place(k, c, r)) return true; } return false; };
+        for (const [k, n] of want) while (V.countOf(k) < n) if (!seat(k)) break;
+        for (const p of V.placed) { p.t = 1; p.build = 0; }
+      }
+      V.rebuildStores(); V.rebuildCharm();
+    };
+
+    /* One frame, and what the tray put on it. */
+    const read = () => {
+      const seen = [], orig = ctx.fillText.bind(ctx);
+      ctx.fillText = function (t, x, y, ...rest) {
+        const m = ctx.getTransform();
+        const isHud = Math.abs(m.a - 1) < 1e-6 && Math.abs(m.d - 1) < 1e-6
+          && Math.abs(m.b) < 1e-6 && Math.abs(m.c) < 1e-6 && Math.abs(m.e) < 1e-6;
+        if (isHud && String(t).trim()) {
+          const wid = ctx.measureText(t).width, a = ctx.textAlign;
+          const x0 = a === 'center' ? x - wid / 2 : a === 'right' ? x - wid : x;
+          seen.push({ t: String(t).slice(0, 24), x0, x1: x0 + wid, y, px: parseFloat(ctx.font) || 16 });
+        }
+        return orig(t, x, y, ...rest);
+      };
+      V.away = null; V.finished = null; V.goalDone = null; V.claimAsk = false;
+      try { V.step(0.001); V.draw(); } finally { ctx.fillText = orig; }
+      return seen;
+    };
+
+    let cardsSeen = 0, rowsSeen = 0;
+    let widest = null, smallest = null;
+    /* Where the tabs are. They are the control the player presses to change
+       trays, so they may not MOVE when the tray changes -- a tab that slides
+       out from under the finger pressing it gets pressed twice. Between
+       VILLAGES they are free to move: the band grows as the hall unlocks more
+       kinds, which happens while nobody is touching it. */
+    let tabAt = null, lastTabs = null;
+    const SHAPES = [[360, 780], [360, 640], [390, 844], [1200, 800]];
+    try {
+      for (const [sw, sh] of SHAPES) {
+        asScreen(sw, sh);
+          /* Three villages, because the strip's shape is not a function of the
+             hall alone. A full hall with the goals UNFINISHED is the one state
+             where the board can reach five stalls while the build tray is
+             still seven kinds -- the beacon arrives with the last goal -- and
+             it is the only state in which the stalls, rather than the
+             buildings, decide how tall the band has to be. */
+        for (const [lvl, done, fill] of [[3, true], [5, true], [5, false], [5, true, true]]) {
+          scene(lvl, done, fill);
+          tabAt = null;
+          /* The orders tray too. It is on the same strip, laid out by the same
+             code, and it carries the longest line in the game: a finished
+             village reads 'to the neighbours' on every card on the board, and
+             no drawing check had ever opened that tray in a finished village. */
+          for (const mode of ['build', 'decor', 'orders']) {
+            V.barMode = mode;
+            if (mode === 'orders') {
+              V.orders.length = 0;
+              let guard = 0;
+              /* Some filled and some not, so the empty stall's own words -- it
+                 has three of them and a clock -- are measured as well. */
+              while (V.orders.length < Math.max(1, V.orderSlots()) - 1 && guard++ < 40) {
+                V.orderT = 1e6; V.step(1 / 30);
+              }
+            }
+            /* A full purse shows prices, an empty one shows shortfalls, and the
+               shortfall is the WIDER of the two -- it carries a minus sign the
+               price does not. Both, because only one of them is on screen at a
+               time and either can overflow. */
+            for (const [tag, purse] of [['a full purse', 9e5], ['an empty one', 0]]) {
+              for (const k of Object.keys(V.res)) V.res[k] = purse;
+              const seen = read();
+              {
+                const t = V.tabRects()[0];
+                lastTabs = +t.y.toFixed(1);
+                if (!tabAt) tabAt = { y: t.y, mode };
+                else if (Math.abs(t.y - tabAt.y) > 0.5)
+                  note('tabs|' + sw + 'x' + sh + '|' + lvl + '|' + done + '|' + !!fill,
+                    'the tabs sit ' + Math.abs(t.y - tabAt.y).toFixed(0) + ' logical pixels apart'
+                    + ' between the ' + tabAt.mode + ' tray and the ' + mode + ' tray on a '
+                    + sw + 'x' + sh + ' screen, so pressing one moves it out from under the finger');
+              }
+              const cards = mode === 'orders'
+                ? V.orderSlotRects().map((r, i) => ({ b: { key: 'stall ' + (i + 1) }, ...r }))
+                : V.barRects();
+              if (!cards.length) continue;
+              for (const c of cards) {
+                cardsSeen++;
+                /* The HUD scale, asked of the card rather than written down: a
+                   build card is 118 of these units tall. */
+                const u = c.h / 118;
+                /* Not the border -- the margin inside it. A card lays its rows
+                   out with six units of clearance each side (the name asks the
+                   fitter for w-12u, the cost rows for w-14u), and a row that
+                   fills the button edge to edge has not overflowed so much as
+                   run out of card: it touches the rounded border, and the next
+                   digit would be outside. The border is the louder version of
+                   the same fault and is reported as such. */
+                const margin = 6 * u;
+                const lo = c.x - c.w / 2 + margin, hi = c.x + c.w / 2 - margin;
+                /* In CSS pixels on the screen being pretended at, which is the
+                   unit both platforms' touch rules are written in.
+
+                   The canvas keeps its own tall shape and is letterboxed into
+                   whatever window it is given, so 'logical times screen width
+                   over 1024' is only true while the canvas FILLS the width.
+                   It does on a portrait phone, which is what that conversion
+                   was written for and the only shape this app ships in --
+                   portrait-locked. In a wide desktop window the canvas is
+                   height-limited and a good deal narrower than the window, and
+                   the same arithmetic reported a comfortable 160 CSS pixel
+                   button as too small to hit. */
+                const k = Math.min(sw / 1024, sh / cv.height);
+                /* A per cent of slack, because the canvas height is ROUNDED to
+                   whole pixels: a portrait phone the canvas is cut exactly to
+                   came out a fifty-thousandth height-limited, and the one shape
+                   these figures are quoted on excused itself from the check. */
+                const fillsWidth = sw / 1024 <= (sh / cv.height) * 1.01;
+                const cssW = c.w * k, cssH = c.h * k, floorCss = V.TOUCH_MIN * k;
+                if (fillsWidth && (!smallest || cssW < smallest.css))
+                  smallest = { css: +cssW.toFixed(1), key: c.b.key, n: cards.length, sw, sh };
+                if (fillsWidth && Math.min(cssW, cssH) < floorCss - 0.01)
+                  note('touch|' + mode + '|' + cards.length + '|' + sw + 'x' + sh,
+                    'a ' + mode + ' card is ' + cssW.toFixed(1) + 'x' + cssH.toFixed(1)
+                    + ' CSS pixels with ' + cards.length + ' kinds on the tray on a ' + sw + 'x' + sh
+                    + ' screen, under the ' + floorCss.toFixed(0) + ' this game holds itself to');
+                for (const r of seen) {
+                  if (Math.abs(r.y - c.y) > c.h / 2 + r.px) continue;
+                  /* Each tray row is centred on its own card, so the nearest
+                     centre is the card it belongs to -- no guessing from the
+                     bounds, which is what overflowing text has already left.
+
+                     Nearest among the cards at that HEIGHT, which matters the
+                     moment the tray has more than one row: two cards one above
+                     the other share an x, so picking by x alone handed every
+                     string on the top row to the card below it, which then
+                     rejected it for being at the wrong height. Two hundred
+                     rows quietly stopped being measured -- a checker losing
+                     its subject at exactly the moment the thing it checks got
+                     more complicated. */
+                  const mid = (r.x0 + r.x1) / 2;
+                  let own = null;
+                  for (const q of cards) {
+                    if (Math.abs(r.y - q.y) > q.h / 2 + r.px) continue;
+                    if (!own || Math.abs(mid - q.x) < Math.abs(mid - own.x)) own = q;
+                  }
+                  if (own !== c) continue;
+                  rowsSeen++;
+                  const over = Math.max(lo - r.x0, r.x1 - hi);
+                  const past = Math.max(c.x - c.w / 2 - r.x0, r.x1 - (c.x + c.w / 2));
+                  if (!widest || over > widest.over)
+                    widest = { over: +over.toFixed(1), past: +past.toFixed(1), t: r.t,
+                               key: c.b.key, n: cards.length, sw, sh, tag };
+                  if (past > 1)
+                    note('past|' + c.b.key + '|' + cards.length + '|' + sw + 'x' + sh,
+                      'with ' + cards.length + ' kinds on the tray and ' + tag + ', the '
+                      + c.b.key + " card draws '" + r.t + "' " + past.toFixed(1)
+                      + ' logical pixels past its own border on a ' + sw + 'x' + sh + ' screen');
+                  else if (over > 1)
+                    note('margin|' + c.b.key + '|' + cards.length + '|' + sw + 'x' + sh,
+                      'with ' + cards.length + ' kinds on the tray and ' + tag + ', the '
+                      + c.b.key + " card fills itself edge to edge with '" + r.t + "' -- "
+                      + over.toFixed(1) + ' logical pixels into the margin it lays its own rows out with,'
+                      + ' on a ' + sw + 'x' + sh + ' screen');
+                }
+              }
+            }
+          }
+        }
+      }
+    } finally {
+      asScreen(keep.w, keep.h);
+      V.barMode = keep.bar; V.panel = keep.panel; V.sel = keep.sel;
+      V.claimAsk = keep.ask; V.goalIdx = keep.goal;
+      V.step(0.001);
+    }
+
+    /* A checker that read nothing passes for the wrong reason. */
+    if (cardsSeen < 240) fails.push('only ' + cardsSeen + ' cards were laid out, so almost nothing was measured');
+    if (rowsSeen < 600) fails.push('only ' + rowsSeen + ' pieces of card writing were read, so almost nothing was measured');
+
+    return { cards: cardsSeen, rows: rowsSeen, widestOverflow: widest, smallestCard: smallest,
+             tabs: lastTabs, fails };
+  };
   /* ---------- the time of year ----------
 
      Four palettes on a date. The whole value of it is that somebody opening
@@ -11113,6 +11437,7 @@
       ['find', () => window.findSweep()],
       ['route', () => window.routeSweep()],
       ['season', () => window.seasonSweep()],
+      ['room', () => window.roomSweep()],
       ['order', () => window.orderSweep()],
       ['tap', () => window.tapSweep()],
       ['text', () => window.textSweep()],
@@ -11146,6 +11471,12 @@
        wrapper moves the game's save keys somewhere else for the duration
        instead of copying files about. See there. */
     const detail = {}, failed = [];
+    {
+      const seenJob = new Set(), twice = [];
+      for (const [name] of jobs) { if (seenJob.has(name)) twice.push(name); seenJob.add(name); }
+      if (twice.length) failed.push('the job list names ' + twice.join(', ')
+        + ' more than once, so one checker runs twice and its result stands in for another');
+    }
     for (const [name, fn] of jobs) {
       const ownsHistory = name === 'back';
       if (ownsHistory) freeHistory();

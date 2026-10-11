@@ -3283,6 +3283,23 @@ let finished = null;                  // {villagers, buildings, trades, charm} u
    Measured: claim the island, step one frame, and the card is set and not
    painted; one tap and it is gone for good, two hours of village unmarked. */
 const finishedUp = () => !!finished && !goalDone && !away && !claimAsk;
+/* The three cards that dim the whole screen: a question waiting for an answer,
+   what was missed while nobody was watching, and the one that says the village
+   is done. Each is the only thing that matters until it is dismissed -- tap()
+   has always known that, and answers every tap with the card while one is up,
+   whatever is underneath.
+
+   Drawing did not. The building panel and the villager card were drawn
+   underneath, poking out either side of a 620-wide card from a 960-wide panel,
+   under a two-thirds dim, with their own words still on the screen. It read as
+   accidentally fine only because the panel sits above the tabs and the tabs
+   used to be low enough that the two did not meet; the moment the tray needed
+   a second row the panel came up 169 pixels and the finished card's heading
+   was printed straight through a building's name.
+
+   Same rule drawFinished already states for itself -- one card at a time -- 
+   applied to the two things that were exempt from it. */
+const modalUp = () => claimAsk || !!away || !!finished;
 /* Putting it away is what records it as seen, and the only thing that does.
 
    tutSeen used to be written the moment the card was RAISED, which is the
@@ -4628,10 +4645,154 @@ function drawWorld() {
 /* The bar shows what the hall has unlocked, and nothing else. The town hall is
    never on it -- there is exactly one and it is founded for you. */
 let barMode = 'build';                 // 'build' | 'decor' | 'orders'
-const barList = () => barMode === 'decor'
-  ? BUILDINGS.filter(b => b.decor && !b.found)
-  : barMode === 'orders' ? []
-  : BUILDINGS.filter(b => b.key !== 'hall' && !b.decor && unlocked(b.key));
+/* Each tray on its own, because the band they share has to be tall enough for
+   the biggest of them whichever one is showing. */
+const buildList = () => BUILDINGS.filter(b => b.key !== 'hall' && !b.decor && unlocked(b.key));
+const decorList = () => BUILDINGS.filter(b => b.decor && !b.found);
+const barList = () => barMode === 'decor' ? decorList()
+  : barMode === 'orders' ? [] : buildList();
+
+/* ---------- the strip, and how many rows of cards it needs ----------
+
+   The strip divides a fixed 1024 between however many cards are on it, and
+   for most of this game's life that was seven kinds of building. Every figure
+   ever written down about a card was measured against seven: a 118.4 pixel
+   budget for a price, "no spare" at 103.1, a shortfall at 99.2. The beacon
+   made eight kinds, a second market makes five trade stalls, and nobody
+   measured again.
+
+   At eight kinds, on a 360 phone, a build card is 40.8 CSS pixels across
+   against the 44 both platforms ask of anything you tap, and the beacon's own
+   shortfall -- the widest string the tray ever prints -- fills it from border
+   to border. At five stalls "to the neighbours" is 205 logical pixels in a
+   170 pixel stall, and that is the line a FINISHED village reads on every
+   card on the board.
+
+   None of it was ever going to be found by looking. A price that runs out of
+   its button lands on the GAP between buttons, so no two words overlap and
+   nothing goes near the edge of the screen; and the widest strings only exist
+   in a village with everything unlocked, which is a state no drawing check
+   had ever put the orders tray into.
+
+   So the strip takes as many ROWS as it needs, and how many it needs is
+   MEASURED rather than chosen: one while one will do, another as soon as a
+   card would be too small to hit or too small for its own words. Nine kinds
+   over two rows gives a card 191 logical pixels where one row gives 102.
+
+   The band is the same height in every mode and every tray fills it, because
+   the tabs sit on top of it -- a tab that jumps out from under the finger
+   pressing it gets pressed twice -- and because three short stalls under the
+   tabs with a hole beneath them is not a layout.
+
+   The guess here is deliberately the conservative half of the job: it works
+   out the widest thing a card MIGHT have to print, at the smallest size and
+   the heaviest face that row can come out in. cardSweep in tools/fuzz.js then
+   reads what the cards actually drew and measures that against the cards they
+   were drawn into, so anything wider than the lists below expect is reported
+   rather than hidden. */
+const STRIP_H = 118, STRIP_PAD = 8, STRIP_GAP = 22, STRIP_MAX = 3;
+const CARD_W = 190, STALL_W = 250;
+/* The icon for a kind of goods, in one place. */
+const RES_ICON = { wood: '🪵', food: '🌾' };
+/* The smallest a row started at `px` can come out at. fitLines will not shrink
+   past TEXT_MIN, and it will not GROW -- so a row started under the floor
+   never shrinks at all and its start size IS its floor. A fit test that
+   assumed everything could get down to 26 would call a row that fits at 26
+   and spills at 20 a fit. */
+const lowPx = px => Math.min(px, TEXT_MIN);
+/* Everything a build or decoration card may have to print: the text, the room
+   that row is given, the smallest it can come out at, and whether it is bold.
+   Shortfalls rather than prices -- a shortfall carries a minus the price does
+   not, and is the wider of the two. */
+function cardStrings(b, u) {
+  const small = lowPx(20 * u);
+  const out = [[b.short || b.name, 12 * u, small, true]];
+  const cost = Object.entries(b.cost || {});
+  for (const [k, v] of cost) out.push(['−' + (RES_ICON[k] || '') + v, 14 * u, small, false]);
+  if (b.charm && cost.length) {
+    const [k, v] = cost[cost.length - 1];
+    out.push([(RES_ICON[k] || '') + v + ' ✨' + b.charm, 14 * u, small, false]);
+  }
+  /* The two lines that replace a price, which are the same on every card. */
+  out.push(['no spare', 14 * u, small, false], ['99/99 🔒', 14 * u, small, false]);
+  return out;
+}
+/* And everything a trade stall may have to print. The numbers on one are
+   bounded by the barns, so the ceiling is the thing to measure. */
+function stallStrings(u) {
+  const big = Math.max(9999, Math.ceil(caps.wood || 0), Math.ceil(caps.food || 0));
+  const out = [];
+  for (const verb of ['give', 'get'])
+    for (const k of Object.keys(RES_ICON))
+      out.push([verb + '  ' + RES_ICON[k] + ' ' + big, 18 * u, lowPx(26 * u), true]);
+  for (const t of ['to the neighbours', 'tap to trade', 'best rate', 'no room',
+                   'next trader', 'empty stall'])
+    out.push([t, 16 * u, lowPx(20 * u), false]);
+  out.push(['need ' + RES_ICON.wood + big, 16 * u, lowPx(20 * u), false]);
+  return out;
+}
+/* Does a strip of these cards fit on `rows` rows? */
+function stripFits(cards, rows, u, cap) {
+  const n = cards.length;
+  const per = Math.ceil(n / rows), pad = STRIP_PAD * u;
+  const w = Math.min(cap * u, (W - pad * (per + 1)) / per);
+  if (w < TOUCH_MIN || STRIP_H * u < TOUCH_MIN) return false;
+  const keep = g.font;
+  let ok = true;
+  for (const rowsOf of cards) {
+    for (const [t, inset, px, bold] of rowsOf) {
+      g.font = `${bold ? 'bold ' : ''}${Math.round(px)}px Segoe UI, sans-serif`;
+      if (g.measureText(t).width > w - inset) { ok = false; break; }
+    }
+    if (!ok) break;
+  }
+  g.font = keep;
+  return ok;
+}
+/* Measured once per shape of strip: it is a few dozen measureText calls, and
+   the rects are asked for several times a frame. */
+const stripCache = new Map();
+function rowsNeeded(id, cards, cap) {
+  const u = US(), n = cards.length;
+  if (n < 2) return 1;
+  const key = id + '|' + n + '|' + u.toFixed(3);
+  const hit = stripCache.get(key);
+  if (hit !== undefined) return hit;
+  let rows = STRIP_MAX;
+  for (let i = 1; i < STRIP_MAX; i++) if (stripFits(cards, i, u, cap)) { rows = i; break; }
+  stripCache.set(key, rows);
+  return rows;
+}
+function stripRows() {
+  const u = US();
+  const build = buildList(), decor = decorList(), stalls = Math.max(1, orderSlots());
+  return Math.max(
+    rowsNeeded('build|' + build.map(b => b.key).join(','), build.map(b => cardStrings(b, u)), CARD_W),
+    rowsNeeded('decor|' + decor.map(b => b.key).join(','), decor.map(b => cardStrings(b, u)), CARD_W),
+    rowsNeeded('stall|' + Math.round(caps.wood) + ',' + Math.round(caps.food),
+      Array.from({ length: stalls }, () => stallStrings(u)), STALL_W));
+}
+const stripH = () => { const u = US(), r = stripRows(); return r * STRIP_H * u + (r - 1) * STRIP_PAD * u; };
+const stripBot = () => hudBot() - STRIP_GAP * US();
+const stripTop = () => stripBot() - stripH();
+/* One layout for all three trays: n cards at most `cap` units wide, wrapped
+   into the band in index order so a progression still reads left to right and
+   then down. The FIRST card is on the top row, which is the one the tabs are
+   anchored to; a short last row is centred like a full one. */
+function stripLay(n, cap) {
+  const u = US(), h = STRIP_H * u, pad = STRIP_PAD * u;
+  const rows = Math.max(1, Math.min(stripRows(), n));
+  const per = Math.ceil(n / rows);
+  const w = Math.min(cap * u, (W - pad * (per + 1)) / per);
+  const bot = stripBot() - h / 2;
+  return Array.from({ length: n }, (_, i) => {
+    const row = Math.floor(i / per), col = i - row * per;
+    const inRow = Math.min(per, n - row * per);
+    const total = inRow * w + (inRow - 1) * pad;
+    return { x: (W - total) / 2 + w / 2 + col * (w + pad),
+             y: bot - (rows - 1 - row) * (h + pad), w, h };
+  });
+}
 
 /* Order cards occupy the same strip as the build bar, laid out on the same
    geometry so the two cannot drift apart. */
@@ -4639,12 +4800,7 @@ const barList = () => barMode === 'decor'
    them, so drawing only the filled ones put a lone offer in the left-hand
    third of the screen beside an empty row. */
 function orderSlotRects() {
-  const u = US(), n = Math.max(1, orderSlots());
-  const h = 118 * u, pad = 8 * u;
-  const w = Math.min(250 * u, (W - pad * (n + 1)) / n);
-  const y = hudBot() - h / 2 - 22 * u;
-  const total = n * w + (n - 1) * pad;
-  return Array.from({ length: n }, (_, i) => ({ x: (W - total) / 2 + w / 2 + i * (w + pad), y, w, h }));
+  return stripLay(Math.max(1, orderSlots()), STALL_W);
 }
 function orderRects() {
   seatOrders();
@@ -4655,11 +4811,14 @@ function orderRects() {
 const nextTraderIn = () => orders.length >= orderSlots() ? null : Math.max(0, orderEvery() - orderT);
 
 /* The two tabs above the bar. One definition, used to draw and to hit-test. */
+/* On the BAND rather than on the first card. They used to hang off
+   barRects()[0], with a fallback for the orders tray because that one has no
+   cards at all -- harmless while every tray was one row of 118, and a tab
+   that slid 169 pixels down the screen the moment the build tray needed two. */
 function tabRects() {
-  const u = US(), bar = barRects()[0];
+  const u = US();
   const w = 152 * u, h = 46 * u, pad = 8 * u;
-  const y0 = hudBot() - 118 * US() - 22 * US();
-  const y = (bar ? bar.y - bar.h / 2 : y0) - h / 2 - 10 * u;
+  const y = stripTop() - h / 2 - 10 * u;
   const step = w + pad;
   return [
     { mode: 'build',    label: 'Build',    x: W / 2 - step, y, w, h },
@@ -4670,12 +4829,9 @@ function tabRects() {
 // vertical centres on a build card, in HUD units from its middle (it is 118 tall)
 const TRAY_ICON = -35, TRAY_NAME = -8, TRAY_ONE = 26, TRAY_ROWS = [15, 37];
 function barRects() {
-  const list = barList(), u = US(), n = list.length;
-  const h = 118 * u, pad = 8 * u;
-  const w = Math.min(190 * u, (W - pad * (n + 1)) / n);
-  const y = hudBot() - h / 2 - 22 * u;
-  const total = n * w + (n - 1) * pad;
-  return list.map((b, i) => ({ b, x: (W - total) / 2 + w / 2 + i * (w + pad), y, w, h }));
+  const list = barList();
+  if (!list.length) return [];
+  return stripLay(list.length, CARD_W).map((r, i) => ({ b: list[i], ...r }));
 }
 function drawHUD() {
   const u = US();
@@ -4826,7 +4982,7 @@ function drawHUD() {
        "Flowerbed ✨5" is 193 logical pixels in a 139 pixel button -- one
        overflow traded for another. The cost lines have the room. */
     const costRows = (entries, colour, tail, lead) => {
-      const parts = entries.map(([k, v]) => (lead || '') + (k === 'wood' ? '🪵' : '🌾') + v);
+      const parts = entries.map(([k, v]) => (lead || '') + (RES_ICON[k] || '') + v);
       if (tail) parts[parts.length - 1] += ' ' + tail;   // one space: two put it 3px over
       if (parts.length < 2) { trayRow(parts.join(''), colour, TRAY_ONE); return; }
       trayRow(parts[0], colour, TRAY_ROWS[0]);
@@ -6016,6 +6172,7 @@ function panelRow(text, x, y, maxW, px, colour, weight) {
    sits, and the person it belongs to gets a ring round their feet so there
    is no doubt which of seventy-two it is. */
 function drawWho() {
+  if (modalUp()) return;
   const v = whoIs();
   if (!v) { who = null; return; }
   const u = US(), tabs = tabRects();
@@ -6039,7 +6196,7 @@ function drawWho() {
   g.restore();
 }
 function drawPanel() {
-  if (panel == null) return;
+  if (panel == null || modalUp()) return;
   const p = byId(panel); if (!p) { panel = null; return; }
   const b = B(p.key), R = panelRects(), u = R.u;
   g.save();
@@ -7088,7 +7245,7 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   artRect, paintedAt, isDecor, decorCount, DECOR_MAX, charmTotal, charmMul, charmGainFrom, decorGainAt, deliveredAtMul, charmRoom, usefulCharm, CHARM_FULL,
   // the size of a load: the finest difference any delivery measurement can see
   CARRY,
-  tabRects, drawDecor, grant, deliver, flushBadges, get lastBadges() { return lastBadges; }, badgeScale, BADGE_TEXT_PX, POP_PX, camScale, ZMIN, ZMAX, VILLAGER_H, centreOf, get W() { return W; }, get H() { return H; },
+  tabRects, modalUp, buildList, decorList, stripRows, stripH, stripTop, stripBot, cardStrings, stallStrings, US, drawDecor, grant, deliver, flushBadges, get lastBadges() { return lastBadges; }, badgeScale, BADGE_TEXT_PX, POP_PX, camScale, ZMIN, ZMAX, VILLAGER_H, centreOf, get W() { return W; }, get H() { return H; },
   sparePeople, outOfRoom, noSpareHands, peopleComing, livedIn,
   sellBuilding, canSell, sellValue, investedIn, capsWithout, get moving() { return moving; }, set moving(v) { moving = v; },
   get armed() { return armed; }, set armed(v) { armed = v; },
