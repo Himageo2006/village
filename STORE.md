@@ -113,9 +113,34 @@ island is full. Plays offline, in one hand, for as long as you like.
 | Asset | Size | Status |
 |---|---|---|
 | App icon | 512×512 PNG, 32-bit | `resources/` — check it is full-bleed |
-| Feature graphic | 1024×500 | **not made** |
-| Phone screenshots | min 2, 1080×1920 or similar portrait | `village_shot.png` is a start |
+| Feature graphic | 1024×500 | `store/feature-graphic.png` ✅ |
+| Phone screenshots | min 2, 1080×1920 | `store/1-village.jpg` … `5-claim.jpg` ✅ |
 | Tablet screenshots | optional | — |
+
+The five shots are the five below, in that order, and they are frames the
+game actually drew rather than mock-ups: the canvas was asked for a 1080×1920
+phone, which makes it 1024×1820, and each frame came off `toDataURL` and was
+scaled up to 1080×1920. JPEG at quality 92, which is indistinguishable from
+the PNG on this art down to the HUD text and a fifth of the size. The feature
+graphic is a 500-pixel band of roofs out of the same village with the name
+laid over an opaque left panel.
+
+**They will want redoing once the quarry has a picture.** Every shot of a
+finished village now contains a quarry drawn by the procedural stand-in, and
+the build tray in shots 1, 2 and 3 shows its card. The scenes to rebuild:
+
+```
+1  the full allowance at level 5, four rings, 10 statues, camFit x1.42,
+   0.29 of the day, build tray
+2  the same frame with who = a villager who has a post
+3  the beacon seated and set to stage 3 at 45% of its stock, z 1.00 on it,
+   0.75 of the day -- which is as dark as this game gets
+4  the same village, orders tray, the board filled
+5  tier 1, goal 11, three of each kind, camFit wide -- the unclaimed rings
+   read as the darker ground, and the goal strip says what to do about it
+F  the houses' centre of mass at z 1.55, band y 380..880 -- high enough to
+   miss the delivery pops, low enough to miss the goal strip
+```
 
 Shot list, in the order that argues the case:
 
