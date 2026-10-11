@@ -10878,6 +10878,140 @@
     return { walkers: walkers.length, out: +out.lo.toFixed(1), near: +near.lo.toFixed(1), fails };
   };
 
+  /* ---------- the time of year ----------
+
+     Four palettes on a date. The whole value of it is that somebody opening
+     the game in October can SEE that it is October, so the check that matters
+     is the one nothing else in this file does: look at the pixels and make
+     sure the four seasons are actually different on screen.
+
+     That check earned its place immediately. The first version of this tinted
+     the ground and the trees, which is the obvious half and reads beautifully
+     on a bare island. Measured over a FINISHED village -- fifty-two buildings,
+     which is what this looks like after a few hours and the state most people
+     will be in when a season turns -- high summer and deep winter were two per
+     cent apart. There is no grass left to tint. It would have shipped as a
+     feature that did nothing, and every other kind of test would have passed:
+     the dates were right, the tints were right, the cache worked.
+
+     And the opposite failure, which is just as quiet: a season must not reach
+     the ECONOMY. It is a wash over some sprites. If a village delivers a
+     different number of logs a second in February, something has leaked. */
+  window.seasonSweep = function () {
+    const V = window.__v, fails = [];
+    const cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
+
+    /* 1. every month belongs to a season, and the table is the right shape. */
+    if (V.SEASONS.length !== 4) fails.push('there are ' + V.SEASONS.length + ' seasons');
+    if (V.SEASON_OF.length !== 12) fails.push('the month table has ' + V.SEASON_OF.length + ' entries');
+    const seen = new Set();
+    for (let m = 0; m < 12; m++) {
+      const i = V.SEASON_OF[m];
+      if (!(i >= 0 && i < V.SEASONS.length)) { fails.push('month ' + m + ' maps to season ' + i); continue; }
+      seen.add(i);
+    }
+    if (seen.size !== V.SEASONS.length)
+      fails.push('the year only ever reaches ' + seen.size + ' of the ' + V.SEASONS.length
+        + ' seasons, so one of them is written and never shown');
+    for (const sea of V.SEASONS)
+      if (!sea.ground || !sea.leaf || !sea.build)
+        fails.push(sea.name + ' is missing one of its three tints, so part of the village will not turn');
+
+    /* 2. a built village looks different in each of them. */
+    V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
+    V.away = null; V.goalDone = null; V.finished = null; V.panel = null; V.who = null;
+    V.sel = null; V.moving = null; V.claimAsk = false; V.orders = []; V.barMode = 'build';
+    V.goalIdx = V.GOALS.length; V.tutSeen.length = 0; for (const h of V.TUT) V.tutSeen.push(h.id);
+    V.ensureHall(); V.placed[0].lvl = 5; V.placed[0].t = 1;
+    {
+      const L = V.landBounds();
+      const seat = k => { for (let r = L.lo; r <= L.hi; r++) for (let c = L.lo; c <= L.hi; c++) {
+        V.res.wood = 9e5; V.res.food = 9e5;
+        if (V.canPlace(k, c, r, V.occupied()) && V.place(k, c, r)) return true; } return false; };
+      for (let i = 0; i < 10; i++) seat('house');
+      for (let i = 0; i < 5; i++) seat('farm');
+      for (let i = 0; i < 5; i++) seat('lumber');
+      for (let i = 0; i < 3; i++) seat('store');
+      for (const p of V.placed) { p.t = 1; p.build = 0; }
+      V.rebuildStores(); V.rebuildCharm();
+      for (let i = 0; i < 60; i++) V.step(1 / 30);
+    }
+
+    const realNow = Date.now;
+    const keepZ = V.CAM.z, keepX = V.CAM.x, keepY = V.CAM.y, keepForced = V.seasonForced;
+    let shades = [];
+    try {
+      /* Noon, so the day's own light is not what is being compared. */
+      Date.now = () => 0.25 * V.DAY_MS;
+      V.camFit(true);
+      for (let i = 0; i < 40; i++) V.step(1 / 30);
+      /* The island only. Over the whole canvas the sea -- which no season
+         touches -- drowns the difference, and a check that measures mostly sea
+         cannot tell a working season from a broken one. */
+      const pts = [V.tileToWorld(0, 0), V.tileToWorld(V.GW - 1, 0),
+                   V.tileToWorld(V.GW - 1, V.GH - 1), V.tileToWorld(0, V.GH - 1)]
+        .map(p => V.camProject(p.x, p.y));
+      const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
+      const x = Math.max(0, Math.round(Math.min(...xs))), y = Math.max(0, Math.round(Math.min(...ys)));
+      let w = Math.min(cv.width - x, Math.round(Math.max(...xs) - Math.min(...xs)));
+      let h = Math.min(cv.height - y, Math.round(Math.max(...ys) - Math.min(...ys)));
+      if (w < 50 || h < 50) { fails.push('the island came out ' + w + 'x' + h + ' on screen, too small to measure'); return { fails }; }
+      /* A patch of the island rather than all of it. Reading back a thousand
+         by seven hundred pixels four times is a GPU round trip the size of the
+         frame, and in the throttled hidden tab the battery actually runs in it
+         took long enough to look like a hang. A quarter of the island through
+         the middle answers the same question for a fortieth of the cost. */
+      const cxm = x + w / 2, cym = y + h / 2;
+      const pw = Math.min(w, 320), ph = Math.min(h, 240);
+      const px = Math.max(0, Math.round(cxm - pw / 2)), py = Math.max(0, Math.round(cym - ph / 2));
+      const shade = () => {
+        const d = ctx.getImageData(px, py, pw, ph).data;
+        let r = 0, g2 = 0, b = 0, n = 0;
+        for (let i = 0; i < d.length; i += 4 * 7) { r += d[i]; g2 += d[i + 1]; b += d[i + 2]; n++; }
+        return [r / n, g2 / n, b / n];
+      };
+      for (let i = 0; i < V.SEASONS.length; i++) {
+        V.seasonForced = i;
+        V.away = null; V.finished = null; V.goalDone = null; V.claimAsk = false;
+        V.draw();
+        shades.push(shade());
+      }
+    } finally {
+      Date.now = realNow; V.seasonForced = keepForced;
+      V.CAM.z = keepZ; V.CAM.x = keepX; V.CAM.y = keepY;
+    }
+
+    const apart = (a, b) => Math.max(Math.abs(a[0] - b[0]), Math.abs(a[1] - b[1]), Math.abs(a[2] - b[2]));
+    const MIN_APART = 4;          // out of 255, averaged over the whole island
+    let closest = Infinity, pair = '';
+    for (let i = 0; i < shades.length; i++) for (let j = i + 1; j < shades.length; j++) {
+      const d = apart(shades[i], shades[j]);
+      if (d < closest) { closest = d; pair = V.SEASONS[i].name + ' and ' + V.SEASONS[j].name; }
+    }
+    if (closest < MIN_APART)
+      fails.push(pair + ' are ' + closest.toFixed(1) + ' shades apart across the whole island'
+        + ' (out of 255), which nobody will see -- the season is written down and not drawn');
+
+    /* 3. and it is a wash, not a mechanic. */
+    const rate = () => { let t = 0; for (const p of V.placed) { const b = V.B(p.key);
+      if (b.makes && b.jobs) t += V.deliveredOf(p) * V.workersAt(p.id); } return t; };
+    const keep2 = V.seasonForced;
+    let base = null, drift = 0;
+    try {
+      for (let i = 0; i < V.SEASONS.length; i++) {
+        V.seasonForced = i;
+        const r = rate();
+        if (base === null) base = r;
+        else drift = Math.max(drift, Math.abs(r - base));
+      }
+    } finally { V.seasonForced = keep2; }
+    if (drift > 1e-9)
+      fails.push('the village delivers ' + drift.toFixed(4) + '/s more in one season than another,'
+        + ' so the time of year has reached the economy');
+
+    V.seasonForced = null;
+    return { closest: +closest.toFixed(1), pair, shades: shades.map(c => c.map(v => Math.round(v)).join(',')), fails };
+  };
   /* The battery runs with the browser's history neutralised, from the first
      sweep to the last.
 
@@ -10978,6 +11112,7 @@
       ['who', () => window.whoSweep()],
       ['find', () => window.findSweep()],
       ['route', () => window.routeSweep()],
+      ['season', () => window.seasonSweep()],
       ['order', () => window.orderSweep()],
       ['tap', () => window.tapSweep()],
       ['text', () => window.textSweep()],

@@ -3628,7 +3628,7 @@ function drawGround() {
     const hgt = land.height * (wid / land.width);
     // the near corner of the grass meets the near corner of tile (GW-1, GH-1)
     const ny = tileToWorld(GW - 1, GH - 1).y + TH / 2;
-    g.drawImage(land, cx - f.ax * wid, ny - f.ay * hgt, wid, hgt);
+    g.drawImage(seasonSkin(land, 'ground'), cx - f.ax * wid, ny - f.ay * hgt, wid, hgt);
     return;
   }
 
@@ -3652,6 +3652,99 @@ function drawGround() {
    trees read as trees rather than shrubs or redwoods. */
 const SCENERY_H = { tree_pine: 115, tree_oak: 100, rock: 54, bush: 46 };
 
+/* ---------- the time of year ----------
+
+   The clock already drives the light, and a village that looks different at
+   six in the evening from how it looked at noon is most of the reason this
+   place feels like somewhere rather than a diagram. The calendar costs
+   nothing to add and does the same job over a much longer arc: open the game
+   in October and the island has turned.
+
+   This is the one thing the big games in this category buy with machinery --
+   an events team, a server, a season pass, a thing you will miss if you do
+   not log in. The freshness is the point of all that and the machinery is
+   not. Four palettes on a date are the same feeling with none of it, and they
+   keep working with the aeroplane mode on and the company gone.
+
+   Northern hemisphere, from the device's own clock. That is an assumption and
+   it is wrong for about a tenth of the world, who will see the leaves turn in
+   April. The alternatives are worse: asking is a question nobody wants on
+   their first run, and guessing from a timezone is the same assumption with
+   extra steps and a worse failure. It is a tint on the grass, not a mechanic,
+   and nothing in the economy reads it.
+
+   Tints, not new art. A season that needed four sets of everything would cost
+   four times the download and would never be finished; a wash over the
+   ground and the trees reads from the first second and is free. */
+/* Three channels, because a finished village is almost entirely ROOF.
+
+   Tinting the grass and the trees was the obvious half of this and on a bare
+   island it reads beautifully. Measured on a village of fifty-two buildings
+   -- which is what this looks like after a few hours, and the state most
+   people will be in when a season turns -- the whole island shifted by two
+   per cent between high summer and deep winter. There is no grass left to
+   tint. So the buildings wear it too, and gently, because a roof is already
+   a strong colour and the village must still look like itself in February.
+
+   The order matters: the ground takes the most, the leaves take a lot in
+   autumn because that is the whole of what autumn is, and the roofs take a
+   little -- except in winter, where a pale wash over every roof IS the snow,
+   and no new art was needed to get it. */
+const SEASONS = [
+  { key: 'spring', name: 'Spring', ground: 'rgba(138,216,104,.22)', leaf: 'rgba(164,232,118,.26)', build: 'rgba(158,220,128,.10)' },
+  { key: 'summer', name: 'Summer', ground: 'rgba(250,198,66,.19)',  leaf: 'rgba(88,168,62,.17)',   build: 'rgba(255,206,86,.14)' },
+  { key: 'autumn', name: 'Autumn', ground: 'rgba(206,132,56,.19)',  leaf: 'rgba(224,122,46,.36)',  build: 'rgba(222,134,52,.13)' },
+  { key: 'winter', name: 'Winter', ground: 'rgba(226,239,251,.25)', leaf: 'rgba(222,236,251,.30)', build: 'rgba(228,240,252,.22)' },
+];
+/* Which one a month belongs to. Written out rather than worked out: a month
+   is twelve cases and the arithmetic that collapses them is always slightly
+   wrong at one end of the year. */
+const SEASON_OF = [3, 3, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3];   // Jan..Dec
+let seasonForced = null;                                  // the harness sets this
+const seasonIdx = () => seasonForced != null
+  ? ((seasonForced % SEASONS.length) + SEASONS.length) % SEASONS.length
+  : SEASON_OF[new Date().getMonth()];
+const season = () => SEASONS[seasonIdx()];
+
+/* A sprite with the season washed over it, kept.
+
+   source-atop on a canvas holding ONLY this picture, so the wash lands on the
+   painted pixels and nowhere else -- done against the live canvas it would
+   tint the sea, the shadow and everything else already drawn under it.
+
+   Cached by key and tint, because this is a per-frame draw and the answer
+   changes four times a year. One canvas per picture per season actually
+   reached: about twenty in a full village, and only for the sprites that are
+   on the island. */
+/* Rocks do not change colour in October, and neither does a dirt path or a
+   stone statue -- they take the building wash, which is slight, rather than
+   the leaf one. */
+const SEASON_LEAF = new Set(['tree_pine', 'tree_oak', 'bush']);
+const seasonSkins = new Map();
+function seasonSkin(im, key) {
+  const sea = season();
+  const tint = key === 'ground' ? sea.ground : SEASON_LEAF.has(key) ? sea.leaf : sea.build;
+  if (!tint) return im;
+  const id = key + '|' + tint;
+  const hit = seasonSkins.get(id);
+  if (hit) return hit;
+  const w = im.naturalWidth || im.width, h = im.naturalHeight || im.height;
+  if (!w || !h) return im;
+  let cv;
+  try {
+    cv = document.createElement('canvas');
+    cv.width = w; cv.height = h;
+    const c = cv.getContext('2d');
+    c.drawImage(im, 0, 0);
+    c.globalCompositeOperation = 'source-atop';
+    c.fillStyle = tint;
+    c.fillRect(0, 0, w, h);
+  } catch (e) { return im; }      // out of memory, or a tainted canvas: no season rather than no village
+  seasonSkins.set(id, cv);
+  return cv;
+}
+
+
 function drawScenery(o) {
   const p = tileToWorld(o.c, o.r), s2 = o.s;
   const art = artFor(o.kind);
@@ -3660,7 +3753,8 @@ function drawScenery(o) {
     g.save();
     g.fillStyle = 'rgba(10,18,8,.30)';
     g.beginPath(); g.ellipse(p.x, p.y + 3, wid * 0.30, wid * 0.15, 0, 0, 7); g.fill();
-    g.drawImage(art, p.x - wid / 2, p.y - hgt, wid, hgt);   // anchored bottom-centre
+    g.drawImage(SEASON_LEAF.has(o.kind) ? seasonSkin(art, o.kind) : art,
+      p.x - wid / 2, p.y - hgt, wid, hgt);                  // anchored bottom-centre
     g.restore();
     return;
   }
@@ -3858,7 +3952,7 @@ function drawBuilding(p, alpha, tint) {
     g.save(); g.globalAlpha = alpha;
     g.fillStyle = 'rgba(10,18,8,.30)';
     g.beginPath(); g.ellipse(cx, cy, fw * 0.40, fw * 0.20, 0, 0, 7); g.fill();
-    g.drawImage(art, left, top, wid, hgt);
+    g.drawImage(seasonSkin(art, p.key), left, top, wid, hgt);
     if (p.t < 1) {                          // scaffold while it goes up
       g.strokeStyle = 'rgba(230,200,140,.85)'; g.lineWidth = 3; g.setLineDash([8, 6]);
       g.beginPath(); g.moveTo(cx - fw * 0.4, ny); g.lineTo(cx, ny - hgt * 0.5); g.lineTo(cx + fw * 0.4, ny); g.stroke();
@@ -4120,12 +4214,12 @@ function drawDecor(p, alpha) {
          would leave every path tile 11% too tall and creeping over the row
          behind it. Squashing dirt by 9% is invisible; a misaligned grid is not. */
       const wid = TW * 1.02, hgt = TH * 1.02;
-      g.drawImage(art, o.x - wid / 2, o.y - hgt / 2, wid, hgt);
+      g.drawImage(seasonSkin(art, p.key), o.x - wid / 2, o.y - hgt / 2, wid, hgt);
     } else {
       g.fillStyle = 'rgba(10,18,8,.28)';
       g.beginPath(); g.ellipse(o.x, o.y + 3, 24, 11, 0, 0, 7); g.fill();
       const hgt = DECOR_H[p.key] || 48, wid = art.width * (hgt / art.height);
-      g.drawImage(art, o.x - wid / 2, o.y - hgt, wid, hgt);
+      g.drawImage(seasonSkin(art, p.key), o.x - wid / 2, o.y - hgt, wid, hgt);
     }
     g.restore(); return;
   }
@@ -7024,6 +7118,9 @@ window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, 
   get saveFailed() { return saveFailed; }, set saveFailed(v) { saveFailed = v; },
   get loadedFromBackup() { return loadedFromBackup; }, set loadedFromBackup(v) { loadedFromBackup = v; },
   sky, dayPhase, DAY_MS, camFit, get camFling() { return camFling; },
+  SEASONS, SEASON_OF, SEASON_LEAF, seasonIdx, season, seasonSkin, drawGround, drawScenery, SCENERY,
+  GW, GH, tileToWorld, deliveredOf,
+  get seasonForced() { return seasonForced; }, set seasonForced(v) { seasonForced = v; },
   get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, ART, villagerArt,
   hudTop, hudBot, screenTop, screenBot, readSafeArea, get SAFE() { return SAFE; }, set SAFE(v) { SAFE = v; },
   get safeKnown() { return safeKnown; }, set safeKnown(v) { safeKnown = !!v; },

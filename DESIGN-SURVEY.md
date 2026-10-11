@@ -222,7 +222,7 @@ players say they love.
 
 ### Tier 3 — makes it feel alive
 
-**7. Seasons.**
+**7. Seasons.**  ✅ DONE
 The clock already drives light. Four palettes on a date-driven cycle — spring
 green, summer gold, autumn rust, winter snow on the roofs — is enormous
 perceived freshness for a small, offline, server-free change. It is the League
