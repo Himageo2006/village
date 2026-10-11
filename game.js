@@ -703,7 +703,7 @@ function stepBeacon(dt) {
   const need = BEACON_NEED[lvl - 1];
   if (!need) return;                              // the top stage: nothing left to drink
   let drank = 0;
-  for (const k of ['wood', 'food']) {
+  for (const k of RES) {
     const take = Math.min(BEACON_POUR * dt, res[k]);
     if (take <= 0) continue;
     res[k] -= take; drank += take;
@@ -743,7 +743,7 @@ function stepFeedback(dt) {
   for (let i = pops.length - 1; i >= 0; i--) if (pops[i].age > POP_LIFE) pops.splice(i, 1);
   rateT += dt;
   if (rateT >= RATE_WINDOW) {
-    for (const k of ['wood', 'food']) {
+    for (const k of RES) {
       // eased so the readout settles instead of flickering between windows
       rateNow[k] += (rateAcc[k] / rateT - rateNow[k]) * 0.40;
       rateAcc[k] = 0;
@@ -766,10 +766,10 @@ function drawPops() {
     g.textAlign = 'center'; g.textBaseline = 'middle';
     g.font = `bold ${POP_PX}px Segoe UI, sans-serif`;
     g.lineWidth = 4; g.strokeStyle = 'rgba(8,16,8,.75)';
-    const txt = '+' + Math.round(q.n) + (q.k === 'wood' ? ' 🪵' : ' 🌾');
+    const txt = '+' + Math.round(q.n) + ' ' + RES_ICON[q.k];
     const y = -26 - t * 34;
     g.strokeText(txt, 0, y);
-    g.fillStyle = q.k === 'wood' ? '#f0d49a' : '#cdeb9a';
+    g.fillStyle = RES_TINT[q.k];
     g.fillText(txt, 0, y);
     g.restore();
   }
@@ -942,7 +942,7 @@ function doingOf(v) {
   const p = v.job == null ? null : byId(v.job);
   if (v.carry) {
     const st = nearestStore(v.x, v.y);
-    return 'Carrying ' + (v.carry.k === 'wood' ? '\u{1FAB5}' : '\u{1F33E}') + Math.round(v.carry.n)
+    return 'Carrying ' + RES_ICON[v.carry.k] + Math.round(v.carry.n)
       + ' to the ' + (st ? B(st.key).name.toLowerCase() : 'store');
   }
   if (v.st === 'toWork' && p) return 'Walking to the ' + B(p.key).name.toLowerCase();
@@ -1883,6 +1883,26 @@ function upgradeBuilding(p) {
   return true;
 }
 
+/* ---------- what the village keeps ----------
+
+   Two kinds of goods, and "wood and food" was written out by hand in
+   thirty-eight places: sixteen loops over a literal ['wood', 'food'] and
+   twenty-two copies of the ternary that turns a key into an icon. Every one
+   of them is somewhere a third kind has to be remembered, and somewhere it
+   can be forgotten -- the loops silently skipping it, the ternaries quietly
+   calling it food. None of that would throw; it would simply be wrong, in
+   thirty-eight places at once, on a save migration or a trade board or an
+   offline reckoning.
+
+   The order is the order they are shown in: the chips along the top, and the
+   lines of a price. */
+const RES = ['wood', 'food'];
+const RES_SET = new Set(RES);
+/* The icon for a kind of goods, in one place. */
+const RES_ICON = { wood: '🪵', food: '🌾' };
+/* And the colour, where a figure is tinted by what it counts rather than by
+   what it means -- the delivery pops over a storehouse are the only ones. */
+const RES_TINT = { wood: '#f0d49a', food: '#cdeb9a' };
 let res = { wood: 120, food: 60 };
 let caps = { wood: 300, food: 300 };
 let placed = [];                      // {id,key,c,r,t,lvl,stock} t = build progress 0..1
@@ -2516,7 +2536,7 @@ const TUT = [
   { id: 'full', text: () => 'Your stores are full — what villagers bring in now is thrown away. '
       + (permitted('store') ? 'Spend it, trade it away, or build a storehouse' : 'Spend it or trade it away'),
     when: () => placed.some(p => p.key !== 'hall' && B(p.key).jobs && p.t >= 1)
-                && (isFull('wood') || isFull('food')) },
+                && RES.some(isFull) },
 ];
 // nowhere left on the claim for any building the hall still allows
 function outOfRoom() {
@@ -2768,7 +2788,7 @@ function shortfall(cost) {
   return out;
 }
 const shortText = cost => Object.entries(shortfall(cost))
-  .map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join('  ');
+  .map(([k, v]) => RES_ICON[k] + v).join('  ');
 const affordable = key => canAfford(B(key).cost);
 const buildable = key => unlocked(key) && !atLimit(key) && affordable(key);
 
@@ -2812,7 +2832,7 @@ function capsSum(skip) {
        put the village instantly over it, and stopped every delivery until the
        work finished -- so improving your storage punished you for improving
        your storage. It earns the new capacity when it is done, not before. */
-    for (const k of ['wood', 'food']) out[k] += capsHeld(p, k);
+    for (const k of RES) out[k] += capsHeld(p, k);
   }
   return out;
 }
@@ -2847,7 +2867,7 @@ function investedIn(p) {
 }
 const sellValue = p => {
   const t = investedIn(p), o = {};
-  for (const k of ['wood', 'food']) if (t[k]) o[k] = Math.floor(t[k] / 2);
+  for (const k of RES) if (t[k]) o[k] = Math.floor(t[k] / 2);
   return o;
 };
 /* The hall is the village, and a find was here before the village was: it
@@ -3080,7 +3100,7 @@ function load() {
       if (isVillage(x)) { setAside(localStorage.getItem(k), x.v); break; }
   }
   if (!usable(s)) return;
-  if (s.rate && typeof s.rate === 'object') for (const k of ['wood', 'food'])
+  if (s.rate && typeof s.rate === 'object') for (const k of RES)
     if (typeof s.rate[k] === 'number' && isFinite(s.rate[k]) && s.rate[k] >= 0)
       /* Past anything the village can reach, not at a number that sounded
          large. A maxed village delivers 28.7 wood and 37.8 a second, measured,
@@ -3095,7 +3115,7 @@ function load() {
      hall and the storehouses are back, and a load cannot arrive into a barn
      that has not been read yet. */
   pendingTransit = { wood: 0, food: 0 };
-  if (s.transit && typeof s.transit === 'object') for (const k of ['wood', 'food'])
+  if (s.transit && typeof s.transit === 'object') for (const k of RES)
     if (typeof s.transit[k] === 'number' && isFinite(s.transit[k]) && s.transit[k] >= 0)
       pendingTransit[k] = Math.min(VILLAGER_MAX * CARRY, s.transit[k]);
   if (Array.isArray(s.seen)) tutSeen = s.seen.filter(x => typeof x === 'string');
@@ -3111,7 +3131,7 @@ function load() {
   /* Not | 0: a tally that runs for hours passes the 32-bit range, and a wrapped
      one would come back negative -- the same truncation that turned trade orders
      into free converters. A save written before the tally existed has none. */
-  if (s.shared && typeof s.shared === 'object') for (const k of ['wood', 'food'])
+  if (s.shared && typeof s.shared === 'object') for (const k of RES)
     if (typeof s.shared[k] === 'number' && isFinite(s.shared[k]) && s.shared[k] >= 0)
       sharedTotal[k] = Math.min(1e15, s.shared[k]);
   /* Cleared first. load() is not only called once at boot -- the harness calls
@@ -3125,7 +3145,7 @@ function load() {
     afterMark = { ship: Math.max(0, Math.min(1e15, s.mark.ship)),
                   orders: Math.max(0, s.mark.orders | 0) };
   if (Array.isArray(s.orders)) {
-    orders = s.orders.filter(o => o && ['wood', 'food'].includes(o.giveK) && ['wood', 'food'].includes(o.getK)
+    orders = s.orders.filter(o => o && RES_SET.has(o.giveK) && RES_SET.has(o.getK)
       && Number.isFinite(o.giveN) && Number.isFinite(o.getN))
       .slice(0, 5)
       /* The tier has to survive the trip. Without it every stall came back
@@ -3163,7 +3183,7 @@ function load() {
          board writes a new one within the minute. */
       .filter(o => o.getN / Math.max(1, caps[o.getK]) < o.giveN / Math.max(1, caps[o.giveK]));
   }
-  if (s.res && typeof s.res === 'object') for (const k of ['wood', 'food'])
+  if (s.res && typeof s.res === 'object') for (const k of RES)
     if (typeof s.res[k] === 'number' && isFinite(s.res[k])) res[k] = s.res[k];
   if (Array.isArray(s.placed)) placed = s.placed.filter(p =>
     p && B(p.key) && Number.isFinite(p.c) && Number.isFinite(p.r))
@@ -3234,7 +3254,7 @@ function load() {
      affordability check for ever and the village can never build again.
      Clamped here, after recomputeCaps, because the ceiling depends on what was
      just loaded. */
-  for (const k of ['wood', 'food']) res[k] = Math.max(0, Math.min(caps[k], res[k]));
+  for (const k of RES) res[k] = Math.max(0, Math.min(caps[k], res[k]));
 }
 /* What the village earned while the game was closed.
 
@@ -3253,7 +3273,7 @@ let pendingTransit = { wood: 0, food: 0 };
    answer a carrier would have got. */
 function landTransit() {
   const c = hallOf() ? centreOf(hallOf()) : { x: 0, y: 0 };
-  for (const k of ['wood', 'food']) if (pendingTransit[k] > 0) grant(k, pendingTransit[k], c.x, c.y);
+  for (const k of RES) if (pendingTransit[k] > 0) grant(k, pendingTransit[k], c.x, c.y);
   pendingTransit = { wood: 0, food: 0 };
 }
 const AWAY_MIN = 60, AWAY_MAX = 12 * 3600;
@@ -3412,7 +3432,7 @@ function grantAway(secs) {
      worked counts -- past AWAY_MAX it was not working, so it was not sharing. */
   const finished = villageFinished();
   let fullAfter = Infinity;
-  for (const k of ['wood', 'food']) {
+  for (const k of RES) {
     const room = caps[k] - res[k];
     const want = rate[k] * secs;
     if (want - Math.max(0, room) > 1 && rate[k] > 0) fullAfter = Math.min(fullAfter, Math.max(0, room) / rate[k]);
@@ -3930,7 +3950,7 @@ function drawVillager(v) {
     g.fillStyle = 'rgba(14,22,12,.72)';
     g.beginPath(); g.roundRect(v.x - 15, y - 12, 30, 24, 12); g.fill();
     g.font = '17px Segoe UI, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillText(v.carry.k === 'wood' ? '🪵' : '🌾', v.x, y + 1);
+    g.fillText(RES_ICON[v.carry.k], v.x, y + 1);
     g.restore();
   }
 }
@@ -4692,8 +4712,6 @@ const barList = () => barMode === 'decor' ? decorList()
    rather than hidden. */
 const STRIP_H = 118, STRIP_PAD = 8, STRIP_GAP = 22, STRIP_MAX = 3;
 const CARD_W = 190, STALL_W = 250;
-/* The icon for a kind of goods, in one place. */
-const RES_ICON = { wood: '🪵', food: '🌾' };
 /* The smallest a row started at `px` can come out at. fitLines will not shrink
    past TEXT_MIN, and it will not GROW -- so a row started under the floor
    never shrinks at all and its start size IS its floor. A fit test that
@@ -4720,7 +4738,7 @@ function cardStrings(b, u) {
 /* And everything a trade stall may have to print. The numbers on one are
    bounded by the barns, so the ceiling is the thing to measure. */
 function stallStrings(u) {
-  const big = Math.max(9999, Math.ceil(caps.wood || 0), Math.ceil(caps.food || 0));
+  const big = Math.max(9999, ...RES.map(k => Math.ceil(caps[k] || 0)));
   const out = [];
   for (const verb of ['give', 'get'])
     for (const k of Object.keys(RES_ICON))
@@ -4783,7 +4801,7 @@ function stripRows() {
   return Math.max(
     rowsNeeded('build|' + build.map(b => b.key).join(','), build.map(b => cardStrings(b, u)), CARD_W),
     rowsNeeded('decor|' + decor.map(b => b.key).join(','), decor.map(b => cardStrings(b, u)), CARD_W),
-    rowsNeeded('stall|' + Math.round(caps.wood) + ',' + Math.round(caps.food),
+    rowsNeeded('stall|' + RES.map(k => Math.round(caps[k] || 0)).join(','),
       Array.from({ length: stalls }, () => stallStrings(u)), STALL_W));
 }
 const stripH = () => { const u = US(), r = stripRows(); return r * STRIP_H * u + (r - 1) * STRIP_PAD * u; };
@@ -4862,7 +4880,7 @@ function drawHUD() {
      is the one moment the player most needs a number and the only moment the
      interface stopped giving them one. Worked out once for both chips, off the
      cached workforce plan. */
-  const wasting = (isFull('wood') || isFull('food'))
+  const wasting = RES.some(isFull)
     ? potentialRate() : null;
   const chip = (x, icon, k, val, cap, col, rate, lost) => {
     const wch = 210 * u, h = 76 * u, full = isFull(k);
@@ -5106,7 +5124,7 @@ function drawHUD() {
          that 42 food for their 39 wood, or 42 food they want for 39 of yours?
          The card said it only by making the lower figure green. */
       const side = (verb, k, n, at, colour) => {
-        const fit = fitLines(verb + '  ' + (k === 'wood' ? '🪵' : '🌾') + ' ' + n, r.w - 18 * u, 26 * u, 14 * u, 1, 'bold ');
+        const fit = fitLines(verb + '  ' + RES_ICON[k] + ' ' + n, r.w - 18 * u, 26 * u, 14 * u, 1, 'bold ');
         g.font = `bold ${Math.round(fit.px)}px Segoe UI, sans-serif`;
         g.fillStyle = colour;
         g.fillText(fit.lines[0], r.x, r.y + r.h * at);
@@ -5120,7 +5138,7 @@ function drawHUD() {
       /* Before it is tapped, not after. A card that pays into a barn with no
          room in it is doing something different from every other card on the
          board, and the player is entitled to know which one they are taking. */
-      const why = short > 0 ? 'need ' + (r.o.giveK === 'wood' ? '🪵' : '🌾') + short
+      const why = short > 0 ? 'need ' + RES_ICON[r.o.giveK] + short
         : willShip(r.o) ? 'to the neighbours'
         : !hasRoom(r.o) ? 'no room' : best ? 'best rate' : 'tap to trade';
       g.fillStyle = why === 'tap to trade' ? DIM
@@ -5289,7 +5307,7 @@ function buyProgress(kind) {
        storehouse". */
     if (overCaps(best)) return 'needs more storage';
     if (canAfford(best)) return 'ready — tap a workplace';
-    return 'cheapest next ' + Object.entries(best).map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join(' ');
+    return 'cheapest next ' + Object.entries(best).map(([k, v]) => RES_ICON[k] + v).join(' ');
   }
   /* Charm, which is the one goal a player can put out of their own reach.
 
@@ -5322,7 +5340,7 @@ function buyProgress(kind) {
     const best = BUILDINGS.find(b => b.decor && (b.charm || 0) === BEST_CHARM);
     if (!best) return '';
     if (!canAfford(best.cost)) return Object.entries(best.cost).filter(([k, v]) => res[k] < v)
-      .map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + Math.floor(res[k]) + '/' + v).join(' ');
+      .map(([k, v]) => RES_ICON[k] + Math.floor(res[k]) + '/' + v).join(' ');
     return need + ' more ' + best.name.toLowerCase() + (need === 1 ? '' : 's') + ' — ready';
   }
   const cost = kind === 'hall' ? (h ? upInfo(h).cost : null) : landNext();
@@ -5330,7 +5348,7 @@ function buyProgress(kind) {
   if (overCaps(cost)) return 'needs more storage';
   if (canAfford(cost)) return kind === 'hall' ? 'ready — tap the town hall' : 'ready — tap the dark ground';
   return Object.entries(cost).filter(([k, v]) => res[k] < v)
-    .map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + Math.floor(res[k]) + '/' + v).join(' ');
+    .map(([k, v]) => RES_ICON[k] + Math.floor(res[k]) + '/' + v).join(' ');
 }
 function drawGoal() {
   if (away) return;
@@ -5339,7 +5357,7 @@ function drawGoal() {
     const t = goalDone.age / GOAL_SHOW;
     const banked = goalDone.got || goalDone.g.give;
     const spilled = goalDone.lost || {};
-    const icon = k => k === 'wood' ? '🪵' : '🌾';
+    const icon = k => RES_ICON[k];
     /* Nothing fitted at all, which the card has always said. Naming the
        figures as well would only repeat the reward the player can read in
        the goal strip behind it. */
@@ -5385,7 +5403,7 @@ function drawGoal() {
      blank: the line would otherwise read "reward" with nothing after it. */
   const reward = gl.after
     ? 'shipped 🪵' + compact(sharedTotal.wood) + ' 🌾' + compact(sharedTotal.food)
-    : 'reward ' + Object.entries(gl.give).map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join(' ');
+    : 'reward ' + Object.entries(gl.give).map(([k, v]) => RES_ICON[k] + v).join(' ');
   /* How far along, for the goals that can count.
 
      "Raise every workplace to level 5" is thirty-one minutes and a hundred and
@@ -5579,7 +5597,7 @@ function drawClaim() {
     const ok = canClaim();
     g.font = `bold ${Math.round(30 * u)}px Segoe UI, sans-serif`;
     g.fillStyle = ok ? '#e8c98a' : '#e59a86';
-    g.fillText(Object.entries(cost).map(([k, v]) => (k === 'wood' ? '🪵 ' : '🌾 ') + v).join('     '),
+    g.fillText(Object.entries(cost).map(([k, v]) => (RES_ICON[k] + ' ') + v).join('     '),
       R.x, R.y + 14 * u);   // at +2 its emoji touched the descenders of the line above
     g.fillStyle = ok ? 'rgba(62,104,44,.98)' : 'rgba(40,44,36,.9)';
     g.strokeStyle = ok ? '#9fe86b' : 'rgba(255,255,255,.16)'; g.lineWidth = 3;
@@ -5622,14 +5640,14 @@ function duration(secs) {
   return hrs % 1 === 0 ? count(hrs, 'hour') : hrs + ' hours';
 }
 /* What selling p would take away, in the numbers its panel uses. */
-const perSec = (k, v) => (k === 'wood' ? '🪵' : '🌾') + '−' + v.toFixed(2) + '/s';
+const perSec = (k, v) => RES_ICON[k] + '−' + v.toFixed(2) + '/s';
 function saleCost(p) {
   const b = B(p.key);
   if (b.pop) {
     const n = livedIn(p);
     if (!n) return null;
     const now = potentialRate(), after = potentialRate(p.id);
-    const lost = ['wood', 'food'].map(k => [k, now[k] - after[k]]).filter(([, v]) => v > 0.005);
+    const lost = RES.map(k => [k, now[k] - after[k]]).filter(([, v]) => v > 0.005);
     return 'Selling it sends ' + count(n, 'villager') + ' away   —   '
       + (lost.length ? lost.map(([k, v]) => perSec(k, v)).join('  ') : 'none of them were working');
   }
@@ -5691,11 +5709,11 @@ function drawAway() {
   g.fillText('your villagers kept working for ' + span
     + (away.capped ? ', as long as a village can keep' : ''),
     R.x, R.y - R.h / 2 + 92 * u);
-  const parts = Object.entries(away.got).map(([k, v]) => (k === 'wood' ? '🪵 +' : '🌾 +') + v);
+  const parts = Object.entries(away.got).map(([k, v]) => (RES_ICON[k] + ' +') + v);
   g.font = `bold ${Math.round(40 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#e8c98a';
   g.fillText(parts.length ? parts.join('     ') : 'nothing would fit', R.x, R.y + 6 * u);
   const sharedParts = away.shared ? Object.entries(away.shared)
-    .filter(([, v]) => v >= 1).map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + compact(v)) : [];
+    .filter(([, v]) => v >= 1).map(([k, v]) => RES_ICON[k] + compact(v)) : [];
   if (sharedParts.length) {
     /* Fitted, because a finished village away for twelve hours shares amounts
        in the millions and the line length is not knowable when it is written. */
@@ -6238,12 +6256,12 @@ function drawPanel() {
      then, or a market would permanently stop saying what a market is for. */
   const sellRoom = canSell(p) ? capsWithout(p) : null;
   const spoiling = sellRoom
-    ? ['wood', 'food'].map(k => [k, Math.max(0, Math.floor(res[k] - sellRoom[k]))]).filter(([, v]) => v > 0)
+    ? RES.map(k => [k, Math.max(0, Math.floor(res[k] - sellRoom[k]))]).filter(([, v]) => v > 0)
     : [];
   const armedHere = sellArm && sellArm.id === p.id;
   const spoilRow = (armedHere && spoiling.length)
     ? 'Selling it drops storage to 🪵' + sellRoom.wood + '  🌾' + sellRoom.food
-      + '   —   ' + spoiling.map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join(' ')
+      + '   —   ' + spoiling.map(([k, v]) => RES_ICON[k] + v).join(' ')
       + ' would spoil'
     : null;
   /* And what a sale costs that is NOT storage. Only a storehouse ever said:
@@ -6261,7 +6279,7 @@ function drawPanel() {
   const at = (n, f) => f({ ...p, lvl: n });
   let line = '';
   if (b.jobs && b.makes) {
-    const k = Object.keys(b.makes)[0], icon = k === 'wood' ? '🪵' : '🌾';
+    const k = Object.keys(b.makes)[0], icon = RES_ICON[k];
     const n = workersAt(p.id);
     /* What ARRIVES, not what the building is rated for.
 
@@ -6404,7 +6422,7 @@ function drawPanel() {
        says what the sale would actually cost. */
     if (sellRoom && spoiling.length) {
       panelRow('Selling it drops storage to 🪵' + sellRoom.wood + '  🌾' + sellRoom.food
-        + '   —   ' + spoiling.map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join(' ')
+        + '   —   ' + spoiling.map(([k, v]) => RES_ICON[k] + v).join(' ')
         + ' would spoil', lx, R.y - R.h / 2 + 148 * u, R.w - 56 * u, 20 * u, '#e59a86', '');
     }
   } else if (b.pop) {
@@ -6545,14 +6563,14 @@ function drawPanel() {
        having nowhere to put anything. What to do about it depends on whether
        the hall still allows a storehouse; when it does not, the honest answers
        are spending and trading. */
-    const full = ['wood', 'food'].filter(isFull);
+    const full = RES.filter(isFull);
     let s2 = count(st.villagers, 'villager');
     /* A finished village has no binding constraint left to name -- it has
        nothing it needs -- so the hall reports what it has given instead. */
     if (villageFinished()) s2 += '  ·  ' + (sharedTotal.wood + sharedTotal.food >= 1
       ? '🪵' + compact(sharedTotal.wood) + ' 🌾' + compact(sharedTotal.food) + ' shared with neighbours'
       : 'every goal done');
-    else if (full.length) s2 += '  ·  ' + (full.length === 2 ? 'stores' : full[0] === 'wood' ? '🪵 store' : '🌾 store')
+    else if (full.length) s2 += '  ·  ' + (full.length === 2 ? 'stores' : RES_ICON[full[0]] + ' store')
       + ' full — ' + (permitted('store') ? 'build a storehouse' : 'spend or trade');
     else if (st.idle) s2 += '  ·  ' + st.idle + ' idle — ' + remedy('jobs');
     else if (empty) s2 += '  ·  ' + count(empty, 'post') + ' empty — ' + remedy('people');
@@ -6622,7 +6640,7 @@ function drawPanel() {
        readable floor, and "Remove · nothing back" is 287. Shorter says it. */
     : backTotal === 0 ? (dec ? 'Remove · none' : 'Sell · nothing')
     : (dec ? 'Remove  ' : 'Sell  ') + Object.entries(netSell)
-        .filter(([, v]) => v > 0).map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join(' '),
+        .filter(([, v]) => v > 0).map(([k, v]) => RES_ICON[k] + v).join(' '),
     true, armedHere);
   /* A decoration has no third button -- panelRects gives it a wider Move and
      Remove instead -- so everything below this line is about an upgrade.
@@ -6657,7 +6675,7 @@ function drawPanel() {
        the limit there is still an answer, and it is a different one. */
     : overCap ? (atLimit('store') ? 'Needs a bigger storehouse' : 'Needs another storehouse')
     : !canAfford(i.cost) ? 'Need ' + shortText(i.cost) + ' more'
-    : 'Upgrade to ' + (lvlOf(p) + 1) + '   ' + Object.entries(i.cost).map(([k, v]) => (k === 'wood' ? '🪵' : '🌾') + v).join('  ');
+    : 'Upgrade to ' + (lvlOf(p) + 1) + '   ' + Object.entries(i.cost).map(([k, v]) => RES_ICON[k] + v).join('  ');
   g.fillStyle = ok ? 'rgba(62,104,44,.98)' : 'rgba(40,44,36,.9)';
   g.strokeStyle = ok ? '#9fe86b' : 'rgba(255,255,255,.16)'; g.lineWidth = 3;
   g.beginPath(); g.roundRect(R.up.x - R.up.w / 2, R.up.y - R.up.h / 2, R.up.w, R.up.h, 16 * u); g.fill(); g.stroke();
@@ -7242,7 +7260,7 @@ for (let i = 1; i <= BEACON_STAGES; i++) beaconArt(i);
 for (const k of ['ground', 'water', 'tree_pine', 'tree_oak', 'rock', 'bush']) artFor(k);
 
 /* test hooks */
-window.__v = { res, get placed() { return placed; }, B, BUILDINGS, tileToWorld, worldToTile,
+window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return placed; }, B, BUILDINGS, tileToWorld, worldToTile,
   camProject, camUnproject, canPlace, placeProblem, occupied, place, step, draw, barRects, barList, tileAt,
   FINDS, FIND_KEYS, isFound, placeFinds, findSpot, LAND, LAND_MAX, DECOR_MAX, decorCount, BEST_CHARM, BUILDINGS, rebuildCharm, claimLand, ensureHall, rebuildStores, coverPlaced, charmTotal, canSell, ART,
   routeLine, routesShown, drawRoutes, routeOf, onPath, nearestStore, storesItself, ROUTE_STEPS, DROP_Y, PATH_SPEED, VIL_SPD, rebuildPaths, established, get ghost() { return ghost; }, set ghost(v) { ghost = v; },

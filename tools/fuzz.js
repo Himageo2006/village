@@ -10968,6 +10968,110 @@
   };
 
 
+
+  /* ---------- every kind of goods the village keeps is really kept ----------
+
+     There is now a LIST of them, and sixteen loops and twenty-two labels take
+     their lead from it. That is the point of the list, and it is also a new
+     way to be wrong: a kind named there and nowhere else.
+
+     Demonstrated before this was written. Add a third kind to the list and
+     nothing else, and the loops dutifully walk it -- res.stone and caps.stone
+     come out as null, which is not a number, not an error, and not zero. Every
+     sweep in this file passed. A null cap means nothing is ever full, a null
+     store means every comparison against it is false, and a save writes null
+     and reads it back unchanged. It would have been found weeks later by a
+     barn that never filled.
+
+     And the other direction, which is a typo rather than an omission: a cost
+     written against a kind that does not exist. `cost: { stonee: 60 }` is not
+     an error either -- it is a building that is free, with a price nobody can
+     read, because every lookup of it returns undefined. The tables that name
+     goods are the buildings, the hall's upgrades, the land rings and the
+     goals' rewards, and all four are checked against the list. */
+  window.goodsSweep = function () {
+    const V = window.__v, fails = [];
+    const RES = V.RES || [];
+    const known = new Set(RES);
+
+    /* 1. the list itself. */
+    if (!RES.length) fails.push('the village keeps no kinds of goods at all');
+    if (known.size !== RES.length) fails.push('a kind of goods is named twice in the list: ' + RES.join(', '));
+    for (const k of RES) {
+      if (typeof k !== 'string' || !k) { fails.push('a kind of goods has no name'); continue; }
+      if (!V.RES_ICON || !V.RES_ICON[k]) fails.push(k + ' has no icon, so every label that names it prints undefined');
+      if (!V.RES_TINT || !V.RES_TINT[k]) fails.push(k + ' has no colour, so the figures over a storehouse are drawn in it');
+    }
+
+    /* 2. and the stores really hold each of them. A number, not a null: the
+       whole of this check is that 'typeof null' is not 'number' and that
+       nothing else in the game would ever have said so. */
+    V.step(0.001);
+    for (const k of RES) {
+      if (!Number.isFinite(V.res[k]))
+        fails.push('the village holds ' + JSON.stringify(V.res[k]) + ' ' + k + ', which is not a number');
+      if (!Number.isFinite(V.caps[k]) || V.caps[k] < 1)
+        fails.push('the barns hold ' + JSON.stringify(V.caps[k]) + ' ' + k + ', so it can never be full');
+    }
+
+    /* 3. a save keeps every one of them. The loop that writes the stores and
+       the loop that reads them back are two different loops over the same
+       list, and a kind added to one and not the other loses everything the
+       player had of it on the next reload. */
+    {
+      const before = {};
+      for (const k of RES) before[k] = V.res[k] = Math.min(V.caps[k] || 1, 37 + RES.indexOf(k) * 11);
+      V.save(); V.load();
+      for (const k of RES) {
+        if (!Number.isFinite(V.res[k]) || Math.abs(V.res[k] - before[k]) > 0.51)
+          fails.push(k + ' went in at ' + before[k] + ' and came back as ' + JSON.stringify(V.res[k])
+            + ', so a reload loses it');
+      }
+    }
+
+    /* 4. and a load puts back no more than the barns can hold.
+
+       There is a third loop over the same list, after the stores are read,
+       that clamps each of them to its ceiling -- the one thing standing
+       between a save written when the village had four storehouses and the
+       same village after three of them were sold. A kind missing from THAT
+       loop keeps whatever was in the file for ever, and the barn it belongs
+       to never reads full again.
+
+       Asked with the stores deliberately over the top, which is a state the
+       game does reach -- selling a storehouse drops the ceiling under what is
+       already in it -- and never a state it should come back from a load in. */
+    {
+      for (const k of RES) V.res[k] = (V.caps[k] || 1) * 2 + 500;
+      V.save(); V.load();
+      for (const k of RES) {
+        if (Number.isFinite(V.res[k]) && Number.isFinite(V.caps[k]) && V.res[k] > V.caps[k] + 0.51)
+          fails.push('a save holding twice the ' + k + ' the barns allow came back holding '
+            + V.res[k].toFixed(0) + ' of it, against a ceiling of ' + V.caps[k]);
+      }
+    }
+
+    /* 5. and nothing names goods the village does not keep. */
+    let named = 0;
+    const check = (where, obj) => {
+      if (!obj) return;
+      for (const k of Object.keys(obj)) {
+        named++;
+        if (!known.has(k)) fails.push(where + ' names "' + k + '", which is not a kind of goods this village keeps');
+      }
+    };
+    for (const b of V.BUILDINGS) {
+      check('the ' + b.key + "'s price", b.cost);
+      check('what the ' + b.key + ' makes', b.makes);
+      check('what the ' + b.key + ' holds', b.caps);
+    }
+    for (let i = 1; i < V.HALL.length; i++) check('hall level ' + i + "'s upgrade", V.HALL[i] && V.HALL[i].up);
+    for (let i = 0; i < V.LAND.length; i++) check('land ring ' + i, V.LAND[i] && V.LAND[i].cost);
+    for (const g of V.GOALS) check('the reward for "' + String(g.text).slice(0, 28) + '"', g.give);
+    if (named < 20) fails.push('only ' + named + ' prices were read, so the check proves little');
+
+    return { kinds: RES.slice(), named, fails };
+  };
   /* ---------- a card has room for its own words, and for a finger ----------
 
      The build tray divides a fixed 1024 between however many kinds the hall
@@ -11459,6 +11563,7 @@
       ['find', () => window.findSweep()],
       ['route', () => window.routeSweep()],
       ['season', () => window.seasonSweep()],
+      ['goods', () => window.goodsSweep()],
       ['room', () => window.roomSweep()],
       ['order', () => window.orderSweep()],
       ['tap', () => window.tapSweep()],
