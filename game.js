@@ -1753,8 +1753,26 @@ const LAND = [
   { lo: 4, hi: 9,  cost: null },                          // the founding claim
   { lo: 3, hi: 10, cost: { wood: 200,  food: 120 } },
   { lo: 2, hi: 11, cost: { wood: 700,  food: 450 } },
-  { lo: 1, hi: 12, cost: { wood: 2000, food: 1300 } },
-  { lo: 0, hi: 13, cost: { wood: 5000, food: 3200 } },
+  /* The last two rings are priced in wood the village no longer makes.
+
+     Stone cost a full village two of its six lumber camps, which is the whole
+     of that feature -- the labour here is fixed, so a third kind of goods has
+     to come out of what used to go into wood. Measured on a maxed village:
+     wood income went from 30.35 a second to 22.78, down a quarter, while food
+     lost nothing and stayed at 35.60 in both. These two are bought at hall
+     four and five, out of exactly that income, so their wood comes down by
+     the same quarter and their food does not move at all.
+
+     What this is NOT is a fix for the long stretch at the end of a
+     playthrough, which is what it was reached for. Measured directly -- a
+     maxed village, stores emptied, nothing else buying -- affording the
+     fourth ring takes 2.1 minutes and the island 2.9. The stretch they sit in
+     is sixteen. The price is about a eighth of it and a quarter off the price
+     is worth half a minute; the rest is a village with somewhere else to put
+     its wood. Keeping the figure in step with the income is worth doing on
+     its own, and it is all this does. */
+  { lo: 1, hi: 12, cost: { wood: 1500, food: 1300 } },
+  { lo: 0, hi: 13, cost: { wood: 3750, food: 3200 } },
 ];
 const LAND_MAX = LAND.length - 1;
 let landTier = 0;
@@ -2328,8 +2346,9 @@ const GOALS = [
   /* The fourth ring, which was never asked for.
 
      Goals name land at the second ring and then at the whole island, and
-     nothing in between -- while the last ring costs 5000 wood, more than twice
-     the one before it and the largest single purchase in the game. Measured on
+     nothing in between -- while the last ring costs 3750 wood, two and a half
+     times the one before it and the largest single purchase in the game.
+     Measured on
      a full playthrough, that left a 33-minute stretch with one unchanging line
      on the strip, the longest silence in the game by a wide margin. */
   { text: 'Claim a fourth ring of land',  buy: 'land', done: () => landTier >= LAND_MAX - 1,

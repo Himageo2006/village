@@ -4450,10 +4450,12 @@
     scene(4, 0, [['store', 5], ['store', 5], ['store', 5], ['store', 5]]);
     RICHLY();
     want('hall', ask('hall'), /ready/, 'the village can pay for');
-    /* The last ring is 5000 wood, which four storehouses at their best do not
-       reach: 700 and four times 960 is 4540. The markets are the rest of the
-       ceiling, and without them this case was reading 'needs more storage' and
-       being right. */
+    /* The last ring was 5000 wood, which four storehouses at their best do
+       not reach: 700 and four times 960 is 4540. The markets were the rest of
+       the ceiling, and without them this case read 'needs more storage' and
+       was right to. The ring is 3750 now and 4540 clears it, so the markets
+       are margin rather than the difference -- kept, because a case that
+       passes by 790 is a case that fails the next time a price moves. */
     scene(5, V.LAND_MAX - 1, [['store', 5], ['store', 5], ['store', 5], ['store', 5], ['market', 5], ['market', 5]]);
     RICHLY();
     want('land', ask('land'), /ready/, 'the village can pay for');
@@ -5854,7 +5856,7 @@
        empty                              is the only thing that says whether
                                           this is a claim you need or forty
                                           tiles of grass you already had
-       🪵 5000  🌾 3200                    what it costs
+       🪵 3750  🌾 3200                    what it costs
        Claim it / Need 🪵140 more /        and whether you can, and if not why
        Your stores cannot hold this
        much yet
