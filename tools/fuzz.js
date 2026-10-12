@@ -3894,6 +3894,28 @@
          hold at the moment it started saying it on every screen. */
       const promised = row => (String(row).split('·').find(c => c.indexOf('when it is done') >= 0) || '');
       const whenWood = new RegExp('([0-9]+)');
+      /* Every clause that counts storage has to count every kind of it.
+
+         The Holds line lists them through RES; the clauses beside it were
+         written when there were two kinds and went on naming two, so a
+         storehouse holding wood, food and stone said it would hold wood and
+         food -- while the spoil warning in the same row counted all three.
+         Read by icon off the drawn row, and only off the part of the row
+         that clause owns, because the Holds line in front of it names them
+         all and would answer for it.
+
+         Silent when a clause is missing altogether: that is the row being
+         too narrow to keep it, which is a different fault with its own
+         checks, and counting it here would hide one behind the other. */
+      const after = (str, mark) => { const i = String(str).indexOf(mark); return i < 0 ? '' : String(str).slice(i + mark.length); };
+      const clause = (str, label) => {
+        if (!String(str).trim()) return;
+        const kinds = V.RES.filter(k => V.capsOf(store, k) > 0);
+        const got = kinds.filter(k => String(str).indexOf(V.RES_ICON[k]) >= 0);
+        if (got.length !== kinds.length)
+          fails.push('a storehouse holds ' + kinds.join(', ') + ' and its "' + label + '" names '
+            + (got.join(', ') || 'none of them') + ': "' + String(str).trim() + '"');
+      };
       if (!house || !store) fails.push('the holding check could not place a house and a storehouse');
       else for (let lvl = 1; lvl <= 4; lvl++) {
         house.lvl = lvl; store.lvl = lvl;
@@ -3910,8 +3932,12 @@
            against a ceiling of 0 -- the checker being wrong rather than the
            game. capsWithout(null) skips nothing, so it IS the whole sum. */
         const ceiling = V.capsWithout(null).wood - V.capsWithout(store).wood;
-        const m0 = num.exec(rowLike(store, num));
+        const finStore = rowLike(store, num);
+        const m0 = num.exec(finStore);
         const h0 = heads.exec(rowLike(house, heads));
+        clause(after(finStore, '→'), 'what the next level holds');
+        clause(after(rowLike(store, new RegExp('drops storage to')), 'drops storage to').split('—')[0],
+          'what selling it drops storage to');
         if (!m0) { fails.push('a finished level ' + lvl + ' storehouse says nothing about what it holds'); continue; }
         if (!h0) { fails.push('a finished level ' + lvl + ' house says nothing about who lives there'); continue; }
         if (+m0[1] !== ceiling)
@@ -3950,6 +3976,7 @@
         else if (+willHouse[1] !== V.villagers.length)
           fails.push('a house under scaffolding said it would house ' + willHouse[1]
             + ' and ' + V.villagers.length + ' live there now');
+        clause(promised(upStore), 'when it is done');
       }
       if (rooms < 3) fails.push('only ' + rooms + ' storehouse upgrades were watched, so the block proved almost nothing');
 

@@ -6471,7 +6471,7 @@ function drawPanel() {
     : [];
   const armedHere = sellArm && sellArm.id === p.id;
   const spoilRow = (armedHere && spoiling.length)
-    ? 'Selling it drops storage to 🪵' + sellRoom.wood + '  🌾' + sellRoom.food
+    ? 'Selling it drops storage to ' + RES.map(k => RES_ICON[k] + sellRoom[k]).join('  ')
       + '   —   ' + spoiling.map(([k, v]) => RES_ICON[k] + v).join(' ')
       + ' would spoil'
     : null;
@@ -6623,16 +6623,33 @@ function drawPanel() {
        step it is on has no business being sold the step after it. */
     const up = p.t < 1;
     line = 'Holds ' + RES.map(k => RES_ICON[k] + capsHeld(p, k)).join('  ');
-    if (up) line += '   ·   🪵' + capsOf(p, 'wood')
-      + '  🌾' + capsOf(p, 'food') + ' when it is done   ·   under scaffolding';
-    else if (nl > lvlOf(p)) line += '  →  🪵' + at(nl, q => capsOf(q, 'wood')) + '  🌾' + at(nl, q => capsOf(q, 'food'));
+    /* Every kind it holds, and not the two it was written for.
+
+       The Holds line above has counted all of them through RES since the
+       third resource arrived. These two clauses were written when there were
+       two and went on naming two, so a storehouse that holds wood, food and
+       stone said it would hold wood and food -- and the row contradicted
+       itself in the same breath, because the spoil warning beside it DID
+       count stone: "drops storage to 🪵700  🌾700   —   🪵400 🌾255 🪨300
+       would spoil", storage that will not admit to the stone it is about to
+       destroy. Unfiltered, like the line it has to agree with: the only two
+       buildings with a cap hold all three kinds.
+
+       It fits because the promise now comes before the state: three kinds
+       and the words is 827 logical pixels against the 885 a phone panel has,
+       where three kinds behind "under scaffolding" was 1075 and was dropped
+       at every size, this one included. */
+    if (up) line += '   ·   ' + RES.map(k => RES_ICON[k] + capsOf(p, k)).join('  ')
+      + ' when it is done   ·   under scaffolding';
+    else if (nl > lvlOf(p)) line += '  →  '
+      + RES.map(k => RES_ICON[k] + at(nl, q => capsOf(q, k))).join('  ');
     /* Selling storage takes its capacity with it, and anything the village is
        holding above the new ceiling is gone. That used to happen in silence --
        the goods sat there looking fine until the next delivery clamped them
        away. A storehouse has no efficiency line, so the row it would have used
        says what the sale would actually cost. */
     if (sellRoom && spoiling.length) {
-      panelRow('Selling it drops storage to 🪵' + sellRoom.wood + '  🌾' + sellRoom.food
+      panelRow('Selling it drops storage to ' + RES.map(k => RES_ICON[k] + sellRoom[k]).join('  ')
         + '   —   ' + spoiling.map(([k, v]) => RES_ICON[k] + v).join(' ')
         + ' would spoil', lx, R.y - R.h / 2 + 148 * u, R.w - 56 * u, 20 * u, '#e59a86', '');
     }
