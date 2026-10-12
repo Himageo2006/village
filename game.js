@@ -2075,6 +2075,38 @@ function nearestTier(n, kind) {
   ORDER_TIERS.forEach((T, i) => { const d = Math.abs(T.size - share); if (d < bd) { bd = d; best = i; } });
   return best;
 }
+/* The kinds a trade may name.
+
+   The sentence below is "ask for whatever the village is fullest of and pay
+   in whatever it is shortest of", and it quietly assumes that what a village
+   is short of is something it wants. A third resource broke that. Stone is
+   zero from the first second of a new village and there is no way to make any
+   until a quarry, which the hall does not allow until level three -- and zero
+   of a cap is as empty as a kind can get, so stone was the answer to "what is
+   this village shortest of" for the whole early game, and every offer paid in
+   it. Measured across the early-game spread of stores: 93.7% of offers, and
+   100% of them once the village held any wood AND any food, which is the
+   normal case. Goal 6, "Fill three trade orders", arrives four goals before
+   the quarry and asks the player to take three of them: 132 wood for 125
+   stone, with a house at 30 wood and nothing stone can buy for another ten
+   goals. Three stalls showing three sizes of one forced trade is the exact
+   degeneracy ORDER_TIERS was added to end.
+
+   So a trade may only name a kind the village has some way of obtaining:
+   something the hall already allows makes it, or there is some in the stores
+   already. Holding some counts as well as making it, so that a player who
+   took one of those trades before this was fixed can sell the stone back
+   instead of being stuck with it for ten goals. Costing a kind deliberately
+   does NOT count -- a statue costs stone and sits on the decorate tray from
+   the first minute, which is what made paying in stone look defensible.
+
+   The fallback to all three is for a village that somehow qualifies on fewer
+   than two: a trade needs two sides, and one drawn from a single kind would
+   offer to swap a resource for itself. */
+const tradeKinds = () => {
+  const ks = RES.filter(k => res[k] > 0 || BUILDINGS.some(b => b.makes && b.makes[k] && unlocked(b.key)));
+  return ks.length >= 2 ? ks : RES.slice();
+};
 function makeOrder(tier) {
   /* Ask for whatever the village is fullest of and pay in whatever it is
      shortest of. With two kinds that is the same sentence as "the richer of
@@ -2086,7 +2118,7 @@ function makeOrder(tier) {
      food, not wood -- and the order sweep sets both stores to half a barn on
      purpose, so a tie is not a corner case here, it is the usual case. */
   const fullness = k => res[k] / Math.max(1, caps[k]);
-  const order = RES.slice().sort((a, b) =>
+  const order = tradeKinds().sort((a, b) =>
     (fullness(b) - fullness(a)) || (RES.indexOf(b) - RES.indexOf(a)));
   const giveK = order[0], getK = order[order.length - 1];
   /* Prefer a size that is not already on the board, so the stalls stay
@@ -3358,6 +3390,20 @@ function load() {
      Clamped here, after recomputeCaps, because the ceiling depends on what was
      just loaded. */
   for (const k of RES) res[k] = Math.max(0, Math.min(caps[k], res[k]));
+  /* And an offer this board would not make today does not survive the trip.
+
+     tradeKinds arrived after a build that paid every early trade in stone, so
+     a village saved by that build comes back holding a boardful of them. They
+     are perfectly fillable, and the replacement path only steps in when
+     NOTHING on the board can be taken -- so they would stand there until the
+     player took them, which is the trade the rule exists to prevent. Dropped
+     rather than rewritten: an empty stall is a state the board already knows
+     how to be in, and the next trader fills it within one wait.
+
+     Last in load, because tradeKinds reads the hall level and the stores, and
+     neither is settled until placed is back and the caps are recomputed. */
+  const tradeable = new Set(tradeKinds());
+  orders = orders.filter(o => tradeable.has(o.giveK) && tradeable.has(o.getK));
 }
 /* What the village earned while the game was closed.
 

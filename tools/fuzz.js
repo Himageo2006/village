@@ -10073,6 +10073,153 @@
      not in the list is reported as unrun rather than quietly skipped.
 
      await it: three of these are async. */
+  /* What a trade is allowed to be made of.
+
+     The whole value of the board is the sentence written above makeOrder: the
+     village hands over a surplus it was throwing on the floor and takes back
+     the thing it is short of. That sentence carries a silent assumption --
+     that "short of" and "wanted" are the same thing -- and a third resource
+     broke it. Stone is zero from the first second of a new village and there
+     is no way to make any until a quarry, which the hall does not allow until
+     level three. Zero of a cap of three hundred is the emptiest any kind can
+     be, so stone was the answer to "what is this village shortest of" for the
+     whole early game, so every offer paid in it.
+
+     Measured on the build that shipped it: of 2883 offers drawn across the
+     whole early-game spread of stores, 93.7% paid in stone, and 100% of them
+     once the village held any wood AND any food -- the normal case. Goal 6,
+     "Fill three trade orders", arrives four goals before the quarry and asks
+     the player to take three: 132 wood for 125 stone, with a house at 30 wood
+     and nothing in the game that stone can buy for another ten goals. The
+     three stalls showed three sizes of the same forced trade, which is the
+     exact degeneracy ORDER_TIERS was introduced to end.
+
+     So an offer may only name a kind the village has some way of obtaining.
+     Driven through step() and the trader timer rather than by calling
+     makeOrder, so this holds the BOARD to the promise and not one function. */
+  window.tradeSweep = function () {
+    const V = window.__v, fails = [];
+    /* A kind nothing the hall allows can make. Not "nothing costs it" -- a
+       statue costs stone and is on the decorate tray from the first minute,
+       which is why the board being allowed to pay in stone looked
+       defensible for as long as it did.
+
+       Fixed by the hall level alone, deliberately. The first version of this
+       also asked whether the stores held any, and judged the offers it had
+       collected AFTERWARDS -- against whatever the stores happened to end on
+       rather than against the village that made them. On its own that read
+       clean; inside the battery, where an earlier sweep leaves stone in the
+       stores and the last round of this one empties it again, it reported
+       half the board bad. A checker whose answer depends on what ran before
+       it is not a checker. */
+    const noMaker = k => !V.BUILDINGS.some(b => b.makes && b.makes[k] && V.unlocked(b.key));
+
+    const scene = (hallLvl, extra) => {
+      V.placed.length = 0; V.villagers.length = 0;
+      V.landTier = V.LAND_MAX; V.coverPlaced();
+      V.goalIdx = V.GOALS.length; V.away = null; V.goalDone = null; V.finished = null;
+      V.panel = null; V.sel = null; V.barMode = 'build'; V.tutSeen.length = 0;
+      V.orders = []; V.ordersDone = 0;
+      V.ensureHall(); V.placed[0].lvl = hallLvl; V.placed[0].t = 1;
+      const L = V.landBounds();
+      const plan = [['house', 1, 1], ['farm', 1, 5], ['lumber', 4, 5], ['store', 10, 10]].concat(extra || []);
+      for (const [k, dc, dr] of plan) V.place(k, L.lo + dc, L.lo + dr);
+      for (const p of V.placed) p.t = 1;
+      for (let i = 0; i < 60 * 30; i++) V.step(1 / 30);
+    };
+
+    /* Turn the board over and over, across the spread of stores a village
+       actually passes through, and keep every offer the traders seat. */
+    const board = (hallLvl, extra, rounds) => {
+      scene(hallLvl, extra);
+      const dead = V.RES.filter(noMaker), live = V.RES.filter(k => !noMaker(k));
+      const seen = [];
+      for (let r = 0; r < rounds; r++) {
+        /* Nothing can make these, so the village has none -- every round, not
+           just the round the sweep is looked at in. */
+        for (const k of dead) V.res[k] = 0;
+        /* And every kind that CAN be made takes its turn at being the one the
+           village is shortest of, so no kind is the answer by arithmetic. */
+        live.forEach((k, i) => {
+          const g = ((r + i) % live.length) / Math.max(1, live.length - 1);
+          V.res[k] = Math.round(V.caps[k] * (0.05 + 0.85 * g));
+        });
+        V.orders = [];
+        let guard = 0;
+        while (V.orders.length < V.orderSlots() && guard++ < 60) { V.orderT = 1e6; V.step(1 / 30); }
+        for (const o of V.orders) seen.push({ o, bad: noMaker(o.giveK) || noMaker(o.getK) });
+      }
+      return seen;
+    };
+
+    /* A village the hall has not yet let near a quarry: goal 6 is here. */
+    {
+      const seen = board(2, null, 24);
+      if (seen.length < 30) fails.push('only ' + seen.length + ' offers reached the board at hall 2, so the sweep proved almost nothing');
+      const bad = seen.filter(x => x.bad);
+      if (bad.length) {
+        const pct = (100 * bad.length / seen.length).toFixed(1);
+        const one = bad[0].o;
+        fails.push(pct + '% of offers at hall 2 (' + bad.length + ' of ' + seen.length + ') name a kind the village'
+          + ' has no way to get -- e.g. ' + one.giveN + ' ' + one.giveK + ' for ' + one.getN + ' ' + one.getK
+          + ', and nothing the hall allows makes ' + (noMaker(one.getK) ? one.getK : one.giveK));
+      }
+      /* And the board is a choice, not one forced trade in three sizes. */
+      const shapes = new Set(seen.map(x => x.o.giveK + '->' + x.o.getK));
+      if (shapes.size < 2) fails.push('every offer at hall 2 was the same trade (' + [...shapes] + '), so the board is not a choice');
+    }
+
+    /* The opposite mistake: a fix that simply never trades the third kind.
+       With a quarry standing, stone is an ordinary resource and the board
+       must be willing to name it. */
+    {
+      const seen = board(3, [['quarry', 7, 1]], 24);
+      if (seen.length < 30) fails.push('only ' + seen.length + ' offers reached the board at hall 3, so the sweep proved almost nothing');
+      else if (!seen.some(x => x.o.getK === 'stone' || x.o.giveK === 'stone'))
+        fails.push('not one offer named stone at a village with a quarry, so the third kind has been dropped from trade rather than gated');
+    }
+
+    /* And specifically with the pile still empty, which is the state a player
+       is in the second their first quarry finishes -- and the state that
+       tells "can get it" apart from "has some". A rule written as "only what
+       the village is holding" passes every check above, because a quarry left
+       running for a minute has already made some; it fails here, where the
+       mill is the next thing to build and stone is exactly what is wanted. */
+    {
+      scene(3, [['quarry', 7, 1]]);
+      let named = 0, rounds = 12;
+      for (let r = 0; r < rounds; r++) {
+        V.res.wood = Math.round(V.caps.wood * 0.9);
+        V.res.food = Math.round(V.caps.food * 0.6);
+        V.res.stone = 0;
+        V.orders = [];
+        let guard = 0;
+        while (V.orders.length < V.orderSlots() && guard++ < 60) { V.orderT = 1e6; V.step(1 / 30); }
+        if (V.orders.some(o => o.getK === 'stone')) named++;
+      }
+      if (!named) fails.push('a village whose quarry is standing but whose stone pile is empty was offered'
+        + ' nothing that pays in stone, in ' + rounds + ' boards -- so trade is gated on holding a kind'
+        + ' rather than on being able to make it, and the mill cannot be traded towards');
+    }
+
+    /* And a board saved by the build that made those offers does not come
+       back standing. They are fillable, so the replacement path -- which only
+       acts when NOTHING on the board can be taken -- would leave them there
+       until the player took them, which is the trade the rule prevents. */
+    {
+      scene(2, null);
+      for (const k of V.RES) V.res[k] = Math.round(V.caps[k] * 0.5);
+      V.res.stone = 0;
+      V.orders = [{ id: 9001, tier: 1, giveK: 'wood', giveN: 42, getK: 'stone', getN: 39, slot: 0 }];
+      V.save();
+      V.load();
+      const left = V.orders.filter(o => o.getK === 'stone' || o.giveK === 'stone');
+      if (left.length) fails.push('a saved offer paying in stone came back after a reload at hall 2, so a village'
+        + ' that met the old board is left holding it: '
+        + left.map(o => o.giveN + ' ' + o.giveK + ' -> ' + o.getN + ' ' + o.getK).join(', '));
+    }
+    return { fails };
+  };
   /* The trade board.
 
      It has produced two defects now -- offers stranded on stalls that no
@@ -11607,6 +11754,7 @@
       ['goods', () => window.goodsSweep()],
       ['room', () => window.roomSweep()],
       ['order', () => window.orderSweep()],
+      ['trade', () => window.tradeSweep()],
       ['tap', () => window.tapSweep()],
       ['text', () => window.textSweep()],
       ['contrast', () => window.contrastSweep()],
