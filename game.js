@@ -6376,6 +6376,28 @@ function villageStats() {
    row that cannot fit even its opening is a string that needs rewriting, and
    the sweep still reports it. */
 const ROW_SEP = '   ·   ';
+/* A row sheds from the RIGHT, so the clauses have to be in order of what the
+   player would miss most -- and for a long time they were in the order they
+   were written in.
+
+   Every row about a building under construction said "under scaffolding"
+   first and what the work will make it last, so the promise the player had
+   just paid for was the first thing thrown away. On a 360-wide phone -- the
+   only shape this game ships to -- a storehouse going up read "Holds 🪵400
+   🌾400 🪨400   ·   under scaffolding" and never said what it would hold,
+   and a well being improved never said what it would lift. Measured: the
+   full storehouse row is 925 logical pixels against the 885 the panel has
+   at that size, and the promise alone is the 190 that do not fit.
+
+   The state is the clause to lose. A building under scaffolding is already
+   saying so in three other places -- the scaffolding is drawn on it, the
+   upgrade button reads "Building...", and the plot shows the work -- while
+   the figure it will reach is written down exactly once, here. This file
+   has been here before: the workplace row lost "stores full, nobody working
+   it" the same way, and that was fixed by taking the arrow out rather than
+   by putting the clauses in the right order.
+
+   So: promise first, state last, in every row that has both. */
 function panelRow(text, x, y, maxW, px, colour, weight) {
   let parts = String(text).split(ROW_SEP);
   let fit = fitLines(parts.join(ROW_SEP), maxW, px, px * 0.62, 1, weight);
@@ -6515,8 +6537,8 @@ function drawPanel() {
        The next level is not quoted for an idle building either. Nought becomes
        nought, and the arrow between them is noise dressed as information. */
     if (up) {
-      line += '   ·   under scaffolding'
-        + (n ? '   ·   ' + (n * deliveredOf(p)).toFixed(2) + '/s when it is done' : '');
+      line += (n ? '   ·   ' + (n * deliveredOf(p)).toFixed(2) + '/s when it is done' : '')
+        + '   ·   under scaffolding';
     } else if (!n) {
       line += '   ·   ' + (!hasRoomFor(k) ? 'stores full, nobody working it'
         : 'no villagers');
@@ -6601,8 +6623,8 @@ function drawPanel() {
        step it is on has no business being sold the step after it. */
     const up = p.t < 1;
     line = 'Holds ' + RES.map(k => RES_ICON[k] + capsHeld(p, k)).join('  ');
-    if (up) line += '   ·   under scaffolding   ·   🪵' + capsOf(p, 'wood')
-      + '  🌾' + capsOf(p, 'food') + ' when it is done';
+    if (up) line += '   ·   🪵' + capsOf(p, 'wood')
+      + '  🌾' + capsOf(p, 'food') + ' when it is done   ·   under scaffolding';
     else if (nl > lvlOf(p)) line += '  →  🪵' + at(nl, q => capsOf(q, 'wood')) + '  🌾' + at(nl, q => capsOf(q, 'food'));
     /* Selling storage takes its capacity with it, and anything the village is
        holding above the new ceiling is gone. That used to happen in silence --
@@ -6622,7 +6644,7 @@ function drawPanel() {
        row used to promise three residents to a village that had none yet. */
     const up = p.t < 1;
     line = 'Houses ' + count(livedIn(p), 'villager');
-    if (up) line += '   ·   under scaffolding   ·   ' + popOf(p) + ' when it is done';
+    if (up) line += '   ·   ' + popOf(p) + ' when it is done   ·   under scaffolding';
     else if (nl > lvlOf(p)) line += '  →  ' + at(nl, popOf);
   } else if (b.boost) {
     /* A well that has never finished lifts nothing YET, which is not the same
@@ -6665,8 +6687,8 @@ function drawPanel() {
       : 'Lifting ' + count(reach, 'workplace') + '   ·   '
         + (up
             ? (first ? '' : '+' + live.gain.toFixed(2) + '/s delivered   ·   ')
+              + (grown.gain > live.gain + 0.005 ? '+' + grown.gain.toFixed(2) + '/s when it is done   ·   ' : '')
               + 'under scaffolding'
-              + (grown.gain > live.gain + 0.005 ? '   ·   +' + grown.gain.toFixed(2) + '/s when it is done' : '')
           : live.gain > 0.005 ? '+' + live.gain.toFixed(2) + '/s delivered'
               + (nx > live.gain + 0.005 ? '  →  +' + nx.toFixed(2) + '/s' : '')
           : 'none of them worked yet');

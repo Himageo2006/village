@@ -3883,7 +3883,17 @@
       const num = new RegExp('Holds [^0-9]*([0-9]+)');
       const heads = new RegExp('Houses ([0-9]+) villager');
       const when = new RegExp('([0-9]+) when it is done');
-      const whenWood = new RegExp('under scaffolding[^0-9]*([0-9]+)');
+      /* The clause that carries the promise, wherever it sits in the row.
+
+         This was 'under scaffolding' followed by the first number after it,
+         which tied the checker to the order the clauses happened to be
+         written in. When the promise moved in FRONT of the state -- so that
+         a narrow screen sheds the state and keeps the promise -- the check
+         went looking for a number after the last clause in the row, found
+         none, and reported that a storehouse had stopped saying what it will
+         hold at the moment it started saying it on every screen. */
+      const promised = row => (String(row).split('·').find(c => c.indexOf('when it is done') >= 0) || '');
+      const whenWood = new RegExp('([0-9]+)');
       if (!house || !store) fails.push('the holding check could not place a house and a storehouse');
       else for (let lvl = 1; lvl <= 4; lvl++) {
         house.lvl = lvl; store.lvl = lvl;
@@ -3918,7 +3928,7 @@
         const ceilUp = V.capsWithout(null).wood - V.capsWithout(store).wood;
         const upStore = rowLike(store, num), upHouse = rowLike(house, heads);
         const m1 = num.exec(upStore), h1 = heads.exec(upHouse);
-        const willHold = whenWood.exec(upStore), willHouse = when.exec(upHouse);
+        const willHold = whenWood.exec(promised(upStore)), willHouse = when.exec(upHouse);
         if (!m1 || +m1[1] !== ceilUp)
           fails.push('a storehouse under scaffolding says it holds ' + (m1 ? m1[1] : 'nothing')
             + ' and the village ceiling counts ' + ceilUp + ' of it');
@@ -4365,6 +4375,75 @@
         }
       }
       if (quotes < 30) fails.push('only ' + quotes + ' sales were quoted and checked, so the block proved little');
+    }
+
+    /* And none of it falls off the edge of a phone.
+
+       panelRow sheds clauses from the right when a row will not fit, so the
+       order they are written in decides what a narrow screen loses. Every
+       scaffolding row named the state before the promise, and the promise is
+       the thing the player has just paid for -- so at 360 wide a storehouse
+       going up never said what it would hold and a well never said what it
+       would lift, while both were perfectly correct at 1200. Everything above
+       read the one shape the browser window happened to be, which for this
+       battery had always been a desktop one; the game ships to a portrait
+       phone and nothing else.
+
+       Compared between shapes rather than against a written-down string:
+       whatever a wide screen is willing to promise, a phone has to promise
+       too. A row that promises nothing anywhere is left alone -- that is a
+       different fault, and the checks above own it. */
+    {
+      const keepW = window.innerWidth, keepH = window.innerHeight;
+      const SHAPES = [[1200, 800], [390, 844], [360, 780], [360, 640]];
+      const seen = {};
+      try {
+        for (const [sw, sh] of SHAPES) {
+          asScreen(sw, sh);
+          V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
+          V.away = null; V.goalDone = null; V.finished = null; V.panel = null; V.sel = null;
+          V.goalIdx = V.GOALS.length; V.tutSeen.length = 0; V.orders = [];
+          V.ensureHall(); V.placed[0].lvl = 5; V.placed[0].t = 1;
+          for (const k of V.RES) V.res[k] = 3e4;
+          const LB = V.landBounds();
+          for (const [k, c, r] of [['house', 0, 0], ['farm', 3, 0], ['lumber', 3, 3],
+            ['store', 6, 0], ['well', 6, 3]]) V.place(k, LB.lo + c, LB.lo + r);
+          for (const x of V.placed) { x.t = 1; x.build = 0; }
+          V.rebuildStores();
+          for (let i = 0; i < 60 * 30; i++) V.step(1 / 30);
+          for (const key of ['store', 'house', 'well', 'lumber']) {
+            for (const k of V.RES) V.res[k] = 3e4;
+            const p = V.placed.find(q => q.key === key);
+            if (!p || !V.canUpgrade(p)) continue;
+            V.upgradeBuilding(p); p.build = 1e7; V.step(1 / 30);
+            const row = rowLike(p, new RegExp('Holds|Houses|Lifting|Reaching|/s delivered'));
+            /* With the hands it has, because a workplace only promises a
+               figure when somebody is working it -- so an unstaffed one is
+               silent for a reason that has nothing to do with the width of
+               the screen, and comparing it against a staffed one reports the
+               villager who wandered off as a layout fault. The same rule the
+               delivered block above keeps. */
+            (seen[key] = seen[key] || []).push({ at: sw + 'x' + sh, hands: V.workersAt(p.id),
+              has: new RegExp('when it is done').test(row), row });
+            p.build = 1;
+            for (let i = 0; i < 40 * 30; i++) V.step(1 / 30);
+          }
+        }
+      } finally { asScreen(keepW, keepH); }
+      let compared = 0;
+      for (const key of Object.keys(seen)) {
+        const rows = seen[key], wide = rows[0];
+        if (!wide || !wide.has) continue;
+        for (const r of rows.slice(1)) {
+          if (r.hands !== wide.hands) continue;          // not evidence either way
+          compared++;
+          if (!r.has)
+            fails.push('a ' + key + ' under scaffolding says what it will become at ' + wide.at
+              + ' and not at ' + r.at + ', where the row is "' + r.row + '"');
+        }
+      }
+      if (compared < 6) fails.push('only ' + compared + ' rows could be compared between a wide screen and'
+        + ' a narrow one, so the narrow-screen block proved almost nothing');
     }
 
     return { checked, skipped, delivering: counted, holding: rooms, housing: people, wells,
