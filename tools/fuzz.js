@@ -4601,15 +4601,45 @@
          is being tested is whether the player is told, so the test has to
          be what the player can read. */
       const cv2 = document.querySelector('canvas'), ctx2 = cv2.getContext('2d');
+      /* The whole strip, including the half of it on the second line.
+
+         The strip wraps when it will not fit on one, and this took the first
+         drawn row and called it the line. On a 360-wide phone that cut the
+         sentence in half: the game says "no room left -- remove a path" and
+         draws "...no room left -- remove" above "a path   ·   reward ...".
+         So the checker read a truncation the player never sees, decided the
+         strip was naming nothing that stands in the village, and complained.
+         It had been right only at the width where the strip happens to fit.
+
+         The continuation is found by where it is drawn rather than by what it
+         says: fitLines lays its rows at one x, a line apart, so a row at the
+         same x and within a line and a half below belongs to the same string.
+         Joined with a space, which is the join fitLines split on. */
       const line = () => {
         V.goalIdx = V.GOALS.findIndex(g => /charm/i.test(g.text));
         V.goalDone = null; V.away = null; V.finished = null; V.claimAsk = false;
         V.tutSeen.length = 0; for (const h of V.TUT) V.tutSeen.push(h.id);
         V.step(0.001);
         const rows = [], o = ctx2.fillText;
-        ctx2.fillText = function (t2, ...a) { rows.push(String(t2)); return o.call(this, t2, ...a); };
+        ctx2.fillText = function (t2, x2, y2, ...a) {
+          /* The size out of the font string, not parseFloat of it: the strip is
+             drawn bold, so the string starts 'bold 29px' and parseFloat reads
+             NaN -- which fell back to 16, made the line gap look impossible and
+             dropped the continuation this was written to pick up. */
+          const fpx = /([0-9.]+)px/.exec(ctx2.font);
+          rows.push({ t: String(t2), x: x2, y: y2, px: fpx ? +fpx[1] : 16 });
+          return o.call(this, t2, x2, y2, ...a);
+        };
         try { V.draw(); } finally { ctx2.fillText = o; }
-        return rows.find(t2 => /^Fill the village/.test(t2)) || '';
+        const i = rows.findIndex(r => /^Fill the village/.test(r.t));
+        if (i < 0) return '';
+        let out = rows[i].t;
+        for (let j = i + 1; j < rows.length; j++) {
+          const a = rows[i], b = rows[j];
+          if (Math.abs(b.x - a.x) > 1 || b.y - a.y <= 0 || b.y - a.y > a.px * 1.6 * (j - i)) break;
+          out += ' ' + b.t;
+        }
+        return out;
       };
       /* Read off the game, not worked out again here.
 
@@ -9262,14 +9292,32 @@
   window.hueSweep = function () {
     const V = window.__v, fails = [];
     const ctx = document.querySelector('canvas').getContext('2d');
-    /* The strings drawn inside one control, in the HUD's own space -- the world
-       is drawn through camApply, which translates, and the HUD only scales. */
+    /* The strings drawn inside one control, in the HUD's own space.
+
+       The world is drawn through camApply, which translates and scales; the
+       HUD is drawn at scale 1, and on a screen taller than the logical 1536
+       it is translated down by the letterbox offset. So a draw call carries
+       that offset in the transform and the rect from barRects does not, and
+       adding m.f to one side of the comparison and not the other put them
+       OY apart -- 342 pixels on a 360x780 phone, where the tray is drawn at
+       canvas row 2111 and its rect says 1769.
+
+       Nothing ever matched, so every pair came back empty and the sweep
+       reported that it proves nothing -- which was true, and had been true at
+       every shape except the one where the offset happens to be zero. That is
+       a desktop window, and a desktop window is what this battery had always
+       been run in. The game ships to a tall phone and nothing else.
+
+       Both sides belong in the same space, and the untranslated one is the
+       space the rect is already in: the translate is common to every HUD draw,
+       so dropping it from the point is the same comparison without the bias. */
     const inside = rect => {
       const o = ctx.fillText.bind(ctx), rows = [];
       ctx.fillText = function (t, x, y, ...rest) {
-        const m = ctx.getTransform(), gx = m.e + x, gy = m.f + y;
-        if (Math.abs(m.e) < 1e-6 && Math.abs(gy - rect.y) < rect.h / 2 + 6
-          && Math.abs(gx - rect.x) < rect.w / 2 + 6) rows.push(String(t));
+        const m = ctx.getTransform();
+        const isHud = Math.abs(m.a - 1) < 1e-6 && Math.abs(m.e) < 1e-6;
+        if (isHud && Math.abs(y - rect.y) < rect.h / 2 + 6
+          && Math.abs(x - rect.x) < rect.w / 2 + 6) rows.push(String(t));
         return o(t, x, y, ...rest);
       };
       try { V.draw(); } finally { ctx.fillText = o; }
