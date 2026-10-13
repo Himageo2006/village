@@ -7323,20 +7323,42 @@ function villagerAt(sx, sy, pad) {
   }
   return best;
 }
-function buildingAt(sx, sy) {
+/* Everything standing under one finger, nearest the eye first.
+
+   A village is a stack of overlapping sprites with the tallest drawn last, so
+   a building behind the hall is only the sliver of itself the hall does not
+   cover -- and that sliver is the only way to its panel, which is the only way
+   to upgrade it, move it or sell it. Measured on a real 53-building village at
+   360x780, camera centred on each building and tried at every zoom the game
+   allows: one farm could not be opened at all, 24 of 39 never reached the 128
+   pixels this file calls a thumb, and the thinnest that could be opened was a
+   lumber camp at twelve -- four CSS pixels. Zooming in does not help, because
+   the neighbour grows with it.
+
+   TOUCH_MIN was written for exactly this, and padHit gives it to every control
+   in the HUD; villagerAt pads a villager to a fingertip for the same reason,
+   in the same words, a few lines below. The buildings had neither.
+
+   The list keeps the order the eye reads: whatever is painted here, deepest
+   first, and then -- last -- whoever actually owns the ground, who may be
+   painted over entirely. So the FIRST of them is what buildingAt always
+   answered and what a first tap still opens; the rest are what a second tap on
+   the same spot can reach. Nothing about what you see has changed; what was
+   added is a way down through it. */
+function buildingsAt(sx, sy) {
   const w = camUnproject(sx, sy), t = tileAt(w.x, w.y);
-  let best = null, bestY = -Infinity;
-  for (const p of placed) {
-    if (B(p.key).flat) continue;
-    const y = depthOf(p);
-    // >= because a later building at the same depth is drawn over an earlier one
-    if (y >= bestY && paintedAt(p, w.x, w.y)) { best = p; bestY = y; }
-  }
-  if (best) return best;
-  const c = t.c, r = t.r;
-  return placed.find(p => { const b = B(p.key);
-    return c >= p.c && c < p.c + b.w && r >= p.r && r < p.r + b.h; }) || null;
+  const out = placed.filter(p => !B(p.key).flat && paintedAt(p, w.x, w.y))
+    /* The order buildingAt chose by: deepest wins, and a later building wins a
+       tie with an earlier one because it is drawn over it. */
+    .sort((a, b) => depthOf(b) - depthOf(a) || placed.indexOf(b) - placed.indexOf(a));
+  const plot = placed.find(p => { const b = B(p.key);
+    return t.c >= p.c && t.c < p.c + b.w && t.r >= p.r && t.r < p.r + b.h; });
+  if (plot && out.indexOf(plot) < 0) out.push(plot);
+  return out;
 }
+/* What the eye sees there, which is the first of them. Written through the
+   list rather than beside it so the two can never drift apart. */
+function buildingAt(sx, sy) { return buildingsAt(sx, sy)[0] || null; }
 function tap(sx, sy) {
   if (away) { away = null; return; }
   if (finishedUp()) { closeFinished(); return; }
@@ -7443,8 +7465,18 @@ function tap(sx, sy) {
      hits that, so a near miss onto grass still opens the person aimed at. */
   const on = villagerAt(sx, sy, false);
   if (on) { SFX.tap(); who = on.seed; panel = null; return; }
-  const hit = buildingAt(sx, sy);
-  if (hit) { SFX.tap(); panel = hit.id; who = null; return; }
+  /* The first tap opens what is drawn here; tapping the same place again goes
+     to whatever is standing under it, and round again. That is the whole of
+     the fix for a buried building: the patch you have to hit is the COVERING
+     building's, which is large, and the one underneath is two taps away
+     instead of unreachable. A spot with nothing beneath cycles to itself and
+     behaves exactly as it did. */
+  const under = buildingsAt(sx, sy);
+  if (under.length) {
+    const i = under.findIndex(p => p.id === panel);
+    const next = under[(i + 1) % under.length];
+    SFX.tap(); panel = next.id; who = null; return;
+  }
   const near = villagerAt(sx, sy, true);
   if (near) { SFX.tap(); who = near.seed; panel = null; return; }
   who = null;
@@ -7528,7 +7560,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   canUpgrade, upgradeBuilding, upInfo, upCostOf, lvlOf, popOf, capsOf, capsHeld, rateOf, outMul, LVL_MAX,
   shortfall, shortText, overCaps, remedy, villageStats, wellGain, wellGainAtLevel, wellGainAt, wellMoveGain, wellReachAt, charmDelivered, deliveredOf, deliveringNow, deliveredWith, travelSecondsOf, handsFor,
   bestDeliveredOf, reachOf, snugWalkOf,
-  panelRects, TOUCH_MIN, padHit, TEXT_MIN, get panel() { return panel; }, set panel(v) { panel = v; },
+  panelRects, TOUCH_MIN, padHit, TEXT_MIN, buildingsAt, get panel() { return panel; }, set panel(v) { panel = v; },
   get who() { return who; }, set who(v) { who = v; }, whoIs, villagerAt, tradeOf, doingOf, roundTripOf, drawWho,
   get villagers() { return villagers; }, workersAt, workersOf, villagerName, nameList, NAMES, freeSeed, boostAt, producers, stores,
   assignJobs, desiredJobs, computeJobs, invalidateJobs, established, lvlHeld, buildingAt, ensureHall, jobsOf, VILLAGER_MAX, rebuildStores, nearestStore,

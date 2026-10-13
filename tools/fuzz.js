@@ -10294,6 +10294,122 @@
      not in the list is reported as unrun rather than quietly skipped.
 
      await it: three of these are async. */
+  /* Every building can be opened, by a thumb.
+
+     TOUCH_MIN exists because a control that is drawn small is a control nobody
+     can press, and padHit pads every control in the HUD up to it. The buildings
+     got neither the padding nor the check -- and they are the thing this game
+     is mostly about pressing. A village is a stack of overlapping sprites, the
+     tallest drawn last, so a building standing behind the hall has only the
+     sliver of itself that the hall does not cover; and the panel is the only
+     way to upgrade it, move it or sell it.
+
+     Measured on a real 53-building village at 360x780, with the camera centred
+     on each building and tried at every zoom the game allows: one farm could
+     not be opened AT ALL, 24 of 39 never reached the 128-logical-pixel floor,
+     and the worst that could be opened was a lumber camp at twelve logical
+     pixels -- four CSS pixels of screen. Zooming in does not rescue it, because
+     the neighbour grows with it.
+
+     Asked by tapping, not by reading a helper: the promise is about what the
+     game does when a finger lands, so the check lands fingers. Three taps on
+     one spot, because a spot may have several buildings under it and the tap
+     may have to work down the stack. */
+  window.openSweep = function () {
+    const V = window.__v, fails = [];
+    const keepW = window.innerWidth, keepH = window.innerHeight;
+    const STEP = 16, R = 192, N = Math.floor(2 * R / STEP) + 1;
+    /* Half a thumb, and the half is measured rather than chosen. TOUCH_MIN is
+       what padHit gives a control, and a control can be padded into the space
+       around it; a building is a shape on the ground and cannot. The biggest
+       square that fits inside a two-tile plot is 96 pixels at the highest zoom
+       this game allows -- measured, on the widest building that still failed --
+       so holding a building to 128 would be holding it to something the grid
+       cannot give at any zoom. The full thumb stays where it can be kept, on
+       the HUD. What matters here is the difference between 96 and the four CSS
+       pixels this found. */
+    const BAR = V.TOUCH_MIN / 2;
+    const grid = new Int32Array(N * N), dp = new Int32Array(N * N);
+
+    const scene = () => {
+      V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
+      V.away = null; V.goalDone = null; V.finished = null; V.panel = null; V.sel = null;
+      V.moving = null; V.claimAsk = false; V.orders = []; V.who = null;
+      V.goalIdx = V.GOALS.length; V.tutSeen.length = 0; for (const h of V.TUT) V.tutSeen.push(h.id);
+      V.ensureHall(); V.placed[0].lvl = 5; V.placed[0].t = 1;
+      const L = V.landBounds();
+      const seat = k => { for (let r = L.lo; r <= L.hi; r++) for (let c = L.lo; c <= L.hi; c++) {
+        for (const kk of V.RES) V.res[kk] = 9e5;
+        if (V.canPlace(k, c, r, V.occupied()) && V.place(k, c, r)) return true; } return false; };
+      for (const [k, n] of Object.entries(V.HALL[V.HALL.length - 1].allow))
+        while (V.countOf(k) < n) if (!seat(k)) break;
+      for (const p of V.placed) { p.t = 1; p.build = 0; }
+      V.rebuildStores(); V.rebuildCharm();
+    };
+
+    /* Does tapping here reach p, within a few taps on the same spot? */
+    const opens = (x, y, p) => {
+      if (x < 0 || x > 1024 || y < V.hudTop() || y > V.hudBot()) return false;
+      V.panel = null; V.who = null;
+      for (let i = 0; i < 3; i++) {
+        V.tap(x, y);
+        if (V.panel === p.id) return true;
+        if (V.panel == null) return false;           // nothing under this finger at all
+      }
+      return false;
+    };
+
+    /* The biggest square of screen from which this building can be opened. */
+    const square = p => {
+      const c = V.centreOf(p), pr = V.camProject(c.x, c.y);
+      const ox = Math.round(pr.x - R), oy = Math.round(pr.y - R);
+      for (let i = 0; i < N; i++) for (let j = 0; j < N; j++)
+        grid[j * N + i] = opens(ox + i * STEP, oy + j * STEP, p) ? 1 : 0;
+      let best = 0;
+      for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+        const k = j * N + i;
+        if (!grid[k]) { dp[k] = 0; continue; }
+        dp[k] = (i && j && grid[k - 1] && grid[k - N] && grid[k - N - 1])
+          ? 1 + Math.min(dp[k - 1], dp[k - N], dp[k - N - 1]) : 1;
+        if (dp[k] > best) best = dp[k];
+      }
+      return best * STEP;
+    };
+
+    const keepCam = { z: V.CAM.z, x: V.CAM.x, y: V.CAM.y };
+    let worst = null, checked = 0, shut = 0, thin = 0;
+    try {
+      asScreen(360, 780);
+      scene();
+      for (const p of V.placed) {
+        if (V.isDecor(p.key)) continue;
+        /* Centred and zoomed in, which is the best a player can do for a
+           building they are trying to reach. If it fails here it fails. */
+        const c = V.centreOf(p);
+        let got = 0;
+        for (const z of [1.1, V.ZMAX]) {
+          V.CAM.z = z; V.CAM.x = c.x; V.CAM.y = c.y;
+          if (V.camClamp) V.camClamp();
+          V.step(0.001);
+          got = Math.max(got, square(p));
+        }
+        checked++;
+        if (got === 0) { shut++; fails.push('a ' + p.key + ' cannot be opened at all -- no spot on the screen,'
+          + ' centred on it and zoomed in, puts its panel up'); }
+        else if (got < BAR) { thin++;
+          if (!worst || got < worst.got) worst = { key: p.key, got }; }
+      }
+      if (thin) fails.push(thin + ' of ' + checked + ' buildings can only be opened through a patch smaller than'
+        + ' ' + BAR + ' pixels -- the worst a ' + worst.key + ' at ' + worst.got);
+    } finally {
+      V.panel = null; V.who = null;
+      V.CAM.z = keepCam.z; V.CAM.x = keepCam.x; V.CAM.y = keepCam.y;
+      asScreen(keepW, keepH);
+      V.step(0.001);
+    }
+    if (checked < 20) fails.push('only ' + checked + ' buildings were asked, so the sweep proved almost nothing');
+    return { checked, unopenable: shut, belowThumb: thin, worst, fails };
+  };
   /* What a trade is allowed to be made of.
 
      The whole value of the board is the sentence written above makeOrder: the
@@ -11992,6 +12108,7 @@
       ['order', () => window.orderSweep()],
       ['trade', () => window.tradeSweep()],
       ['tap', () => window.tapSweep()],
+      ['open', () => window.openSweep()],
       ['text', () => window.textSweep()],
       ['contrast', () => window.contrastSweep()],
       ['backing', () => window.backingSweep()],
