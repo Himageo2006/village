@@ -6585,6 +6585,56 @@
        Resting is still covered: every drag above is followed by four seconds
        of ticks, and the camera has to be at a number afterwards. */
 
+    /* Wherever the clamp lets go of the camera, the middle of the screen is a
+       tile -- at every shape of screen, not just the one this is running in.
+
+       Everything above drives real pointer events at real client coordinates,
+       so it can only ever ask the browser window it is in, and the window it
+       has always been in is a desktop one. The clamp is arithmetic, though, so
+       it can be asked directly: shove the camera a million pixels at each of
+       the eight compass points, let the clamp catch it, and look at what is in
+       the middle. asScreen changes the canvas height and so the scale, which
+       is the whole of what made this shape-dependent -- the margin the clamp
+       keeps is a fraction of a HALF-VIEW, and a narrow screen has a narrow one.
+
+       The corners are the cases that matter. The grid is a diamond in world
+       space inside a box, and the clamp was drawn around the box, so the four
+       corner regions of the box are water the camera could sit in the middle
+       of. A straight push west or north never finds that; a push to a corner
+       does, and so does a push west from a camera the player had left high or
+       low, which is what the drags above happened to do. */
+    {
+      const keepW = window.innerWidth, keepH = window.innerHeight;
+      const keepZ = V.CAM.z, keepX = V.CAM.x, keepY = V.CAM.y, keepTier = V.landTier;
+      const WAY = [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, 1], [-1, 1], [1, -1]];
+      let asked = 0;
+      try {
+        for (const [sw, sh] of [[1200, 800], [390, 844], [360, 780], [360, 640]]) {
+          asScreen(sw, sh);
+          for (const tier of [0, 2, V.LAND_MAX]) {
+            V.landTier = tier; V.coverPlaced();
+            for (const z of [0.55, 1.4, 2.2]) for (const [dx, dy] of WAY) {
+              V.CAM.z = z; V.CAM.x = dx * 1e6; V.CAM.y = dy * 1e6;
+              V.camClamp();
+              asked++;
+              const t = V.worldToTile(V.CAM.x, V.CAM.y);
+              const c = Math.round(t.c), r = Math.round(t.r);
+              if (!(c >= 0 && r >= 0 && c < V.GW && r < V.GH))
+                fails.push('pushed ' + dx + ',' + dy + ' at zoom ' + z + ' on a ' + tier
+                  + '-ring claim at ' + sw + 'x' + sh + ', the clamp left the middle of the screen'
+                  + ' at tile ' + t.c.toFixed(2) + ', ' + t.r.toFixed(2) + ', which is not on the grid');
+            }
+          }
+        }
+      } finally {
+        asScreen(keepW, keepH);
+        V.landTier = keepTier; V.coverPlaced();
+        V.CAM.z = keepZ; V.CAM.x = keepX; V.CAM.y = keepY;
+      }
+      if (asked < 200) fails.push('only ' + asked + ' camera limits were asked for, so the corner block'
+        + ' proved almost nothing');
+    }
+
     V.camFit(true); V.step(0.001);
     return { cases, fewest: fewest === Infinity ? null : fewest, worstAt, moved, fails };
   };

@@ -1360,6 +1360,35 @@ function camClamp() {
   const b = worldBounds();
   CAM.x = Math.max(b.x0 + hw * 0.35, Math.min(b.x1 - hw * 0.35, CAM.x));
   CAM.y = Math.max(b.y0 + hh * 0.35, Math.min(b.y1 - hh * 0.35, CAM.y));
+  /* And the middle of the screen is somewhere on the island.
+
+     The two lines above bound the camera against worldBounds, which is the
+     BOX around the grid -- and the grid is a diamond inside that box. The
+     four corner regions of the box are open sea, so a camera held inside the
+     box can still be centred on nothing: the limit is reached in x, y is left
+     wherever the player had it, and the point where they meet is off the
+     island.
+
+     Measured on a fresh village at full zoom, dragged west until the clamp
+     stopped it: the middle of the screen sat at tile 0.77, 13.89, where the
+     grid ends at 13.5. Tapping it did nothing -- not land to claim, not a
+     building to open -- because tap asks for a tile inside the grid and there
+     was not one there. On a desktop window the same drag stops at tile 1, 13
+     and offers the claim, because the margin the lines above keep is 0.35 of
+     a HALF-VIEW and a desktop half-view is wider: 82 world pixels against 56.
+     So the fault was never desktop-shaped, and the battery was run on a
+     desktop.
+
+     Clamping the tile coordinates is the same rule the lines above are trying
+     to express, said in the space the grid is actually square in. It is
+     tighter than the box everywhere except the four points of the diamond,
+     which it still reaches -- so the player can still pan to each far point
+     of the island, and cannot pan into the water beside it. Held to tile
+     CENTRES rather than tile edges so that the rounding tileAt does lands
+     inside the grid rather than exactly on its boundary. */
+  const t = worldToTile(CAM.x, CAM.y);
+  const c = Math.max(0, Math.min(GW - 1, t.c)), r = Math.max(0, Math.min(GH - 1, t.r));
+  if (c !== t.c || r !== t.r) { const w = tileToWorld(c, r); CAM.x = w.x; CAM.y = w.y; }
 }
 /* Change the zoom while holding one world point under one screen point.
 
@@ -7490,6 +7519,7 @@ for (const k of ['ground', 'water', 'tree_pine', 'tree_oak', 'rock', 'bush']) ar
 /* test hooks */
 window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return placed; }, B, BUILDINGS, tileToWorld, worldToTile,
   camProject, camUnproject, canPlace, placeProblem, occupied, place, step, draw, barRects, barList, tileAt,
+  camClamp, worldBounds,
   FINDS, FIND_KEYS, isFound, placeFinds, findSpot, LAND, LAND_MAX, DECOR_MAX, decorCount, BEST_CHARM, BUILDINGS, rebuildCharm, claimLand, ensureHall, rebuildStores, coverPlaced, charmTotal, canSell, ART,
   routeLine, routesShown, drawRoutes, routeOf, onPath, nearestStore, storesItself, ROUTE_STEPS, DROP_Y, PATH_SPEED, VIL_SPD, rebuildPaths, established, get ghost() { return ghost; }, set ghost(v) { ghost = v; },
   get sel() { return selBuild; }, set sel(v) { selBuild = v; },
