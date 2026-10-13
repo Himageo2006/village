@@ -11790,10 +11790,25 @@
       /* The island only. Over the whole canvas the sea -- which no season
          touches -- drowns the difference, and a check that measures mostly sea
          cannot tell a working season from a broken one. */
+      /* camProject answers in the space the game draws in; getImageData reads
+         CANVAS ROWS, and on a screen taller than the logical 1536 the two are
+         a letterbox offset apart. Taking one for the other read a patch 342
+         rows above the island on a 360x780 phone, where 28% of what came back
+         was sea -- which no season tints, so it dragged every average towards
+         the same blue and the closest pair came out 3.4 shades apart against a
+         floor of 4. The seasons were drawn exactly as strongly as on a desktop:
+         measured with the offset put back, the same village on the same phone
+         reads 0.4% sea and 10.7 shades, which is the desktop figure to within
+         a hundredth. A checker reading the wrong part of the screen, not a
+         season nobody can see.
+
+         x needs no such correction: the canvas is 1024 across and the HUD is
+         not translated sideways, so the two spaces already agree there. */
+      const OY = Math.round((cv.height - 1536) / 2);
       const pts = [V.tileToWorld(0, 0), V.tileToWorld(V.GW - 1, 0),
                    V.tileToWorld(V.GW - 1, V.GH - 1), V.tileToWorld(0, V.GH - 1)]
         .map(p => V.camProject(p.x, p.y));
-      const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
+      const xs = pts.map(p => p.x), ys = pts.map(p => p.y + OY);
       const x = Math.max(0, Math.round(Math.min(...xs))), y = Math.max(0, Math.round(Math.min(...ys)));
       let w = Math.min(cv.width - x, Math.round(Math.max(...xs) - Math.min(...xs)));
       let h = Math.min(cv.height - y, Math.round(Math.max(...ys) - Math.min(...ys)));
