@@ -10116,8 +10116,25 @@
     /* Rows across the world band rather than the whole of it: a frame is a
        megapixel and this sweep draws some seventy of them. The band is where
        the wash goes -- the HUD above and below it is never washed. */
-    const y0 = Math.max(0, Math.round(V.screenTop()));
-    const y1 = Math.min(cv.height, Math.round(V.screenBot()));
+    /* screenTop and screenBot are -OY and H + OY: the whole visible area, said
+       in the space the game draws in. getImageData wants canvas rows, which
+       are that plus OY -- so the band is 0 to cv.height, and handing the raw
+       pair over instead measured 0 to H + OY. On a desktop window OY is 0 and
+       the two agree; on a 360x780 phone OY is 342 and the bottom 341 rows of
+       a 2219-row canvas went unread, which is 15% of the screen and the 15%
+       nearest the player.
+
+       It changed the figures without changing the verdict: measured both ways
+       on the same village, the light retained 0.415 of the picture against
+       0.453, and swung 0.01299 against 0.01371. Nothing here is close enough
+       to its floor for 9% to flip it today. The guard below is what stops that
+       being luck -- a band that does not cover the canvas is reported rather
+       than quietly measured. */
+    const OY = Math.round((cv.height - 1536) / 2);
+    const y0 = Math.max(0, Math.round(V.screenTop() + OY));
+    const y1 = Math.min(cv.height, Math.round(V.screenBot() + OY));
+    if (y1 - y0 < cv.height - 2) fails.push('the light is being read across ' + (y1 - y0)
+      + ' rows of a ' + cv.height + '-row canvas, so part of the screen is not being measured at all');
     const ys = []; for (let i = 1; i <= 9; i++) ys.push(Math.round(y0 + (y1 - y0) * i / 10));
     const read = () => {
       const all = []; let sum = 0;
