@@ -10990,6 +10990,72 @@
       fails.push('a beacon at its top stage sends no more over the water than one at stage 1: ' + low + ' against ' + high + ', so every stage past the first is decoration');
 
     V.sharedTotal = { wood: 0, food: 0 };
+
+    /* ---- and in a village that WORKS, which the scene above is not ----
+
+       Everything above stands the beacon on an island with a hall and nothing
+       else, its stores pinned to the ceiling by hand -- and in that village it
+       is impossible to see the two faults this part is for, because nothing
+       is produced and nothing is ever spent. In a real finished village the
+       beacon drank every barn to zero inside two minutes and held it there,
+       and the chips said "+7.2/s" in green all the way down. */
+    const put = k => { const L = V.landBounds();
+      for (let r = L.lo; r <= L.hi; r++) for (let c = L.lo; c <= L.hi; c++)
+        if (V.canPlace(k, c, r, V.occupied())) return V.place(k, c, r);
+      return false; };
+    const ctx = document.querySelector('canvas').getContext('2d'), oF = ctx.fillText;
+    const chipLines = () => {
+      const lines = [];
+      ctx.fillText = function (t, ...a) { lines.push(String(t)); return oF.call(this, t, ...a); };
+      try { V.draw(); } finally { ctx.fillText = oF; }
+      return lines.filter(t => /^(\+[\d.]+\/s|idle|storage full|(?:wasting|sharing|beacon) [\d.]+\/s)$/.test(t));
+    };
+    fresh(true);
+    for (const k of ['house', 'house', 'house', 'house', 'house', 'house', 'farm', 'farm', 'lumber',
+                     'lumber', 'quarry', 'store', 'well']) { for (const k2 of V.RES) V.res[k2] = 1e6; put(k); }
+    for (const q of V.placed) if (q.key !== 'hall' && !V.isDecor(q.key)) q.lvl = 3;
+    for (let i = 0; i < 120 * 30; i++) V.step(1 / 30);
+    V.goalIdx = V.GOALS.length; V.goalDone = null; V.finished = null; V.away = null;
+    for (const k of V.RES) V.res[k] = 1e6;
+    const b2 = drop();
+    if (!b2) fails.push('the beacon could not be placed in a working village');
+    else {
+      b2.lvl = 1; b2.stock = 0;
+      for (const k of V.RES) V.res[k] = Math.floor(V.caps[k] * 0.6);
+      const floor = {}; for (const k of V.RES) floor[k] = Infinity;
+      for (let i = 0; i < 240 * 30; i++) {
+        V.orders = []; V.goalDone = null; V.finished = null;
+        V.step(1 / 30);
+        for (const k of V.RES) floor[k] = Math.min(floor[k], V.res[k]);
+      }
+      /* The village keeps its half. */
+      for (const k of V.RES) if (floor[k] < V.caps[k] * V.BEACON_KEEP - 1)
+        fails.push('the beacon drank ' + k + ' down to ' + Math.round(floor[k]) + ' of ' + V.caps[k]
+          + ', below the half the village keeps to spend');
+      if (!(b2.stock > 0 || b2.lvl > 1))
+        fails.push('in a working village the beacon took nothing at all');
+      /* And each chip says what its barn is really doing. A green "+" is a
+         promise that the number above it is rising at that rate; "beacon" is
+         the statement that the work is going into the tower instead. */
+      const said = chipLines();
+      if (said.length !== V.RES.length)
+        fails.push('the chips said ' + said.length + ' things beside a drinking beacon: ' + said.join(' / '));
+      else {
+        const SECS = 60, r0 = {};
+        for (const k of V.RES) r0[k] = V.res[k];
+        for (let i = 0; i < SECS * 30; i++) { V.orders = []; V.goalDone = null; V.finished = null; V.step(1 / 30); }
+        V.RES.forEach((k, i) => {
+          const t = said[i], gain = (V.res[k] - r0[k]) / SECS;
+          const m = /([\d.]+)\/s/.exec(t), fig = m ? +m[1] : 0;
+          const slack = (V.CARRY + 0.15 * fig * SECS + 0.05 * SECS) / SECS;
+          if (/^\+/.test(t) && Math.abs(gain - fig) > slack)
+            fails.push('beside a drinking beacon the ' + k + ' chip says "' + t + '" and the store moved '
+              + gain.toFixed(2) + '/s');
+          if (/^beacon/.test(t) && gain > slack)
+            fails.push('the ' + k + ' chip says "' + t + '" and the store rose ' + gain.toFixed(2) + '/s');
+        });
+      }
+    }
     return { drawn, stages, drank: Math.round(drank), pictures: seen.size, low, high, fails };
   };
 

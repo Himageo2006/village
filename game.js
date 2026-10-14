@@ -693,6 +693,9 @@ const pops = [];
 const POP_MAX = 24, POP_LIFE = 1.5;
 let rateNow = tally();                       // smoothed, shown in the HUD
 let rateAcc = tally(), rateT = 0;
+/* What the beacon takes back out, on the same window, so the chips can say
+   where the village's work is going rather than only that it arrived. */
+let beaconNow = tally(), beaconAcc = tally();
 const RATE_WINDOW = 5;                       // long enough that a sparse village does not flicker
 
 /* Hand the player a resource and SHOW what actually arrived.
@@ -738,9 +741,19 @@ function stepBeacon(dt) {
   if (!need) return;                              // the top stage: nothing left to drink
   let drank = 0;
   for (const k of RES) {
-    const take = Math.min(BEACON_POUR * dt, res[k]);
+    /* Never the bottom half of a barn.
+
+       It drank from whatever was there, eighteen a second of every kind, and a
+       maxed village makes seven. Measured on a finished island with its stores
+       at half: wood, food and stone all at zero inside two minutes and held
+       there -- for the hours a hundred thousand takes -- with a statue at 150
+       wood and 80 stone never affordable again, and every trade on the board
+       unpayable. It is a sink for what a village cannot use; it was drinking
+       what it could. Above half is the surplus, and the half below it is the
+       village's to spend. */
+    const take = Math.min(BEACON_POUR * dt, res[k] - caps[k] * BEACON_KEEP);
     if (take <= 0) continue;
-    res[k] -= take; drank += take;
+    res[k] -= take; drank += take; beaconAcc[k] += take;
   }
   if (!drank) return;
   p.stock = (p.stock || 0) + drank;
@@ -781,6 +794,8 @@ function stepFeedback(dt) {
       // eased so the readout settles instead of flickering between windows
       rateNow[k] += (rateAcc[k] / rateT - rateNow[k]) * 0.40;
       rateAcc[k] = 0;
+      beaconNow[k] += (beaconAcc[k] / rateT - beaconNow[k]) * 0.40;
+      beaconAcc[k] = 0;
     }
     rateT = 0;
   }
@@ -2773,6 +2788,7 @@ const BEACON_STAGES = 5;
    has nothing left to spend on, not an errand. */
 const BEACON_NEED = [6000, 12000, 24000, 48000, 0];   // the last stage is the top
 const BEACON_POUR = 18;               // each resource, per second, while it is drinking
+const BEACON_KEEP = 0.5;              // of each barn, which it leaves alone -- see stepBeacon
 
 const beaconOf = () => placed.find(p => p.key === BEACON) || null;
 /* The stage it has REACHED, so one still going up counts as the one below. */
@@ -5147,6 +5163,20 @@ function drawHUD() {
     if (full) sub(lost > 0.05
       ? (villageFinished() ? 'sharing ' : 'wasting ') + (lost >= 10 ? Math.round(lost) : lost.toFixed(1)) + '/s'
       : 'storage full', villageFinished() ? '#9fd6a0' : '#f0a583');
+    /* And where it goes when the beacon is drinking it.
+
+       The chips counted deliveries and nothing else, and the beacon takes
+       its share straight out of the barn -- so on a finished island all three
+       read a green "+7.2 / +6.9 / +2.7" for three minutes while the stores
+       under them fell eleven to fifteen a second, to nothing. What the barn
+       actually gains is the arrivals less the pour; when that is nothing, the
+       truthful line is where the work went. Same calm green as "sharing",
+       because it is the same kind of news. */
+    else if (beaconNow[k] > 0.02) {
+      const net = rate - beaconNow[k];
+      if (net > 0.05) sub('+' + net.toFixed(1) + '/s', '#8fd06a');
+      else sub('beacon ' + (beaconNow[k] >= 10 ? Math.round(beaconNow[k]) : beaconNow[k].toFixed(1)) + '/s', '#9fd6a0');
+    }
     // "/s", as every other rate in the game is written
     else sub(rate > 0.02 ? '+' + rate.toFixed(1) + '/s' : 'idle',
       rate > 0.02 ? '#8fd06a' : DIM);
@@ -7621,7 +7651,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   get claimAsk() { return claimAsk; }, set claimAsk(v) { claimAsk = v; }, claimRects,
   get tutSeen() { return tutSeen; }, set tutSeen(v) { tutSeen = v; },
   get savedAt() { return savedAt; }, set savedAt(v) { savedAt = v; },
-  get pops() { return pops; }, get rateNow() { return rateNow; },
+  get pops() { return pops; }, get rateNow() { return rateNow; }, get beaconNow() { return beaconNow; }, BEACON_KEEP,
   get sharedTotal() { return sharedTotal; }, set sharedTotal(v) { sharedTotal = v; },
   villageFinished, compact,
   get barMode() { return barMode; }, set barMode(v) { barMode = v; },
