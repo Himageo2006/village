@@ -8008,6 +8008,93 @@
     return { scenes, seen: [...seen], fails };
   };
 
+  /* ---------------------------------------------------------------------------
+     Nothing is bought at a price the screen never showed.
+
+     The tray card swaps its price for "no spare" when nobody is free, because
+     the button cannot hold both, and the placement pill said only "no one
+     spare -- build a house first". So a new player one tap from their first
+     farm had, on the whole screen, "Farm / no spare", that pill, and "Tap the
+     same spot again to confirm" -- and the second tap spent 45 wood that no
+     string had named. Nothing checked for it because every checker reads what
+     IS drawn, and the fault was something missing.
+
+     So this asks the question from the player's side: with a building chosen
+     and a legal spot under the finger, one tap from paying, every part of its
+     price has to be somewhere on the screen. Asked of every kind the village
+     may build, in a village where nobody is spare and one where people are,
+     and the first of them is a brand-new player's: a hall, one house, one
+     lumber camp, which is exactly where the farm was found. A sweep that
+     never meets "no spare" has not tested the case it exists for, so that is
+     a failure too.
+
+       priceSweep()  -> { cases, noSpare, fails }
+  --------------------------------------------------------------------------- */
+  window.priceSweep = function () {
+    const V = window.__v, cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
+    const fails = [], orig = ctx.fillText;
+    const grab = () => {
+      const lines = [];
+      ctx.fillText = function (t, ...a) { lines.push(String(t)); return orig.call(this, t, ...a); };
+      try { V.draw(); } finally { ctx.fillText = orig; }
+      return lines;
+    };
+    const put = k => { const L = V.landBounds();
+      for (let r = L.lo; r <= L.hi; r++) for (let c = L.lo; c <= L.hi; c++)
+        if (V.canPlace(k, c, r, V.occupied())) return V.place(k, c, r);
+      return false; };
+    const scene = (hall, kinds) => {
+      V.placed.length = 0; V.villagers.length = 0; V.landTier = hall > 1 ? V.LAND_MAX : 1; V.coverPlaced();
+      V.away = null; V.goalDone = null; V.finished = null; V.panel = null;
+      V.sel = null; V.moving = null; V.ghost = null; V.claimAsk = false; V.orders = []; V.barMode = 'build';
+      V.tutSeen.length = 0; for (const h of V.TUT) V.tutSeen.push(h.id);
+      V.ensureHall(); V.placed[0].lvl = hall; V.placed[0].t = 1;
+      for (const k of kinds) { for (const k2 of V.RES) V.res[k2] = V.caps[k2]; put(k); }
+      for (let i = 0; i < 60 * 30; i++) V.step(1 / 30);       // finished the game's own way
+      parkGoals(); V.goalDone = null;
+    };
+    let cases = 0, noSpare = 0;
+    for (const [what, hall, kinds] of [
+      ['a new player\'s village', 1, ['house', 'lumber']],
+      ['a village with nobody spare', 5, ['house', 'farm', 'lumber', 'quarry', 'mill']],
+      ['a village with people to spare', 5, ['house', 'house', 'house', 'house', 'house', 'house']],
+    ]) {
+      scene(hall, kinds);
+      for (const b of V.BUILDINGS) {
+        if (b.key === 'hall') continue;
+        /* Rich enough to buy it, and nothing else changed: what is being asked
+           is what the player sees just before paying, not whether they can. */
+        for (const k of V.RES) V.res[k] = V.caps[k];
+        if (!V.buildable(b.key)) continue;
+        const occ = V.occupied(), L = V.landBounds();
+        let spot = null;
+        for (let r = L.lo; r <= L.hi && !spot; r++) for (let c = L.lo; c <= L.hi && !spot; c++)
+          if (V.canPlace(b.key, c, r, occ)) spot = [c, r];
+        if (!spot) continue;
+        /* From the tray it is chosen from, which for an ornament is not the
+           build tray -- and the price on its card is the price the player saw. */
+        V.barMode = V.isDecor(b.key) ? 'decor' : 'build';
+        V.sel = b.key; V.ghost = { c: spot[0], r: spot[1], fits: true, ok: true, why: null };
+        V.step(0.001);
+        for (const k of V.RES) V.res[k] = V.caps[k];
+        const lines = grab();
+        cases++;
+        const short = V.noSpareHands(b.key);
+        if (short) noSpare++;
+        const missing = Object.entries(b.cost || {})
+          .filter(([k, v]) => !lines.some(t => t.includes(V.RES_ICON[k] + v)))
+          .map(([k, v]) => V.RES_ICON[k] + v);
+        if (missing.length)
+          fails.push('in ' + what + ', one tap from building a ' + b.key + (short ? ' with nobody spare' : '')
+            + ', nothing on the screen says ' + missing.join(' or ') + ': ' + lines.filter(t => /spare|tap|\/s|need/i.test(t)).join(' | '));
+        V.sel = null; V.ghost = null;
+      }
+    }
+    if (!noSpare) fails.push('no case had nobody spare, so the price the tray hides was never looked for');
+    V.goalIdx = 0; V.sel = null; V.ghost = null; V.step(0.001);
+    return { cases, noSpare, fails };
+  };
+
   window.shapeSweep = function () {
     const V = window.__v, cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
     const fails = [], orig = ctx.fillText, seen = new Set();
@@ -12134,6 +12221,7 @@
       ['button', () => window.buttonSweep()],
       ['shape', () => window.shapeSweep()],
       ['chip', () => window.chipSweep()],
+      ['price', () => window.priceSweep()],
       ['spot', () => window.spotSweep()],
       ['card', () => window.cardSweep()],
       ['mark', () => window.markSweep()],

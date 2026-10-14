@@ -4688,7 +4688,18 @@ function drawWorld() {
             : (add > 0 ? '✨+' + add + ' charm   ·   ' : 'charm full   ·   ')
               + (gain > 0.005 ? '+' + gain.toFixed(2) + '/s delivered'
                 : working ? 'too little to count yet' : 'nothing is being worked yet');
-        } else txt = empty ? 'no one spare — ' + remedy('people') + ' first'
+        /* With the price, because nothing else on the screen has it.
+
+           The tray card swaps its price for "no spare" when nobody is free --
+           the button cannot hold both -- and this pill was the only other
+           thing drawn while a farm was being placed. Every string on the
+           screen of a new player one tap from building one, read off the
+           canvas: "no one spare — build a house first", "Farm / no spare",
+           "Tap the same spot again to confirm". Not one of them said 45 wood,
+           and the second tap spent it. The advice is right and stays first;
+           the price follows it, because the player is about to pay it. */
+        } else txt = empty ? 'no one spare — ' + remedy('people') + ' first   ·   '
+            + Object.entries(B(selKey).cost).map(([k, v]) => RES_ICON[k] + v).join('  ')
           /* For the whole building, as its panel counts it -- the hands it would
              have times what each delivers. The label quoted one worker's share,
              so a lumber camp whose panel said "0.92/s delivered" was "now 0.46"
