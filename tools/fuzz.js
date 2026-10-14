@@ -7868,20 +7868,52 @@
     const SECS = 240;
     /* What the stores gain, and what the villagers carry home. A carry only
        ever leaves a villager by being delivered, so the second is the village's
-       work counted without asking the village. */
-    const run = (secs, hold) => {
-      const carried = {}, r0 = {};
-      for (const k of V.RES) { carried[k] = 0; r0[k] = V.res[k]; }
+       work counted without asking the village.
+
+       The stores are HELD where the scene put them, every tick, and what each
+       tick added is counted before they are put back. Left to run, a granary
+       at a tenth of 1380 taking 5.7 a second is full after 218 seconds of a
+       240-second measurement -- so the figure was compared with a stretch
+       that ended in a different state, with the chip saying "wasting", and it
+       passed only because the tolerance is wide enough to swallow the last
+       twenty seconds. Held, the room never changes, and neither does the
+       question being asked. */
+    const run = (secs, level) => {
+      const carried = {}, gained = {};
+      for (const k of V.RES) { carried[k] = 0; gained[k] = 0; }
       for (let i = 0; i < secs * 30; i++) {
         const held = V.villagers.map(v => [v, v.carry ? { k: v.carry.k, n: v.carry.n } : null]);
         V.orders = [];                                   // a trade is not production
-        if (hold) for (const k of V.RES) V.res[k] = V.caps[k];
+        for (const k of V.RES) V.res[k] = level[k];
         V.step(1 / 30);
+        for (const k of V.RES) gained[k] += V.res[k] - level[k];
         for (const [v, h] of held) if (h && !v.carry) carried[h.k] += h.n;
       }
-      const gained = {};
-      for (const k of V.RES) gained[k] = V.res[k] - r0[k];
+      for (const k of V.RES) V.res[k] = level[k];
       return { carried, gained };
+    };
+    /* And the workforce is given time to answer the stores before anyone
+       reads what it says about them.
+
+       The scene ends with every store above its ceiling, and the first pass
+       through it on a fresh page left three villagers on the hall's woodpile
+       and one in the quarry -- the staffing of a village with nowhere to put
+       anything. Dropping the stores to a tenth re-plans at once, but people
+       change job one per tick and only empty-handed, so the chip read one
+       tick later described the old staffing: "+3.1 / +3.5 / +0.5", true of
+       that instant, and then compared with four minutes of the new one at
+       1.8 / 5.2 / 1.5. It failed every time it ran first on a fresh page, and
+       never in the battery, where thirty-seven checkers have already run and
+       the village it inherits happens to settle faster. A check whose verdict
+       depends on what ran before it is not measuring the chip. */
+    const SETTLE = 30;
+    const settle = level => {
+      for (let i = 0; i < SETTLE * 30; i++) {
+        V.orders = [];
+        for (const k of V.RES) V.res[k] = level[k];
+        V.step(1 / 30);
+      }
+      for (const k of V.RES) V.res[k] = level[k];
     };
     /* A measurement made of loads cannot be finer than a load. */
     const near = (said, real, secs) =>
@@ -7918,8 +7950,11 @@
       ['a hall and one house', ['house'], 3, false, 0.1],
     ]) {
       scene(kinds, hall, finished);
-      for (const k of V.RES) V.res[k] = Math.floor(V.caps[k] * fill);
+      const level = {};
+      for (const k of V.RES) level[k] = Math.floor(V.caps[k] * fill);
+      settle(level);
       V.step(0.001);
+      for (const k of V.RES) V.res[k] = level[k];
       const said = chips();
       scenes++;
       if (said.length !== V.RES.length) {
@@ -7928,7 +7963,7 @@
         continue;
       }
       const full = fill === 1;
-      const r = run(SECS, full);
+      const r = run(SECS, level);
       /* In the order the chips are laid out, which is the order of the list. */
       for (const [i, k] of V.RES.map((k2, i2) => [i2, k2])) {
         const t = said[i];
@@ -11065,11 +11100,22 @@
        overlap and the player gets somebody either way. */
     let narrow = 0, onscreen = 0, worstZ = null, worstW = Infinity, worstH = Infinity;
     const STEP = 6, FAR = V.TOUCH_MIN * 1.5;
+    /* Stopped at the edges of the GLASS, which on a tall phone are not 0 and H.
+
+       The game is laid out 1536 tall and centred, so a 360x780 screen shows
+       from -342 to 1878, and inWorld above hands this walk villagers from -192
+       down. The walk stopped at 0. So a figure standing in the strip above
+       zero -- one only a tall screen has -- had the top of its box cut off by
+       the ruler: measured at 109 tall when the box is 217 wherever it stands,
+       and reported as "121x109 against 128". Whether it failed depended on
+       whether anybody happened to be walking through that strip at the
+       furthest zoom, which was about one run in forty, and once in a full
+       battery. */
     const reach = (x, y, dx, dy) => {
       let d = 0;
       while (d < FAR) {
         const nx = x + dx * (d + STEP), ny = y + dy * (d + STEP);
-        if (nx < 0 || nx > V.W || ny < 0 || ny > V.H) break;
+        if (nx < 0 || nx > V.W || ny < V.screenTop() || ny > V.screenBot()) break;
         if (!V.villagerAt(nx, ny, true)) break;
         d += STEP;
       }
