@@ -11055,6 +11055,17 @@
             fails.push('the ' + k + ' chip says "' + t + '" and the store rose ' + gain.toFixed(2) + '/s');
         });
       }
+      /* And the moment it stops, the chips stop saying so: a barn spent
+         below the line it keeps, and a tower at its top stage, both take
+         nothing -- the first frame after, not some seconds later. */
+      for (const [why, set] of [
+        ['spent below the half the beacon keeps', () => { for (const k of V.RES) V.res[k] = Math.floor(V.caps[k] * 0.2); }],
+        ['beside a finished beacon', () => { b2.lvl = V.BEACON_STAGES; for (const k of V.RES) V.res[k] = Math.floor(V.caps[k] * 0.6); }],
+      ]) {
+        set(); V.step(1 / 30);
+        const now = chipLines().filter(t => /^beacon/.test(t));
+        if (now.length) fails.push('with the stores ' + why + ', the chips still say "' + now.join('", "') + '"');
+      }
     }
     return { drawn, stages, drank: Math.round(drank), pictures: seen.size, low, high, fails };
   };

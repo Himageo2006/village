@@ -693,9 +693,6 @@ const pops = [];
 const POP_MAX = 24, POP_LIFE = 1.5;
 let rateNow = tally();                       // smoothed, shown in the HUD
 let rateAcc = tally(), rateT = 0;
-/* What the beacon takes back out, on the same window, so the chips can say
-   where the village's work is going rather than only that it arrived. */
-let beaconNow = tally(), beaconAcc = tally();
 const RATE_WINDOW = 5;                       // long enough that a sparse village does not flicker
 
 /* Hand the player a resource and SHOW what actually arrived.
@@ -753,7 +750,7 @@ function stepBeacon(dt) {
        village's to spend. */
     const take = Math.min(BEACON_POUR * dt, res[k] - caps[k] * BEACON_KEEP);
     if (take <= 0) continue;
-    res[k] -= take; drank += take; beaconAcc[k] += take;
+    res[k] -= take; drank += take;
   }
   if (!drank) return;
   p.stock = (p.stock || 0) + drank;
@@ -794,8 +791,6 @@ function stepFeedback(dt) {
       // eased so the readout settles instead of flickering between windows
       rateNow[k] += (rateAcc[k] / rateT - rateNow[k]) * 0.40;
       rateAcc[k] = 0;
-      beaconNow[k] += (beaconAcc[k] / rateT - beaconNow[k]) * 0.40;
-      beaconAcc[k] = 0;
     }
     rateT = 0;
   }
@@ -2789,6 +2784,22 @@ const BEACON_STAGES = 5;
 const BEACON_NEED = [6000, 12000, 24000, 48000, 0];   // the last stage is the top
 const BEACON_POUR = 18;               // each resource, per second, while it is drinking
 const BEACON_KEEP = 0.5;              // of each barn, which it leaves alone -- see stepBeacon
+/* Whether the beacon is taking from this barn right now, decided from what it
+   is rather than from a measurement of what it did.
+
+   The chips first read a smoothed figure of the pour, and a smoothed figure
+   lags both ways: it started from nothing on every reopen -- "+3.7 / +2.8 /
+   +1.5" in green over barns standing flat at 690, still "+1.1" twenty seconds
+   in -- and it would have gone on saying "beacon" for as long after the tower
+   stopped. It drinks exactly when it stands, is not finished, and the barn is
+   at the line it keeps; a load's width under the line, because the barn
+   hovers there a load at a time. */
+const beaconDrinks = k => {
+  const p = placed.find(q => q.key === BEACON);
+  if (!p || p.t < 1) return false;
+  if (!BEACON_NEED[Math.min(BEACON_STAGES, Math.max(1, p.lvl | 0)) - 1]) return false;
+  return res[k] >= caps[k] * BEACON_KEEP - CARRY;
+};
 
 const beaconOf = () => placed.find(p => p.key === BEACON) || null;
 /* The stage it has REACHED, so one still going up counts as the one below. */
@@ -5171,11 +5182,19 @@ function drawHUD() {
        under them fell eleven to fifteen a second, to nothing. What the barn
        actually gains is the arrivals less the pour; when that is nothing, the
        truthful line is where the work went. Same calm green as "sharing",
-       because it is the same kind of news. */
-    else if (beaconNow[k] > 0.02) {
-      const net = rate - beaconNow[k];
+       because it is the same kind of news.
+
+       Worked out against what the beacon CAN pour rather than a measurement
+       of what it did pour: two smoothed figures subtracted is noise, since
+       loads land eight at a time and the tower swallows each one -- "arrived
+       less poured" wandered between +0.2 and +1.2 over a barn standing still
+       at 690. While it drinks, a barn rises only if more arrives than the
+       most it can take, and otherwise everything that arrives is what it
+       takes. */
+    else if (rate > 0.02 && beaconDrinks(k)) {
+      const net = rate - BEACON_POUR, took = Math.min(rate, BEACON_POUR);
       if (net > 0.05) sub('+' + net.toFixed(1) + '/s', '#8fd06a');
-      else sub('beacon ' + (beaconNow[k] >= 10 ? Math.round(beaconNow[k]) : beaconNow[k].toFixed(1)) + '/s', '#9fd6a0');
+      else sub('beacon ' + (took >= 10 ? Math.round(took) : took.toFixed(1)) + '/s', '#9fd6a0');
     }
     // "/s", as every other rate in the game is written
     else sub(rate > 0.02 ? '+' + rate.toFixed(1) + '/s' : 'idle',
@@ -7651,7 +7670,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   get claimAsk() { return claimAsk; }, set claimAsk(v) { claimAsk = v; }, claimRects,
   get tutSeen() { return tutSeen; }, set tutSeen(v) { tutSeen = v; },
   get savedAt() { return savedAt; }, set savedAt(v) { savedAt = v; },
-  get pops() { return pops; }, get rateNow() { return rateNow; }, get beaconNow() { return beaconNow; }, BEACON_KEEP,
+  get pops() { return pops; }, get rateNow() { return rateNow; }, BEACON_KEEP, beaconDrinks,
   get sharedTotal() { return sharedTotal; }, set sharedTotal(v) { sharedTotal = v; },
   villageFinished, compact,
   get barMode() { return barMode; }, set barMode(v) { barMode = v; },
