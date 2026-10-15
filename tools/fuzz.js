@@ -9031,7 +9031,8 @@
            a fault in the checker wearing the costume of a fault in the game. */
         const ships = String(gl.text).indexOf('neighbours') >= 0;
         for (let n = 0; n < 400 && !gl.done(); n++) {
-          if (ships) V.sharedTotal = { wood: V.sharedTotal.wood + 20000, food: V.sharedTotal.food };
+          // every kind kept: rebuilt as wood and food, the stone tally fell out each time
+          if (ships) V.sharedTotal = { ...V.sharedTotal, wood: V.sharedTotal.wood + 20000 };
           else V.ordersDone += 1;
         }
         if (!gl.done()) { fails.push('goal ' + (i + 1) + ' past the ladder could not be finished by'
@@ -11862,6 +11863,74 @@
     for (let i = 0; i < V.LAND.length; i++) check('land ring ' + i, V.LAND[i] && V.LAND[i].cost);
     for (const g of V.GOALS) check('the reward for "' + String(g.text).slice(0, 28) + '"', g.give);
     if (named < 20) fails.push('only ' + named + ' prices were read, so the check proves little');
+
+    /* 4. and everything that READS them reads all of them.
+
+       Sections 1-3 hold the writers to the list. The readers were not held to
+       anything, and three of them had stopped at two: the shipping goal summed
+       wood and food, the strip and the hall printed wood and food, so stone
+       sent over the water -- a fifth of what a finished village ships -- was
+       kept in the save and never counted or shown. And the hall's "stores
+       full" chose between "stores" and one icon by asking for exactly two
+       full, which with three kinds named one barn of three when all were full
+       and all three when two were.
+
+       So each kind is shipped ALONE, and must turn up in the strip and the
+       hall and move the goal; and each set of full barns must be named as
+       exactly that set. */
+    {
+      const ctx = document.querySelector('canvas').getContext('2d'), oF = ctx.fillText;
+      const grab = () => { const lines = [];
+        ctx.fillText = function (t, ...a) { lines.push(String(t)); return oF.call(this, t, ...a); };
+        try { V.draw(); } finally { ctx.fillText = oF; }
+        return lines; };
+      const keep = { shared: { ...V.sharedTotal }, goal: V.goalIdx, panel: V.panel, res: { ...V.res },
+        seen: V.tutSeen.slice() };
+      const hall = V.hallOf();
+      /* Every first-time hint read, or the hint takes the strip's place and
+         the strip has nothing to be tested on. */
+      V.tutSeen.length = 0; for (const h of V.TUT) V.tutSeen.push(h.id);
+      const quiet = () => { V.goalDone = null; V.finished = null; V.away = null; V.claimAsk = false; V.sel = null; };
+      try {
+        V.goalIdx = V.GOALS.length;                   // the first goal past the ladder ships
+        quiet();
+        for (const k of RES) {
+          const only = {}; for (const k2 of RES) only[k2] = 0;
+          only[k] = 1234; V.sharedTotal = only;
+          V.panel = null; V.step(0.001); quiet();
+          const icon = V.RES_ICON[k];
+          if (!grab().some(t => /shipped/.test(t) && t.includes(icon)))
+            fails.push('with only ' + k + ' sent over the water, the goal strip does not show it');
+          V.panel = hall ? hall.id : null; V.step(0.001); quiet();
+          if (!grab().some(t => /shared with neighbours/.test(t) && t.includes(icon)))
+            fails.push('with only ' + k + ' sent over the water, the hall does not show it');
+          only[k] = 1e14; V.sharedTotal = only;
+          if (!V.currentGoal().done())
+            fails.push('a hundred trillion ' + k + ' sent over the water does not finish "' + V.currentGoal().text + '"');
+        }
+        /* The full barns, named as the set they are, in a village with goals
+           left -- a finished one reports what it shared instead. */
+        V.goalIdx = 0; V.sharedTotal = { ...keep.shared }; quiet();
+        const sets = [];
+        for (let m = 1; m < (1 << RES.length); m++) sets.push(RES.filter((k, i) => m & (1 << i)));
+        for (const set of sets) {
+          for (const k of RES) V.res[k] = set.includes(k) ? V.caps[k] : 0;
+          V.panel = hall ? hall.id : null; V.step(0.001); quiet();
+          for (const k of RES) V.res[k] = set.includes(k) ? V.caps[k] : 0;
+          const line = grab().find(t => / full — /.test(t));
+          if (!line) { fails.push('with ' + set.join(' and ') + ' full, the hall did not say so'); continue; }
+          const named = RES.filter(k => line.includes(V.RES_ICON[k]));
+          const ok = set.length === RES.length ? /\bstores full/.test(line) && !named.length
+            : named.length === set.length && set.every(k => named.includes(k));
+          if (!ok) fails.push('with ' + set.join(' and ') + ' full, the hall says "' + line + '"');
+        }
+      } finally {
+        V.sharedTotal = keep.shared; V.goalIdx = keep.goal; V.panel = keep.panel;
+        for (const k of RES) V.res[k] = keep.res[k];
+        V.tutSeen.length = 0; V.tutSeen.push(...keep.seen);
+        quiet(); V.step(0.001);
+      }
+    }
 
     return { kinds: RES.slice(), named, fails };
   };

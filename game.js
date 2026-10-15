@@ -2550,7 +2550,15 @@ const AFTER_ORDERS = 10;
    without being reachable. */
 const AFTER_MAX = 2000;
 let afterMark = null;                 // where the counters stood when the ladder ended
-const shipped = () => sharedTotal.wood + sharedTotal.food;
+/* Every kind, from the list -- the same lesson as the thirty-eight places
+   above, missed here. Written as wood plus food, the shipping goal never
+   counted a block of stone sent over the water, and the strip and the hall
+   never showed one: about a fifth of what a finished village ships (0.7 of
+   4.0 a second, measured), recorded in the save and then ignored by
+   everything that reads it. */
+const shipped = () => RES.reduce((n, k) => n + (sharedTotal[k] || 0), 0);
+const sharedText = () => RES.filter(k => (sharedTotal[k] || 0) >= 1)
+  .map(k => RES_ICON[k] + compact(sharedTotal[k])).join(' ');
 
 function afterGoal(n) {
   const m = afterMark || { ship: 0, orders: 0 };
@@ -5686,7 +5694,7 @@ function drawGoal() {
      and the only one in the game that never stops going up. Better than a
      blank: the line would otherwise read "reward" with nothing after it. */
   const reward = gl.after
-    ? 'shipped 🪵' + compact(sharedTotal.wood) + ' 🌾' + compact(sharedTotal.food)
+    ? 'shipped ' + (sharedText() || 'nothing yet')
     : 'reward ' + Object.entries(gl.give).map(([k, v]) => RES_ICON[k] + v).join(' ');
   /* How far along, for the goals that can count.
 
@@ -6902,10 +6910,14 @@ function drawPanel() {
     let s2 = count(st.villagers, 'villager');
     /* A finished village has no binding constraint left to name -- it has
        nothing it needs -- so the hall reports what it has given instead. */
-    if (villageFinished()) s2 += '  ·  ' + (sharedTotal.wood + sharedTotal.food >= 1
-      ? '🪵' + compact(sharedTotal.wood) + ' 🌾' + compact(sharedTotal.food) + ' shared with neighbours'
+    if (villageFinished()) s2 += '  ·  ' + (sharedText()
+      ? sharedText() + ' shared with neighbours'
       : 'every goal done');
-    else if (full.length) s2 += '  ·  ' + (full.length === 2 ? 'stores' : RES_ICON[full[0]] + ' store')
+    /* "stores" only when it is all of them. Written when there were two kinds,
+       it said "🪵 store full" with all three barns full and "stores full" with
+       any two -- the first naming one barn of three, the second all three. */
+    else if (full.length) s2 += '  ·  ' + (full.length === RES.length ? 'stores'
+      : full.map(k => RES_ICON[k]).join(' ') + (full.length > 1 ? ' stores' : ' store'))
       + ' full — ' + (permitted('store') ? 'build a storehouse' : 'spend or trade');
     else if (st.idle) s2 += '  ·  ' + st.idle + ' idle — ' + remedy('jobs');
     else if (empty) s2 += '  ·  ' + count(empty, 'post') + ' empty — ' + remedy('people');
