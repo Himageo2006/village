@@ -760,6 +760,32 @@ function beaconTake(k, n) {
   if (p.stock >= BEACON_NEED[lvl - 1]) { p.stock = 0; p.lvl = lvl + 1; SFX.upgrade(); save(); }
   return take;
 }
+/* The beacon's half of a stretch the village worked unwatched: the same rule
+   as beaconTake, for production that never arrived as loads. Half of what was
+   made, until the tower reaches its top -- and if it gets there part-way
+   through, only the share that took it there, so the rest of the stretch
+   arrives whole, exactly as live loads would after the last stage. */
+function beaconAway(rate, secs) {
+  const took = tally(), out = { took, sum: 0, from: 0, to: 0 };
+  if (beaconCut() === 1 || !(secs > 0)) return out;
+  const p = beaconOf();
+  p.lvl = Math.min(BEACON_STAGES, Math.max(1, p.lvl | 0));
+  let left = -(p.stock || 0);
+  for (let l = p.lvl; l <= BEACON_STAGES; l++) left += BEACON_NEED[l - 1];
+  let offered = 0;
+  for (const k of RES) offered += Math.max(0, rate[k]) * secs * BEACON_SHARE;
+  if (!(offered > 0) || !(left > 0)) return out;
+  const f = Math.min(1, left / offered);
+  for (const k of RES) { took[k] = Math.max(0, rate[k]) * secs * BEACON_SHARE * f; out.sum += took[k]; }
+  out.from = p.lvl;
+  p.stock = (p.stock || 0) + out.sum;
+  while (BEACON_NEED[p.lvl - 1] && p.stock >= BEACON_NEED[p.lvl - 1] - 1e-6) {
+    p.stock -= BEACON_NEED[p.lvl - 1]; p.lvl++;
+  }
+  if (!BEACON_NEED[p.lvl - 1]) p.stock = 0;
+  out.to = p.lvl;
+  return out;
+}
 function deliver(k, n, x, y) {
   n -= beaconTake(k, n);
   const got = grant(k, n, x, y);
@@ -3623,15 +3649,27 @@ function grantAway(secs) {
      first card a returning player reads. Only the time the village actually
      worked counts -- past AWAY_MAX it was not working, so it was not sharing. */
   const finished = villageFinished();
+  /* And the same rule as a delivery for the beacon, too.
+
+     A carried load gives the beacon half while it is rising, and what the barn
+     cannot hold goes over the water at the beacon's multiplier. This path did
+     neither: the tower stood still for every hour the app was closed -- which
+     for a game you leave running is most of them -- and the overflow was
+     counted plain, so an hour away shipped less than the same hour watched.
+     The multiplier is the one the village had when it was left, which is
+     what the loads of that stretch would have carried. */
+  const mul = shareMul();
+  const beacon = beaconAway(rate, secs);
   let fullAfter = Infinity;
   for (const k of RES) {
     const room = caps[k] - res[k];
-    const want = rate[k] * secs;
-    if (want - Math.max(0, room) > 1 && rate[k] > 0) fullAfter = Math.min(fullAfter, Math.max(0, room) / rate[k]);
+    const want = rate[k] * secs - beacon.took[k];
+    const inflow = want / secs;
+    if (want - Math.max(0, room) > 1 && inflow > 0) fullAfter = Math.min(fullAfter, Math.max(0, room) / inflow);
     const earned = Math.max(0, Math.min(room, want));
     if (finished && want - earned > 1) {
-      sharedTotal[k] += want - earned;
-      shared[k] = Math.floor(want - earned);
+      sharedTotal[k] += (want - earned) * mul;
+      shared[k] = Math.floor((want - earned) * mul);
     }
     /* Two different ceilings can eat this haul, and the card used to show the
        survivor of both with no account of either: twelve hours away could hand
@@ -3681,8 +3719,8 @@ function grantAway(secs) {
     while (orders.length < orderSlots()) orders.push({ ...makeOrder(), slot: freeStall() });
     orderT = 0;                        // a trader has just been; the next is a full wait away
   }
-  if (any || spilled) away = { secs, got, capped, spilled, shared: finished ? shared : null,
-    fullAfter: isFinite(fullAfter) ? fullAfter : null };
+  if (any || spilled || beacon.sum >= 1) away = { secs, got, capped, spilled, shared: finished ? shared : null,
+    fullAfter: isFinite(fullAfter) ? fullAfter : null, beacon: beacon.sum >= 1 ? beacon : null };
 }
 // a cold start: measured from the save, which is where the last session ended
 function collectAway() {
@@ -5978,6 +6016,18 @@ function drawAway() {
     const fit = fitLines(when, R.w - 56 * u, 20 * u, 14 * u, 1);
     g.font = `${Math.round(fit.px)}px Segoe UI, sans-serif`; g.fillStyle = '#f0a583';
     g.fillText(fit.lines[0], R.x, R.y + 46 * u);
+  }
+  /* What the beacon did with its half, because the haul above is the barn's
+     half only -- without this line a returning player sees the earnings of a
+     beacon village come back halved and nothing to say where the rest went. */
+  if (away.beacon) {
+    const b = away.beacon;
+    const line = b.to > b.from
+      ? (b.to >= BEACON_STAGES ? 'and the beacon is finished' : 'and the beacon rose to stage ' + b.to + ' of ' + BEACON_STAGES)
+      : 'and the beacon took its half · stage ' + b.to + ' of ' + BEACON_STAGES;
+    const fit = fitLines(line, R.w - 56 * u, 20 * u, 14 * u, 1);
+    g.font = `${Math.round(fit.px)}px Segoe UI, sans-serif`; g.fillStyle = '#9fd6a0';
+    g.fillText(fit.lines[0], R.x, R.y + 78 * u);
   }
   g.font = `bold ${Math.round(24 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#9fe86b';
   g.fillText('tap to continue', R.x, R.y + R.h / 2 - 40 * u);

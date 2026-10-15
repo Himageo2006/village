@@ -2219,6 +2219,13 @@
            panel, which a sweep only saw by accident, from a save left behind. */
         awaySharedHuge: () => { V.away = { secs: 43200, capped: true, spilled: true,
           got: { wood: 8380, food: 8380 }, shared: { wood: 1e15, food: 999999 } }; },
+        /* And with the beacon's line under the shared one, in its longest
+           wording and with all three goods shared above it -- the card gained
+           a row, and a row nobody draws is a row nobody measures. */
+        awayBeacon: () => { V.away = { secs: 43200, capped: true, spilled: true,
+          got: { wood: 8380, food: 8380, stone: 8380 }, shared: { wood: 1234567, food: 9876543, stone: 7654321 },
+          beacon: { took: {}, sum: 30000, from: 3, to: 3 } }; },
+        awayBeaconDone: () => { V.away.beacon = { took: {}, sum: 30000, from: 4, to: V.BEACON_STAGES }; },
         hint: () => { V.away = null; V.tutSeen.length = 0; for (const k of V.RES) V.res[k] = V.caps[k]; },
         goalBanner: () => { V.goalDone = { g: V.GOALS[V.GOALS.length - 1], got: { wood: 2500, food: 1600 }, age: 0 }; },
         /* Two warnings the player only ever sees when something has gone wrong,
@@ -11093,6 +11100,30 @@
           + ' carried home in ten minutes, which is not the share it promises');
       if (!(b2.stock > stock0 || b2.lvl > lvl0))
         fails.push('in a working village the beacon did not rise at all');
+
+      /* And the hours the app is closed follow the same rule as the minutes it
+         is open -- which for a game you leave running are most of them. They
+         did not: the beacon stood still while the village was away, and the
+         overflow went over the water without the beacon's multiplier, so an
+         hour away shipped less than the same hour watched. */
+      {
+        const rate = V.potentialRate(), made = V.RES.reduce((a, k) => a + rate[k], 0);
+        const SECS = 600;
+        b2.lvl = 1; b2.stock = 0;
+        for (const k of V.RES) V.res[k] = V.caps[k];
+        const shared0 = Object.values(V.sharedTotal).reduce((a, b) => a + b, 0);
+        const mul = V.shareMul();
+        V.grantAway(SECS); V.away = null;
+        const tookAway = b2.stock + (b2.lvl > 1 ? 6000 : 0);
+        const sentAway = Object.values(V.sharedTotal).reduce((a, b) => a + b, 0) - shared0;
+        if (Math.abs(tookAway - made * SECS * HALF) > V.CARRY)
+          fails.push('ten minutes away gave the beacon ' + Math.round(tookAway) + ' of the '
+            + Math.round(made * SECS) + ' the village made, which is not the half it takes while you watch');
+        const dueAway = made * SECS * (1 - HALF) * mul;
+        if (Math.abs(sentAway - dueAway) > Math.max(V.CARRY, 0.02 * dueAway))
+          fails.push('ten minutes away with full barns sent ' + Math.round(sentAway) + ' over the water against the '
+            + Math.round(dueAway) + ' the same ten minutes watched would send');
+      }
     }
     return { drawn, stages, drank: Math.round(drank), pictures: seen.size, low, high, fails };
   };
