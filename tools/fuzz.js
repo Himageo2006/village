@@ -87,7 +87,7 @@
        the only legal direction is down. Getting this wrong produced two rounds
        of confident false failures before it was stated correctly. */
     ['nothing rises above its cap', () => {
-      for (const k of ['wood', 'food']) {
+      for (const k of V.RES) {
         if (V.res[k] <= V.caps[k] + 1e-6) continue;
         if (V.res[k] > prev[k] + 1e-6) return false;
       }
@@ -187,8 +187,14 @@
     }],
     ['the camera stays finite', () =>
       Number.isFinite(V.CAM.x) && Number.isFinite(V.CAM.y) && V.CAM.z > 0.01],
+    /* Bounded by what the building can hold: a workplace's two loads, well
+       under ten thousand -- and for the beacon, the stage it is filling, which
+       is 48,000 at the fourth. Bounded at ten thousand for everything, this
+       would have failed the first random village to raise a beacon that far,
+       for doing exactly what it says. */
     ['stock never goes negative or runs away', () => V.placed.every(p =>
-      p.stock === undefined || (p.stock >= -1e-6 && p.stock < 1e4))],
+      p.stock === undefined || (p.stock >= -1e-6 && p.stock < (p.key === V.BEACON
+        ? Math.max(...V.BEACON_NEED) : 1e4)))],
     /* The two caches. Both are rebuilt by hand at the points where the village
        changes, which is the kind of arrangement that works until someone adds a
        twelfth of those points -- so the soak test recomputes them from scratch
@@ -285,7 +291,7 @@
     })],
   ];
 
-  let prev = { wood: 0, food: 0 };
+  let prev = {};
   /* Filled just before every step, read by the idle rule just after it. */
   let carriedBefore = new Set();
   function check(what) {
@@ -294,7 +300,7 @@
       try { ok = f(what); } catch (e) { return name + ' threw: ' + e.message + ' (after ' + what + ')'; }
       if (!ok) return name + ' (after ' + what + ')';
     }
-    prev = { wood: V.res.wood, food: V.res.food };
+    prev = Object.fromEntries(V.RES.map(k => [k, V.res[k]]));
     return null;
   }
 
@@ -335,8 +341,7 @@
          number made that a round-trip failure: five in 120,000 rounds, every one
          of them the game doing exactly what it says it does, and a false failure
          is worse than none because it teaches you to ignore the report. */
-      res: { wood: Math.round(Math.min(V.res.wood, V.caps.wood)),
-             food: Math.round(Math.min(V.res.food, V.caps.food)) },
+      res: Object.fromEntries(V.RES.map(k => [k, Math.round(Math.min(V.res[k], V.caps[k]))])),
       land: V.landTier, goal: V.goalIdx, done: V.ordersDone, mute: V.muted,
       orders: V.orders.map(o => [o.tier, o.giveK, o.giveN, o.getK, o.getN]),
     });
@@ -556,9 +561,9 @@
     const cases = {
       truncated: good.slice(0, Math.floor(good.length * 0.6)),
       notJson: 'nope', empty: '', nullish: 'null', arrayNotObject: '[1,2,3]',
-      negativeRes: JSON.stringify({ ...o, res: { wood: -500, food: -9e9 } }),
-      hugeRes: JSON.stringify({ ...o, res: { wood: 1e12, food: Number.MAX_VALUE } }),
-      nanRes: JSON.stringify({ ...o, res: { wood: 'lots', food: null } }),
+      negativeRes: JSON.stringify({ ...o, res: { wood: -500, food: -9e9, stone: -3 } }),
+      hugeRes: JSON.stringify({ ...o, res: { wood: 1e12, food: Number.MAX_VALUE, stone: 1e300 } }),
+      nanRes: JSON.stringify({ ...o, res: { wood: 'lots', food: null, stone: 'some' } }),
       placedNotArray: JSON.stringify({ ...o, placed: 'nope' }),
       placedGarbage: JSON.stringify({ ...o, placed: [{ key: 'dragon', c: 99, r: -5, lvl: 99 }, null, 42] }),
       badLand: JSON.stringify({ ...o, land: 999 }),
@@ -568,13 +573,13 @@
       tilesOffTheMap: JSON.stringify({ ...o, placed: o.placed.map(p => ({ ...p, c: -40, r: 80 })) }),
       everythingOnOneTile: JSON.stringify({ ...o, placed: o.placed.map(p => ({ ...p, c: 7, r: 7 })) }),
       landShrunkUnderTheVillage: JSON.stringify({ ...o, land: 0 }),
-      sharedGarbage: JSON.stringify({ ...o, shared: { wood: -5, food: 'lots' } }),
-      sharedHuge: JSON.stringify({ ...o, shared: { wood: 1e300, food: NaN } }),
+      sharedGarbage: JSON.stringify({ ...o, shared: { wood: -5, food: 'lots', stone: -7 } }),
+      sharedHuge: JSON.stringify({ ...o, shared: { wood: 1e300, food: NaN, stone: 'heaps' } }),
       /* The goods that were in villagers' hands. Read at boot and handed back,
          so a damaged figure here is a damaged figure added straight to the
          stores -- the one save field that pays out on load. */
-      transitGarbage: JSON.stringify({ ...o, transit: { wood: -500, food: 'lots' } }),
-      transitHuge: JSON.stringify({ ...o, transit: { wood: 1e12, food: Infinity } }),
+      transitGarbage: JSON.stringify({ ...o, transit: { wood: -500, food: 'lots', stone: -9 } }),
+      transitHuge: JSON.stringify({ ...o, transit: { wood: 1e12, food: Infinity, stone: 1e12 } }),
       transitNotAnObject: JSON.stringify({ ...o, transit: [1, 2, 3] }),
     };
     const bad = [], kept = {};
@@ -582,8 +587,8 @@
       try {
         localStorage.setItem(V.KEY, raw); localStorage.removeItem(V.KEY_BAK);
         V.placed.length = 0; V.villagers.length = 0; V.orders = [];
-        V.res.wood = 60; V.res.food = 40; V.landTier = 0; V.goalIdx = 0; V.ordersDone = 0;
-        V.sharedTotal = { wood: 0, food: 0 };
+        for (const k of V.RES) V.res[k] = 0; V.res.wood = 60; V.res.food = 40; V.landTier = 0; V.goalIdx = 0; V.ordersDone = 0;
+        V.sharedTotal = Object.fromEntries(V.RES.map(k => [k, 0]));
         // the order boot uses, so every field a damaged save carries is applied
         V.load(); V.ensureHall(); V.landTransit(); V.collectAway();
         for (let i = 0; i < 5 * 30; i++) V.step(1 / 30);
@@ -599,11 +604,13 @@
         if (halls !== 1) why.push('halls=' + halls);
         if (shared) why.push(shared + ' shared tiles');
         if (off) why.push(off + ' tiles off the claimed land');
-        for (const k of ['wood', 'food'])
+        /* Every kind. Written as wood and food, a damaged stone figure was never
+           put in front of load() at all, so nothing said whether it was refused. */
+        for (const k of V.RES)
           if (!Number.isFinite(V.res[k]) || V.res[k] < 0 || V.res[k] > V.caps[k] + 1) why.push(k + ' out of range');
         if (V.villagers.length < 1) why.push('nobody alive');
         if (!V.placed.every(q => V.B(q.key))) why.push('unknown building key');
-        for (const k of ['wood', 'food'])
+        for (const k of V.RES)
           if (!Number.isFinite(V.sharedTotal[k]) || V.sharedTotal[k] < 0) why.push('shared tally ' + k + ' broken');
         kept[name] = V.placed.length;
         if (why.length) bad.push({ name, why });
@@ -885,13 +892,13 @@
     const realSave = (() => { try { return localStorage.getItem(V.KEY); } catch (e) { return null; } })();
     // a throwaway village: never the player's own
     V.placed.length = 0; V.villagers.length = 0;
-    V.res.wood = 120; V.res.food = 60; V.landTier = 0;
+    for (const k of V.RES) V.res[k] = 0; V.res.wood = 120; V.res.food = 60; V.landTier = 0;
     V.goalIdx = 0; V.goalDone = null; V.orders = []; V.ordersDone = 0;
     V.panel = null; V.sel = null; V.moving = null; V.armed = null; V.sellArm = null;
     V.away = null; V.claimAsk = false;
     V.ensureHall();
     if (populated) seed();
-    prev = { wood: V.res.wood, food: V.res.food };
+    prev = Object.fromEntries(V.RES.map(k => [k, V.res[k]]));
 
     const fails = [];
     const counts = {};
@@ -912,7 +919,7 @@
         }
         else if (act === 'pickBuild') V.sel = pick(V.BUILDINGS).key;
         else if (act === 'tab') V.barMode = pick(['build', 'decor', 'orders']);
-        else if (act === 'grant') V.grant(pick(['wood', 'food']), R(500), 0, 0);
+        else if (act === 'grant') V.grant(pick(V.RES), R(500), 0, 0);
         else if (act === 'claim') V.claimLand();
         else if (act === 'panelOpen') V.panel = V.placed.length ? pick(V.placed).id : null;
         else if (act === 'camFit') V.camFit(Math.random() < 0.5);
@@ -943,7 +950,7 @@
              that stale rate reported 291 failures on a village doing nothing
              wrong, which is the checker being wrong rather than the game. */
           const rate = V.potentialRate();
-          const before = { wood: V.res.wood, food: V.res.food };
+          const before = Object.fromEntries(V.RES.map(k => [k, V.res[k]]));
           V.grantAway(gone - simmed);
           V.away = null; V.hiddenAt = 0; V.hiddenSim = 0;
           /* The rate the grant actually used, reconstructed rather than
@@ -959,11 +966,11 @@
              they were, which is the state grantAway asked the question in. The
              cached plan keys off whether each store has room, so restoring the
              stores restores the plan with them. */
-          const paid = { wood: V.res.wood - before.wood, food: V.res.food - before.food };
-          V.res.wood = before.wood; V.res.food = before.food;
+          const paid = Object.fromEntries(V.RES.map(k => [k, V.res[k] - before[k]]));
+          for (const k of V.RES) V.res[k] = before[k];
           const after = V.potentialRate();
-          V.res.wood = before.wood + paid.wood; V.res.food = before.food + paid.food;
-          for (const k of ['wood', 'food']) {
+          for (const k of V.RES) V.res[k] = before[k] + paid[k];
+          for (const k of V.RES) {
             const got = paid[k];
             if (got < -1e-6) fails.push('coming back took resources away (' + k + ')');
             // the grant may only pay for the time the throttled tick did NOT
@@ -972,7 +979,7 @@
           }
         }
         else if (act === 'away') {
-          const before = { wood: V.res.wood, food: V.res.food };
+          const before = Object.fromEntries(V.RES.map(k => [k, V.res[k]]));
           /* Stated as where the village ENDS UP, not as how much room there was
              when it left. The ceiling is not fixed across a stretch away: a
              storehouse left half built finishes while nobody is watching and
@@ -982,10 +989,10 @@
              may not leave the stores over their ceiling, nor further over than
              it found them, which a sold storehouse can. */
           const over = k => V.res[k] - V.caps[k];
-          const wasOver = { wood: over('wood'), food: over('food') };
+          const wasOver = Object.fromEntries(V.RES.map(k => [k, over(k)]));
           V.grantAway(Math.random() * V.AWAY_MAX * 1.5);
           V.away = null;
-          for (const k of ['wood', 'food']) {
+          for (const k of V.RES) {
             const got = V.res[k] - before[k];
             if (got < -1e-6) fails.push('being away took resources away (' + k + ')');
             if (over(k) > Math.max(0, wasOver[k]) + 1e-6) fails.push('being away paid past the ceiling (' + k + ')');
@@ -1043,11 +1050,11 @@
           const house = q && V.B(q.key).pop, pred = house ? V.potentialRate(q.id) : null;
           /* Unless the refund itself fills a store: a full store sends workers to
              other posts, which changes the plan for a reason that is not the house. */
-          const fullness = () => ['wood', 'food'].map(k => V.caps[k] - V.res[k] < 8).join();
+          const fullness = () => V.RES.map(k => V.caps[k] - V.res[k] < 8).join();
           const fullBefore = q ? fullness() : '';
           if (q && V.sellBuilding(q) && house && fullness() === fullBefore) {
             const now = V.potentialRate();
-            for (const k of ['wood', 'food'])
+            for (const k of V.RES)
               if (Math.abs(now[k] - pred[k]) > 1e-6) fails.push('selling a house predicted ' + k + ' ' + pred[k].toFixed(3) + '/s and left ' + now[k].toFixed(3));
           }
         }
@@ -1060,7 +1067,7 @@
                asks the question once for everything the village is given. */
             const gives = () => {
               const workplaces = V.producers().filter(x => x.key !== 'hall');
-              return { wood: V.caps.wood, food: V.caps.food, homes: V.placed.reduce((n, x) => n + V.livedIn(x), 0),
+              return { ...Object.fromEntries(V.RES.map(k => ['cap ' + k, V.caps[k]])), homes: V.placed.reduce((n, x) => n + V.livedIn(x), 0),
                 trades: V.orderSlots(), stores: V.stores().length,
                 boost: workplaces.reduce((m, x) => m + V.boostAt(x), 0),
                 workplaces: V.villageStats().workplaces };
