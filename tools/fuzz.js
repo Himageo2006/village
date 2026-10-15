@@ -10940,22 +10940,32 @@
     const p = drop();
     if (!p) { fails.push('the beacon could not be placed on a finished island'); return { drawn, fails }; }
 
-    /* It drinks, and what it drinks comes out of the stores.
+    /* It takes half of what the villagers carry home, and the barn gets the
+       other half.
 
-       Driven at the ceiling on purpose: that is the village this exists for,
-       and it is also the only way to tell drinking from not producing. */
-    const stages = [], took = [];
-    for (let i = 0; i < 4000 && V.beaconStage() < V.BEACON_STAGES; i++) {
-      for (const k of V.RES) V.res[k] = V.caps[k];
-      const was = V.res.wood + V.res.food;
-      V.step(1);
-      took.push(was - (V.res.wood + V.res.food));
+       Driven through deliver(), the one door a carried load comes in by, with
+       the barns emptied before each so that nothing is refused for want of
+       room and every good is either the beacon's or the barn's. It used to be
+       driven at the ceiling and watched draining the stores; it does not
+       touch the stores any more, and a check that asked it to would be
+       asking for the fault that was taken out. */
+    const stages = [];
+    let drank = 0, kept = 0;
+    for (let i = 0; i < 40000 && V.beaconStage() < V.BEACON_STAGES; i++) {
+      for (const k of V.RES) V.res[k] = 0;
+      const got = V.deliver(V.RES[i % V.RES.length], V.CARRY, 0, 0);
+      kept += got; drank += V.CARRY - got;
       const lvl = V.beaconStage();
       if (!stages.length || stages[stages.length - 1] !== lvl) stages.push(lvl);
     }
-    const drank = took.reduce((a, b) => a + b, 0);
     if (drank <= 0)
-      fails.push('the beacon took nothing out of the stores, so it is not a sink for anything');
+      fails.push('the beacon took nothing of what the villagers carried home, so it is not a sink for anything');
+    if (Math.abs(drank - kept) > V.CARRY)
+      fails.push('of every load the beacon took ' + Math.round(drank) + ' and the barns ' + Math.round(kept)
+        + ', which is not the half each it promises');
+    for (const k of V.RES) V.res[k] = 0;
+    if (V.deliver('wood', V.CARRY, 0, 0) !== V.CARRY)
+      fails.push('a finished beacon still takes a share of every load');
     if (V.beaconStage() < V.BEACON_STAGES)
       fails.push('the beacon stopped at stage ' + V.beaconStage() + ' of ' + V.BEACON_STAGES
         + ', so it never finishes however long the village runs');
@@ -10994,11 +11004,17 @@
     /* ---- and in a village that WORKS, which the scene above is not ----
 
        Everything above stands the beacon on an island with a hall and nothing
-       else, its stores pinned to the ceiling by hand -- and in that village it
-       is impossible to see the two faults this part is for, because nothing
-       is produced and nothing is ever spent. In a real finished village the
-       beacon drank every barn to zero inside two minutes and held it there,
-       and the chips said "+7.2/s" in green all the way down. */
+       else -- the one village where nothing is produced, nothing is spent and
+       nothing is shipped, so none of what the beacon does to a real village
+       can be seen there. In a real finished village it held every barn under
+       full for the two hours it took to rise, and a barn under full sends
+       nothing over the water: 3,936 shipped in ten minutes without a beacon,
+       none with one, under a goal reading "Ship 50k to the neighbours".
+
+       So, in a working finished village with the beacon at its first stage:
+       the village still ships, the beacon still rises, it takes half of what
+       is carried home and not more, and each chip moves its barn at the rate
+       it says. */
     const put = k => { const L = V.landBounds();
       for (let r = L.lo; r <= L.hi; r++) for (let c = L.lo; c <= L.hi; c++)
         if (V.canPlace(k, c, r, V.occupied())) return V.place(k, c, r);
@@ -11008,7 +11024,7 @@
       const lines = [];
       ctx.fillText = function (t, ...a) { lines.push(String(t)); return oF.call(this, t, ...a); };
       try { V.draw(); } finally { ctx.fillText = oF; }
-      return lines.filter(t => /^(\+[\d.]+\/s|idle|storage full|(?:wasting|sharing|beacon) [\d.]+\/s)$/.test(t));
+      return lines.filter(t => /^(\+[\d.]+\/s|idle|storage full|(?:wasting|sharing) [\d.]+\/s)$/.test(t));
     };
     fresh(true);
     for (const k of ['house', 'house', 'house', 'house', 'house', 'house', 'farm', 'farm', 'lumber',
@@ -11021,51 +11037,62 @@
     if (!b2) fails.push('the beacon could not be placed in a working village');
     else {
       b2.lvl = 1; b2.stock = 0;
-      for (const k of V.RES) V.res[k] = Math.floor(V.caps[k] * 0.6);
-      const floor = {}; for (const k of V.RES) floor[k] = Infinity;
-      for (let i = 0; i < 240 * 30; i++) {
-        V.orders = []; V.goalDone = null; V.finished = null;
-        V.step(1 / 30);
-        for (const k of V.RES) floor[k] = Math.min(floor[k], V.res[k]);
-      }
-      /* The village keeps its half. */
-      for (const k of V.RES) if (floor[k] < V.caps[k] * V.BEACON_KEEP - 1)
-        fails.push('the beacon drank ' + k + ' down to ' + Math.round(floor[k]) + ' of ' + V.caps[k]
-          + ', below the half the village keeps to spend');
-      if (!(b2.stock > 0 || b2.lvl > 1))
-        fails.push('in a working village the beacon took nothing at all');
-      /* And each chip says what its barn is really doing. A green "+" is a
-         promise that the number above it is rising at that rate; "beacon" is
-         the statement that the work is going into the tower instead. */
+      const quiet = () => { V.orders = []; V.goalDone = null; V.finished = null; };
+      /* The chips first, from a barn with room, against a minute of what the
+         barn really did. */
+      for (const k of V.RES) V.res[k] = Math.floor(V.caps[k] * 0.3);
+      for (let i = 0; i < 20 * 30; i++) { quiet(); V.step(1 / 30); }
       const said = chipLines();
       if (said.length !== V.RES.length)
-        fails.push('the chips said ' + said.length + ' things beside a drinking beacon: ' + said.join(' / '));
+        fails.push('the chips said ' + said.length + ' things beside a rising beacon: ' + said.join(' / '));
       else {
         const SECS = 60, r0 = {};
         for (const k of V.RES) r0[k] = V.res[k];
-        for (let i = 0; i < SECS * 30; i++) { V.orders = []; V.goalDone = null; V.finished = null; V.step(1 / 30); }
+        for (let i = 0; i < SECS * 30; i++) { quiet(); V.step(1 / 30); }
         V.RES.forEach((k, i) => {
           const t = said[i], gain = (V.res[k] - r0[k]) / SECS;
           const m = /([\d.]+)\/s/.exec(t), fig = m ? +m[1] : 0;
           const slack = (V.CARRY + 0.15 * fig * SECS + 0.05 * SECS) / SECS;
           if (/^\+/.test(t) && Math.abs(gain - fig) > slack)
-            fails.push('beside a drinking beacon the ' + k + ' chip says "' + t + '" and the store moved '
+            fails.push('beside a rising beacon the ' + k + ' chip says "' + t + '" and the store moved '
               + gain.toFixed(2) + '/s');
-          if (/^beacon/.test(t) && gain > slack)
-            fails.push('the ' + k + ' chip says "' + t + '" and the store rose ' + gain.toFixed(2) + '/s');
         });
       }
-      /* And the moment it stops, the chips stop saying so: a barn spent
-         below the line it keeps, and a tower at its top stage, both take
-         nothing -- the first frame after, not some seconds later. */
-      for (const [why, set] of [
-        ['spent below the half the beacon keeps', () => { for (const k of V.RES) V.res[k] = Math.floor(V.caps[k] * 0.2); }],
-        ['beside a finished beacon', () => { b2.lvl = V.BEACON_STAGES; for (const k of V.RES) V.res[k] = Math.floor(V.caps[k] * 0.6); }],
-      ]) {
-        set(); V.step(1 / 30);
-        const now = chipLines().filter(t => /^beacon/.test(t));
-        if (now.length) fails.push('with the stores ' + why + ', the chips still say "' + now.join('", "') + '"');
+      /* Then ten minutes from full: what was carried home, what the beacon
+         took of it, and what went over the water. */
+      for (const k of V.RES) V.res[k] = V.caps[k];
+      V.sharedTotal.wood = 0; V.sharedTotal.food = 0; if ('stone' in V.sharedTotal) V.sharedTotal.stone = 0;
+      const stock0 = b2.stock, lvl0 = b2.lvl;
+      let carried = 0;
+      for (let i = 0; i < 600 * 30; i++) {
+        quiet();
+        const held = V.villagers.map(v => [v, v.carry ? v.carry.n : 0]);
+        V.step(1 / 30);
+        for (const [v, n] of held) if (n && !v.carry) carried += n;
       }
+      const shippedNow = Object.values(V.sharedTotal).reduce((a, b) => a + b, 0);
+      const took = b2.lvl === lvl0 ? b2.stock - stock0 : null;
+      /* Not "more than nothing": the barns start full, so a few loads go over
+         the water in the first seconds whatever the beacon does, and a check
+         for any shipping at all passed the very build that shipped nothing
+         for the next two hours. Full barns that nobody spends from send on
+         everything that reaches them -- the barn's share of every load, at
+         this stage's multiplier -- so that is what is asked for. */
+      /* Half, written here rather than read from the game: the card tells the
+         player "half of every load", and a check that took the game's own
+         figure would agree with any figure the game chose -- a beacon taking
+         everything "owed" nothing to the water and passed. */
+      const HALF = 0.5;
+      const due = carried * (1 - HALF) * V.shareMul();
+      if (!(shippedNow >= 0.8 * due))
+        fails.push('in ten minutes beside a rising beacon, with every barn full, ' + Math.round(shippedNow)
+          + ' went over the water against the ' + Math.round(due) + ' the barns\' share of '
+          + Math.round(carried) + ' carried home should have sent');
+      if (took !== null && Math.abs(took - carried * HALF) > V.CARRY)
+        fails.push('the beacon took ' + Math.round(took) + ' of ' + Math.round(carried)
+          + ' carried home in ten minutes, which is not the share it promises');
+      if (!(b2.stock > stock0 || b2.lvl > lvl0))
+        fails.push('in a working village the beacon did not rise at all');
     }
     return { drawn, stages, drank: Math.round(drank), pictures: seen.size, low, high, fails };
   };

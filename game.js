@@ -724,39 +724,44 @@ function grant(k, n, x, y) {
    "wasting", because that pressure is what teaches storage and trade. */
 let sharedTotal = tally();
 const villageFinished = () => goalIdx >= GOALS.length;
-/* The beacon drinking, one tick's worth.
+/* The beacon's half of a load, taken as it arrives.
 
-   Out of the stores rather than out of thin air, and only while there is a
-   stage left to finish. Both resources at once, each limited by what is
-   actually there, so a village short of one of them pours the other and the
-   beacon simply rises more slowly. */
-function stepBeacon(dt) {
+   It used to drink out of the barns, eighteen a second of every kind, and
+   that had no good answer. Drinking everything held the stores at zero for
+   the hours a hundred thousand takes; keeping half back for the village to
+   spend still left every barn below full, and only a full barn sends anything
+   over the water -- measured over ten minutes of a finished village, 3,936
+   shipped without a beacon and NONE with one. The goal strip sat on "Ship 50k
+   to the neighbours" for two hours, under a card promising that the beacon
+   "sends more of it over the water".
+
+   So it takes half of every load a villager carries home, while it has a
+   stage left to finish, and the other half arrives exactly as it always did:
+   into the barn, and over the water once the barn is full. Only carried
+   loads, because only they are the village's work -- a reward or a refund
+   was never the surplus. It rises at half the pace it did, and the village
+   goes on filling, spending and shipping while it does. */
+const BEACON_SHARE = 0.5;
+/* The part of each carried load that reaches the barn: all of it, or the
+   half the beacon leaves while it is still rising. Anything that quotes what
+   the village WOULD deliver -- the chips' expected rate, the sharing figure
+   -- multiplies by this, or it quotes the beacon's half as the barn's. */
+const beaconCut = () => {
   const p = beaconOf();
-  if (!p || p.t < 1) return;
+  if (!p || p.t < 1) return 1;
+  return BEACON_NEED[Math.min(BEACON_STAGES, Math.max(1, p.lvl | 0)) - 1] ? 1 - BEACON_SHARE : 1;
+};
+function beaconTake(k, n) {
+  if (!(n > 0) || beaconCut() === 1) return 0;   // none standing, or the top stage
+  const p = beaconOf();
   const lvl = Math.min(BEACON_STAGES, Math.max(1, p.lvl | 0));
-  const need = BEACON_NEED[lvl - 1];
-  if (!need) return;                              // the top stage: nothing left to drink
-  let drank = 0;
-  for (const k of RES) {
-    /* Never the bottom half of a barn.
-
-       It drank from whatever was there, eighteen a second of every kind, and a
-       maxed village makes seven. Measured on a finished island with its stores
-       at half: wood, food and stone all at zero inside two minutes and held
-       there -- for the hours a hundred thousand takes -- with a statue at 150
-       wood and 80 stone never affordable again, and every trade on the board
-       unpayable. It is a sink for what a village cannot use; it was drinking
-       what it could. Above half is the surplus, and the half below it is the
-       village's to spend. */
-    const take = Math.min(BEACON_POUR * dt, res[k] - caps[k] * BEACON_KEEP);
-    if (take <= 0) continue;
-    res[k] -= take; drank += take;
-  }
-  if (!drank) return;
-  p.stock = (p.stock || 0) + drank;
-  if (p.stock >= need) { p.stock = 0; p.lvl = lvl + 1; SFX.upgrade(); save(); }
+  const take = n * BEACON_SHARE;
+  p.stock = (p.stock || 0) + take;
+  if (p.stock >= BEACON_NEED[lvl - 1]) { p.stock = 0; p.lvl = lvl + 1; SFX.upgrade(); save(); }
+  return take;
 }
 function deliver(k, n, x, y) {
+  n -= beaconTake(k, n);
   const got = grant(k, n, x, y);
   rateAcc[k] += got;                  // a sale is not production, so only here
   if (got > 0.01) SFX.deliver();
@@ -1715,7 +1720,7 @@ const BUILDINGS = [
      is measured against, and a building that needs art nobody has drawn yet
      would make that goal impossible to finish. */
   { key: 'beacon', name: 'Beacon',    w: 2, h: 2, cost: { wood: 2500, stone: 1600 }, unique: true, wallH: 150, icon: '🗼',
-    blurb: 'A light for your neighbours. It drinks your surplus and sends more of it over the water.' },
+    blurb: 'A light for your neighbours. It takes half of every load as it rises, and sends more over the water.' },
 
   /* ---------- decorations ----------
      Bought and placed like buildings, but they take no time to put up, have no
@@ -2777,29 +2782,11 @@ const hallLevel = () => { const h = hallOf(); return h ? Math.min(HALL_MAX, Math
 /* ---------- what the beacon is worth, and when it may be built ---------- */
 const BEACON = 'beacon';
 const BEACON_STAGES = 5;
-/* What each stage drinks before the next one starts. Rising steeply, and the
-   whole thing is about a hundred and ten thousand -- half an hour of a maxed
-   village's full output, which is the point: it is a sink for a village that
-   has nothing left to spend on, not an errand. */
+/* What each stage takes before the next one starts. Rising steeply, and the
+   whole thing is ninety thousand -- about an hour of a maxed village, since
+   it takes half of every load (see beaconTake), which is the point: it is a
+   sink for a village that has nothing left to spend on, not an errand. */
 const BEACON_NEED = [6000, 12000, 24000, 48000, 0];   // the last stage is the top
-const BEACON_POUR = 18;               // each resource, per second, while it is drinking
-const BEACON_KEEP = 0.5;              // of each barn, which it leaves alone -- see stepBeacon
-/* Whether the beacon is taking from this barn right now, decided from what it
-   is rather than from a measurement of what it did.
-
-   The chips first read a smoothed figure of the pour, and a smoothed figure
-   lags both ways: it started from nothing on every reopen -- "+3.7 / +2.8 /
-   +1.5" in green over barns standing flat at 690, still "+1.1" twenty seconds
-   in -- and it would have gone on saying "beacon" for as long after the tower
-   stopped. It drinks exactly when it stands, is not finished, and the barn is
-   at the line it keeps; a load's width under the line, because the barn
-   hovers there a load at a time. */
-const beaconDrinks = k => {
-  const p = placed.find(q => q.key === BEACON);
-  if (!p || p.t < 1) return false;
-  if (!BEACON_NEED[Math.min(BEACON_STAGES, Math.max(1, p.lvl | 0)) - 1]) return false;
-  return res[k] >= caps[k] * BEACON_KEEP - CARRY;
-};
 
 const beaconOf = () => placed.find(p => p.key === BEACON) || null;
 /* The stage it has REACHED, so one still going up counts as the one below. */
@@ -3743,7 +3730,6 @@ function step(dt) {
   if (document.hidden && !hiddenAt) { hiddenAt = Date.now(); hiddenSim = 0; }
   if (hiddenAt) hiddenSim += dt;      // what the throttled tick managed while away
   stepCam(dt);
-  stepBeacon(dt);
   stepFinds(dt);
   if (backOpen()) armBack();          // so the back button can close it again
   else if (backArmed) disarmBack();   // closed some other way: take the entry back out
@@ -5174,28 +5160,6 @@ function drawHUD() {
     if (full) sub(lost > 0.05
       ? (villageFinished() ? 'sharing ' : 'wasting ') + (lost >= 10 ? Math.round(lost) : lost.toFixed(1)) + '/s'
       : 'storage full', villageFinished() ? '#9fd6a0' : '#f0a583');
-    /* And where it goes when the beacon is drinking it.
-
-       The chips counted deliveries and nothing else, and the beacon takes
-       its share straight out of the barn -- so on a finished island all three
-       read a green "+7.2 / +6.9 / +2.7" for three minutes while the stores
-       under them fell eleven to fifteen a second, to nothing. What the barn
-       actually gains is the arrivals less the pour; when that is nothing, the
-       truthful line is where the work went. Same calm green as "sharing",
-       because it is the same kind of news.
-
-       Worked out against what the beacon CAN pour rather than a measurement
-       of what it did pour: two smoothed figures subtracted is noise, since
-       loads land eight at a time and the tower swallows each one -- "arrived
-       less poured" wandered between +0.2 and +1.2 over a barn standing still
-       at 690. While it drinks, a barn rises only if more arrives than the
-       most it can take, and otherwise everything that arrives is what it
-       takes. */
-    else if (rate > 0.02 && beaconDrinks(k)) {
-      const net = rate - BEACON_POUR, took = Math.min(rate, BEACON_POUR);
-      if (net > 0.05) sub('+' + net.toFixed(1) + '/s', '#8fd06a');
-      else sub('beacon ' + (took >= 10 ? Math.round(took) : took.toFixed(1)) + '/s', '#9fd6a0');
-    }
     // "/s", as every other rate in the game is written
     else sub(rate > 0.02 ? '+' + rate.toFixed(1) + '/s' : 'idle',
       rate > 0.02 ? '#8fd06a' : DIM);
@@ -5211,12 +5175,16 @@ function drawHUD() {
      the better number; above it, what actually arrived. Decided on the
      expected figure, which is steady, so the chip does not flip between them. */
   const expect = expectedRate();
+  /* rateNow counts what reached the barn, so it already leaves out the
+     beacon's half; the expected rate and the sharing figure are worked out
+     from what the hands produce, so they are cut to the same half. */
+  const cut = beaconCut();
   const shown = k => expect[k] <= 0.02 ? 0
-    : expect[k] * RATE_WINDOW >= 4 * CARRY && rateNow[k] > 0.02 ? rateNow[k] : expect[k];
+    : expect[k] * RATE_WINDOW >= 4 * CARRY && rateNow[k] > 0.02 ? rateNow[k] : expect[k] * cut;
   const ch = charmTotal();
   for (const c of chipRects()) {
     if (c.k !== 'charm') {
-      chip(c, RES_ICON[c.k], c.k, res[c.k], caps[c.k], RES_CHIP[c.k], shown(c.k), wasting && wasting[c.k]);
+      chip(c, RES_ICON[c.k], c.k, res[c.k], caps[c.k], RES_CHIP[c.k], shown(c.k), wasting && wasting[c.k] * cut);
       continue;
     }
     const x = c.x, ry = c.y, wch = c.w, hh = c.h;
@@ -7637,8 +7605,8 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   get hiddenAt() { return hiddenAt; }, set hiddenAt(v) { hiddenAt = v; },
   get hiddenSim() { return hiddenSim; }, set hiddenSim(v) { hiddenSim = v; }, AWAY_MIN, AWAY_MAX,
   GOALS, currentGoal, buyProgress, FINISH_ID, currentHint,
-  BEACON, SET_ART, BEACON_STAGES, BEACON_NEED, BEACON_POUR, beaconOf, beaconStage, beaconSet, beaconOpen,
-  shareMul, stepBeacon, buildingArt, get goalIdx() { return goalIdx; }, set goalIdx(v) { goalIdx = v; },
+  BEACON, SET_ART, BEACON_STAGES, BEACON_NEED, BEACON_SHARE, beaconCut, beaconOf, beaconStage, beaconSet, beaconOpen,
+  shareMul, buildingArt, get goalIdx() { return goalIdx; }, set goalIdx(v) { goalIdx = v; },
   afterGoal, shipped, AFTER_SHIP, AFTER_ORDERS, AFTER_MAX,
   get afterMark() { return afterMark; }, set afterMark(v) { afterMark = v; },
   get orders() { return orders; }, set orders(v) { orders = v; },
@@ -7670,7 +7638,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   get claimAsk() { return claimAsk; }, set claimAsk(v) { claimAsk = v; }, claimRects,
   get tutSeen() { return tutSeen; }, set tutSeen(v) { tutSeen = v; },
   get savedAt() { return savedAt; }, set savedAt(v) { savedAt = v; },
-  get pops() { return pops; }, get rateNow() { return rateNow; }, BEACON_KEEP, beaconDrinks,
+  get pops() { return pops; }, get rateNow() { return rateNow; },
   get sharedTotal() { return sharedTotal; }, set sharedTotal(v) { sharedTotal = v; },
   villageFinished, compact,
   get barMode() { return barMode; }, set barMode(v) { barMode = v; },
