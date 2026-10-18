@@ -2190,7 +2190,27 @@ function makeOrder(tier) {
   const fullness = k => res[k] / Math.max(1, caps[k]);
   const order = tradeKinds().sort((a, b) =>
     (fullness(b) - fullness(a)) || (RES.indexOf(b) - RES.indexOf(a)));
-  const giveK = order[0], getK = order[order.length - 1];
+  let giveK = order[0], getK = order[order.length - 1];
+  /* And among a tie, a pairing the board does not already have.
+
+     With two kinds a tie had one answer and the board was its three sizes.
+     With three, a village with its barns equally full -- every finished
+     village, whose barns all sit at the ceiling -- broke every tie the same
+     way, and all three stalls read "give 🪨, get 🪵": measured, 180 offers
+     out of 180 at a tenth, half and nine tenths full. The rule is unchanged
+     -- give from the fullest, get the emptiest -- and among the kinds tied for
+     either, the first pairing not already standing at another stall wins,
+     taken in the order the comparison above prefers. */
+  const f = order.map(fullness), hi = f[0], lo = f[f.length - 1];
+  const tops = order.filter(k => hi - fullness(k) < 1e-9);
+  const bots = order.slice().reverse().filter(k => fullness(k) - lo < 1e-9);
+  if (tops.length > 1 || bots.length > 1) {
+    const standing = new Set(orders.map(o => o.giveK + '>' + o.getK));
+    const pairs = [];
+    for (const g2 of tops) for (const t2 of bots) if (g2 !== t2) pairs.push([g2, t2]);
+    const fresh = pairs.find(([g2, t2]) => !standing.has(g2 + '>' + t2)) || pairs[0];
+    if (fresh) [giveK, getK] = fresh;
+  }
   /* Prefer a size that is not already on the board, so the stalls stay
      distinct even though they are filled one at a time. */
   /* Round to fives once the numbers are big enough to look untidy otherwise --

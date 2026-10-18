@@ -10953,6 +10953,34 @@
         + ' that met the old board is left holding it: '
         + left.map(o => o.giveN + ' ' + o.giveK + ' -> ' + o.getN + ' ' + o.getK).join(', '));
     }
+
+    /* And stores that are equally full, which is where a finished village
+       sits: every granary at its ceiling, or every pile drawn down by the
+       same build. Fullness gives no answer then, and the tie used to break
+       the same way every time -- the last kind given, the first taken -- so
+       the board read "stone for wood" three times in three sizes, the same
+       forced trade the tiers exist to end, on 180 boards of 180. Among tied
+       kinds a stall must take a pairing the board does not already show. */
+    {
+      scene(3, [['quarry', 7, 1]]);
+      let same = 0, boards = 0, example = '';
+      for (const fill of [0.1, 0.5, 0.9]) for (let r = 0; r < 4; r++) {
+        for (const k of V.RES) V.res[k] = Math.round(V.caps[k] * fill);
+        V.orders = [];
+        let guard = 0;
+        while (V.orders.length < V.orderSlots() && guard++ < 60) {
+          V.orderT = 1e6; V.step(1 / 30);
+          for (const k of V.RES) V.res[k] = Math.round(V.caps[k] * fill);
+        }
+        if (V.orders.length < 2) continue;
+        boards++;
+        const shapes = V.orders.map(o => o.giveK + ' for ' + o.getK);
+        if (new Set(shapes).size < shapes.length) { same++; example = example || shapes.join(', '); }
+      }
+      if (boards < 6) fails.push('only ' + boards + ' boards with equal stores filled two stalls, so the sweep proved almost nothing');
+      else if (same) fails.push(same + ' of ' + boards + ' boards with equally full stores repeat a trade on two stalls'
+        + ' -- e.g. ' + example + ' -- so a tie in fullness forces one pairing in several sizes');
+    }
     return { fails };
   };
   /* The trade board.
