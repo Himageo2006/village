@@ -6565,6 +6565,22 @@ function villageStats() {
    row that cannot fit even its opening is a string that needs rewriting, and
    the sweep still reports it. */
 const ROW_SEP = '   ·   ';
+/* What selling storage costs, in the order it matters.
+
+   Written for two kinds, "Selling it drops storage to 🪵1500  🌾1500  —  🪵230
+   would spoil" fitted; the third kind made it 1062 logical pixels on a 1024
+   screen, off the glass and out of its panel on every phone shape -- and it
+   joined its clauses with a dash, so the row could not shed one to fit. The
+   goods that would be lost come first, because that is the warning; the new
+   ceiling follows as a clause the row may drop, and when every kind's ceiling
+   is the same number, which it nearly always is, it is said once. */
+function spoilText(room, spoiling) {
+  const vals = RES.map(k => room[k]);
+  const ceiling = vals.every(v => v === vals[0]) ? vals[0] + ' each'
+    : RES.map(k => RES_ICON[k] + room[k]).join('  ');
+  return 'Selling it spoils ' + spoiling.map(([k, v]) => RES_ICON[k] + v).join(' ')
+    + ROW_SEP + 'storage drops to ' + ceiling;
+}
 /* A row sheds from the RIGHT, so the clauses have to be in order of what the
    player would miss most -- and for a long time they were in the order they
    were written in.
@@ -6659,11 +6675,7 @@ function drawPanel() {
     ? RES.map(k => [k, Math.max(0, Math.floor(res[k] - sellRoom[k]))]).filter(([, v]) => v > 0)
     : [];
   const armedHere = sellArm && sellArm.id === p.id;
-  const spoilRow = (armedHere && spoiling.length)
-    ? 'Selling it drops storage to ' + RES.map(k => RES_ICON[k] + sellRoom[k]).join('  ')
-      + '   —   ' + spoiling.map(([k, v]) => RES_ICON[k] + v).join(' ')
-      + ' would spoil'
-    : null;
+  const spoilRow = (armedHere && spoiling.length) ? spoilText(sellRoom, spoiling) : null;
   /* And what a sale costs that is NOT storage. Only a storehouse ever said:
      selling a house sent its villagers away and stopped whatever they worked,
      selling a well dropped the lift to everything in reach, and the button just
@@ -6837,11 +6849,8 @@ function drawPanel() {
        the goods sat there looking fine until the next delivery clamped them
        away. A storehouse has no efficiency line, so the row it would have used
        says what the sale would actually cost. */
-    if (sellRoom && spoiling.length) {
-      panelRow('Selling it drops storage to ' + RES.map(k => RES_ICON[k] + sellRoom[k]).join('  ')
-        + '   —   ' + spoiling.map(([k, v]) => RES_ICON[k] + v).join(' ')
-        + ' would spoil', lx, R.y - R.h / 2 + 148 * u, R.w - 56 * u, 20 * u, '#e59a86', '');
-    }
+    if (sellRoom && spoiling.length)
+      panelRow(spoilText(sellRoom, spoiling), lx, R.y - R.h / 2 + 148 * u, R.w - 56 * u, 20 * u, '#e59a86', '');
   } else if (b.pop) {
     /* And who lives here, which livedIn has always answered correctly for the
        village and this row asked popOf instead: a level three house sent to four
@@ -6981,22 +6990,29 @@ function drawPanel() {
        the hall still allows a storehouse; when it does not, the honest answers
        are spending and trading. */
     const full = RES.filter(isFull);
+    /* Joined with the row separator, so a phone sheds the trailing clauses --
+       the workplace average first -- instead of the whole row running out of
+       the panel. Joined with a narrower dot, panelRow could find nothing to
+       drop: with stone counted as shipped, "6 villagers · 🪵7.4k 🌾8.7k 🪨1.2k
+       shared with neighbours · workplaces at …" came out 934 logical wide in
+       a 922 panel on every phone shape. */
+    const SEP = ROW_SEP;
     let s2 = count(st.villagers, 'villager');
     /* A finished village has no binding constraint left to name -- it has
        nothing it needs -- so the hall reports what it has given instead. */
-    if (villageFinished()) s2 += '  ·  ' + (sharedText()
-      ? sharedText() + ' shared with neighbours'
+    if (villageFinished()) s2 += SEP + (sharedText()
+      ? sharedText() + ' shared'
       : 'every goal done');
     /* "stores" only when it is all of them. Written when there were two kinds,
        it said "🪵 store full" with all three barns full and "stores full" with
        any two -- the first naming one barn of three, the second all three. */
-    else if (full.length) s2 += '  ·  ' + (full.length === RES.length ? 'stores'
+    else if (full.length) s2 += SEP + (full.length === RES.length ? 'stores'
       : full.map(k => RES_ICON[k]).join(' ') + (full.length > 1 ? ' stores' : ' store'))
       + ' full — ' + (permitted('store') ? 'build a storehouse' : 'spend or trade');
-    else if (st.idle) s2 += '  ·  ' + st.idle + ' idle — ' + remedy('jobs');
-    else if (empty) s2 += '  ·  ' + count(empty, 'post') + ' empty — ' + remedy('people');
-    else s2 += '  ·  every post filled';
-    if (st.avg !== null) s2 += '  ·  workplaces at ' + Math.round(st.avg * 100) + '%';
+    else if (st.idle) s2 += SEP + st.idle + ' idle — ' + remedy('jobs');
+    else if (empty) s2 += SEP + count(empty, 'post') + ' empty — ' + remedy('people');
+    else s2 += SEP + 'every post filled';
+    if (st.avg !== null) s2 += SEP + 'workplaces at ' + Math.round(st.avg * 100) + '%';
     panelRow(s2, lx, R.y - R.h / 2 + 78 * u, R.w - 56 * u, 20 * u,
       villageFinished() ? '#a9bd9c'
       : (full.length || st.idle || empty) ? '#f0c88a'
@@ -7034,9 +7050,30 @@ function drawPanel() {
        at 32px and 403 logical pixels wide in 397, which is how the contrast
        checker found it -- sampling beside the text landed on the button's own
        border. Two shrink implementations, one of them tested. */
-    const fit = fitLines(text, r2.w - 16 * u, (small ? 21 : 24) * u, 11 * u, 1);
-    g.fillText(fit.lines[0], r2.x, r2.y);
+    btnText(text, r2, (small ? 21 : 24) * u);
   };
+  /* One line if it fits, and the words over the goods if it does not.
+
+     The fitter will not shrink below the readable floor, so a label wider than
+     its button at that size simply spills -- and three kinds of goods made the
+     prices long enough to: on the narrowest phone a mill's "Sell  🪵470 🌾30
+     🪨232" was 287 logical pixels in a 230 button and its "Upgrade to 4   🪵1165
+     🪨580  🌾85" 435 in 419, running into each other in the middle of the card.
+     The buttons are 80 tall, room for two lines at the size they already use,
+     so nothing has to be dropped: the action on one line, what it costs or pays
+     on the next. */
+  function btnText(text, r2, px) {
+    const maxW = r2.w - 16 * u;
+    const one = fitLines(text, maxW, px, 11 * u, 1);
+    const i = text.search(RES.map(k => RES_ICON[k]).join('|'));
+    if (g.measureText(one.lines[0]).width <= maxW + 0.5 || i <= 0) { g.fillText(one.lines[0], r2.x, r2.y); return; }
+    const parts = [text.slice(0, i).trim(), text.slice(i).trim().replace(/\s{2,}/g, ' ')];
+    const size = Math.min(...parts.map(t => fitLines(t, maxW, px, 11 * u, 1).px));
+    g.font = `bold ${Math.round(size)}px Segoe UI, sans-serif`;
+    const lh = size * 1.12;
+    g.fillText(parts[0], r2.x, r2.y - lh / 2);
+    g.fillText(parts[1], r2.x, r2.y + lh / 2);
+  }
   btnFace(R.move, true, 'Move', true);
   const sv = canSell(p) ? sellValue(p) : null;
   /* Show what you would ACTUALLY receive, not the nominal refund. A refund is
@@ -7106,8 +7143,7 @@ function drawPanel() {
      pixels on a well and forty-three on a market. Two buttons on the same card,
      drawn two different ways, and only one of them fitted. */
   g.fillStyle = ok ? '#eaffd6' : DIM;
-  const upFit = fitLines(label, R.up.w - 16 * u, 24 * u, 11 * u, 1);
-  g.fillText(upFit.lines[0], R.up.x, R.up.y);
+  btnText(label, R.up, 24 * u);
   g.restore();
 }
 

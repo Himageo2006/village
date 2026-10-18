@@ -2391,7 +2391,8 @@
       // and every panel, armed and not -- the hall's with the village finished
       // and the shared total at its ceiling, its longest line
       const keepGoal = V.goalIdx, keepShared = V.sharedTotal;
-      V.goalIdx = V.GOALS.length; V.sharedTotal = { wood: 1e15, food: 999999 };
+      // every kind, at its longest: as wood and food, stone was whatever the last checker left
+      V.goalIdx = V.GOALS.length; V.sharedTotal = { wood: 1e15, food: 999999, stone: 9876543 };
       for (const p of V.placed) for (const arm of [false, true]) {
         V.panel = p.id; V.sellArm = arm ? { id: p.id, t: 4 } : null;
         found.push(...scan('panel:' + p.key + (arm ? ' armed' : '') + ' @' + h + tag));
@@ -2399,6 +2400,61 @@
       V.panel = null; V.sellArm = null;
       V.goalIdx = keepGoal; V.sharedTotal = keepShared;
     }
+    }
+    /* And every building's panel, in every state that changes what it says.
+
+       The panels above are the panels of two sweep villages, each building at
+       whatever level the village gave it, and always with the village
+       finished -- because that is the hall's longest line. But a panel is a
+       stack of rows that change with the level, the barns and the goals: an
+       unfinished village's hall names its binding constraint ("🪵 🪨 stores
+       full — build a storehouse"), a workplace at the ceiling of its barn says
+       why nobody is working it, an upgrade the barns cannot pay for says it
+       needs another storehouse. None of those had been drawn into a panel by
+       this check. So: a village with one of every kind, at levels one, three
+       and five, with the barns empty, half and full, before and after the
+       village is finished, on the narrowest, a tall and a wide screen -- and
+       every building's panel opened in each. */
+    {
+      const ALL = V.BUILDINGS.filter(b => b.key !== 'hall' && !b.found && b.key !== V.BEACON).map(b => b.key);
+      for (const [sw, sh] of [[320, 960], [360, 640], [375, 812], [768, 1024]]) {
+        asScreen(sw, sh); V.step(0.001);
+        V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
+        V.away = null; V.goalDone = null; V.finished = null; V.panel = null; V.sel = null; V.orders = [];
+        V.tutSeen.length = 0; for (const h of V.TUT) V.tutSeen.push(h.id);
+        V.ensureHall(); V.placed[0].lvl = 5; V.placed[0].t = 1;
+        const L = V.landBounds();
+        for (const k of ALL) { for (const kAll of V.RES) V.res[kAll] = 9e5;
+          for (let r = L.lo, done = false; r <= L.hi && !done; r++) for (let c = L.lo; c <= L.hi && !done; c++)
+            if (V.canPlace(k, c, r, V.occupied())) { V.place(k, c, r); done = true; } }
+        for (const lvl of [1, 3, 5]) {
+          /* Levels set, then finished the game's own way so the barns, the
+             houses and the posts all follow -- caps are only worked out when
+             a building comes out of its scaffolding. */
+          for (const q of V.placed) { if (q.key !== 'hall' && !V.isDecor(q.key)) q.lvl = Math.min(V.LVL_MAX, lvl); q.t = 0.999; q.build = 0.01; }
+          for (let i = 0; i < 6; i++) V.step(1 / 30);
+          for (let i = 0; i < 90; i++) V.step(1 / 30);
+          for (const finished of [false, true]) for (const fill of [0, 0.5, 1]) {
+            V.goalIdx = finished ? V.GOALS.length : 0;
+            /* The hall of a finished village reports what it has shipped, in
+               every kind -- set at its longest rather than inherited, or the
+               verdict depends on what the checkers before this one shipped.
+               It did: alone this passed, in the battery it found the hall's
+               three-kind line out of its panel. */
+            V.sharedTotal = finished ? { wood: 1e15, food: 999999, stone: 9876543 } : { wood: 0, food: 0, stone: 0 };
+            V.goalDone = null; V.finished = null; V.away = null;
+            for (const k of V.RES) V.res[k] = Math.floor(V.caps[k] * fill);
+            V.step(0.001); V.goalDone = null; V.finished = null;
+            for (const k of V.RES) V.res[k] = Math.floor(V.caps[k] * fill);
+            for (const p of V.placed) {
+              V.panel = p.id; V.sellArm = null;
+              found.push(...scan('panel:' + p.key + ' L' + lvl + (finished ? ' finished' : '') + ' fill ' + fill + ' @' + sw + 'x' + sh));
+            }
+          }
+        }
+        V.panel = null; V.goalIdx = 0;
+      }
+      V.sharedTotal = { wood: 0, food: 0, stone: 0 };
     }
     asScreen(keepW, keepH); V.step(0.001);
     return { overflowing: found.length, worst: found.slice(0, 10) };
@@ -4513,13 +4569,15 @@
         p.stock = 0;
         const held = Object.fromEntries(V.RES.map(k => [k, V.res[k]]));
         const btn = rowsArmed(p, false).find(t => isBtn.test(t)) || '';
-        const warn = rowsArmed(p, true).find(t => /would spoil/.test(t)) || '';
+        const warn = rowsArmed(p, true).find(t => /Selling it spoils/.test(t)) || '';
         if (V.res.wood !== held.wood || V.res.food !== held.food)
           fails.push('the stores moved from ' + held.wood + ',' + held.food + ' to ' + V.res.wood
             + ',' + V.res.food + ' while the sell panel was being read, so its two figures do not describe one moment');
         if (!btn) { fails.push('a ' + key + ' panel has no sell button to read'); continue; }
         const said = /nothing|none/.test(btn) ? { wood: 0, food: 0 } : pick(btn);
-        const spoiled = warn ? pick(warn.split('—')[1] || '') : { wood: 0, food: 0 };
+        /* What spoils is the first clause now -- "Selling it spoils 🪵230 · storage
+           drops to 1500 each" -- and the row may shed the second on a phone. */
+        const spoiled = warn ? pick(warn.split('·')[0].replace(/^.*spoils/, '')) : { wood: 0, food: 0 };
         const before = Object.fromEntries(V.RES.map(k => [k, V.res[k]]));
         p.stock = 0;
         if (!V.sellBuilding(p)) { fails.push('the refund check could not sell a ' + key); continue; }
@@ -12043,7 +12101,7 @@
           if (!grab().some(t => /shipped/.test(t) && t.includes(icon)))
             fails.push('with only ' + k + ' sent over the water, the goal strip does not show it');
           V.panel = hall ? hall.id : null; V.step(0.001); quiet();
-          if (!grab().some(t => /shared with neighbours/.test(t) && t.includes(icon)))
+          if (!grab().some(t => /\bshared\b/.test(t) && t.includes(icon)))
             fails.push('with only ' + k + ' sent over the water, the hall does not show it');
           only[k] = 1e14; V.sharedTotal = only;
           if (!V.currentGoal().done())
