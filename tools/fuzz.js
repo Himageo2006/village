@@ -499,7 +499,7 @@
         for (const k of ['wood', 'food']) got[k] += V.res[k] - before[k];
         half();
       }
-      for (const k of ['wood', 'food']) {
+      for (const k of V.RES) {
         const real = got[k] / secs;
         if (Math.abs(real - want[k]) > 0.15 * Math.max(real, want[k]))
           fails.push('the HUD rate for ' + k + ' is not what arrives: expected ' + want[k].toFixed(2) + '/s, got ' + real.toFixed(2) + '/s');
@@ -990,12 +990,28 @@
              it found them, which a sold storehouse can. */
           const over = k => V.res[k] - V.caps[k];
           const wasOver = Object.fromEntries(V.RES.map(k => [k, over(k)]));
-          V.grantAway(Math.random() * V.AWAY_MAX * 1.5);
+          /* And the other direction, which nothing asked: a kind the village is
+             making, with room for it, comes back with SOME of it. The two rules
+             above only forbid taking and overpaying, and a stretch away that
+             paid no stone at all broke neither -- twelve thousand rounds, and
+             every other checker, passed it. Asked only when nothing is under
+             construction, because a building finishing while away can move
+             hands and change what is made, and only of a stretch long enough to
+             make several of it even at the beacon's half. */
+          const settled = V.placed.every(p => p.t >= 1);
+          const rate = V.potentialRate();
+          const secs = Math.random() * V.AWAY_MAX * 1.5;
+          V.grantAway(secs);
           V.away = null;
           for (const k of V.RES) {
             const got = V.res[k] - before[k];
             if (got < -1e-6) fails.push('being away took resources away (' + k + ')');
             if (over(k) > Math.max(0, wasOver[k]) + 1e-6) fails.push('being away paid past the ceiling (' + k + ')');
+            const room = V.caps[k] - before[k];
+            if (settled && secs >= V.AWAY_MIN && rate[k] > 0.01 && room >= 4
+                && rate[k] * Math.min(secs, V.AWAY_MAX) * 0.5 >= 4 && !(got > 0))
+              fails.push('being away paid no ' + k + ' with the village making ' + rate[k].toFixed(2)
+                + '/s of it and room for ' + Math.round(room));
           }
         }
         else if (act === 'reload') { const bad = roundTrip(); if (bad) fails.push(bad + ' (after ' + act + ')'); }
@@ -1023,7 +1039,20 @@
           const well = !!b2.boost;
           const wPred = well ? V.wellGainAt(pc, pr, 1).gain : 0;
           const was = (charm || well) ? V.deliveredAtMul(V.charmMul()) : 0;
+          /* And what it cost is what it says it costs, every kind of it.
+
+             Nothing asked. The only rule about the purse was that it never goes
+             below zero, which a building that forgets part of its price never
+             breaks -- a game that charged a mill its wood and not its sixty
+             stone passed twelve thousand rounds of this soak, and every other
+             checker besides. */
+          const purse = Object.fromEntries(V.RES.map(k => [k, V.res[k]]));
           const put = V.place(b2.key, pc, pr);
+          if (put) for (const k of V.RES) {
+            const paid = purse[k] - V.res[k], want = (b2.cost && b2.cost[k]) || 0;
+            if (Math.abs(paid - want) > 1e-6)
+              fails.push('building a ' + b2.key + ' took ' + paid + ' ' + k + ' and it costs ' + want);
+          }
           if (put && charm) {
             const got = V.deliveredAtMul(V.charmMul()) - was;
             if (Math.abs(got - pred) > 1e-6) fails.push('a ' + b2.key + ' promised +' + pred.toFixed(4) + '/s and delivered +' + got.toFixed(4));
@@ -2951,13 +2980,13 @@
         ['a finished village, an hour away', true, 0.9, 3600],
       ]) {
         scene(finished, fill);
-        const before = { wood: V.res.wood, food: V.res.food };
-        const sharedBefore = { wood: V.sharedTotal.wood, food: V.sharedTotal.food };
+        const before = Object.fromEntries(V.RES.map(k => [k, V.res[k]]));
+        const sharedBefore = Object.fromEntries(V.RES.map(k => [k, V.sharedTotal[k] || 0]));
         V.away = null;
         V.grantAway(secs);
         const card = V.away;
-        const got = { wood: V.res.wood - before.wood, food: V.res.food - before.food };
-        const shared = { wood: V.sharedTotal.wood - sharedBefore.wood, food: V.sharedTotal.food - sharedBefore.food };
+        const got = Object.fromEntries(V.RES.map(k => [k, V.res[k] - before[k]]));
+        const shared = Object.fromEntries(V.RES.map(k => [k, V.sharedTotal[k] - sharedBefore[k]]));
         const anyGot = got.wood + got.food > 0.01;
         if (secs < V.AWAY_MIN) {
           /* Under the floor a reload is not a reward, and there is no card to
@@ -2979,7 +3008,7 @@
           fails.push('the card for ' + name + (card.capped ? ' says' : ' does not say') + ' the village worked as long as it can');
         /* What it banked. The card floors each figure, so it may understate by
            less than one and never by more, and never overstate at all. */
-        for (const k of ['wood', 'food']) {
+        for (const k of V.RES) {
           const said = (card.got || {})[k] || 0;
           if (said > got[k] + 0.001 || said < got[k] - 1)
             fails.push('the card for ' + name + ' says it banked ' + said + ' ' + k + ' and the village gained ' + got[k].toFixed(2));
@@ -2996,7 +3025,7 @@
           fails.push('an unfinished village added ' + (shared.wood + shared.food).toFixed(1)
             + ' to the tally of what it has given away');
         if (finished) {
-          for (const k of ['wood', 'food']) {
+          for (const k of V.RES) {
             const said = (card.shared || {})[k] || 0;
             if (said > shared[k] + 0.001 || said < shared[k] - 1)
               fails.push('the card for ' + name + ' says it shared ' + said + ' ' + k + ' and the tally rose by ' + shared[k].toFixed(2));
@@ -3017,13 +3046,13 @@
          branch is perfectly happy with. A reload is a few seconds. */
       {
         scene(false, 0.2);
-        const before = { wood: V.res.wood, food: V.res.food };
+        const before = Object.fromEntries(V.RES.map(k => [k, V.res[k]]));
         V.away = null;
         V.grantAway(5);
         if (V.away) fails.push('shutting the game and opening it again put a welcome-back card up');
-        if (V.res.wood - before.wood + (V.res.food - before.food) > 0.01)
+        if (V.RES.reduce((n, k) => n + V.res[k] - before[k], 0) > 0.01)
           fails.push('shutting the game and opening it again paid the village '
-            + ((V.res.wood - before.wood) + (V.res.food - before.food)).toFixed(1));
+            + V.RES.reduce((n, k) => n + V.res[k] - before[k], 0).toFixed(1));
       }
       if (cards < 4) fails.push('only ' + cards + ' welcome-back cards were read, so the block proved little');
       if (!banked) fails.push('not one card banked anything, so the figures prove nothing');
@@ -3402,10 +3431,10 @@
       half(); for (let i = 0; i < 20 * 30; i++) V.step(1 / 30); half();
       const secs = 120, got = { wood: 0, food: 0 }, rep = { wood: 0, food: 0 };
       for (let s2 = 0; s2 < secs; s2++) {
-        const was = { wood: V.res.wood, food: V.res.food }, e = V.expectedRate();
-        for (const k of ['wood', 'food']) rep[k] += e[k];
+        const was = Object.fromEntries(V.RES.map(k => [k, V.res[k]])), e = V.expectedRate();
+        for (const k of V.RES) rep[k] += e[k];
         for (let i = 0; i < 30; i++) V.step(1 / 30);
-        for (const k of ['wood', 'food']) got[k] += V.res[k] - was[k];
+        for (const k of V.RES) got[k] += V.res[k] - was[k];
         half();
       }
       if (p.t >= 1) { fails.push('the ' + key + ' finished building while it was meant to be held under scaffolding'); continue; }
@@ -3480,9 +3509,9 @@
       half(); for (let i = 0; i < 10 * 30; i++) V.step(1 / 30); half();
       let arrived = 0;
       for (let s2 = 0; s2 < 60; s2++) {
-        const was = V.res.wood + V.res.food;
+        const was = V.RES.reduce((n, k) => n + V.res[k], 0);
         for (let i = 0; i < 30; i++) V.step(1 / 30);
-        arrived += (V.res.wood + V.res.food) - was; half();
+        arrived += (V.RES.reduce((n, k) => n + V.res[k], 0)) - was; half();
       }
       const said = V.charmDelivered();
       if (!charm) fails.push('the charm check placed no decorations, so it proves nothing');
@@ -3591,7 +3620,7 @@
         for (let s2 = 0; s2 < secs2; s2++) {
           const was = V.res.wood + V.res.food;
           for (let i = 0; i < 30; i++) V.step(1 / 30);
-          got += (V.res.wood + V.res.food) - was; half2();
+          got += (V.RES.reduce((n, k) => n + V.res[k], 0)) - was; half2();
         }
         return got / secs2;
       };
@@ -4273,21 +4302,24 @@
       for (let i = 0; i < 60 * 30; i++) V.step(1 / 30);     // the levels land through a real finish
       parkGoals();
       const purse = () => { for (const k of V.RES) V.res[k] = Math.floor(V.caps[k] * 0.3); };
-      const moved = fn => { const w = V.res.wood, f = V.res.food; const ok = fn();
-        return { ok, wood: V.res.wood - w, food: V.res.food - f }; };
+      /* Every kind. Summed as wood and food, a statue's eighty stone was never
+         counted as paid, and the half-back rule for stone compared its refund
+         with NaN -- which passes whatever the refund is. */
+      const moved = fn => { const was = Object.fromEntries(V.RES.map(k => [k, V.res[k]])); const ok = fn();
+        return { ok, ...Object.fromEntries(V.RES.map(k => [k, V.res[k] - was[k]])) }; };
       for (const key of ['farm', 'lumber', 'house', 'store', 'statue']) {
         purse();
-        const paid = { wood: 0, food: 0 };
+        const paid = Object.fromEntries(V.RES.map(k => [k, 0]));
         const first = moved(() => put(key));
         if (!first.ok) { fails.push('the refund rule check could not put up a ' + key); continue; }
-        paid.wood -= first.wood; paid.food -= first.food;
+        for (const k of V.RES) paid[k] -= first[k];
         const p = V.placed[V.placed.length - 1];
         for (let i = 0; i < 60 * 30; i++) V.step(1 / 30);
         for (let n = 0; n < 2; n++) {
           purse();
           if (!V.canUpgrade(p)) break;
           const u = moved(() => V.upgradeBuilding(p));
-          paid.wood -= u.wood; paid.food -= u.food;
+          for (const k of V.RES) paid[k] -= u[k];
           for (let i = 0; i < 60 * 30; i++) V.step(1 / 30);
         }
         p.stock = 0;
@@ -4297,7 +4329,7 @@
         const back = moved(() => V.sellBuilding(p));
         if (!back.ok) { fails.push('the refund rule check could not sell a ' + key); continue; }
         halves++;
-        for (const k of ['wood', 'food']) {
+        for (const k of V.RES) {
           const want = Math.floor(paid[k] / 2), got = Math.round(back[k]);
           if (Math.abs(got - want) > 1)
             fails.push('a level ' + V.lvlOf(p) + ' ' + key + ' cost ' + paid[k] + ' ' + k
@@ -4394,7 +4426,7 @@
         const at = { empty: 0, half: Math.floor(cap.wood / 2), full: cap.wood, short: cap.wood - 40 }[where];
         V.res.wood = at; V.res.food = where === 'empty' ? 0 : Math.min(at, cap.food);
         p.stock = 0;
-        const held = { wood: V.res.wood, food: V.res.food };
+        const held = Object.fromEntries(V.RES.map(k => [k, V.res[k]]));
         const btn = rowsArmed(p, false).find(t => isBtn.test(t)) || '';
         const warn = rowsArmed(p, true).find(t => /would spoil/.test(t)) || '';
         if (V.res.wood !== held.wood || V.res.food !== held.food)
@@ -4403,11 +4435,11 @@
         if (!btn) { fails.push('a ' + key + ' panel has no sell button to read'); continue; }
         const said = /nothing|none/.test(btn) ? { wood: 0, food: 0 } : pick(btn);
         const spoiled = warn ? pick(warn.split('—')[1] || '') : { wood: 0, food: 0 };
-        const before = { wood: V.res.wood, food: V.res.food };
+        const before = Object.fromEntries(V.RES.map(k => [k, V.res[k]]));
         p.stock = 0;
         if (!V.sellBuilding(p)) { fails.push('the refund check could not sell a ' + key); continue; }
         quotes++;
-        for (const k of ['wood', 'food']) {
+        for (const k of V.RES) {
           const got = Math.round(V.res[k] - before[k]), want = said[k] - spoiled[k];
           if (Math.abs(got - want) > 1)
             fails.push('a level ' + lvl + ' ' + key + ' sold with the stores ' + where
@@ -5326,7 +5358,7 @@
     for (let i = 0; i < 300 * 30; i++) {
       if (i % 30 === 0) { for (const k of ['wood', 'food']) V.res[k] = V.caps[k] / 2; prev = V.res.wood + V.res.food; }
       V.step(1 / 30); t += 1 / 30;
-      const now = V.res.wood + V.res.food;
+      const now = V.RES.reduce((n, k) => n + V.res[k], 0);
       if (now > prev + 0.001) { arrivals++; quiet = Math.max(quiet, t - last); last = t; }
       prev = now;
     }
@@ -6694,7 +6726,7 @@
       else {
         V.panel = farm.id; V.step(0.001); clear();
         const quoted = V.sellValue(farm) || {};
-        const before = { wood: V.res.wood, food: V.res.food, n: V.placed.length };
+        const before = { ...Object.fromEntries(V.RES.map(k => [k, V.res[k]])), n: V.placed.length };
         const idle = sellLabel();
         press(farm); presses++;
         if (!V.placed.includes(farm))
@@ -6712,7 +6744,7 @@
           if (V.placed.length !== before.n - 1)
             fails.push('selling one building changed the village by ' + (V.placed.length - before.n) + ' buildings');
           /* One load of slack: a villager can put eight down in the same tick. */
-          for (const k of ['wood', 'food']) {
+          for (const k of V.RES) {
             const got = V.res[k] - before[k], want = quoted[k] || 0;
             if (got < want - 0.01 || got > want + V.CARRY + 0.01)
               fails.push('the panel quoted ' + want + ' ' + k + ' back and selling returned ' + got.toFixed(1));
@@ -6964,12 +6996,12 @@
 
       /* And buying it does what the card said it would. */
       for (const k of V.RES) V.res[k] = 9e5; V.step(0.001);
-      const purse = { wood: V.res.wood, food: V.res.food };
+      const purse = Object.fromEntries(V.RES.map(k => [k, V.res[k]]));
       if (!V.claimLand()) {
         fails.push('ring ' + tier + ' could not be claimed by a village holding everything');
         continue;
       }
-      for (const k of ['wood', 'food'])
+      for (const k of V.RES)
         if (Math.abs((purse[k] - V.res[k]) - (cost[k] || 0)) > 0.01)
           fails.push('ring ' + tier + ' was priced at ' + cost[k] + ' ' + k + ' and took '
             + (purse[k] - V.res[k]).toFixed(0));
@@ -7125,7 +7157,7 @@
     fresh(5);
     { seat('house'); for (let i = 0; i < 4; i++) seat('farm');
       settle(); run(120);
-      for (const k of ['wood', 'food']) V.res[k] = V.caps[k];
+      for (const k of V.RES) V.res[k] = V.caps[k];
       V.step(0.001);
       const st = V.villageStats(), empty = st.slots - st.working;
       const row = note('a village whose stores are at the ceiling', hallRow());
@@ -7140,7 +7172,7 @@
     { for (let i = 0; i < 4; i++) seat('store');
       seat('house'); seat('farm');
       settle(); run(120);
-      for (const k of ['wood', 'food']) V.res[k] = V.caps[k];
+      for (const k of V.RES) V.res[k] = V.caps[k];
       V.step(0.001);
       const row = note('a village at the storehouse limit with full stores', hallRow());
       if (!V.atLimit('store'))
@@ -7636,7 +7668,7 @@
       if (i < 0) fails.push('no card on a paid-up board offered itself to be tapped');
       else {
         const o = V.orders[i], slot = o.slot;
-        const before = { wood: V.res.wood, food: V.res.food, done: V.ordersDone };
+        const before = { ...Object.fromEntries(V.RES.map(k => [k, V.res[k]])), done: V.ordersDone };
         if (!V.fillOrder(o)) fails.push('a card reading "' + said[i] + '" refused the tap');
         else {
           if (Math.abs((before[o.giveK] - V.res[o.giveK]) - o.giveN) > 0.01)
@@ -8443,12 +8475,12 @@
                 const said = num(lab.text);
                 if (said[0] !== L + 1)
                   fails.push('the button for ' + who + ' offers level ' + said[0]);
-                const before = { wood: V.res.wood, food: V.res.food };
+                const before = Object.fromEntries(V.RES.map(k => [k, V.res[k]]));
                 if (!V.upgradeBuilding(p)) {
                   fails.push('the button for ' + who + ' says "' + lab.text + '" and the tap did nothing');
                   continue;
                 }
-                for (const k of ['wood', 'food']) {
+                for (const k of V.RES) {
                   const spent = before[k] - V.res[k];
                   if (Math.abs(spent - (want[k] || 0)) > 0.01)
                     fails.push('the button for ' + who + ' said "' + lab.text + '" and the village paid '
@@ -8629,7 +8661,7 @@
     };
     /* Every load that left a pair of hands. */
     const run = secs => {
-      const carried = { wood: 0, food: 0 };
+      const carried = Object.fromEntries(V.RES.map(k => [k, 0]));
       const s0 = { wood: V.sharedTotal.wood, food: V.sharedTotal.food };
       const r0 = { wood: V.res.wood, food: V.res.food };
       for (let i = 0; i < secs * 30; i++) {
@@ -8670,7 +8702,7 @@
             + ' to its neighbours ' + name);
         continue;
       }
-      for (const k of ['wood', 'food'])
+      for (const k of V.RES)
         if (Math.abs(r.carried[k] - (r.kept[k] + r.given[k])) > 0.01)
           fails.push('the villagers carried ' + r.carried[k].toFixed(1) + ' ' + k + ' home ' + name
             + ' and the village kept ' + r.kept[k].toFixed(1) + ' and gave away ' + r.given[k].toFixed(1));
@@ -8689,7 +8721,7 @@
        works it, so not one villager is sent home and not one load is put down
        in the same breath. The tally must not notice. */
     scene(true);
-    for (const k of ['wood', 'food']) V.res[k] = V.caps[k];
+    for (const k of V.RES) V.res[k] = V.caps[k];
     const statue = V.placed.find(p => p.key === 'statue');
     const refund = statue && V.canSell(statue) ? V.sellValue(statue) : null;
     let thrown = null;
@@ -9173,7 +9205,12 @@
          about one a second into a room of seven hundred. A maxed-out village
          earns seven, fills the stores in a minute and a half, and left no
          unclamped stretch to measure once a fault made the figure bigger. */
-      for (const k of ['store', 'store', 'store', 'store', 'house', 'house', 'farm', 'lumber']) seat(k);
+      /* A quarry, and a house to staff it: every kind the village keeps is
+         made here, or the rules below that walk the list have nothing to say
+         about the ones nobody makes. Without it, an away path that paid no
+         stone at all passed this sweep with the rules already written for
+         every kind -- there was simply no stone being made to miss. */
+      for (const k of ['store', 'store', 'store', 'store', 'house', 'house', 'house', 'farm', 'lumber', 'quarry']) seat(k);
       for (const p of V.placed) if (p.key !== 'hall') { p.t = 1; p.lvl = p.key === 'store' ? 5 : 2; }
       V.step(0.001);
       for (let i = 0; i < 400 * 30; i++) V.step(1 / 30);
@@ -9188,7 +9225,7 @@
     const rate = V.potentialRate();
     for (const k of V.RES) V.res[k] = 0; V.away = null; V.step(0.001);
     let secs = 300;
-    for (const k of ['wood', 'food'])
+    for (const k of V.RES)
       if (rate[k] > 0) secs = Math.min(secs, 0.8 * V.caps[k] / rate[k]);
     secs = Math.floor(secs);
     if (secs < V.AWAY_MIN) {
@@ -9197,12 +9234,17 @@
       return { secs, fails };
     }
 
-    const before = { wood: V.res.wood, food: V.res.food };
+    /* Every kind, as an object as well as a loop. With the loops walking the
+       list and these two written as wood and food, stone came out as
+       undefined minus a number -- NaN -- and every comparison against NaN is
+       false, so "almost no stone", "stone reached the ceiling" and "stone pays
+       a quarter too little" all quietly passed whatever stone did. */
+    const before = Object.fromEntries(V.RES.map(k => [k, V.res[k]]));
     V.grantAway(secs);
-    const away = { wood: V.res.wood - before.wood, food: V.res.food - before.food };
+    const away = Object.fromEntries(V.RES.map(k => [k, V.res[k] - before[k]]));
     /* And it really was unclamped, or the two sides are being asked different
        questions. */
-    for (const k of ['wood', 'food'])
+    for (const k of V.RES)
       if (away[k] > V.caps[k] - before[k] - 1)
         fails.push('the ' + k + ' haul reached the ceiling, so the comparison means nothing');
 
@@ -9210,18 +9252,18 @@
        credits the stores and puts a card up -- so the walk the villagers are
        in the middle of is the one they were in the middle of a moment ago. */
     V.away = null; for (const k of V.RES) V.res[k] = 0; V.step(0.001);
-    const live = { wood: 0, food: 0 };
+    const live = Object.fromEntries(V.RES.map(k => [k, 0]));
     for (let i = 0; i < secs * 30; i++) {
-      const was = { wood: V.res.wood, food: V.res.food };
+      const was = Object.fromEntries(V.RES.map(k => [k, V.res[k]]));
       V.step(1 / 30); V.orders = [];
-      for (const k of ['wood', 'food']) if (V.res[k] > was[k]) live[k] += V.res[k] - was[k];
+      for (const k of V.RES) if (V.res[k] > was[k]) live[k] += V.res[k] - was[k];
     }
 
     /* A quarter either way. The quarter is not arbitrary: it is the size of the
        error the source records finding by hand in this very figure. Measured
        here at 1.001 and 1.019. */
     const SLACK = 0.25;
-    for (const k of ['wood', 'food']) {
+    for (const k of V.RES) {
       if (live[k] < 1) { fails.push('the village delivered almost no ' + k + ' while it was watched, so the comparison proves nothing'); continue; }
       const r = away[k] / live[k];
       if (r < 1 - SLACK)
@@ -9302,10 +9344,9 @@
     }
 
     V.away = null; V.step(0.001);
-    return { secs, away: { wood: +away.wood.toFixed(1), food: +away.food.toFixed(1) },
-      live: { wood: +live.wood.toFixed(1), food: +live.food.toFixed(1) },
-      ratio: { wood: live.wood ? +(away.wood / live.wood).toFixed(3) : null,
-        food: live.food ? +(away.food / live.food).toFixed(3) : null }, slack: SLACK, fails };
+    const each = f => Object.fromEntries(V.RES.map(k => [k, f(k)]));
+    return { secs, away: each(k => +away[k].toFixed(1)), live: each(k => +live[k].toFixed(1)),
+      ratio: each(k => live[k] ? +(away[k] / live[k]).toFixed(3) : null), slack: SLACK, fails };
   };
 
   window.rescueSweep = function () {
@@ -9402,9 +9443,17 @@
     for (const kAll of V.RES) V.grant(kAll, 9e6, 0, 0); V.step(0.001);
     {
       const L = V.landBounds();
-      const seat = k => { for (let c = L.lo; c <= L.hi; c++) for (let r = L.lo; r <= L.hi; r++)
-        if (V.canPlace(k, c, r, V.occupied())) return V.place(k, c, r); return null; };
-      for (const k of ['house', 'house', 'house', 'store', 'farm', 'farm', 'lumber', 'lumber']) seat(k);
+      /* Paid for one at a time. The grant above is clamped to the ceiling, so
+         the purse ran dry part-way down the list: the second lumber camp was
+         never built in this sweep's whole life, and the quarry added below
+         would not have been either. */
+      const seat = k => { for (const kAll of V.RES) V.grant(kAll, 9e6, 0, 0);
+        for (let c = L.lo; c <= L.hi; c++) for (let r = L.lo; r <= L.hi; r++)
+          if (V.canPlace(k, c, r, V.occupied())) return V.place(k, c, r);
+        fails.push('the rate check could not build its ' + k); return null; };
+      /* With a quarry, so every chip has something to be measured against --
+         the stone chip had never been held to anything here. */
+      for (const k of ['house', 'house', 'house', 'house', 'store', 'farm', 'farm', 'lumber', 'lumber', 'quarry']) seat(k);
       for (const p of V.placed) if (p.key !== 'hall') { p.lvl = 3; p.t = 1; }
       for (let i = 0; i < 200 * 30; i++) V.step(1 / 30);
     }
@@ -9420,7 +9469,7 @@
        conditions the window itself uses, first. */
     for (let i = 0; i < 60 * 30; i++) {
       V.step(1 / 30); V.orders = []; V.goalDone = null;
-      for (const k of ["wood", "food"]) V.res[k] = Math.min(V.res[k], V.caps[k] / 2);
+      for (const k of V.RES) V.res[k] = Math.min(V.res[k], V.caps[k] / 2);
     }
 
     /* Ninety seconds of ordinary work. The stores are put back to half every
@@ -9428,13 +9477,13 @@
        neither side would count it -- and the trade board is swept, so the only
        thing that can raise the counters is somebody carrying something in. */
     const WINDOW = 90;
-    const got = { wood: 0, food: 0 }, sum = { wood: 0, food: 0 };
+    const got = Object.fromEntries(V.RES.map(k => [k, 0])), sum = Object.fromEntries(V.RES.map(k => [k, 0]));
     let ticks = 0;
     for (let i = 0; i < WINDOW * 30; i++) {
-      const was = { wood: V.res.wood, food: V.res.food };
+      const was = Object.fromEntries(V.RES.map(k => [k, V.res[k]]));
       V.step(1 / 30);
       V.orders = []; V.goalDone = null;
-      for (const k of ['wood', 'food']) {
+      for (const k of V.RES) {
         if (V.res[k] > was[k]) got[k] += V.res[k] - was[k];
         V.res[k] = Math.min(V.res[k], V.caps[k] / 2);
         sum[k] += V.rateNow[k];
@@ -9447,7 +9496,7 @@
        wide enough that a retune of the window or the easing has somewhere to
        go, and narrow enough that counting a delivery twice cannot hide. */
     const SLACK = 0.25;
-    for (const k of ['wood', 'food']) {
+    for (const k of V.RES) {
       const real = got[k] / WINDOW, shown = sum[k] / ticks;
       arriving[k] = { real: +real.toFixed(3), shown: +shown.toFixed(3),
         ratio: real > 0 ? +(shown / real).toFixed(3) : null };
@@ -9466,8 +9515,8 @@
       V.step(1 / 30);
       for (const k of V.RES) V.res[k] = V.caps[k]; V.orders = [];
     }
-    const quiet = { wood: +V.rateNow.wood.toFixed(4), food: +V.rateNow.food.toFixed(4) };
-    for (const k of ['wood', 'food'])
+    const quiet = Object.fromEntries(V.RES.map(k => [k, +V.rateNow[k].toFixed(4)]));
+    for (const k of V.RES)
       if (quiet[k] > 0.05)
         fails.push('the ' + k + ' chip still reads ' + quiet[k]
           + ' a second after a minute and a half of nothing arriving');
@@ -10806,7 +10855,7 @@
         const ids = V.orders.map(o => o.id).join(',');
         for (let s2 = 0; s2 < 600; s2++) {
           for (let i = 0; i < 30; i++) V.step(1 / 30);
-          for (const k of ['wood', 'food']) V.res[k] = V.caps[k] / 2;
+          for (const k of V.RES) V.res[k] = V.caps[k] / 2;
         }
         if (V.orders.map(o => o.id).join(',') !== ids)
           fails.push('a board with an offer the player could take was changed under them');
