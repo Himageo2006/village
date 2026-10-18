@@ -5129,10 +5129,22 @@ function barRects() {
    off the bottom of the block rather than off a number that assumed one
    row. */
 const CHIP_W = 210, CHARM_W = 190, CHIP_H = 76, CHIP_GAP = 16, CHIP_X = 24, CHIP_DROP = 10;
+/* A kind of goods gets its pill once the village has some of it or can make
+   it -- the rule the charm pill has always kept.
+
+   Stone had a pill from the first second of a new village: "0/300 idle", on a
+   row of its own because three pills and the speaker button do not fit on
+   one, pushing the first hint down beneath it. A new player can neither make
+   stone nor spend it until the hall allows a quarry, so the first screen
+   anyone ever sees spent a whole row saying nothing about a thing they could
+   not do anything with. It arrives the moment a quarry can be built, or the
+   moment any turns up in the barn. */
+const chipKinds = () => RES.filter(k => res[k] >= 1
+  || BUILDINGS.some(b => b.makes && b.makes[k] && unlocked(b.key)));
 function chipRects() {
   const u = US(), gap = CHIP_GAP * u, x0 = CHIP_X * u;
   /* The charm pill only exists once there is charm to report. */
-  const kinds = charmTotal() > 0 ? [...RES, 'charm'] : RES.slice();
+  const kinds = charmTotal() > 0 ? [...chipKinds(), 'charm'] : chipKinds();
   const M = muteRect();
   const out = [];
   let row = 0, x = x0;

@@ -11988,6 +11988,47 @@
       }
     }
 
+    /* 5. and the pills along the top show exactly the kinds that mean
+       something: every kind the village holds or could make has one, and a
+       kind it neither holds nor can make yet has none -- a new village's first
+       screen spent a whole row on "0/300 idle" for stone it could not touch.
+       The first half is the one that must never break: hiding a kind the
+       player has is far worse than showing one they do not. */
+    {
+      const ctx = document.querySelector('canvas').getContext('2d'), oF = ctx.fillText;
+      const icons = () => { const lines = [];
+        ctx.fillText = function (t, ...a) { lines.push(String(t)); return oF.call(this, t, ...a); };
+        try { V.draw(); } finally { ctx.fillText = oF; }
+        /* A pill draws its icon and then its amount, "25/1380"; the same icon
+           on a price in the tray is followed by something else. */
+        return RES.filter(k => lines.some((t, i) => t === V.RES_ICON[k] && /^\d+\/\d+$/.test(lines[i + 1] || ''))); };
+      const hall = V.hallOf();
+      const keep = { lvl: hall && hall.lvl, res: { ...V.res }, seen: V.tutSeen.slice(), panel: V.panel };
+      const makeable = k => V.BUILDINGS.some(b => b.makes && b.makes[k] && V.unlocked(b.key));
+      try {
+        V.panel = null; V.sel = null; V.away = null; V.goalDone = null; V.finished = null;
+        for (const lvl of [1, 2, 3, 5]) for (const holding of [false, true]) {
+          if (!hall) break;
+          hall.lvl = lvl; hall.t = 1; V.step(0.001);
+          for (const k of RES) V.res[k] = holding ? 25 : 0;
+          V.step(0.001);
+          for (const k of RES) V.res[k] = holding ? 25 : 0;
+          const shown = icons();
+          for (const k of RES) {
+            const ought = holding || makeable(k);
+            if (ought && !shown.includes(k))
+              fails.push('at hall ' + lvl + (holding ? ' holding some ' : ' able to make ') + k + ', there is no ' + k + ' pill');
+            if (!ought && shown.includes(k))
+              fails.push('at hall ' + lvl + ' with no ' + k + ' and nothing to make it, there is a ' + k + ' pill anyway');
+          }
+        }
+      } finally {
+        if (hall) hall.lvl = keep.lvl;
+        for (const k of RES) V.res[k] = keep.res[k];
+        V.panel = keep.panel; V.step(0.001);
+      }
+    }
+
     return { kinds: RES.slice(), named, fails };
   };
   /* ---------- a card has room for its own words, and for a finger ----------
