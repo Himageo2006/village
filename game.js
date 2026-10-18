@@ -5767,8 +5767,14 @@ function drawGoal() {
      running total instead -- which is the number the goal is actually about,
      and the only one in the game that never stops going up. Better than a
      blank: the line would otherwise read "reward" with nothing after it. */
+  /* Only for the goals it measures. Past the ladder the goals alternate
+     between shipping and trade orders, and every one of them carried the
+     shipping total -- so the strip read "Fill 10 trade orders in all · 0/10 ·
+     shipped nothing yet", a figure about something the goal does not ask for,
+     which reads as a second thing to do. A goal with its own count needs
+     nothing after it. */
   const reward = gl.after
-    ? 'shipped ' + (sharedText() || 'nothing yet')
+    ? (gl.at ? '' : 'shipped ' + (sharedText() || 'nothing yet'))
     : 'reward ' + Object.entries(gl.give).map(([k, v]) => RES_ICON[k] + v).join(' ');
   /* How far along, for the goals that can count.
 
@@ -5797,7 +5803,7 @@ function drawGoal() {
   const txt = gl.text
     + (prog && prog[0] < prog[1] ? '   ·   ' + prog[0] + '/' + prog[1] : '')
     + (buy ? '   ·   ' + buy : '')
-    + '   ·   ' + reward;
+    + (reward ? '   ·   ' + reward : '');
   const fit = fitLines(txt, W - 108 * u, 22 * u, 13 * u, 2);
   const tw = Math.max(...fit.lines.map(l => g.measureText(l).width));
   const w = Math.min(W - 40 * u, tw + 56 * u);

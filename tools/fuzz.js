@@ -2456,6 +2456,45 @@
       }
       V.sharedTotal = { wood: 0, food: 0, stone: 0 };
     }
+    /* And every goal on the strip, and every ring on the claim card.
+
+       The strip above is whatever goal the sweep villages happen to be on, and
+       one purchase goal set by hand; the claim card is drawn once. But the
+       strip's line is built from the goal -- its wording, a count, a reward or
+       what is still short -- and the claim card from the ring's price against
+       the barns, short, affordable or more than they can hold. So each goal in
+       the ladder and the first stretch past it, and each ring of land, with
+       the barns empty, half and full. */
+    {
+      const PAST = 8;
+      for (const [sw, sh] of [[320, 960], [360, 640], [375, 812], [768, 1024]]) {
+        asScreen(sw, sh); V.step(0.001);
+        V.placed.length = 0; V.villagers.length = 0; V.landTier = 1; V.coverPlaced();
+        V.away = null; V.goalDone = null; V.finished = null; V.panel = null; V.sel = null; V.orders = [];
+        V.claimAsk = false; V.barMode = 'build';
+        V.tutSeen.length = 0; for (const h of V.TUT) V.tutSeen.push(h.id);
+        V.ensureHall(); V.placed[0].lvl = 3; V.placed[0].t = 1;
+        V.sharedTotal = { wood: 123456, food: 7654321, stone: 98765 };
+        for (let gi = 0; gi < V.GOALS.length + PAST; gi++) for (const fill of [0, 0.5, 1]) {
+          V.goalIdx = gi; V.goalDone = null; V.finished = null;
+          for (const k of V.RES) V.res[k] = Math.floor(V.caps[k] * fill);
+          V.step(0.001); V.goalDone = null; V.finished = null; V.away = null;
+          V.goalIdx = gi;
+          for (const k of V.RES) V.res[k] = Math.floor(V.caps[k] * fill);
+          found.push(...scan('goal ' + gi + ' fill ' + fill + ' @' + sw + 'x' + sh));
+        }
+        V.goalIdx = 0;
+        for (let tier = 0; tier < V.LAND_MAX; tier++) for (const fill of [0, 0.5, 1]) {
+          V.landTier = tier; V.claimAsk = true;
+          for (const k of V.RES) V.res[k] = Math.floor(V.caps[k] * fill);
+          V.step(0.001); V.goalDone = null; V.finished = null; V.claimAsk = true;
+          for (const k of V.RES) V.res[k] = Math.floor(V.caps[k] * fill);
+          found.push(...scan('claim ring ' + (tier + 1) + ' fill ' + fill + ' @' + sw + 'x' + sh));
+        }
+        V.claimAsk = false; V.landTier = 1;
+      }
+      V.sharedTotal = { wood: 0, food: 0, stone: 0 }; V.goalIdx = 0;
+    }
     asScreen(keepW, keepH); V.step(0.001);
     return { overflowing: found.length, worst: found.slice(0, 10) };
   };
@@ -4919,6 +4958,36 @@
         else if (V.buyProgress('charm') !== '')
           fails.push('the strip spoke for a charm goal that is already met: "' + V.buyProgress('charm') + '"');
       }
+    }
+
+    /* And past the ladder, each goal says what it measures and nothing else.
+       The shipping goals carry the shipping total; the trade-order goals carry
+       their own count and used to carry the shipping total as well -- "Fill 10
+       trade orders in all · 0/10 · shipped nothing yet", a figure about a
+       different goal that reads as a second thing to do. */
+    {
+      const ctx = document.querySelector('canvas').getContext('2d'), oF = ctx.fillText;
+      const strip = () => { const lines = [];
+        ctx.fillText = function (t, ...a) { lines.push(String(t)); return oF.call(this, t, ...a); };
+        try { V.draw(); } finally { ctx.fillText = oF; }
+        return lines.find(t => /^(Ship|Fill) /.test(t)) || ''; };
+      const keepIdx = V.goalIdx, keepShared = V.sharedTotal;
+      V.panel = null; V.sel = null; V.away = null; V.claimAsk = false;
+      V.tutSeen.length = 0; for (const h of V.TUT) V.tutSeen.push(h.id);
+      V.sharedTotal = { wood: 1234, food: 0, stone: 0 };
+      let ships = 0, trades = 0;
+      for (let gi = V.GOALS.length; gi < V.GOALS.length + 6; gi++) {
+        V.goalIdx = gi; V.goalDone = null; V.finished = null; V.step(0.001);
+        V.goalDone = null; V.finished = null; V.goalIdx = gi;
+        const gl = V.currentGoal(), line = strip();
+        cases++;
+        if (!line) { fails.push('goal ' + gi + ' past the ladder ("' + gl.text + '") was not on the strip'); continue; }
+        const isTrade = /trade orders/.test(gl.text);
+        if (isTrade) { trades++; if (/shipped/.test(line)) fails.push('a trade-order goal names the shipping total: "' + line + '"'); }
+        else { ships++; if (!/shipped/.test(line)) fails.push('a shipping goal does not say what has been shipped: "' + line + '"'); }
+      }
+      if (!ships || !trades) fails.push('the goals past the ladder were not both kinds: ' + ships + ' shipping, ' + trades + ' trade');
+      V.goalIdx = keepIdx; V.sharedTotal = keepShared; V.step(0.001);
     }
     return { cases, fails };
   };
