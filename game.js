@@ -4738,6 +4738,8 @@ function drawWorld() {
         if (stuck && hallFor(stuck[0]))
           txt = 'needs ' + RES_ICON[stuck[0]] + ' — a ' + BUILDINGS.find(b => b.makes && b.makes[stuck[0]]).name.toLowerCase()
             + ' comes with hall level ' + hallFor(stuck[0]);
+        else if (cantAfford && overCaps(B(selKey).cost))
+          txt = 'costs more than your stores hold — ' + (atLimit('store') ? 'needs a bigger storehouse' : 'needs another storehouse');
         else if (cantAfford) txt = 'need ' + shortText(B(selKey).cost) + ' more';
         else if (isWell) {
           /* A well already standing is a different question from one that is
@@ -4783,7 +4785,32 @@ function drawWorld() {
           : (hands * deliveredOf(probe)).toFixed(2) + '/s here'
             + (from && from.key === selKey ? '   ·   now ' + (hands * deliveringNow(from)).toFixed(2)
               : eff > 0.85 ? '' : '   ·   best ' + (hands * bestDeliveredOf(probe)).toFixed(2));
-        const w2 = g.measureText(txt).width + 26;
+        /* Two lines when one will not fit on the glass.
+
+           Shifting keeps a label on the screen only while it is narrower than
+           the screen. The longest ones now carry two clauses -- the reason and
+           the price, "no one spare — build a house first · 🪵45" -- and at full
+           zoom that ran from -59 to 1083 on a 1024 screen, cut at both ends,
+           and the end that went was the price. Broken at the separator nearest
+           the middle, so each line is a clause and not half of one. */
+        const kk = sc * camScale(), room = (W - 20) / kk;
+        let lines = [txt];
+        if (g.measureText(txt).width + 26 > room) {
+          const cuts = [];
+          for (const sep of ['   ·   ', ' — ']) {
+            let i = txt.indexOf(sep);
+            while (i >= 0) { cuts.push([i, sep]); i = txt.indexOf(sep, i + 1); }
+          }
+          if (!cuts.length) for (let i = txt.indexOf(' '); i >= 0; i = txt.indexOf(' ', i + 1)) cuts.push([i, ' ']);
+          if (cuts.length) {
+            const [i, sep] = cuts.reduce((a, b) => Math.abs(b[0] - txt.length / 2) < Math.abs(a[0] - txt.length / 2) ? b : a);
+            /* The dash stays at the end of the first line, where it reads as
+               "and so"; the dot between two figures is only a gap. */
+            lines = [txt.slice(0, i) + (sep === ' — ' ? ' —' : ''), txt.slice(i + sep.length)];
+          }
+        }
+        const w2 = Math.max(...lines.map(l => g.measureText(l).width)) + 26;
+        const ph = lines.length > 1 ? 60 : 34;
         /* Held on the screen. Everything else drawn in the world is allowed to
            wander off it -- a badge belongs to a building, and a building the
            camera is not looking at has no business painting over one it is.
@@ -4805,7 +4832,7 @@ function drawWorld() {
            bottom of the screen, since the tray is open whenever this is drawn. */
         {
           const at = camProject(cx, cy - 96 * sc), k = sc * camScale();
-          const hw = w2 / 2 * k, hh = 17 * k, pad = 10;
+          const hw = w2 / 2 * k, hh = ph / 2 * k, pad = 10;
           const tabs = tabRects()[0];
           const loX = hw + pad, hiX = W - hw - pad;
           const loY = hudTop() + hh + pad, hiY = tabs.y - tabs.h / 2 - hh - pad;
@@ -4819,10 +4846,10 @@ function drawWorld() {
         g.strokeStyle = cantAfford ? '#e59a86' : (isWell || isCharm) ? (good ? '#9fe86b' : '#e59a86')
           : empty ? '#e59a86' : eff > 0.66 ? '#9fe86b' : eff > 0.42 ? '#e8c98a' : '#e59a86';
         g.lineWidth = 2.5;
-        g.beginPath(); g.roundRect(-w2 / 2, -17, w2, 34, 17); g.fill(); g.stroke();
+        g.beginPath(); g.roundRect(-w2 / 2, -ph / 2, w2, ph, 17); g.fill(); g.stroke();
         g.fillStyle = cantAfford ? '#f0a583' : (isWell || isCharm) ? (good ? '#b6f58a' : '#f0a583')
           : empty ? '#f0a583' : eff > 0.66 ? '#b6f58a' : eff > 0.42 ? '#f0d89a' : '#f0a583';
-        g.fillText(txt, 0, 1);
+        lines.forEach((l, i) => g.fillText(l, 0, 1 + (i - (lines.length - 1) / 2) * 26));
         g.restore();
         };
       }
@@ -4997,7 +5024,7 @@ function cardStrings(b, u) {
     out.push([(RES_ICON[k] || '') + v + ' ✨' + b.charm, 14 * u, small, false]);
   }
   /* The two lines that replace a price, which are the same on every card. */
-  out.push(['no spare', 14 * u, small, false], ['99/99 🔒', 14 * u, small, false], ['hall ' + HALL_MAX + ' 🔒', 14 * u, small, false]);
+  out.push(['no spare', 14 * u, small, false], ['99/99 🔒', 14 * u, small, false], ['hall ' + HALL_MAX + ' 🔒', 14 * u, small, false], ['bigger 📦', 14 * u, small, false]);
   return out;
 }
 /* And everything a trade stall may have to print. The numbers on one are
@@ -5378,6 +5405,13 @@ function drawHUD() {
          "you cannot have another". */
       const stuck = blockedBy(r.b.cost);
       if (stuck && hallFor(stuck[0])) trayRow('hall ' + hallFor(stuck[0]) + ' 🔒', '#e5b28a', TRAY_ONE);
+      /* And a price bigger than the barns can hold is the same kind of
+         shortfall: no amount of saving reaches it. The beacon costs 2,500 wood
+         and 1,600 stone, and a finished village with one storehouse holds 700
+         of each -- its card read "−🪵2150 −🪨1250". The upgrade button and the
+         claim card already say "needs another storehouse" in this state; the
+         card says the short form of the same thing. */
+      else if (overCaps(r.b.cost)) trayRow(atLimit('store') ? 'bigger 📦' : 'more 📦', '#e5b28a', TRAY_ONE);
       else {
         const short = Object.entries(r.b.cost)
           .map(([k, v]) => [k, Math.max(0, Math.ceil(v - res[k]))]).filter(([, v]) => v > 0);
