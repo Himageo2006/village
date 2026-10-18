@@ -12029,6 +12029,43 @@
       }
     }
 
+    /* 6. and no card asks for a kind the village cannot make yet as though it
+       were a shortfall. A statue is on the decorate tray from the first
+       minute and cost "−🪨80" there -- short of stone a village cannot make
+       until its hall allows a quarry, with no pill and no building to explain
+       it. Such a card names the hall level that unlocks the kind instead. */
+    {
+      const ctx = document.querySelector('canvas').getContext('2d'), oF = ctx.fillText;
+      const grab = () => { const lines = [];
+        ctx.fillText = function (t, ...a) { lines.push(String(t)); return oF.call(this, t, ...a); };
+        try { V.draw(); } finally { ctx.fillText = oF; }
+        return lines; };
+      const hall = V.hallOf();
+      const keep = { lvl: hall && hall.lvl, res: { ...V.res }, mode: V.barMode, panel: V.panel };
+      const makeable = k => V.BUILDINGS.some(b => b.makes && b.makes[k] && V.unlocked(b.key));
+      let looked = 0;
+      try {
+        V.panel = null; V.sel = null; V.ghost = null; V.away = null; V.goalDone = null; V.finished = null;
+        for (let lvl = 1; lvl <= 5 && hall; lvl++) for (const mode of ['build', 'decor']) {
+          hall.lvl = lvl; hall.t = 1; V.barMode = mode; V.step(0.001);
+          for (const k of RES) V.res[k] = 0;
+          const lines = grab(); looked++;
+          for (const k of RES) {
+            if (makeable(k)) continue;
+            const bad = lines.filter(t => t.startsWith('−' + V.RES_ICON[k]));
+            if (bad.length)
+              fails.push('at hall ' + lvl + ' the ' + mode + ' tray shows "' + bad[0] + '", a shortfall in '
+                + k + ' that nothing the village can build yet will make');
+          }
+        }
+      } finally {
+        if (hall) hall.lvl = keep.lvl;
+        for (const k of RES) V.res[k] = keep.res[k];
+        V.barMode = keep.mode; V.panel = keep.panel; V.step(0.001);
+      }
+      if (!looked) fails.push('the unmakeable-shortfall check looked at no trays');
+    }
+
     return { kinds: RES.slice(), named, fails };
   };
   /* ---------- a card has room for its own words, and for a finger ----------

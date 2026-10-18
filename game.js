@@ -2884,6 +2884,19 @@ const DECOR_MAX = 60;
 const decorCount = () => placed.reduce((n, p) => n + (isDecor(p.key) && !isFound(p.key) ? 1 : 0), 0);
 const unlocked = key => key === 'hall' || isDecor(key) || allowedOf(key) > 0;
 const atLimit = key => isDecor(key) ? decorCount() >= DECOR_MAX : countOf(key) >= allowedOf(key);
+/* Whether the village can make a kind of goods yet, and the hall level that
+   first lets it. A price the village is short of in a kind it cannot make is
+   not a shortfall it can close by waiting or working -- see the tray and the
+   placement label, which say what unlocks it instead. */
+const canMake = k => BUILDINGS.some(b => b.makes && b.makes[k] && unlocked(b.key));
+const hallFor = k => {
+  for (let l = 1; l <= HALL_MAX; l++)
+    if (BUILDINGS.some(b => b.makes && b.makes[k] && (HALL[l].allow[b.key] || 0) > 0)) return l;
+  return 0;
+};
+/* The first kind in a price that the village is short of AND cannot make. */
+const blockedBy = cost => Object.entries(cost || {})
+  .find(([k, v]) => res[k] < v && !canMake(k)) || null;
 /* Whether "build one of these" is advice the player can actually take: the hall
    allows another, and the card is on the tray to be tapped. Three places asked
    it and a fourth -- the hint that fires when the stores fill -- did not, and
@@ -4721,7 +4734,11 @@ function drawWorld() {
            costs nothing. */
         const cantAfford = selBuild && !affordable(selKey);
         let txt;
-        if (cantAfford) txt = 'need ' + shortText(B(selKey).cost) + ' more';
+        const stuck = cantAfford ? blockedBy(B(selKey).cost) : null;
+        if (stuck && hallFor(stuck[0]))
+          txt = 'needs ' + RES_ICON[stuck[0]] + ' — a ' + BUILDINGS.find(b => b.makes && b.makes[stuck[0]]).name.toLowerCase()
+            + ' comes with hall level ' + hallFor(stuck[0]);
+        else if (cantAfford) txt = 'need ' + shortText(B(selKey).cost) + ' more';
         else if (isWell) {
           /* A well already standing is a different question from one that is
              not there yet -- see wellMoveGain. */
@@ -4980,7 +4997,7 @@ function cardStrings(b, u) {
     out.push([(RES_ICON[k] || '') + v + ' ✨' + b.charm, 14 * u, small, false]);
   }
   /* The two lines that replace a price, which are the same on every card. */
-  out.push(['no spare', 14 * u, small, false], ['99/99 🔒', 14 * u, small, false]);
+  out.push(['no spare', 14 * u, small, false], ['99/99 🔒', 14 * u, small, false], ['hall ' + HALL_MAX + ' 🔒', 14 * u, small, false]);
   return out;
 }
 /* And everything a trade stall may have to print. The numbers on one are
@@ -5352,9 +5369,20 @@ function drawHUD() {
          "no spare" already sits at 103.1 -- so it takes the mark the game
          already uses for a figure being taken away: a leading minus, 99.2, the
          same width class as the label beside it. Colour as well, not instead. */
-      const short = Object.entries(r.b.cost)
-        .map(([k, v]) => [k, Math.max(0, Math.ceil(v - res[k]))]).filter(([, v]) => v > 0);
-      costRows(short, '#f0a583', '', '−');   // #e59a86 measured 4.45 on a selected card
+      /* Except a shortfall nobody can close. A statue is on the decorate
+         tray from the first minute -- ornaments are not rationed by the hall
+         -- and it costs eighty stone, which a village cannot make until its
+         hall allows a quarry. The card said "−🪨80": short of a thing with no
+         pill, no building and no way to get it, which reads as a fault. It
+         says what unlocks it instead, in the lock the tray already uses for
+         "you cannot have another". */
+      const stuck = blockedBy(r.b.cost);
+      if (stuck && hallFor(stuck[0])) trayRow('hall ' + hallFor(stuck[0]) + ' 🔒', '#e5b28a', TRAY_ONE);
+      else {
+        const short = Object.entries(r.b.cost)
+          .map(([k, v]) => [k, Math.max(0, Math.ceil(v - res[k]))]).filter(([, v]) => v > 0);
+        costRows(short, '#f0a583', '', '−');   // #e59a86 measured 4.45 on a selected card
+      }
     }
     g.restore();
   }
