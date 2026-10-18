@@ -1876,75 +1876,90 @@
         }
       }
     }
-    /* And the long labels, which the rich village above can never show.
+    /* And every label the game can put over a spot, not the few a rich village
+       shows.
 
-       Two of them carry two clauses -- "no one spare — build a house first ·
-       🪵45" over a farm nobody can staff, and "costs more than your stores
-       hold — needs another storehouse" over a beacon the barns cannot pay
-       for -- and neither appears in a village with hands to spare and room in
-       the barns. The farm's ran from -59 to 1083 on a 1024 screen at full zoom,
-       price first off the edge, and every check above passed. A label too wide
-       for the glass now breaks onto two lines; this holds it there. */
+       The block above measures five kinds in a village with hands to spare and
+       room in the barns, and the two longest labels in the game never appear
+       there: "no one spare — build a house first · 🪵45" ran from -59 to 1083
+       on a 1024 screen at full zoom and every check passed. A first fix
+       measured those two by hand. This measures them all: six villages that
+       between them produce every branch of the label -- new and short of
+       hands, new and broke, a hall-two village with no stone, a rich one, a
+       crowded one, a finished one with small stores -- and every building and
+       ornament a player could actually pick in each, at the middle zoom and
+       the closest, centred and pushed to either edge. Each label must sit on
+       the glass, and the run must have met enough different labels that it
+       cannot quietly shrink to the easy ones. */
     {
       const ctx = document.querySelector('canvas').getContext('2d');
-      const LONG = /no one spare|stores hold/;
-      const longPill = (key, c, r) => {
-        V.sel = key; V.ghost = { c, r, fits: true, why: null, ok: true };
-        let box = null, last = null;
+      const capture = () => {
+        let box = null, texts = [];
         const oF = ctx.fillText, oR = ctx.roundRect;
-        ctx.roundRect = function (x, y, w, h) { last = { x, y, w, h, m: this.getTransform() }; return oR.apply(this, arguments); };
-        ctx.fillText = function (t) { if (last && !box && LONG.test(String(t))) box = { t: String(t), r: last }; return oF.apply(this, arguments); };
+        ctx.roundRect = function (x, y, w, h, r) {
+          if (r === 17 && (h === 34 || h === 60)) { box = { x, y, w, h, m: this.getTransform() }; texts = []; }
+          return oR.apply(this, arguments); };
+        ctx.fillText = function (t) { if (box && texts.length < 2) texts.push(String(t)); return oF.apply(this, arguments); };
         try { V.draw(); } finally { ctx.fillText = oF; ctx.roundRect = oR; }
-        V.sel = null; V.ghost = null;
         if (!box) return null;
-        const m = box.r.m, oy = -V.screenTop();
-        return { t: box.t, L: m.a * box.r.x + m.e, R: m.a * (box.r.x + box.r.w) + m.e,
-          T: m.d * box.r.y + m.f - oy, B: m.d * (box.r.y + box.r.h) + m.f - oy };
+        const m = box.m, oy = -V.screenTop();
+        return { t: texts[0] || '', L: m.a * box.x + m.e, R: m.a * (box.x + box.w) + m.e,
+          T: m.d * box.y + m.f - oy, B: m.d * (box.y + box.h) + m.f - oy };
       };
-      const scenes = [
-        ['farm', () => {                         // a new village, everybody working
-          V.placed.length = 0; V.villagers.length = 0; V.landTier = 0; V.coverPlaced();
-          V.goalIdx = 0; V.ensureHall(); V.placed[0].lvl = 1; V.placed[0].t = 1;
-          const L = V.landBounds();
-          for (const k of ['house', 'lumber']) { for (const kAll of V.RES) V.res[kAll] = 9e3;
-            for (let c = L.lo, done = false; c <= L.hi && !done; c++) for (let r = L.lo; r <= L.hi && !done; r++)
-              if (V.canPlace(k, c, r, V.occupied())) { V.place(k, c, r); done = true; } }
-          for (const q of V.placed) q.t = 1;
-          for (let i = 0; i < 300; i++) V.step(1 / 30);
-          for (const k of V.RES) V.res[k] = 0; V.res.wood = 200; V.res.food = 100;
-        }],
-        ['beacon', () => {                       // a finished village with one small storehouse
-          V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
-          V.ensureHall(); V.placed[0].lvl = 5; V.placed[0].t = 1; V.goalIdx = V.GOALS.length;
-          V.step(0.001); V.finished = null; V.goalDone = null;
-          for (const k of V.RES) V.res[k] = Math.floor(V.caps[k] / 2);
-        }],
+      const base = (hall, tier, kinds) => {
+        V.placed.length = 0; V.villagers.length = 0; V.landTier = tier; V.coverPlaced();
+        V.goalIdx = 0; V.away = null; V.goalDone = null; V.finished = null; V.panel = null; V.sel = null; V.orders = [];
+        V.ensureHall(); V.placed[0].lvl = hall; V.placed[0].t = 1;
+        const L = V.landBounds();
+        for (const k of kinds) { for (const kAll of V.RES) V.res[kAll] = 9e5;
+          for (let r = L.lo, done = false; r <= L.hi && !done; r++) for (let c = L.lo; c <= L.hi && !done; c++)
+            if (V.canPlace(k, c, r, V.occupied())) { V.place(k, c, r); done = true; } }
+        for (const q of V.placed) q.t = 1;
+        for (let i = 0; i < 240; i++) V.step(1 / 30);
+      };
+      const states = [
+        ['new, nobody spare', () => base(1, 0, ['house', 'lumber']), { wood: 200, food: 100 }],
+        ['new, broke', () => base(1, 0, []), {}],
+        ['hall 2, no stone', () => base(2, 1, ['house', 'house', 'house', 'lumber']), { wood: 300, food: 200 }],
+        ['hall 3, rich', () => base(3, 2, ['house', 'house', 'house', 'house', 'house', 'store']), { wood: 1e5, food: 1e5, stone: 1e5 }],
+        ['hall 5, crowded', () => base(5, V.LAND_MAX, ['house', 'farm', 'farm', 'lumber', 'lumber', 'quarry', 'mill', 'store']), { wood: 1e5, food: 1e5, stone: 1e5 }],
+        ['finished, small stores', () => { base(5, V.LAND_MAX, ['house', 'house', 'store']); V.goalIdx = V.GOALS.length; }, null],
       ];
-      let longSeen = 0;
+      const purse = p => { for (const k of V.RES) V.res[k] = p ? (p[k] || 0) : Math.floor(V.caps[k] / 2); };
+      const labels = new Set();
       for (const [sw, sh] of [[375, 812], [360, 640], [768, 1024]]) {
         asScreen(sw, sh); V.step(0.001);
-        for (const [key, make] of scenes) {
+        for (const [name, make, p] of states) {
           make();
-          V.panel = null; V.away = null; V.goalDone = null; V.finished = null; V.barMode = 'build';
-          const L = V.landBounds();
-          let spot = null;
-          for (let r = L.lo; r <= L.hi && !spot; r++) for (let c = L.lo; c <= L.hi && !spot; c++)
-            if (V.canPlace(key, c, r, V.occupied())) spot = [c, r];
-          if (!spot) continue;
-          const wpt = V.tileToWorld(spot[0], spot[1]);
-          for (const z of [0.55, 1, 2.2]) for (const [ox, oy] of [[0, 0], [-420, 0], [420, 0], [0, -600], [0, 600]]) {
-            V.CAM.z = z; V.CAM.x = wpt.x + ox / (V.CAM.base * V.CAM.z); V.CAM.y = wpt.y + oy;
-            V.step(0.001); V.finished = null; V.goalDone = null;
-            const q = longPill(key, spot[0], spot[1]);
-            if (!q) continue;
-            checks++; longSeen++;
-            if (q.L < -1 || q.R > 1025 || q.T < V.hudTop() - 1 || q.B > V.hudBot() + 1)
-              bad.push({ screen: sw + 'x' + sh, z, key, label: q.t.slice(0, 28),
-                x: [Math.round(q.L), Math.round(q.R)], y: [Math.round(q.T), Math.round(q.B)] });
+          for (const b of V.BUILDINGS) {
+            /* What a player could pick from the tray in this village: not
+               the hall, not a find (the game places those), and nothing the
+               hall does not allow or has no room left for. */
+            if (b.key === 'hall' || b.found || !V.unlocked(b.key) || V.atLimit(b.key)) continue;
+            purse(p); V.step(0.001); V.finished = null; V.goalDone = null;
+            const L = V.landBounds(); let spot = null;
+            for (let r = L.lo; r <= L.hi && !spot; r++) for (let c = L.lo; c <= L.hi && !spot; c++)
+              if (V.canPlace(b.key, c, r, V.occupied())) spot = [c, r];
+            if (!spot) continue;
+            V.barMode = b.decor ? 'decor' : 'build';
+            const wpt = V.tileToWorld(spot[0], spot[1]);
+            for (const z of [1, 2.2]) for (const ox of [0, -420, 420]) {
+              V.CAM.z = z; V.CAM.x = wpt.x + ox / (V.CAM.base * V.CAM.z); V.CAM.y = wpt.y;
+              V.sel = b.key; V.ghost = { c: spot[0], r: spot[1], fits: true, ok: true, why: null };
+              V.step(0.001); V.finished = null; V.goalDone = null; purse(p);
+              const q = capture();
+              V.sel = null; V.ghost = null;
+              if (!q) continue;
+              checks++; labels.add(q.t);
+              if (q.L < -1 || q.R > 1025 || q.T < V.hudTop() - 1 || q.B > V.hudBot() + 1)
+                bad.push({ screen: sw + 'x' + sh, state: name, z, key: b.key, label: q.t.slice(0, 32),
+                  x: [Math.round(q.L), Math.round(q.R)], y: [Math.round(q.T), Math.round(q.B)] });
+            }
           }
         }
       }
-      if (!longSeen) bad.push({ note: 'none of the long placement labels was drawn, so their fit was never measured' });
+      if (labels.size < 30)
+        bad.push({ note: 'only ' + labels.size + ' different placement labels were drawn, so the fit of the rest was never measured' });
     }
     asScreen(keepW, keepH); V.step(0.001);
     return { checks, cropped: bad.length, worst: bad.slice(0, 5) };
