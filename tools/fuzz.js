@@ -8349,6 +8349,35 @@
       }
     }
     if (!noSpare) fails.push('no case had nobody spare, so the price the tray hides was never looked for');
+
+    /* And every price is written in one order: wood, food, stone. A row of
+       costs is read by position as much as by icon, and the upgrade price
+       broke it -- the food every upgrade asks was added after the building's
+       own costs, so a mill read "Upgrade to 2   🪵440  🪨265  🌾20" beside a
+       sell button and a tray that both go wood, food, stone. Asked of every
+       price list in the game rather than of one string, so a new building
+       or a new kind of reward cannot reintroduce it. */
+    const lists = [];
+    for (const b of V.BUILDINGS) {
+      lists.push([b.key + ' to build', b.cost]);
+      if (b.key === 'hall' || V.isDecor(b.key) || b.key === 'beacon') continue;
+      for (let l = 1; l < V.LVL_MAX; l++) lists.push([b.key + ' level ' + l + ' to ' + (l + 1), V.upCostOf({ key: b.key, lvl: l })]);
+    }
+    V.HALL.forEach((h, i) => h && lists.push(['hall level ' + i + ' to ' + (i + 1), h.up]));
+    V.LAND.forEach((L, i) => lists.push(['land ring ' + i, L.cost]));
+    V.GOALS.forEach(gl => lists.push(['the reward for "' + gl.text + '"', gl.give]));
+    let priced = 0;
+    for (const [what, cost] of lists) {
+      if (!cost) continue;
+      const ks = Object.keys(cost).filter(k => cost[k]);
+      if (ks.length < 2) continue;
+      priced++;
+      const idx = ks.map(k => V.RES.indexOf(k));
+      if (idx.some((x, i) => i && x < idx[i - 1]))
+        fails.push(what + ' is written ' + ks.map(k => V.RES_ICON[k] + cost[k]).join(' ')
+          + ', not in the order every other price uses (' + V.RES.map(k => V.RES_ICON[k]).join(' ') + ')');
+    }
+    if (priced < 20) fails.push('only ' + priced + ' prices of two kinds or more were found, so the order was barely asked about');
     V.goalIdx = 0; V.sel = null; V.ghost = null; V.step(0.001);
     return { cases, noSpare, fails };
   };

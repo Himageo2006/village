@@ -2009,7 +2009,12 @@ function upCostOf(p) {
   // wood-only buildings start wanting food too, so late upgrades drain both
   // piles rather than leaving one of them pointless
   if (!c.food) c.food = Math.round(f * 9 / 5) * 5;
-  return c;
+  /* In the order every other price is written in. The food was added last, so
+     a mill or a market -- the two buildings priced in stone -- read
+     "Upgrade to 2   🪵440  🪨265  🌾20" while the sell button beside it, the
+     tray and the goal strip all go wood, food, stone. A reader scanning a row
+     of costs finds each kind by where it sits, not by its icon. */
+  return Object.fromEntries(RES.filter(k => c[k]).map(k => [k, c[k]]));
 }
 const upTime = p => 4 + 2 * lvlOf(p);
 
