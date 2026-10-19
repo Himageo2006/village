@@ -6154,7 +6154,7 @@ function drawAway() {
   if (sharedParts.length) {
     /* Fitted, because a finished village away for twelve hours shares amounts
        in the millions and the line length is not knowable when it is written. */
-    const fit = fitLines('and ' + sharedParts.join(' ') + ' shared with neighbours',
+    const fit = fitLines('and ' + sharedParts.join(' ') + ' shipped to the neighbours',
       R.w - 56 * u, 20 * u, 14 * u, 1);
     g.font = `${Math.round(fit.px)}px Segoe UI, sans-serif`; g.fillStyle = '#9fd6a0';
     g.fillText(fit.lines[0], R.x, R.y + 46 * u);
@@ -7072,7 +7072,7 @@ function drawPanel() {
     /* A finished village has no binding constraint left to name -- it has
        nothing it needs -- so the hall reports what it has given instead. */
     if (villageFinished()) s2 += SEP + (sharedText()
-      ? sharedText() + ' shared'
+      ? sharedText() + ' shipped'
       : 'every goal done');
     /* "stores" only when it is all of them. Written when there were two kinds,
        it said "🪵 store full" with all three barns full and "stores full" with

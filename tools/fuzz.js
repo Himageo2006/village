@@ -12264,8 +12264,22 @@
           if (!grab().some(t => /shipped/.test(t) && t.includes(icon)))
             fails.push('with only ' + k + ' sent over the water, the goal strip does not show it');
           V.panel = hall ? hall.id : null; V.step(0.001); quiet();
-          if (!grab().some(t => /\bshared\b/.test(t) && t.includes(icon)))
-            fails.push('with only ' + k + ' sent over the water, the hall does not show it');
+          /* The hall's own row, which opens with its head count -- the goal
+             strip says "shipped" too and is drawn behind the panel, so a
+             looser test was answered by the strip. */
+          if (!grab().some(t => /villager/.test(t) && /\bshipped\b/.test(t) && t.includes(icon)))
+            fails.push('with only ' + k + ' sent over the water, the hall does not show it as shipped');
+          /* One tally, one word. The goal asks the player to "Ship 50k" and
+             its strip counts "shipped", while the hall called the same number
+             "shared" and the welcome-back card "shared with neighbours" -- so
+             the player chasing the goal opened the hall and read a different
+             word for it. The card is asked here too, for the same tally. */
+          V.away = { secs: 7200, got: { wood: 10 }, capped: false, spilled: true, shared: { [k]: 900 }, fullAfter: 60 };
+          const words = grab().filter(t => /\bshared\b/i.test(t));
+          V.away = null; V.panel = null; V.step(0.001); quiet();
+          words.push(...grab().filter(t => /\bshared\b/i.test(t)));
+          if (words.length)
+            fails.push('what the village sent over the water is called "shared" as well as "shipped": ' + words[0].slice(0, 60));
           only[k] = 1e14; V.sharedTotal = only;
           if (!V.currentGoal().done())
             fails.push('a hundred trillion ' + k + ' sent over the water does not finish "' + V.currentGoal().text + '"');
