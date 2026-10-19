@@ -5889,7 +5889,34 @@ const count = (n, one, many) => n + ' ' + (n === 1 ? one : (many || one + 's'));
    point of margin, so a frame slightly brighter than any of the 224 does not
    reopen it -- and it still reads as muted. */
 const DIM = '#a8b2a2';
+/* Remembered, because the same strings are fitted every frame.
+
+   The goal strip and the hint are drawn sixty times a second with text that
+   changes a few times a minute, and fitting a long one -- trying each size,
+   breaking by clause and by word, then balancing the lines -- measured 0.57
+   ms for the strip and 0.24 for a hint on a desktop, several times that on
+   a phone, every frame, to arrive at the answer it gave the frame before.
+   The answer depends only on the arguments and the font, so it is kept
+   against them. A font arriving late changes every width, so the store is
+   emptied when one does; and it is emptied when it grows large, because a
+   strip counting "48/600" upwards is a new string every few seconds. The
+   fitted font is still selected on the way out, which callers rely on. */
+const fitMemo = new Map();
+try { document.fonts.addEventListener('loadingdone', () => fitMemo.clear()); } catch (e) {}
 function fitLines(text, maxW, px, minPx, maxLines, weight) {
+  const key = text + '\u0001' + maxW + '\u0001' + px + '\u0001' + minPx + '\u0001' + maxLines + '\u0001' + weight;
+  const hit = fitMemo.get(key);
+  if (hit) {
+    const w = weight === undefined ? 'bold ' : weight ? weight + ' ' : '';
+    g.font = `${w}${Math.round(hit.px)}px Segoe UI, sans-serif`;
+    return hit;
+  }
+  if (fitMemo.size > 400) fitMemo.clear();
+  const fit = fitLinesNow(text, maxW, px, minPx, maxLines, weight);
+  fitMemo.set(key, fit);
+  return fit;
+}
+function fitLinesNow(text, maxW, px, minPx, maxLines, weight) {
   minPx = Math.max(TEXT_MIN, Math.min(minPx, px));
   const w = weight === undefined ? 'bold ' : weight ? weight + ' ' : '';
   /* A one-line fit must never come back as two, because every caller of it
@@ -7884,7 +7911,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, ART, villagerArt,
   hudTop, hudBot, screenTop, screenBot, readSafeArea, get SAFE() { return SAFE; }, set SAFE(v) { SAFE = v; },
   get safeKnown() { return safeKnown; }, set safeKnown(v) { safeKnown = !!v; },
-  fitLines, TUT, GOALS, get finished() { return finished; }, set finished(v) { finished = v; },
+  fitLines, fitLinesNow, TUT, GOALS, get finished() { return finished; }, set finished(v) { finished = v; },
   hasStore, onPath, PATH_SPEED, rebuildPaths, routeOf, get pathSet() { return pathSet; },
   LAND, LAND_MAX, inLand, landNext, canClaim, claimLand, landBounds, coverPlaced,
   get landTier() { return landTier; }, set landTier(v) { landTier = v; },

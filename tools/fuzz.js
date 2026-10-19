@@ -1765,6 +1765,18 @@
           const u = V.US();
           for (const t of hintTexts) {
             const fit = V.fitLines(t, W - 108 * u, 23 * u, 13 * u, 2);
+            /* And the remembered answer is the answer. fitLines keeps what it
+               worked out against its arguments, so a screen change or a
+               font that arrives late must not hand back a fit made for
+               something else -- asked here, after every shape before this
+               one has filled the store. */
+            if (V.fitLinesNow) {
+              const fresh = V.fitLinesNow(t, W - 108 * u, 23 * u, 13 * u, 2);
+              if (fresh.px !== fit.px || fresh.lines.join('\n') !== fit.lines.join('\n'))
+                fails.push('on a ' + sw + 'x' + sh + ' screen the remembered fit of "' + t.slice(0, 30)
+                  + '..." is ' + fit.lines.length + ' lines at ' + fit.px + 'px and a fresh one is '
+                  + fresh.lines.length + ' at ' + fresh.px + 'px');
+            }
             if (fit.lines.length < 2) continue;
             wrapped++;
             const c2 = document.querySelector('canvas').getContext('2d'), ws = fit.lines.map(l => c2.measureText(l).width);
