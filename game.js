@@ -7026,6 +7026,16 @@ function drawPanel() {
       if (add.length) panelRow('level ' + show + ' adds   ' + add.join(' ')
         + (up ? ' when it is done' : ''),
         lx, R.y - R.h / 2 + 148 * u, R.w - 56 * u, 20 * u, '#a9bd9c', '');
+    } else {
+      /* And at the top, what is still allowed and not yet built, in the row
+         the next level used to fill. A finished hall left that row blank --
+         a band of nothing between the allowance and the buttons -- while the
+         goal strip asked the player to "Build everything your hall allows"
+         and nothing on the hall said what that still meant. */
+      const left = Object.keys(a).filter(k => a[k] > countOf(k))
+        .map(k => B(k).icon + '+' + (a[k] - countOf(k)));
+      panelRow(left.length ? 'still to build   ' + left.join(' ') : 'every building it allows is standing',
+        lx, R.y - R.h / 2 + 148 * u, R.w - 56 * u, 20 * u, '#a9bd9c', '');
     }
   }
   panelRow(line, lx, R.y - R.h / 2 + 116 * u, R.w - 56 * u, 22 * u, '#e8c98a', '');

@@ -8906,6 +8906,38 @@
     hall.lvl = V.HALL.length - 1; hall.t = 1; V.step(0.001);
     const top = readAdds(rowsOf(hall));
     if (top) fails.push('a hall at its top level still promises what the next one adds: "' + top.row + '"');
+
+    /* And the row it frees says what is still allowed and not built -- which
+       is what the goal "Build everything your hall allows" asks -- read back
+       and held to the village, with a few of each kind missing, and then with
+       none. A blank row there was the hall at the end of the game. */
+    {
+      const a = V.HALL[V.HALL.length - 1].allow;
+      const readLeft = () => {
+        const lines = rowsOf(hall);
+        const row = lines.find(x => /^still to build/.test(x));
+        const done = lines.some(x => /^every building it allows is standing/.test(x));
+        const got = {};
+        if (row) for (const bit of row.replace(/^still to build\s+/, '').split(/\s+/).filter(Boolean)) {
+          const mm = /^(.*)\+(\d+)$/.exec(bit), key = mm && byIcon.get(mm[1]);
+          if (key) got[key] = +mm[2]; else fails.push('the top hall says "' + row + '" and "' + bit + '" is not a building and a number');
+        }
+        return { row, done, got };
+      };
+      const want = () => Object.fromEntries(Object.keys(a).map(k => [k, Math.max(0, a[k] - V.countOf(k))]).filter(([, n]) => n > 0));
+      const r1 = readLeft(), w1 = want();
+      if (!Object.keys(w1).length) fails.push('the sweep village already had everything, so "still to build" was never asked');
+      else if (!r1.row) fails.push('a top-level hall with ' + JSON.stringify(w1) + ' still to build says nothing about it');
+      else for (const k of Object.keys(a))
+        if ((r1.got[k] || 0) !== (w1[k] || 0))
+          fails.push('the top hall says ' + (r1.got[k] || 0) + ' more ' + nameOf.get(k) + ' and the village may build ' + (w1[k] || 0) + ': "' + r1.row + '"');
+      let guard = 0;
+      for (const k of Object.keys(a)) while (V.countOf(k) < a[k] && guard++ < 200) { for (const k2 of V.RES) V.res[k2] = 5e5; if (!put(k)) break; }
+      if (!Object.keys(want()).length) {
+        const r2 = readLeft();
+        if (r2.row || !r2.done) fails.push('a top-level hall with everything built does not say so: ' + (r2.row || 'a blank row'));
+      } else fails.push('the sweep could not build the whole allowance, so the finished row was never asked');
+    }
     if (steps < V.HALL.length - 2)
       fails.push('only ' + steps + ' of the hall\'s steps were walked');
 
