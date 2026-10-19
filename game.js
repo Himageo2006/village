@@ -5908,18 +5908,58 @@ function fitLines(text, maxW, px, minPx, maxLines, weight) {
      alone runs this fourteen times a frame. */
   g.font = `${w}${Math.round(px)}px Segoe UI, sans-serif`;
   if (g.measureText(text).width <= maxW) return { lines: [text], px };
-  const words = text.split(' ');
-  for (let size = px; ; size--) {
-    g.font = `${w}${Math.round(size)}px Segoe UI, sans-serif`;
+  /* Broken between clauses where it can be, and never beside a divider.
+
+     The words were packed greedily with the divider counted as a word, so a
+     two-line strip broke wherever the width ran out: "...cheapest next 🪵265
+     🌾20 🪨130   ·" over "reward 🪵3400 🌾2200", a dot hanging off the end of
+     the first line, and at the next size "...🌾185   ·   reward" over
+     "🪵3400 🌾2200", the word cut off from the figure it names. Measured
+     across a full playthrough of the goal strip. A line break already
+     separates two clauses, so where it falls on a divider the divider goes;
+     and where it can fall on one at this size, it does, before any clause is
+     split down the middle. */
+  const pack = (items, sep, width = maxW) => {
     const lines = [];
     let cur = '';
-    for (const w of words) {
-      const t = cur ? cur + ' ' + w : w;
-      if (cur && g.measureText(t).width > maxW) { lines.push(cur); cur = w; } else cur = t;
+    for (const it of items) {
+      const t = cur ? cur + sep + it : it;
+      if (cur && g.measureText(t).width > width) { lines.push(cur); cur = it; } else cur = t;
     }
     lines.push(cur);
-    if (size <= minPx || (lines.length <= maxLines
-      && lines.every(l => g.measureText(l).width <= maxW))) return { lines, px: size };
+    return lines;
+  };
+  /* And balanced, once the size and the number of lines are settled.
+
+     Packed greedily, the first line takes everything it can and the last
+     gets the remainder, which is often a word or two: the first thing a new
+     player reads was "Build a house first — villagers live there, and
+     villagers do all" over "the work". The same number of lines at the same
+     size, but the narrowest width that still needs no more of them, so the
+     lines come out even. Searched by halving, so a two-line pill costs a
+     dozen packings rather than one per pixel. */
+  const balance = (items, sep, lines) => {
+    if (lines.length < 2) return lines;
+    let lo = Math.max(...items.map(it => g.measureText(it).width)), hi = maxW;
+    for (let i = 0; i < 12 && hi - lo > 1; i++) {
+      const mid = (lo + hi) / 2;
+      if (pack(items, sep, mid).length <= lines.length) hi = mid; else lo = mid;
+    }
+    const even = pack(items, sep, hi);
+    return even.length <= lines.length ? even : lines;
+  };
+  const fits = lines => lines.length <= maxLines && lines.every(l => g.measureText(l).width <= maxW);
+  const clauses = text.split(ROW_SEP), words = text.split(' ');
+  const tidy = l => l.trim().replace(/^·\s*/, '').replace(/\s*·$/, '');
+  for (let size = px; ; size--) {
+    g.font = `${w}${Math.round(size)}px Segoe UI, sans-serif`;
+    if (clauses.length > 1) {
+      const lines = pack(clauses, ROW_SEP);
+      if (fits(lines)) return { lines: balance(clauses, ROW_SEP, lines), px: size };
+    }
+    const lines = pack(words, ' ').map(tidy).filter(Boolean);
+    if (fits(lines)) return { lines: balance(words, ' ', lines).map(tidy).filter(Boolean), px: size };
+    if (size <= minPx) return { lines, px: size };
   }
 }
 function pillLines(fit, cx, cy) {

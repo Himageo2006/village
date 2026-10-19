@@ -523,7 +523,7 @@
     return { goals: Math.min(V.goalIdx, V.GOALS.length) + '/' + V.GOALS.length + (over ? ' +' + over : ''),
       hall: V.hallLevel(), land: V.landTier,
       placed: V.placed.length, villagers: V.villagers.length,
-      res: { wood: Math.round(V.res.wood), food: Math.round(V.res.food) },
+      res: Object.fromEntries(V.RES.map(k => [k, Math.round(V.res[k])])),
       caps: { ...V.caps }, trades: V.ordersDone, goalTimes, fails };
   };
 
@@ -1191,6 +1191,13 @@
       if (isHud && String(t).trim()) {
         if (x0 < -1 || x0 + w > W + 1)
           bad.push({ state: label, text: String(t).slice(0, 48), left: Math.round(x0), width: Math.round(w) });
+        /* A divider is between two clauses, so a line that starts or ends on
+           one has been broken in the wrong place: the goal strip wrapped to
+           "...🌾20 🪨130   ·" over "reward 🪵3400 🌾2200" for most of the
+           last half hour of a playthrough. */
+        const st = String(t).trim();
+        if (st.length > 1 && (st.startsWith('·') || st.endsWith('·')))
+          bad.push({ state: label + ' [line broken at a divider]', text: st.slice(-48) });
         /* Inset by the same margin the panel lays its own rows out at, so a row
            that exactly fills the usable width is not reported. */
         if (P) {
@@ -1705,7 +1712,7 @@
          for it. Every hint in the table has to be seen by the end, or the check
          is only looking at the ones that happen to be easy to reach. */
       const LAND_GOAL = V.GOALS.findIndex(g => /land|island/i.test(g.text));
-      let looked = 0, hintsSeen = new Set();
+      let looked = 0, hintsSeen = new Set(), hintTexts = new Set();
       for (const hallLvl of [1, 2, 3, 4, 5]) for (const stores of [0, 1, 2, 4])
       for (const stage of [0, 1, 2]) {
         V.placed.length = 0; V.villagers.length = 0;
@@ -1731,7 +1738,7 @@
           for (let guard = 0; guard < V.TUT.length + 1; guard++) {
             const h = V.currentHint();
             if (!h) break;
-            hintsSeen.add(h.id); looked++;
+            hintsSeen.add(h.id); hintTexts.add(V.hintText(h)); looked++;
             for (const key of namesIn(V.hintText(h)))
               if (!V.permitted(key))
                 fails.push('the "' + h.id + '" hint names the ' + key
@@ -1743,6 +1750,31 @@
       if (!looked) fails.push('the hint-advice check got no hint onto the strip, so it proves nothing');
       for (const id of V.TUT.map(h => h.id))
         if (!hintsSeen.has(id)) fails.push('the hint-advice check never saw the "' + id + '" hint');
+
+      /* And a hint that wraps comes out as two even lines, not a full one and
+         a stub. Packed greedily, the very first thing a new player reads was
+         "Build a house first — villagers live there, and villagers do all"
+         over "the work" on a 360-wide phone. Asked of fitLines with the
+         strip's own measurements, at every phone shape, for every hint the
+         matrix above put on the strip. */
+      const keepW = window.innerWidth, keepH = window.innerHeight;
+      let wrapped = 0;
+      try {
+        for (const [sw, sh] of [[360, 640], [360, 780], [375, 812], [400, 750], [320, 960]]) {
+          asScreen(sw, sh); V.step(0.001);
+          const u = V.US();
+          for (const t of hintTexts) {
+            const fit = V.fitLines(t, W - 108 * u, 23 * u, 13 * u, 2);
+            if (fit.lines.length < 2) continue;
+            wrapped++;
+            const c2 = document.querySelector('canvas').getContext('2d'), ws = fit.lines.map(l => c2.measureText(l).width);
+            if (Math.min(...ws) < 0.45 * Math.max(...ws))
+              fails.push('on a ' + sw + 'x' + sh + ' screen the hint wraps as "' + fit.lines.join('" / "')
+                + '", the short line ' + Math.round(100 * Math.min(...ws) / Math.max(...ws)) + '% of the long one');
+          }
+        }
+      } finally { asScreen(keepW, keepH); V.step(0.001); }
+      if (!wrapped) fails.push('no hint wrapped on any phone shape, so the balance of a wrapped hint was never asked');
     }
 
     delete document.hidden;                     // back to what the browser says
@@ -4922,10 +4954,15 @@
              file and quietly matched nothing at all -- which is the warning
              already written beside the launch-theme check, earned a fourth
              time. Splitting needs no escape, so there is nothing to lose. */
+          /* And matched against the names that exist, not read to the end of
+             the clause. The strip wraps, a break between clauses drops the
+             divider, and the lines come back joined by a space -- so "remove a
+             path" over "reward 🪵2600" read as a thing called "path reward". */
           const clause = over.split('   ·   ').find(c => c.indexOf('remove a') >= 0) || '';
-          const name = (clause.split('remove a')[1] || '').replace(/^n /, '').trim() || null;
+          const after = (clause.split('remove a')[1] || '').replace(/^n /, '').trim();
           const gone = V.placed.find(p => V.isDecor(p.key)
-            && V.B(p.key).name.toLowerCase() === name);
+            && (after + ' ').startsWith(V.B(p.key).name.toLowerCase() + ' '));
+          const name = gone ? V.B(gone.key).name.toLowerCase() : null;
           cases++;
           if (!name || !gone)
             fails.push('the strip says "' + over + '" and there is no such thing standing in the village');
