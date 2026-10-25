@@ -6177,7 +6177,7 @@
        +1.4/s         this much is arriving
        idle           nobody is making it
        wasting 5.7/s  this much is being carried home and thrown away
-       sharing 5.7/s  the same, once the village is finished and gives it away
+       ships 5.7/s    the same, once the village is finished and ships it away
        storage full   full, and nothing is being made to lose
 
      Only the first has ever been checked, and only as a number inside the game
@@ -6193,9 +6193,9 @@
      four minutes:
 
        +X/s and idle    what the stores really gain
-       wasting/sharing  what the villagers really carry home and cannot keep,
+       wasting/ships    what the villagers really carry home and cannot keep,
                         counted off their hands the way shareSweep counts it
-       the word         "sharing" exactly when the village is finished
+       the word         "ships" exactly when the village is finished
        storage full     full, and nothing arriving to lose
 
      Allowed one load of slack plus a tenth, because a measurement made of
@@ -8218,7 +8218,7 @@
     /* A chip draws its two lines in order: the amount, then this. So these
        come out in the order the chips are laid out, which is the order of the
        list of goods -- the first is the first kind, and so on. */
-    const LINE = /^(\+[\d.]+\/s|idle|storage full|(?:wasting|sharing) [\d.]+\/s)$/;
+    const LINE = /^(\+[\d.]+\/s|idle|storage full|(?:wasting|ships) [\d.]+\/s)$/;
     const chips = () => {
       const lines = [];
       ctx.fillText = function (t, ...a) { lines.push(String(t)); return orig.call(this, t, ...a); };
@@ -8330,12 +8330,12 @@
       for (const [i, k] of V.RES.map((k2, i2) => [i2, k2])) {
         const t = said[i];
         seen.add(/^\+/.test(t) ? 'rate' : /wasting/.test(t) ? 'wasting'
-          : /sharing/.test(t) ? 'sharing' : t);
+          : /ships/.test(t) ? 'ships' : t);
         const where = 'the ' + k + ' chip in ' + what + ' says "' + t + '"';
         /* The word belongs to the state, whatever the number is. */
-        if (/wasting|sharing|storage full/.test(t) !== full)
+        if (/wasting|ships|storage full/.test(t) !== full)
           fails.push(where + (full ? ' with the store at its ceiling' : ' with room to spare'));
-        if (/sharing/.test(t) && !finished)
+        if (/ships/.test(t) && !finished)
           fails.push(where + ' and the village still has goals to finish');
         if (/wasting/.test(t) && finished)
           fails.push(where + ' and every goal is done, so it is given away rather than lost');
@@ -8348,7 +8348,7 @@
           const real = r.gained[k] / SECS;
           if (!near(figure(t), real, SECS))
             fails.push(where + ' and the stores gained ' + real.toFixed(2) + '/s');
-        } else if (/wasting|sharing/.test(t)) {
+        } else if (/wasting|ships/.test(t)) {
           /* Held at the ceiling for the whole stretch, so every load carried
              home is a load lost. */
           const real = r.carried[k] / SECS;
@@ -8363,7 +8363,7 @@
     }
 
     /* Every line it can show is a line it does show. */
-    for (const k of ['rate', 'idle', 'wasting', 'sharing', 'storage full'])
+    for (const k of ['rate', 'idle', 'wasting', 'ships', 'storage full'])
       if (!seen.has(k)) fails.push('the chips never once said "' + k + '"');
 
     V.goalIdx = 0; V.orders = []; V.step(0.001);
@@ -11493,7 +11493,7 @@
       const lines = [];
       ctx.fillText = function (t, ...a) { lines.push(String(t)); return oF.call(this, t, ...a); };
       try { V.draw(); } finally { ctx.fillText = oF; }
-      return lines.filter(t => /^(\+[\d.]+\/s|idle|storage full|(?:wasting|sharing) [\d.]+\/s)$/.test(t));
+      return lines.filter(t => /^(\+[\d.]+\/s|idle|storage full|(?:wasting|ships) [\d.]+\/s)$/.test(t));
     };
     fresh(true);
     for (const k of ['house', 'house', 'house', 'house', 'house', 'house', 'farm', 'farm', 'lumber',
@@ -11507,6 +11507,19 @@
     else {
       b2.lvl = 1; b2.stock = 0;
       const quiet = () => { V.orders = []; V.goalDone = null; V.finished = null; };
+      /* One number, one name. The beacon fills through stages and its row
+         says "Stage 3 of 5"; the header said "Beacon · Level 3" over it. */
+      for (const lvl of [1, 3]) {
+        b2.lvl = lvl; V.panel = b2.id; quiet(); V.away = null; V.step(0.001); quiet(); V.away = null;
+        const lines = [];
+        ctx.fillText = function (t, ...a) { lines.push(String(t)); return oF.call(this, t, ...a); };
+        try { V.draw(); } finally { ctx.fillText = oF; }
+        const head = lines.find(t => /Beacon/.test(t) && /Level/.test(t));
+        if (head) fails.push('the beacon panel at stage ' + lvl + ' is headed "' + head + '" over a row that counts stages');
+        if (!lines.some(t => /Stage \d+ of \d+/.test(t)))
+          fails.push('the beacon panel at stage ' + lvl + ' does not say which stage it is at: ' + lines.filter(t => /Beacon|Stage|stage/.test(t)).join(' | '));
+      }
+      V.panel = null; b2.lvl = 1; b2.stock = 0;
       /* The chips first, from a barn with room, against a minute of what the
          barn really did. */
       for (const k of V.RES) V.res[k] = Math.floor(V.caps[k] * 0.3);

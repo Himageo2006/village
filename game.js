@@ -5284,8 +5284,12 @@ function drawHUD() {
        and three figures -- "wasting 999/s" -- lands exactly on 138. */
     /* A finished village is not wasting anything; its surplus is going next
        door. Same number, calm colour, true word. */
+    /* "ships", the word the goal and the hall use for the same goods. It said
+       "sharing" here after both had been settled on shipped -- three names
+       for one tally on one screen. Not "shipping": "shipping 9.5/s" is 140
+       logical pixels in the 138 this line has, and cannot shrink. */
     if (full) sub(lost > 0.05
-      ? (villageFinished() ? 'sharing ' : 'wasting ') + (lost >= 10 ? Math.round(lost) : lost.toFixed(1)) + '/s'
+      ? (villageFinished() ? 'ships ' : 'wasting ') + (lost >= 10 ? Math.round(lost) : lost.toFixed(1)) + '/s'
       : 'storage full', villageFinished() ? '#9fd6a0' : '#f0a583');
     // "/s", as every other rate in the game is written
     else sub(rate > 0.02 ? '+' + rate.toFixed(1) + '/s' : 'idle',
@@ -6772,7 +6776,10 @@ function drawPanel() {
   g.textAlign = 'left'; g.textBaseline = 'middle';
   const lx = R.x - R.w / 2 + 26 * u;
   g.font = `bold ${Math.round(30 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#fff';
-  g.fillText(b.icon + '  ' + b.name + (B(p.key).decor ? '' : '  ·  Level ' + lvlOf(p)),
+  /* The beacon has stages, not levels -- it is never upgraded, it fills --
+     and its own row says "Stage 3 of 5". The header said "Level 3" over it,
+     one number under two names. */
+  g.fillText(b.icon + '  ' + b.name + (B(p.key).decor || p.key === BEACON ? '' : '  ·  Level ' + lvlOf(p)),
     lx, R.y - R.h / 2 + 38 * u);
   /* The hall has three things to say -- what it allows, what the next level
      adds, and how the village is doing -- and two rows to say them in. Its
