@@ -6190,7 +6190,14 @@ function drawAway() {
        said the same thing about three minutes of loss as about five hours and
        fifty-seven -- six hours away at 0.9 a second is nineteen thousand wood,
        and three hundred of it was kept. */
-    const when = away.fullAfter != null && away.fullAfter < away.secs - 60
+    /* And only a time that is a time. A village left with its stores at the
+       ceiling filled them after nothing at all, and the card read "nothing
+       would fit" over "stores full after moments — the rest spilled": not a
+       moment anyone could point to, and a "rest" of nothing. With nothing
+       banked the line says what actually happened, and a fill time is only
+       quoted once it is a minute or more. */
+    const when = !parts.length ? 'your stores were already full when you left'
+      : away.fullAfter != null && away.fullAfter >= 60 && away.fullAfter < away.secs - 60
       ? 'stores full after ' + duration(away.fullAfter) + ' — the rest spilled'
       : 'the rest spilled — your stores were full';
     const fit = fitLines(when, R.w - 56 * u, 20 * u, 14 * u, 1);

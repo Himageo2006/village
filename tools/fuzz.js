@@ -3278,6 +3278,36 @@
           fails.push('shutting the game and opening it again paid the village '
             + V.RES.reduce((n, k) => n + V.res[k] - before[k], 0).toFixed(1));
       }
+      /* What the card SAYS about a fill, read off the canvas. Left with the
+         stores already at the ceiling it read "nothing would fit" over
+         "stores full after moments — the rest spilled": no time anyone could
+         point to, and a rest of nothing. And the other side, so a fix cannot
+         simply stop naming the time: a village that fills partway is told
+         when. */
+      {
+        const ctx = document.querySelector('canvas').getContext('2d'), of = ctx.fillText;
+        const read = () => { const lines = [];
+          ctx.fillText = function (t, ...a) { lines.push(String(t)); return of.call(this, t, ...a); };
+          try { V.goalDone = null; V.finished = null; V.claimAsk = false; V.draw(); } finally { ctx.fillText = of; }
+          return lines; };
+        scene(false, 1);
+        for (const k of V.RES) V.res[k] = V.caps[k];
+        V.away = null; V.grantAway(3 * 3600);
+        const full = V.away ? read() : [];
+        if (!V.away) fails.push('three hours away with full stores put no card up, so its wording was never read');
+        else {
+          const bad = full.find(t => /after moments/.test(t) || (!Object.keys(V.away.got).length && /\bthe rest\b/.test(t)));
+          if (bad) fails.push('a village left with full stores is told "' + bad + '"');
+        }
+        scene(false, 0.5);
+        for (const k of V.RES) V.res[k] = Math.floor(V.caps[k] * 0.5);
+        V.away = null; V.grantAway(3 * 3600);
+        const half = V.away ? read() : [];
+        if (V.away && V.away.fullAfter >= 60 && !half.some(t => /stores full after \d/.test(t)))
+          fails.push('a village that filled ' + Math.round(V.away.fullAfter) + 's into three hours away is not told when: '
+            + half.filter(t => /spill|full/.test(t)).join(' | '));
+        V.away = null;
+      }
       if (cards < 4) fails.push('only ' + cards + ' welcome-back cards were read, so the block proved little');
       if (!banked) fails.push('not one card banked anything, so the figures prove nothing');
       if (!spilt) fails.push('not one card overflowed, so the overflow half proves nothing');
