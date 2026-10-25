@@ -6121,7 +6121,21 @@ function saleCost(p) {
   }
   if (b.boost) {
     const wg = wellGain(p);
-    return wg.gain > 0.005 ? 'Selling it takes −' + wg.gain.toFixed(2) + '/s from ' + count(wg.n, 'workplace') : null;
+    /* "Takes" is already the loss. With a minus as well it read "takes
+       −0.51/s", a double negative, beside rows that say "stops 🌾0.41/s
+       arriving" and "— −0.39/s". */
+    return wg.gain > 0.005 ? 'Selling it takes ' + wg.gain.toFixed(2) + '/s from ' + count(wg.n, 'workplace') : null;
+  }
+  /* A storehouse is capacity and nothing else, and its armed button said
+     nothing at all unless the stores were over the line -- then the spoil
+     row speaks. Half full, the second tap took nine hundred and sixty off
+     every ceiling with not a word, so the player learned what they had sold
+     the next time a barn filled early. The new ceilings, said the way the
+     spoil row says them. */
+  if (b.caps && !b.makes) {
+    const room = capsWithout(p), vals = RES.map(k => room[k]);
+    return 'Selling it drops storage to ' + (vals.every(v => v === vals[0]) ? vals[0] + ' each'
+      : RES.map(k => RES_ICON[k] + room[k]).join('  '));
   }
   if (b.charm) {
     const now = deliveredAtMul(charmMul()), less = Math.max(0, charmSum - b.charm);
@@ -6956,6 +6970,8 @@ function drawPanel() {
        says what the sale would actually cost. */
     if (sellRoom && spoiling.length)
       panelRow(spoilText(sellRoom, spoiling), lx, R.y - R.h / 2 + 148 * u, R.w - 56 * u, 20 * u, '#e59a86', '');
+    else if (saleRow)
+      panelRow(saleRow, lx, R.y - R.h / 2 + 148 * u, R.w - 56 * u, 20 * u, '#e59a86', '');
   } else if (b.pop) {
     /* And who lives here, which livedIn has always answered correctly for the
        village and this row asked popOf instead: a level three house sent to four

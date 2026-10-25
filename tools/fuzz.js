@@ -1198,6 +1198,10 @@
         const st = String(t).trim();
         if (st.length > 1 && (st.startsWith('·') || st.endsWith('·')))
           bad.push({ state: label + ' [line broken at a divider]', text: st.slice(-48) });
+        /* "Takes" is the loss already; a minus after it says the opposite.
+           The well's armed row read "Selling it takes −0.51/s". */
+        if (/\btakes −/.test(st))
+          bad.push({ state: label + ' [a double negative]', text: st.slice(0, 60) });
         /* Inset by the same margin the panel lays its own rows out at, so a row
            that exactly fills the usable width is not reported. */
         if (P) {
@@ -4679,14 +4683,35 @@
         const cap = V.caps;
         const at = { empty: 0, half: Math.floor(cap.wood / 2), full: cap.wood, short: cap.wood - 40 }[where];
         V.res.wood = at; V.res.food = where === 'empty' ? 0 : Math.min(at, cap.food);
+        /* Stone with them. It was left at the million the scene was built
+           with, so every case was a sale with stone to spoil -- and the
+           storehouse was never once sold with nothing over its line, which
+           is the case its armed row had nothing to say about. */
+        V.res.stone = where === 'empty' ? 0 : Math.min(at, cap.stone);
         p.stock = 0;
         const held = Object.fromEntries(V.RES.map(k => [k, V.res[k]]));
-        const btn = rowsArmed(p, false).find(t => isBtn.test(t)) || '';
+        /* A long refund wraps the button onto two lines -- "Sell" over
+           "🪵782 🌾30 🪨400" -- and only the first starts with the verb, so
+           reading that line alone quoted nothing back. Seen once the stone in
+           this scene stopped spoiling and joined the refund. */
+        const unarmed = rowsArmed(p, false), bi = unarmed.findIndex(t => isBtn.test(t));
+        const btn = bi < 0 ? '' : /[0-9]/.test(unarmed[bi]) || /nothing|none/.test(unarmed[bi])
+          ? unarmed[bi] : unarmed[bi] + ' ' + (unarmed[bi + 1] || '');
         const warn = rowsArmed(p, true).find(t => /Selling it spoils/.test(t)) || '';
         if (V.res.wood !== held.wood || V.res.food !== held.food)
           fails.push('the stores moved from ' + held.wood + ',' + held.food + ' to ' + V.res.wood
             + ',' + V.res.food + ' while the sell panel was being read, so its two figures do not describe one moment');
         if (!btn) { fails.push('a ' + key + ' panel has no sell button to read'); continue; }
+        /* And a storehouse armed with nothing to spoil still says what it
+           costs: it is capacity and nothing else, and half full it used to
+           take nine hundred off every ceiling without a word. */
+        if (key === 'store' && !warn) {
+          const room = V.capsWithout(p);
+          const row = rowsArmed(p, true).find(t => /Selling it drops storage to/.test(t)) || '';
+          if (!row) fails.push('a level ' + lvl + ' storehouse armed for sale with the stores ' + where + ' says nothing about the storage it takes');
+          else if (!row.includes(String(room.wood))) fails.push('a storehouse armed for sale says "' + row + '" and the ceiling would be ' + room.wood);
+          for (const k of V.RES) V.res[k] = held[k];
+        }
         const said = /nothing|none/.test(btn) ? { wood: 0, food: 0 } : pick(btn);
         /* What spoils is the first clause now -- "Selling it spoils 🪵230 · storage
            drops to 1500 each" -- and the row may shed the second on a phone. */
