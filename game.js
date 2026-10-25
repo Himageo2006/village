@@ -5741,7 +5741,8 @@ function buyProgress(kind) {
   const cost = kind === 'hall' ? (h ? upInfo(h).cost : null) : landNext();
   if (!cost) return '';
   if (overCaps(cost)) return 'needs more storage';
-  if (canAfford(cost)) return kind === 'hall' ? 'ready — tap the town hall' : 'ready — tap the dark ground';
+  // "darker", as the hint that taught it says
+  if (canAfford(cost)) return kind === 'hall' ? 'ready — tap the town hall' : 'ready — tap the darker ground';
   return Object.entries(cost).filter(([k, v]) => res[k] < v)
     .map(([k, v]) => RES_ICON[k] + Math.floor(res[k]) + '/' + v).join(' ');
 }

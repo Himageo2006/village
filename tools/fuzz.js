@@ -4892,6 +4892,19 @@
     scene(5, V.LAND_MAX - 1, [['store', 5], ['store', 5], ['store', 5], ['store', 5], ['market', 5], ['market', 5]]);
     RICHLY();
     want('land', ask('land'), /ready/, 'the village can pay for');
+    /* And it names the ground the way the hint that taught it does. The
+       hint says "Tap the darker ground past your border", a refused
+       placement says "build on the lighter grass", and the strip said "tap
+       the dark ground" -- a third shade for the one patch of land. */
+    {
+      const said = ask('land'), h = V.TUT.find(t => t.id === 'land');
+      const taught = h ? (typeof h.text === 'function' ? h.text() : h.text) : '';
+      const a = /tap the ([a-z]+ ground)/i.exec(said), b = /the ([a-z]+ ground)/i.exec(taught);
+      cases++;
+      if (!a || !b) fails.push('the land strip or the land hint names no ground to tap: "' + said + '" / "' + taught + '"');
+      else if (a[1].toLowerCase() !== b[1].toLowerCase())
+        fails.push('the goal strip says tap "the ' + a[1] + '" and the hint that taught it says "the ' + b[1] + '"');
+    }
     scene(5, V.LAND_MAX, [['store', 5], ['store', 5], ['store', 5], ['store', 5], ['farm', 1]]);
     RICHLY();
     want('workplace', ask('workplace'), /ready/, 'the village can pay for');
