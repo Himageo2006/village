@@ -193,7 +193,12 @@ for(let r=0;r<GH;r++) for(let c=0;c<GW;c++){
     // a second, independent hash picks the variety -- reusing n would tie the
     // kind to the threshold above and put every rock in the same places
     const v=hash(c*7+3, r*11+5);
-    const kind = n>0.955 ? (v<0.55?'rock':'bush') : (v<0.62?'tree_pine':'tree_oak');
+    /* Rocks and pines keep exactly the share of tiles they always had; the
+       oaks give some of theirs to birches and the bushes some of theirs to
+       stumps and wildflowers, so the island reads less like four stamps
+       repeated and nothing moves. */
+    const kind = n>0.955 ? (v<0.55?'rock':v<0.72?'bush':v<0.86?'stump':'flowers_wild')
+                         : (v<0.62?'tree_pine':v<0.84?'tree_oak':'tree_birch');
     SCENERY.push({c,r,kind,rock:kind==='rock',s:0.78+((n*97)%1)*0.5,f:(n*31)%1});
   }
 }
@@ -3980,7 +3985,10 @@ function drawGround() {
 }
 /* World height of each kind at scale 1, set against a cottage at ~207px so the
    trees read as trees rather than shrubs or redwoods. */
-const SCENERY_H = { tree_pine: 115, tree_oak: 100, rock: 54, bush: 46 };
+const SCENERY_H = { tree_pine: 115, tree_oak: 100, tree_birch: 122, rock: 54, bush: 46, stump: 38, flowers_wild: 30 };
+/* What a newer kind is drawn as while its own picture is missing, so a lost
+   file shows the kind it was split from rather than the procedural tree. */
+const SCENERY_FALLBACK = { tree_birch: 'tree_oak', stump: 'bush', flowers_wild: 'bush' };
 
 /* ---------- the time of year ----------
 
@@ -4049,7 +4057,7 @@ const season = () => SEASONS[seasonIdx()];
 /* Rocks do not change colour in October, and neither does a dirt path or a
    stone statue -- they take the building wash, which is slight, rather than
    the leaf one. */
-const SEASON_LEAF = new Set(['tree_pine', 'tree_oak', 'bush']);
+const SEASON_LEAF = new Set(['tree_pine', 'tree_oak', 'tree_birch', 'bush', 'flowers_wild']);
 const seasonSkins = new Map();
 function seasonSkin(im, key) {
   const sea = season();
@@ -4077,13 +4085,14 @@ function seasonSkin(im, key) {
 
 function drawScenery(o) {
   const p = tileToWorld(o.c, o.r), s2 = o.s;
-  const art = artFor(o.kind);
+  const kind = artFor(o.kind) || !SCENERY_FALLBACK[o.kind] ? o.kind : SCENERY_FALLBACK[o.kind];
+  const art = artFor(kind);
   if (art) {
-    const hgt = (SCENERY_H[o.kind] || 90) * s2, wid = art.width * (hgt / art.height);
+    const hgt = (SCENERY_H[kind] || 90) * s2, wid = art.width * (hgt / art.height);
     g.save();
     g.fillStyle = 'rgba(10,18,8,.30)';
     g.beginPath(); g.ellipse(p.x, p.y + 3, wid * 0.30, wid * 0.15, 0, 0, 7); g.fill();
-    g.drawImage(SEASON_LEAF.has(o.kind) ? seasonSkin(art, o.kind) : art,
+    g.drawImage(SEASON_LEAF.has(kind) ? seasonSkin(art, kind) : art,
       p.x - wid / 2, p.y - hgt, wid, hgt);                  // anchored bottom-centre
     g.restore();
     return;
@@ -7937,7 +7946,7 @@ for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER]) for (let i = 1; i <
    a village with none of them drawn would otherwise send five requests the
    moment it finished, and artFor remembers a miss. */
 for (let i = 1; i <= BEACON_STAGES; i++) beaconArt(i);
-for (const k of ['ground', 'water', 'tree_pine', 'tree_oak', 'rock', 'bush']) artFor(k);
+for (const k of ['ground', 'water', 'tree_pine', 'tree_oak', 'tree_birch', 'rock', 'bush', 'stump', 'flowers_wild']) artFor(k);
 
 /* test hooks */
 window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return placed; }, B, BUILDINGS, tileToWorld, worldToTile,

@@ -2801,3 +2801,56 @@ by the hand on that side. His other arm hangs free.
 CAMERA / STYLE / READABILITY / LIGHTING / BACKGROUND / FRAMING / DO NOT
 INCLUDE: as group 30.
 ```
+
+---
+---
+
+# 33 — More of the wild island → `art/tree_birch.png`, `stump.png`, `flowers_wild.png`  ✅ DONE
+
+The island was dressed with four things -- a pine, an oak, a boulder and a
+bush -- stamped across every open tile. These are three more, in one
+conversation with `art/original/tree_oak.png` and `bush.png` attached, under
+the scenery rules of groups 8-11 (strong light from the upper left, base on
+the bottom edge, never mirrored).
+
+They take tiles from the kinds they were split from and from nothing else:
+rocks and pines keep exactly the share they had, the oaks give some to the
+birch, the bushes some to the stump and the wildflowers. If a picture is
+missing the tile draws as its parent kind (SCENERY_FALLBACK).
+
+### 33.1 → `art/tree_birch.png`
+
+```
+A single silver birch tree, as a game asset sprite, matching the attached
+oak and bush. A slender silver birch: a tall thin trunk of bright white
+bark marked with dark horizontal bands and black knots, leaning very
+slightly, branching high into a light, airy, upright canopy of small fresh
+yellow-green leaves built from three or four soft rounded clumps. Taller
+than it is wide, and clearly lighter and more delicate than the oak, so the
+two read as different trees at a glance.
+CAMERA / STYLE / LIGHTING / BACKGROUND / FRAMING / DO NOT INCLUDE: as
+group 9.
+```
+
+### 33.2 → `art/stump.png`
+
+```
+An old tree stump: squat and wide, about knee height. A flat cut top
+showing pale growth rings, rough dark brown bark, a few thick roots flaring
+at the base, soft green moss on one side, and three or four red-capped
+white-spotted toadstools against its foot. Low and wider than it is tall --
+a little detail for the ground, not a feature. No axe, no logs.
+```
+
+### 33.3 → `art/flowers_wild.png`
+
+```
+A small patch of wildflowers: a loose rounded clump of wild meadow plants
+about shin height -- tall grass blades and leaves with white daisies, a few
+red poppies and some small purple-blue cornflowers. Natural and untidy,
+growing wild, not a planted flowerbed and with no border. Wider than it is
+tall. No pots, fences, stones or insects.
+```
+
+This one came back on a painted chequerboard; prep-art.js keyed it and the
+119 small gaps the stems enclosed.
