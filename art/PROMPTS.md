@@ -2663,3 +2663,64 @@ DO NOT INCLUDE: text, labels, watermarks, UI, borders, people, animals, carts,
 rails, wagons, water, or any ground surface beyond the rubble at the foot of
 the cut.
 ```
+
+---
+---
+
+# 30 — The stonecutter → `art/villager_stonecutter.png` + `_walk1` … `_walk6`  ✅ DONE
+
+The quarry's workers drew on the food workers' sprites until this existed, so
+a woman with a basket of vegetables went to work cutting rock. She is worn at
+the quarry only; off duty a villager is whoever the pool of three says.
+
+Generated in ONE conversation, standing pose first, then one walk frame per
+message, with `art/original/villager_woodcutter.png` and
+`villager_woodcutter_walk1.png` attached as the style reference. Then
+`node tools/prep-art.js villager_stonecutter` keys, fits and orders the set.
+
+### 30.0 — Standing → `art/villager_stonecutter.png`
+
+```
+The two attached images are characters from my game (a woodcutter, standing
+and walking). Make a NEW character for the same game, matching their art
+style, camera, proportions, scale and lighting exactly. A medieval
+stonecutter woman standing still, as a game character sprite.
+
+CAMERA: near-frontal, body turned only very slightly towards the viewer's
+right, seen from a little above as from an isometric game board about 30
+degrees above the horizon -- the same view as the attached woodcutter.
+Full body, both feet on the ground.
+
+CHARACTER: a sturdy, strong young woman quarry worker with a friendly
+determined face, warm brown skin and dark hair tied back under a faded
+blue-grey kerchief (#5d7186). A slate blue-grey long-sleeved tunic
+(#4f6274), sleeves pushed up to the elbow; a heavy tan leather work apron
+(#9a7650) from chest to knee, powdered pale grey with stone dust; a dark
+leather belt; charcoal trousers (#3f3a36); brown leather boots (#714a30).
+A stonecutter's PICKAXE rests back over one shoulder: pale wooden haft,
+grey iron head pointed at BOTH ends, so it reads as a pick and not an axe.
+
+STYLE / READABILITY / LIGHTING / BACKGROUND / FRAMING / DO NOT INCLUDE:
+as group 7 (the woodcutter) -- low-poly mobile strategy style, 60 px tall,
+soft even frontal light, fully transparent, feet on the bottom edge, one
+pose only.
+```
+
+### 30.1 – 30.6 — Walk frames → `art/villager_stonecutter_walk1.png` …
+
+Frame 1 restates the whole character and the registration rules of group 26
+("identical canvas, identical figure height and identical horizontal centre
+in every frame ... the pick may extend above the figure, but keep its reach
+the same"); frames 2-6 each say "same character, same camera, same canvas,
+same size, same everything except the pose" and give only the pose, taken
+word for word from group 26 with the axe read as the pick:
+
+1. CONTACT, left leg leading -- free arm forward, the pick arm does not swing
+2. DOWN, weight on the left leg -- lowest point of the cycle
+3. PASSING, right leg swinging through -- highest point
+4. CONTACT, right leg leading -- free arm back; the pick never changes shoulder
+5. DOWN, weight on the right leg
+6. PASSING, left leg swinging through -- leads back into frame 1
+
+One frame (5) came back on flat white rather than transparency;
+prep-art.js keys a flat background, and the set registered within 2%.

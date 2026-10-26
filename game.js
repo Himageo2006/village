@@ -49,6 +49,8 @@ const tileAt = (x, y) => { const t = worldToTile(x, y);
    pose swayed and bobbed in code reads as walking at the size these are drawn.
    Each villager keeps its own index into this list. */
 const VILLAGERS = ['villager_farmer', 'villager_basket', 'villager_woodcutter'];
+// a quarry hand's figure, worn at work only -- see villagerArt
+const STONECUTTER = 'villager_stonecutter';
 /* A painted walk cycle, if one has been drawn for this villager.
 
    Six frames to the stride, and the stride is the one the walker is
@@ -4129,6 +4131,12 @@ function villagerArt(v) {
   const b = p && B(p.key);
   if (b && b.makes) {
     if (b.makes.wood !== undefined) return 'villager_woodcutter';
+    /* Stone has a figure of its own: a pick over the shoulder and an apron
+       grey with dust. The quarry drew on the food workers until it had one,
+       so a basket of vegetables went to work cutting rock. Off duty she
+       is whoever the pool says, as everyone else is -- the pool is left at
+       three, because each villager's look is picked from its length. */
+    if (b.makes.stone !== undefined && artFor(STONECUTTER)) return STONECUTTER;
     return (v.k % 2) ? 'villager_basket' : 'villager_farmer';
   }
   return VILLAGERS[v.k % VILLAGERS.length];
@@ -7909,12 +7917,12 @@ for (const b of BUILDINGS) artFor(b.key);
     im.addEventListener('error', done, { once: true });
   }
 }
-for (const v of VILLAGERS) artFor(v);
+for (const v of [...VILLAGERS, STONECUTTER]) artFor(v);
 /* Asked for once, here, rather than on the first frame somebody walks: a
    villager with no cycle drawn for him would otherwise send six requests
    the moment he set off, and artFor remembers a miss, so doing it at boot
    costs the same misses at a moment when nothing is moving yet. */
-for (const v of VILLAGERS) for (let i = 1; i <= WALK_STEPS; i++) artFor(v + '_walk' + i);
+for (const v of [...VILLAGERS, STONECUTTER]) for (let i = 1; i <= WALK_STEPS; i++) artFor(v + '_walk' + i);
 /* The beacon's five, asked for here for the same reason the walk frames are:
    a village with none of them drawn would otherwise send five requests the
    moment it finished, and artFor remembers a miss. */
