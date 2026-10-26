@@ -155,6 +155,16 @@ const ART_FIT = {
   // which is what a windmill does
   mill:   { w: 1.05, ax: 0.551, ay: 0.998 },
   market: { w: 1.10, ax: 0.561, ay: 0.999 },
+  // the shed's near post is the front corner; the rock cut rises behind it
+  quarry: { w: 1.18, ax: 0.680, ay: 1.000 },
+  /* The landmarks found on claimed land. A scattered group has no front
+     corner of its own -- the lowest pixel is whichever stone or tree
+     happens to stand nearest -- so ax is the middle of the group, set by
+     eye, as the well's is. */
+  find_stones:  { w: 0.88, ax: 0.500, ay: 0.997 },
+  find_orchard: { w: 1.00, ax: 0.540, ay: 0.998 },
+  find_ruin:    { w: 1.00, ax: 0.537, ay: 0.997 },
+  find_wreck:   { w: 1.00, ax: 0.500, ay: 1.000 },
 };
 const FIT_DEF = { w: 1.2, ax: 0.5, ay: 1 };
 
@@ -1688,12 +1698,10 @@ const BUILDINGS = [
      third pile that fills as fast as the other two is a third pile nobody
      has to think about.
 
-     standIn: it is drawn by the procedural building in drawBuilding until
-     somebody generates the picture (prompt group 29). The rest of the game
-     is finished; this is a sprite that does not exist yet, and gating the
-     whole kind of goods on it would have shipped an economy that cannot be
-     played. artSweep knows to let it past until the file appears. */
-  { key: 'quarry', name: 'Quarry',    w: 2, h: 1, cost: { wood: 80, food: 40 },  makes: { stone: 0.4 }, jobs: 2, trade: 'Stonecutter', wallH: 34, icon: '🪨', standIn: true,
+     It shipped as a standIn, drawn by the procedural building until its
+     picture existed (prompt group 29). The picture exists now, so the flag
+     is gone and artSweep requires it like any other building's. */
+  { key: 'quarry', name: 'Quarry',    w: 2, h: 1, cost: { wood: 80, food: 40 },  makes: { stone: 0.4 }, jobs: 2, trade: 'Stonecutter', wallH: 34, icon: '🪨',
     blurb: 'Cuts stone. The mill and the market are built of it.' },
   // short: see the note on the lumber camp -- "Storehouse" is 137 logical
   // pixels wide in a 115 pixel tray button
@@ -1924,7 +1932,11 @@ function placeFinds() {
     if (placed.some(p => p.key === key)) continue;
     const at = findSpot(key, tier);
     if (!at) continue;                         // no room today; asked again later
-    placed.push({ id: nextId++, key, c: at.c, r: at.r, t: 1, lvl: 1, stock: 0, build: 0 });
+    /* build as every other placement has it. It means nothing for a find,
+       which is never built, but load() reads 0 as missing and writes
+       BUILD_TIME, so a find saved with 0 came back different from how it
+       went in -- the one thing a save round trip must never do. */
+    placed.push({ id: nextId++, key, c: at.c, r: at.r, t: 1, lvl: 1, stock: 0, build: BUILD_TIME });
     rebuildCharm();
     save();
   }
@@ -4242,7 +4254,9 @@ function drawVillager(v) {
 const growOf = p => established(p) ? 1 : 0.35 + 0.65 * Math.max(0, Math.min(1, p.t));
 function artRect(p) {
   const b = B(p.key), art = buildingArt(p);
-  if (!art || isDecor(p.key)) return null;
+  /* A find is a decoration for charm and nothing else: it stands on a 2x2
+     plot like a farm, so it is fitted to its plot like one. */
+  if (!art || (isDecor(p.key) && !isFound(p.key))) return null;
   const a = tileToWorld(p.c, p.r), d = tileToWorld(p.c + b.w - 1, p.r + b.h - 1);
   const cx = (a.x + d.x) / 2, cy = (a.y + d.y) / 2;
   const grow = growOf(p);
@@ -4601,7 +4615,13 @@ function drawDecor(p, alpha) {
   }
   g.restore();
 }
-const drawPlaced = (p, alpha, tint) => isDecor(p.key) ? drawDecor(p, alpha) : drawBuilding(p, alpha, tint);
+/* The landmarks found on claimed land are decorations for charm, but they
+   stand on a 2x2 plot, so they are drawn the way a building is: scaled to
+   the plot. Sent through drawDecor -- which draws a one-tile ornament 48
+   high at the plot's first tile -- the first find to get its picture came
+   out a quarter of its plot's width, sitting in the top corner. No find had
+   ever been drawn before, so nothing had ever taken that path. */
+const drawPlaced = (p, alpha, tint) => isDecor(p.key) && !isFound(p.key) ? drawDecor(p, alpha) : drawBuilding(p, alpha, tint);
 
 /* Land you do not own yet: one dark wash over every unclaimed tile, built as a
    single path so it is one fill rather than a hundred and sixty. A rope line
@@ -6786,7 +6806,19 @@ function drawPanel() {
      adds, and how the village is doing -- and two rows to say them in. Its
      blurb is the least useful line on the panel, so the summary takes that
      place and the allowance gets a row to itself with the additions beneath. */
-  if (p.key !== 'hall')
+  /* A find says where it came from, in two sentences, and it gets the room
+     for them. Its description was written for this panel and never drawn on
+     it -- no find was placed until its picture existed -- and at 1008 to 1176
+     logical pixels against the 885 a phone's panel has, one line could not
+     hold it at any readable size. A find cannot be sold or improved, so the
+     row a sale warning would take is always free: the description takes two
+     lines and its charm row moves down into that space. */
+  const twoLine = isFound(p.key);
+  if (twoLine) {
+    const fit = fitLines(b.blurb, R.w - 56 * u, 22 * u, 22 * u * 0.62, 2, '');
+    g.fillStyle = '#bccfae';
+    fit.lines.forEach((l, i) => g.fillText(l, lx, R.y - R.h / 2 + 76 * u + i * fit.px * 1.22));
+  } else if (p.key !== 'hall')
     panelRow(b.blurb, lx, R.y - R.h / 2 + 78 * u, R.w - 56 * u, 22 * u, '#bccfae', '');
 
   /* What this sale would destroy, worked out before any row is drawn.
@@ -6808,7 +6840,9 @@ function drawPanel() {
      selling a well dropped the lift to everything in reach, and the button just
      said "Tap again to sell". The row the storage warning uses, the moment Sell
      is armed, for every kind of building. */
-  const saleRow = spoilRow || (armedHere ? saleCost(p) : null);
+  // and only for a building that can be sold: a find cannot, and its charm
+  // row sits where a sale warning would go
+  const saleRow = spoilRow || (armedHere && canSell(p) ? saleCost(p) : null);
 
 
   /* What this building does at its CURRENT level, and what the next one would
@@ -7096,7 +7130,7 @@ function drawPanel() {
         lx, R.y - R.h / 2 + 148 * u, R.w - 56 * u, 20 * u, '#a9bd9c', '');
     }
   }
-  panelRow(line, lx, R.y - R.h / 2 + 116 * u, R.w - 56 * u, 22 * u, '#e8c98a', '');
+  panelRow(line, lx, R.y - R.h / 2 + (twoLine ? 146 : 116) * u, R.w - 56 * u, 22 * u, '#e8c98a', '');
   // houses, wells and decorations have nothing else on that row
   if (saleRow && !(b.jobs && b.makes) && !b.caps && p.key !== 'market')
     panelRow(saleRow, lx, R.y - R.h / 2 + 148 * u, R.w - 56 * u, 20 * u, '#e59a86', '');

@@ -40,7 +40,8 @@ const SEAM = 14;       // how far a near-neutral pixel may sit between two palet
                        // colours and still count — catches the soft seam lines
                        // where checkerboard squares meet
 const KEYS = [
-  'house', 'farm', 'lumber', 'store', 'hall', 'well', 'mill', 'market',
+  'house', 'farm', 'lumber', 'store', 'hall', 'well', 'mill', 'market', 'quarry',
+  'find_stones', 'find_orchard', 'find_ruin', 'find_wreck',
   'villager_farmer', 'villager_basket', 'villager_woodcutter',
   'tree_pine', 'tree_oak', 'rock', 'bush',
   'path', 'fence', 'flowers', 'hedge', 'lamp', 'statue',

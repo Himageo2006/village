@@ -2876,6 +2876,16 @@
     V.save();
     const written = localStorage.getItem(V.KEY);
     const want = stripVolatile(foldTransit(JSON.parse(written)));
+    /* Whether what is built would widen the claim back to the saved ring on
+       its own -- which is the only case where a lost land field costs nothing.
+       It was assumed: this village used to be built out to its border. Once
+       the finds had pictures they took plots on the rings, the village no
+       longer reached its edge, and a lost land field really did come back
+       smaller -- correctly noticed, and reported as the check gone wrong. */
+    const savedTier = V.landTier;
+    V.landTier = 0; V.coverPlaced();
+    const rebuiltTier = V.landTier;
+    V.landTier = savedTier;
     buildVillage(POOR);                       // the poison
     localStorage.setItem(V.KEY, written); reload(); V.save();
     const got = stripVolatile(foldTransit(JSON.parse(localStorage.getItem(V.KEY))));
@@ -3075,7 +3085,7 @@
        when losing it costs nothing, and naming it here rather than in the
        failures is the difference between a known answer and an unasked
        question. */
-    const REPAIRED = new Set(['land']);
+    const REPAIRED = new Set(rebuiltTier === savedTier ? ['land'] : []);
     const reallyBlind = blind.filter(k => !REPAIRED.has(k));
     if (reallyBlind.length) fails.push('the field check no longer notices a missing ' + reallyBlind.join(', '));
     for (const k of REPAIRED) if (!blind.includes(k))
@@ -3148,9 +3158,19 @@
         /* One of each kind of unfinished work: a building going up for the
            first time, and a building being improved. */
         for (const k of V.RES) V.res[k] = 1e5;
-        V.place('house', LB.lo + 4, LB.lo + 10);
+        /* Where it was meant to go, or the first free plot if a landmark found
+           on the ring is standing there. The finds are placed by the game's
+           own tick once their pictures exist, so a scene on claimed land has
+           them whether it asked or not -- and the fixed spot this used for the
+           storehouse was one a find took, which left the check one building
+           short and unable to test the ceiling at all. */
+        const placeAt = (key, dc, dr) => V.place(key, LB.lo + dc, LB.lo + dr) || (() => {
+          for (let r = LB.lo; r <= LB.hi; r++) for (let c = LB.lo; c <= LB.hi; c++)
+            if (V.canPlace(key, c, r, V.occupied())) return V.place(key, c, r);
+          return false; })();
+        placeAt('house', 4, 10);
         const fresh = V.placed[V.placed.length - 1];
-        V.place('store', LB.lo + 10, LB.lo + 10);
+        placeAt('store', 10, 10);
         const shed = V.placed[V.placed.length - 1];
         const farm = V.placed.find(q => q.key === 'farm');
         V.upgradeBuilding(farm);
@@ -4992,10 +5012,16 @@
          its own out at 45. The strip was right and the checker called it
          broken. */
       const best = V.BEST_CHARM;
-      /* The most roads that still leave room for the statues the goal needs. */
+      /* The most roads that still leave room for the statues the goal needs.
+         Counting what the island already gives: once the finds had pictures
+         every claimed ring held one, 155 charm the edge left out, and the
+         strip rightly called 48 roads reachable where this called it lost.
+         Read off a bare scene rather than added up here, for the reason the
+         note above gives. */
+      let found = 0;
       const edge = (() => { let r = V.DECOR_MAX;
-        while (r > 0 && r + best * (V.DECOR_MAX - r) < V.CHARM_FULL) r--;
-        return r; })();
+        while (r > 0 && found + r + best * (V.DECOR_MAX - r) < V.CHARM_FULL) r--;
+        return r; });
       const lay = n => {
         V.placed.length = 0; V.villagers.length = 0; V.landTier = V.LAND_MAX; V.coverPlaced();
         V.goalIdx = 0; V.tutSeen.length = 0; V.away = null; V.goalDone = null;
@@ -5013,16 +5039,18 @@
         for (const k of V.RES) V.res[k] = 1e6; V.step(0.001);
         return V.decorCount();
       };
-      if (edge < 2 || edge >= V.DECOR_MAX)
-        fails.push('the charm arithmetic puts its edge at ' + edge + ' roads, which is not an edge at all');
+      lay(0); found = V.charmTotal();
+      const E = edge();
+      if (E < 2 || E >= V.DECOR_MAX)
+        fails.push('the charm arithmetic puts its edge at ' + E + ' roads, which is not an edge at all');
       else {
-        lay(edge);
+        lay(E);
         want('charm', line(), /ready/, 'with the last road that still leaves room');
-        lay(edge + 1);
+        lay(E + 1);
         const over = line();
         cases++;
         if (!/no room left/.test(over))
-          fails.push('the strip with ' + (edge + 1) + ' roads down, which cannot reach the charm the goal wants, says "' + over + '"');
+          fails.push('the strip with ' + (E + 1) + ' roads down, which cannot reach the charm the goal wants, says "' + over + '"');
         else {
           /* The remedy is one that can be taken, and taking it works. */
           /* Split on the divider rather than matched with a pattern.
@@ -6888,6 +6916,12 @@
        This is why the clamp is drawn around the grid and not around the claim:
        the dark land is what a player taps to buy more of it. */
     {
+      /* Without the landmarks the fully claimed rings above put down: a find
+         stands on an outer ring, coverPlaced widens the claim to keep it, and
+         the claim this asks about never gets back to the founding square --
+         so the middle of the screen was the player's own empty grass. A find
+         outside the claim is a village the game cannot produce. */
+      for (let i = V.placed.length - 1; i >= 0; i--) if (V.isFound(V.placed[i].key)) V.placed.splice(i, 1);
       V.landTier = 0; V.coverPlaced(); V.camFit(true); V.CAM.z = 2.2; V.step(0.001);
       for (let k = 0; k < 8; k++) drag(900, 0);
       V.claimAsk = false; V.panel = null; V.step(0.001);
@@ -8231,7 +8265,10 @@
     /* A chip draws its two lines in order: the amount, then this. So these
        come out in the order the chips are laid out, which is the order of the
        list of goods -- the first is the first kind, and so on. */
-    const LINE = /^(\+[\d.]+\/s|idle|storage full|(?:wasting|ships) [\d.]+\/s)$/;
+    /* One decimal, as a resource chip writes its rate. The charm chip writes
+       two -- "+0.18/s" -- and once the finds were placed every claimed village
+       had charm, so a looser pattern read the charm chip as a fourth kind. */
+    const LINE = /^(\+\d+\.\d\/s|idle|storage full|(?:wasting|ships) [\d.]+\/s)$/;
     const chips = () => {
       const lines = [];
       ctx.fillText = function (t, ...a) { lines.push(String(t)); return orig.call(this, t, ...a); };
@@ -11506,7 +11543,7 @@
       const lines = [];
       ctx.fillText = function (t, ...a) { lines.push(String(t)); return oF.call(this, t, ...a); };
       try { V.draw(); } finally { ctx.fillText = oF; }
-      return lines.filter(t => /^(\+[\d.]+\/s|idle|storage full|(?:wasting|ships) [\d.]+\/s)$/.test(t));
+      return lines.filter(t => /^(\+\d+\.\d\/s|idle|storage full|(?:wasting|ships) [\d.]+\/s)$/.test(t));
     };
     fresh(true);
     for (const k of ['house', 'house', 'house', 'house', 'house', 'house', 'farm', 'farm', 'lumber',
@@ -12114,6 +12151,42 @@
       if (V.BEST_CHARM !== bought)
         fails.push('the best ornament available is reckoned at ' + V.BEST_CHARM + ' where the best BUYABLE one is '
           + bought + ', so the charm goal is measured against something nobody can buy');
+
+      /* 6. and each is drawn the size of its plot. A find is a decoration
+         for charm, and the draw sent decorations to drawDecor, which paints
+         a one-tile ornament 48 high at the plot's first tile -- so the first
+         find to get a picture came out a quarter of its plot's width in the
+         top corner. Read off the draw call itself, for every find whose
+         picture is the real one rather than this sweep's stand-in. */
+      {
+        const ctx = document.querySelector('canvas').getContext('2d'), oD = ctx.drawImage;
+        const sized = new Map();
+        /* Matched by size, not identity: the season tint hands drawImage a
+           canvas copied from the picture, the same width and height. */
+        const same = (im, art) => !!art && (im === art || (im.width === (art.naturalWidth || art.width)
+          && im.height === (art.naturalHeight || art.height)));
+        ctx.drawImage = function (im, ...a) {
+          for (const p of all) if (a.length >= 4 && same(im, V.artFor(p.key))) sized.set(p.key, a[2]);
+          return oD.call(this, im, ...a);
+        };
+        try { V.away = null; V.finished = null; V.goalDone = null; V.panel = null; V.camFit(true); V.step(0.001);
+              V.away = null; V.finished = null; V.draw(); } finally { ctx.drawImage = oD; }
+        /* Unless nothing could be drawn at all: a page with no size on screen
+           paints nothing, and gestureSweep and panSweep already say so. */
+        /* The window as well as the canvas: a sweep earlier in the battery can
+           leave innerWidth reporting nothing while the canvas keeps its box,
+           and then the frame is laid out for no screen at all. */
+        const shown = document.querySelector('canvas').getBoundingClientRect().width > 0
+          && window.innerWidth > 0 && window.innerHeight > 0;
+        if (!sized.size && shown) fails.push('not one landmark was drawn with its picture, so their size on the plot was never measured');
+        for (const p of all) {
+          const b = V.B(p.key), plotW = (b.w + b.h) * 128 / 2, got = sized.get(p.key);
+          if (got === undefined) continue;          // a stand-in, or off the edge of the view
+          if (got < 0.7 * plotW)
+            fails.push(b.name + ' is drawn ' + Math.round(got) + ' wide on a plot ' + plotW
+              + ' wide, so it is painted as a one-tile ornament rather than fitted to its plot');
+        }
+      }
 
       return { finds: all.length, charm: charmOfFinds, fails };
     } finally {

@@ -2430,7 +2430,7 @@ before. Nothing in group 27b is outstanding.
 ---
 ---
 
-# 28 — What was already on the island → `art/find_stones.png` … `find_wreck.png`
+# 28 — What was already on the island → `art/find_stones.png` … `find_wreck.png`  ✅ DONE
 
 Claiming a ring of land is the best moment this game has, and until now it
 revealed grass. Each of the four rings now has something on it that was there
@@ -2601,7 +2601,7 @@ water, waves, harbour, jetty, other boats, or any ground surface beyond the
 shingle directly under the hull.
 ```
 
-# 29 — The quarry → `art/quarry.png`
+# 29 — The quarry → `art/quarry.png`  ✅ DONE
 
 Stone is the third thing the village keeps, and the quarry is the only place it
 comes from. The mill, the market, the statue and the beacon are built of it, so
