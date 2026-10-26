@@ -2764,3 +2764,40 @@ INCLUDE: as group 30 -- near-frontal from a little above, low-poly mobile
 strategy style, 60 px tall with the apron and crate in the silhouette,
 soft even frontal light, fully transparent, feet on the bottom edge.
 ```
+
+---
+---
+
+# 32 — The miller → `art/villager_miller.png` + `_walk1` … `_walk6`  ✅ DONE
+
+The mill makes food, so its two hands were the field hands -- the farmer and
+the woman with the basket of vegetables -- standing in for whoever grinds the
+grain. With a quarry hand and a trader drawn, the mill was the last workplace
+without a figure of its own. Worn at the mill only.
+
+Same method as groups 30 and 31, with `villager_woodcutter.png` and
+`villager_trader.png` attached for the standing pose. One frame (6) came back
+on a solid background; the keyer floods in from the edges, and his cream
+clothes survived it whole. Registered within 4%.
+
+### 32.0 — Standing → `art/villager_miller.png`
+
+```
+The two attached images are villagers from my game (a woodcutter and a
+market trader). Make a NEW character for the same game, matching their art
+style, camera, proportions, scale and lighting exactly. A medieval miller
+standing still, as a game character sprite.
+
+CHARACTER: a tall, lanky young man with a long friendly face, freckles,
+pale skin and a mop of ginger hair under a soft flat cap of oatmeal linen
+(#d8c8a4). Everything about him is dusted white with flour -- his hair, his
+eyebrows, his shoulders. A loose cream linen shirt (#eee3cc) with the
+sleeves rolled up, a short brown leather waistcoat (#7a5332), a long
+off-white canvas apron (#e9e2d2) smeared with flour, grey-brown trousers
+(#6b5a48) and brown leather boots (#714a30). He carries a fat bulging
+FLOUR SACK of pale hessian (#d9c39a) over one shoulder, gripped at its neck
+by the hand on that side. His other arm hangs free.
+
+CAMERA / STYLE / READABILITY / LIGHTING / BACKGROUND / FRAMING / DO NOT
+INCLUDE: as group 30.
+```
