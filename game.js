@@ -152,19 +152,27 @@ const ART_FIT = {
   house_stone:  { w: 1.20, ax: 0.684, ay: 0.997 },
   house_thatch: { w: 1.20, ax: 0.694, ay: 1.000 },
   farm:   { w: 0.85, ax: 0.531, ay: 1.000 },
+  farm_veg:    { w: 0.85, ax: 0.531, ay: 0.998 },
+  farm_barley: { w: 0.85, ax: 0.526, ay: 0.998 },
   lumber: { w: 1.18, ax: 0.570, ay: 1.000 },
+  lumber_pit:  { w: 1.18, ax: 0.660, ay: 0.95 },
   store:  { w: 1.09, ax: 0.522, ay: 1.000 },
+  store_granary: { w: 1.09, ax: 0.558, ay: 0.998 },
   hall:   { w: 1.15, ax: 0.500, ay: 0.999 },
   // ax measured 0.344, which is the water trough spilling off the well's
   // lower-left, not the well. Set to the centre of the stone ring by hand --
   // exactly the case measure-art.js warns about for broad-based objects.
   well:   { w: 1.15, ax: 0.500, ay: 0.995 },
+  well_iron:   { w: 1.15, ax: 0.500, ay: 0.98 },
   // the tower base matches its plot; the sails then overhang by a good margin,
   // which is what a windmill does
   mill:   { w: 1.05, ax: 0.551, ay: 0.998 },
+  mill_post:   { w: 1.15, ax: 0.520, ay: 0.97 },
   market: { w: 1.10, ax: 0.561, ay: 0.999 },
+  market_hall: { w: 1.10, ax: 0.653, ay: 1.000 },
   // the shed's near post is the front corner; the rock cut rises behind it
   quarry: { w: 1.18, ax: 0.680, ay: 1.000 },
+  quarry_pit:  { w: 1.18, ax: 0.637, ay: 1.000 },
   /* The landmarks found on claimed land. A scattered group has no front
      corner of its own -- the lowest pixel is whichever stone or tree
      happens to stand nearest -- so ax is the middle of the group, set by
@@ -577,7 +585,9 @@ function drawSky() {
   g.restore();
 }
 /* Lamps are drawn AFTER the night wash so their light sits on top of it rather
-   than being dimmed along with everything else. */
+   than being dimmed along with everything else. The light goes where each
+   look's lantern is: on top of the post, or hanging off its bracket. */
+const LAMP_GLOW = { lamp: { dx: 0, dy: -52 }, lamp_bracket: { dx: 8, dy: -42 } };
 function drawLamps() {
   const { night } = sky();
   if (night < 0.04) return;
@@ -585,14 +595,15 @@ function drawLamps() {
   g.globalCompositeOperation = 'lighter';
   for (const p of placed) {
     if (p.key !== 'lamp') continue;
-    const o = tileToWorld(p.c, p.r), y = o.y - 52;
-    const r = 92, gr = g.createRadialGradient(o.x, y, 0, o.x, y, r);
+    const at = LAMP_GLOW[lookOf(p)] || LAMP_GLOW.lamp;
+    const o = tileToWorld(p.c, p.r), x = o.x + at.dx, y = o.y + at.dy;
+    const r = 92, gr = g.createRadialGradient(x, y, 0, x, y, r);
     const a = 0.50 * night;
     gr.addColorStop(0, 'rgba(255,206,120,' + a.toFixed(3) + ')');
     gr.addColorStop(0.45, 'rgba(255,178,80,' + (a * 0.35).toFixed(3) + ')');
     gr.addColorStop(1, 'rgba(255,170,70,0)');
     g.fillStyle = gr;
-    g.beginPath(); g.arc(o.x, y, r, 0, 7); g.fill();
+    g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
   }
   g.restore();
 }
@@ -2915,14 +2926,24 @@ const beaconArt = i => artFor(BEACON + '_stage' + i);
    Fourteen statues is what the charm goal comes to -- the ceiling over the
    best ornament -- and they were fourteen copies of one woman with a sheaf
    of wheat; a full village has twelve houses and they were twelve copies of
-   one cottage. Chosen from the building's id rather than its tile, so each
-   keeps its look when it is moved and when the game reloads; a missing
+   one cottage, and every farm the same wheat field. Chosen from the
+   building's id rather than its tile, so each keeps its look when it is
+   moved and when the game reloads; a missing
    picture falls back to the first look rather than to nothing. A look may
    carry its own ART_FIT entry, because a cottage of stone is not drawn with
    its front corner exactly where a timber one is. */
 const LOOKS = {
   statue: ['statue', 'statue_knight', 'statue_fisher'],
   house:  ['house', 'house_stone', 'house_thatch'],
+  farm:   ['farm', 'farm_veg', 'farm_barley'],
+  lumber: ['lumber', 'lumber_pit'],
+  well:   ['well', 'well_iron'],
+  store:  ['store', 'store_granary'],
+  mill:   ['mill', 'mill_post'],
+  market: ['market', 'market_hall'],
+  quarry: ['quarry', 'quarry_pit'],
+  lamp:   ['lamp', 'lamp_bracket'],
+  flowers: ['flowers', 'flowers_planter'],
 };
 const STATUE_LOOKS = LOOKS.statue;
 function lookOf(p) {

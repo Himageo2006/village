@@ -12993,7 +12993,7 @@
        look was tinted first, and every beacon stage the first stage. */
     const keep3 = V.seasonForced;
     try {
-      const sets = [['house', 'house_stone', 'house_thatch'], ['statue', 'statue_knight', 'statue_fisher']];
+      const sets = [['house', 'house_stone', 'house_thatch'], ['farm', 'farm_veg', 'farm_barley'], ['lumber', 'lumber_pit'], ['well', 'well_iron'], ['store', 'store_granary'], ['mill', 'mill_post'], ['market', 'market_hall'], ['quarry', 'quarry_pit'], ['lamp', 'lamp_bracket'], ['flowers', 'flowers_planter'], ['statue', 'statue_knight', 'statue_fisher']];
       for (let i = 0; i < V.SEASONS.length; i++) {
         V.seasonForced = i;
         for (const set of sets) {

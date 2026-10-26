@@ -44,7 +44,7 @@ const KEYS = [
   'find_stones', 'find_orchard', 'find_ruin', 'find_wreck',
   'villager_farmer', 'villager_basket', 'villager_woodcutter', 'villager_stonecutter', 'villager_trader', 'villager_miller',
   'tree_pine', 'tree_oak', 'rock', 'bush', 'tree_birch', 'stump', 'flowers_wild', 'sheep', 'sheep_rest', 'boat_fishing', 'boat_row',
-  'path', 'fence', 'flowers', 'hedge', 'lamp', 'statue', 'bench', 'banner', 'statue_knight', 'statue_fisher', 'house_stone', 'house_thatch',
+  'path', 'fence', 'flowers', 'hedge', 'lamp', 'statue', 'bench', 'banner', 'statue_knight', 'statue_fisher', 'house_stone', 'house_thatch', 'farm_veg', 'farm_barley', 'lumber_pit', 'well_iron', 'store_granary', 'mill_post', 'market_hall', 'quarry_pit', 'lamp_bracket', 'flowers_planter',
   'ground', 'water',
 ];
 
@@ -131,7 +131,7 @@ const CAP = {
   /* The beacon is capped on its WIDTH, not its longest side -- see stageSet.
      Same plot as a hall, so the same width. */
   beacon: 800,
-  path: 300, fence: 300, flowers: 300, hedge: 320, lamp: 380, statue: 400, bench: 320, banner: 400, statue_knight: 400, statue_fisher: 400, house_stone: 800, house_thatch: 800,
+  path: 300, fence: 300, flowers: 300, hedge: 320, lamp: 380, statue: 400, bench: 320, banner: 400, statue_knight: 400, statue_fisher: 400, house_stone: 800, house_thatch: 800, farm_veg: 800, farm_barley: 800, lumber_pit: 800, well_iron: 400, store_granary: 800, mill_post: 800, market_hall: 800, quarry_pit: 800, lamp_bracket: 380, flowers_planter: 300,
   ground: 1800,
   // the water is mirrored into a 2x2 tile at runtime, so its pixels cost four
   // times what they measure here; it is a soft background and can take it

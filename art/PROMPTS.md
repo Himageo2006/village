@@ -3029,3 +3029,155 @@ long front wall. Nothing around it.
 ```
 
 The thatch came back on a painted chequerboard; prep-art.js keyed it.
+
+---
+---
+
+# 39 — Farm looks → `art/farm_veg.png`, `art/farm_barley.png`  ✅ DONE
+
+Every farm was the same wheat field. Two more looks, chosen per farm from its
+id (LOOKS in game.js, as for the cottages). Generated in the cottage
+conversation with `art/original/farm.png` attached; both came back on real
+transparency and in the wheat farm's frame, so their ART_FIT entries keep its
+width.
+
+### 39.1 → `art/farm_veg.png`
+
+```
+A SECOND farm variant at exactly the same size, angle, footprint and fence
+as the attached wheat farm: a VEGETABLE GARDEN inside the same rope-tied
+timber fence -- tidy rows of dark soil with green cabbages, feathery carrot
+tops, leeks, and a corner patch of orange pumpkins on their vines; a
+straw-hatted scarecrow on a pole near the back corner; a wooden wheelbarrow
+and a watering can by the fence. Nothing outside the fence: NO glow, NO
+background, NO ground around it, NO shadow -- transparent background.
+```
+
+### 39.2 → `art/farm_barley.png`
+
+```
+A THIRD farm variant, same size, angle, footprint and fence: a BARLEY field
+half way through harvest -- the back half still standing in pale green-gold
+barley with drooping whiskered heads, the front half cut to short stubble
+with three tied sheaves stood up together in stooks, a wooden hay rake
+leaning on the fence and a small two-wheeled handcart with a few sheaves in
+it. Same warm light from the upper left. Nothing outside the fence --
+transparent background.
+```
+
+---
+---
+
+# 40 — A second look for every repeated workplace  ✅ DONE
+
+A full village has four lumber camps, four wells, four storehouses, three
+mills, two markets and two quarries, each a copy of one picture. One more
+look for each, chosen per building from its id (LOOKS in game.js). All six
+generated in the cottage conversation with the building's own original
+attached for size, angle and light, and all came back on real transparency.
+Each was fitted on its plot with the game's own artRect geometry before going
+in; where the measured front corner was a stray prop (the sawpit's firewood,
+the post mill's ladder) the anchor was set from the structure instead.
+
+### 40.1 → `art/lumber_pit.png`
+
+```
+A SECOND lumber camp variant at the same size, angle and footprint, its long
+side running the same way: an open-air SAWPIT yard instead of the shed -- a
+big log across a timber trestle over a shallow pit with a long two-man pit
+saw standing in the cut, a neat stack of sawn planks under a small lean-to of
+bark shingles on two posts at one end, a chopping block with an axe, a pile
+of split firewood and scattered wood chips, a few stone footings. Nobody in
+it. Nothing around it -- transparent background.
+```
+
+### 40.2 → `art/well_iron.png`
+
+```
+A SECOND well variant at the same size and angle: a SQUARE well head of pale
+dressed stone with a worn lip, no roof -- a curved wrought-iron arch over it
+with a small iron pulley wheel, a rope down to a wooden bucket on the lip, a
+second bucket on the flagstones, a little moss and grass in the joints.
+Nothing beyond the flagstones -- transparent background.
+```
+
+### 40.3 → `art/store_granary.png`
+
+```
+A SECOND storehouse variant at the same size, angle and footprint: a
+stone-built GRANARY -- honey-coloured stone walls with timber lintels, a
+steep roof of grey stone slates with a louvred vent on the ridge, raised on
+mushroom-shaped staddle stones, wooden steps up to an iron-strapped double
+door, a pulley beam with a sack on its hook, sacks, barrels and a crate by
+the steps. Transparent background.
+```
+
+### 40.4 → `art/mill_post.png`
+
+```
+A SECOND windmill variant at the same size and angle, its base on the same
+footprint: a timber POST MILL -- a tall boxy body of weathered planks with a
+curved shingle roof on a braced central post over a low round stone
+roundhouse; four lattice sails with furled cream canvas in the same X as the
+attached one; a tail pole with a small cartwheel; a ladder to the door;
+sacks and a barrel at the foot. Transparent background.
+```
+
+A post mill is narrower than a tower mill; it is drawn a little wider than
+the tower (w 1.15 against 1.05) so its roundhouse fills the plot's middle and
+it stands about as tall.
+
+### 40.5 → `art/market_hall.png`
+
+```
+A SECOND market variant at the same size, angle and footprint: a small
+timber-framed MARKET HALL -- open on all sides under a broad hipped roof of
+red clay tiles with a little bell turret; trestle tables of cloth, cheese,
+loaves, honey and brass scales; baskets of apples and crates of pears; a
+hanging sign of a golden sheaf. Green and mustard instead of the attached
+one's red-and-white awnings. Transparent background.
+```
+
+### 40.6 → `art/quarry_pit.png`
+
+```
+A SECOND quarry variant at the same size, angle and footprint: an open pit
+cut in stepped terraces into warm golden sandstone, a wooden treadwheel
+crane lifting a squared block, a sledge with a block on rollers, a stack of
+finished blocks, a mallet and chisels, scattered chips. Transparent
+background.
+```
+
+---
+---
+
+# 41 — Ornament looks → `art/lamp_bracket.png`, `art/flowers_planter.png`  ✅ DONE
+
+Charm comes from ornaments, so a pretty village is a dozen of the same lamp
+and flower bed. One more look for each, chosen per ornament from its id
+(LOOKS in game.js); an ornament is drawn at its kind's height, so a look only
+has to match its original's proportions.
+
+The night light used to sit at one fixed point above every lamp. It now
+follows each look's lantern (LAMP_GLOW): on top of the post for the original,
+off to the bracket side and a little lower for this one.
+
+### 41.1 → `art/lamp_bracket.png`
+
+```
+A SECOND lamp variant at the same height and scale: a tall timber post on a
+small stone footing with a curved wrought-iron bracket near the top, from
+which a black iron lantern hangs on a short chain, its glass glowing warm
+amber with a candle inside; a little ivy climbing the post. Nothing beyond
+the footing -- transparent background.
+```
+
+### 41.2 → `art/flowers_planter.png`
+
+```
+A SECOND flower bed variant at the same size and footprint: a low square
+raised bed edged with weathered timber boards, purple lavender in a mound at
+the back, white and blue cornflowers, a little pink rose bush at one corner,
+tiny yellow buds. Different colours from the attached red, pink and yellow
+bed. Transparent background.
+```
