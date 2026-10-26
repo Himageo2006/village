@@ -2724,3 +2724,43 @@ word for word from group 26 with the axe read as the pick:
 
 One frame (5) came back on flat white rather than transparency;
 prep-art.js keys a flat background, and the set registered within 2%.
+
+---
+---
+
+# 31 — The market trader → `art/villager_trader.png` + `_walk1` … `_walk6`  ✅ DONE
+
+The market makes wood -- the trickle its trader turns over -- so its one hand
+was drawn as a woodcutter, felling axe and all, walking the stalls. He is worn
+at the market only, the way the stonecutter is worn at the quarry.
+
+Same method as group 30: one conversation, the standing pose first with
+`art/original/villager_woodcutter.png` and `villager_stonecutter.png`
+attached, then one walk frame per message with the group 26 poses (the crate
+reads as the axe: the arm steadying it never swings, and it never changes
+shoulder). `node tools/prep-art.js villager_trader` registered the six
+within 5%.
+
+### 31.0 — Standing → `art/villager_trader.png`
+
+```
+The two attached images are villagers from my game (a woodcutter and a
+stonecutter). Make a NEW character for the same game, matching their art
+style, camera, proportions, scale and lighting exactly. A medieval market
+trader standing still, as a game character sprite.
+
+CHARACTER: a cheerful, round-faced, middle-aged merchant man with rosy
+cheeks, light olive skin and a neat dark moustache. A soft green felt cap
+(#4f7a3a) with a small feather. A mustard-yellow long-sleeved tunic
+(#c99a2e), and over it a market apron with bold vertical stripes of red
+and cream (#b8382c and #efe2c4), like a market-stall awning. A brown
+leather belt with a small coin purse, dark brown trousers (#4d3826) and
+brown leather boots (#714a30). He carries a WOODEN CRATE of goods on one
+shoulder, steadied by the hand on that side -- red apples and a rolled
+bolt of blue cloth poking out of the top. His other arm hangs free.
+
+CAMERA / STYLE / READABILITY / LIGHTING / BACKGROUND / FRAMING / DO NOT
+INCLUDE: as group 30 -- near-frontal from a little above, low-poly mobile
+strategy style, 60 px tall with the apron and crate in the silhouette,
+soft even frontal light, fully transparent, feet on the bottom edge.
+```

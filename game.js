@@ -51,6 +51,8 @@ const tileAt = (x, y) => { const t = worldToTile(x, y);
 const VILLAGERS = ['villager_farmer', 'villager_basket', 'villager_woodcutter'];
 // a quarry hand's figure, worn at work only -- see villagerArt
 const STONECUTTER = 'villager_stonecutter';
+// and the market's, who would otherwise be a woodcutter: the market makes wood
+const TRADER = 'villager_trader';
 /* A painted walk cycle, if one has been drawn for this villager.
 
    Six frames to the stride, and the stride is the one the walker is
@@ -4130,6 +4132,10 @@ function villagerArt(v) {
   const p = v.job == null ? null : byId(v.job);
   const b = p && B(p.key);
   if (b && b.makes) {
+    /* Before the wood rule, because the market makes wood -- its trickle is
+       what the trader turns over -- and so its one hand walked the stalls
+       with a felling axe on his shoulder. He carries a crate of goods. */
+    if (p.key === 'market' && artFor(TRADER)) return TRADER;
     if (b.makes.wood !== undefined) return 'villager_woodcutter';
     /* Stone has a figure of its own: a pick over the shoulder and an apron
        grey with dust. The quarry drew on the food workers until it had one,
@@ -7917,12 +7923,12 @@ for (const b of BUILDINGS) artFor(b.key);
     im.addEventListener('error', done, { once: true });
   }
 }
-for (const v of [...VILLAGERS, STONECUTTER]) artFor(v);
+for (const v of [...VILLAGERS, STONECUTTER, TRADER]) artFor(v);
 /* Asked for once, here, rather than on the first frame somebody walks: a
    villager with no cycle drawn for him would otherwise send six requests
    the moment he set off, and artFor remembers a miss, so doing it at boot
    costs the same misses at a moment when nothing is moving yet. */
-for (const v of [...VILLAGERS, STONECUTTER]) for (let i = 1; i <= WALK_STEPS; i++) artFor(v + '_walk' + i);
+for (const v of [...VILLAGERS, STONECUTTER, TRADER]) for (let i = 1; i <= WALK_STEPS; i++) artFor(v + '_walk' + i);
 /* The beacon's five, asked for here for the same reason the walk frames are:
    a village with none of them drawn would otherwise send five requests the
    moment it finished, and artFor remembers a miss. */

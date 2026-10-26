@@ -42,7 +42,7 @@ const SEAM = 14;       // how far a near-neutral pixel may sit between two palet
 const KEYS = [
   'house', 'farm', 'lumber', 'store', 'hall', 'well', 'mill', 'market', 'quarry',
   'find_stones', 'find_orchard', 'find_ruin', 'find_wreck',
-  'villager_farmer', 'villager_basket', 'villager_woodcutter', 'villager_stonecutter',
+  'villager_farmer', 'villager_basket', 'villager_woodcutter', 'villager_stonecutter', 'villager_trader',
   'tree_pine', 'tree_oak', 'rock', 'bush',
   'path', 'fence', 'flowers', 'hedge', 'lamp', 'statue',
   'ground', 'water',
@@ -71,7 +71,7 @@ const TILES = new Set(['path']);
    A cycle is all-or-nothing: six frames and the game walks that villager,
    fewer and it keeps the standing sprite. Half a cycle on the ground is a
    villager who limps, so the set is refused rather than half-loaded. */
-const WALK_OF = ['villager_farmer', 'villager_basket', 'villager_woodcutter', 'villager_stonecutter'];
+const WALK_OF = ['villager_farmer', 'villager_basket', 'villager_woodcutter', 'villager_stonecutter', 'villager_trader'];
 const WALK_FRAMES = 6;
 /* The frame a villager holds when he is standing, counted from zero, and
    it has to agree with WALK_STAND in game.js. Nothing enforces that from
@@ -125,7 +125,7 @@ function flatten(data, w, h, ch) {
    shipping one at 1536px is 8x more pixels than can ever be shown. Anything not
    listed gets MAX_W. */
 const CAP = {
-  villager_farmer: 320, villager_basket: 320, villager_woodcutter: 320, villager_stonecutter: 320,
+  villager_farmer: 320, villager_basket: 320, villager_woodcutter: 320, villager_stonecutter: 320, villager_trader: 320,
   tree_pine: 560, tree_oak: 560, rock: 360, bush: 360,
   well: 420, hall: 800, mill: 800, market: 800,
   /* The beacon is capped on its WIDTH, not its longest side -- see stageSet.
