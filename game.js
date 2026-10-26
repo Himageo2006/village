@@ -3964,6 +3964,43 @@ function waterPattern() {
   return waterPat;
 }
 
+/* Boats riding at anchor off the coast.
+
+   On a phone the sea is a third of every screen -- the island is wider than
+   it is tall and the screen is the other way round -- and it was empty. Two
+   boats, placed against the island's own bounds so they stay off the coast at
+   any size, in the two stretches a portrait screen leaves empty: the open
+   water above the island's top corner and below its southern cliffs. Nothing about them moves or can be touched; they are scenery for the
+   water, as the sheep are for the grass. A boat whose picture is missing is
+   simply not there. */
+const SEA_PROPS = [
+  { key: 'boat_fishing', fx: -0.12, top: true,  dy: -230, h: 100 },
+  { key: 'boat_row',     fx:  0.11, top: false, dy:  210, h: 52 },
+];
+function drawSeaProps(b) {
+  const W = b.x1 - b.x0, cx = (b.x0 + b.x1) / 2;
+  for (const s of SEA_PROPS) {
+    const art = artFor(s.key);
+    if (!art) continue;
+    const x = cx + s.fx * W, y = (s.top ? b.y0 : b.y1) + s.dy;
+    const hgt = s.h, wid = art.width * (hgt / art.height);
+    g.save();
+    // the hull sits IN the water: a darker patch under it ...
+    g.fillStyle = 'rgba(8,40,58,.28)';
+    g.beginPath(); g.ellipse(x, y - 2, wid * 0.48, wid * 0.13, 0, 0, 7); g.fill();
+    /* ... and the bottom of it under the surface. The generator draws the
+       whole hull down to the keel, which floats it on top of the sea; the
+       lowest eighth is cut off at the waterline instead. */
+    g.save();
+    g.beginPath(); g.rect(x - wid, y - hgt * 1.2, wid * 2, hgt * 1.2); g.clip();
+    g.drawImage(art, x - wid / 2, y - hgt * 0.88, wid, hgt);
+    g.restore();
+    // the ripple where hull meets water, over the hull's foot
+    g.strokeStyle = 'rgba(235,250,255,.34)'; g.lineWidth = 2.5;
+    g.beginPath(); g.ellipse(x, y - 1, wid * 0.52, wid * 0.14, 0, 0, Math.PI); g.stroke();
+    g.restore();
+  }
+}
 function drawGround() {
   const b = worldBounds(), cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2;
 
@@ -3975,6 +4012,7 @@ function drawGround() {
     g.fillRect(b.x0 - pad, b.y0 - pad, (b.x1 - b.x0) + pad * 2, (b.y1 - b.y0) + pad * 2);
     g.restore();
   }
+  drawSeaProps(b);
 
   // soft ground shadow so the plot sits ON something instead of floating
   g.save(); g.fillStyle = 'rgba(8,14,6,.5)'; g.filter = 'blur(26px)';
@@ -7973,6 +8011,7 @@ for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER]) for (let i = 1; i <
 for (let i = 1; i <= BEACON_STAGES; i++) beaconArt(i);
 for (const k of ['ground', 'water', 'tree_pine', 'tree_oak', 'tree_birch', 'rock', 'bush', 'stump', 'flowers_wild', 'sheep', 'sheep_rest']) artFor(k);
 for (const k of STATUE_LOOKS) artFor(k);
+for (const s of SEA_PROPS) artFor(s.key);
 
 /* test hooks */
 window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return placed; }, B, BUILDINGS, tileToWorld, worldToTile,

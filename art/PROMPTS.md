@@ -2958,3 +2958,40 @@ The SAME sheep lying down resting: legs tucked under, a low round cloud of
 fleece on the ground, head up and turned slightly to the viewer, eyes half
 closed. Lower and a little wider than the grazing one.
 ```
+
+---
+---
+
+# 37 — Boats at anchor → `art/boat_fishing.png`, `art/boat_row.png`  ✅ DONE
+
+On a portrait phone the sea fills the stretches above and below the island,
+and it was empty. Two boats riding at anchor there (SEA_PROPS in game.js):
+nothing moves and nothing can be tapped. Generated in one conversation with
+`art/original/find_wreck.png` (the same kind of boat, broken) and `house.png`
+attached.
+
+The generator draws the whole hull down to the keel even when told to stop at
+the waterline, so the game sinks the lowest eighth under the surface, lays a
+darker patch beneath it and draws the ripple over its foot.
+
+### 37.1 → `art/boat_fishing.png`
+
+```
+A small wooden fishing boat riding at anchor -- the same kind of boat as
+the attached wreck but whole and cared for: honey-brown clinker planking, a
+blue stripe along the gunwale, a short mast with a cream sail furled to its
+yard, a coil of rope, two lobster pots and a crate of fish, an anchor rope
+from the bow. Bow to the upper right. Nobody aboard. NO water, ripples,
+reflection or shadow -- the boat alone.
+```
+
+### 37.2 → `art/boat_row.png`
+
+```
+A small rowing boat, about half the fishing boat's length: the same
+planking with a faded red stripe, two plank seats, a pair of oars shipped
+across them, a wicker basket and a coil of rope. No mast. Bow to the upper
+LEFT. Nobody aboard, no water.
+```
+
+The rowing boat came back on a painted chequerboard; prep-art.js keyed it.
