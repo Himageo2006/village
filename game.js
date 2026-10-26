@@ -149,6 +149,8 @@ function artFor(key) {
    outline. Anything missing falls back to a plain bottom-centre fit. */
 const ART_FIT = {
   house:  { w: 1.20, ax: 0.652, ay: 0.994 },
+  house_stone:  { w: 1.20, ax: 0.684, ay: 0.997 },
+  house_thatch: { w: 1.20, ax: 0.694, ay: 1.000 },
   farm:   { w: 0.85, ax: 0.531, ay: 1.000 },
   lumber: { w: 1.18, ax: 0.570, ay: 1.000 },
   store:  { w: 1.09, ax: 0.522, ay: 1.000 },
@@ -2907,18 +2909,32 @@ const beaconArt = i => artFor(BEACON + '_stage' + i);
 /* Which picture a building is drawn with. One each for everything in the
    game except the beacon, whose whole point is that it changes shape as it
    rises -- a sink nobody can see is a number, not a landmark. */
-/* The statue in three figures, one chosen per statue.
-   Fourteen of them is what the charm goal comes to -- the ceiling over the
+/* Several looks for the buildings a village has many of, one chosen per
+   building.
+
+   Fourteen statues is what the charm goal comes to -- the ceiling over the
    best ornament -- and they were fourteen copies of one woman with a sheaf
-   of wheat. Chosen from the statue's id rather than its tile, so a statue
-   keeps its figure when it is moved and when the game reloads; and a
-   missing picture falls back to the first figure rather than to nothing. */
-const STATUE_LOOKS = ['statue', 'statue_knight', 'statue_fisher'];
+   of wheat; a full village has twelve houses and they were twelve copies of
+   one cottage. Chosen from the building's id rather than its tile, so each
+   keeps its look when it is moved and when the game reloads; a missing
+   picture falls back to the first look rather than to nothing. A look may
+   carry its own ART_FIT entry, because a cottage of stone is not drawn with
+   its front corner exactly where a timber one is. */
+const LOOKS = {
+  statue: ['statue', 'statue_knight', 'statue_fisher'],
+  house:  ['house', 'house_stone', 'house_thatch'],
+};
+const STATUE_LOOKS = LOOKS.statue;
+function lookOf(p) {
+  const set = LOOKS[p.key];
+  if (!set) return p.key;
+  const look = set[Math.floor(hash(p.id * 7 + 3, 11) * set.length) % set.length];
+  return look !== p.key && artFor(look) ? look : p.key;
+}
 function buildingArt(p) {
-  if (p.key === 'statue') {
-    const look = STATUE_LOOKS[Math.floor(hash(p.id * 7 + 3, 11) * STATUE_LOOKS.length) % STATUE_LOOKS.length];
-    const im = look === 'statue' ? null : artFor(look);
-    if (im) return im;
+  if (LOOKS[p.key]) {
+    const look = lookOf(p);
+    if (look !== p.key) return artFor(look);
   }
   if (p.key === BEACON) {
     const set = beaconSet();
@@ -4113,21 +4129,25 @@ const season = () => SEASONS[seasonIdx()];
    painted pixels and nowhere else -- done against the live canvas it would
    tint the sea, the shadow and everything else already drawn under it.
 
-   Cached by key and tint, because this is a per-frame draw and the answer
-   changes four times a year. One canvas per picture per season actually
+   Cached by picture and tint, because this is a per-frame draw and the answer
+   changes four times a year. By picture, not by name: one name can have
+   several pictures -- the cottage and statue looks, the beacon's stages --
+   and a cache keyed by name handed every one of them whichever was tinted
+   first. One canvas per picture per season actually
    reached: about twenty in a full village, and only for the sprites that are
    on the island. */
 /* Rocks do not change colour in October, and neither does a dirt path or a
    stone statue -- they take the building wash, which is slight, rather than
    the leaf one. */
 const SEASON_LEAF = new Set(['tree_pine', 'tree_oak', 'tree_birch', 'bush', 'flowers_wild']);
-const seasonSkins = new Map();
+const seasonSkins = new WeakMap();      // picture -> (tint -> canvas)
 function seasonSkin(im, key) {
   const sea = season();
   const tint = key === 'ground' ? sea.ground : SEASON_LEAF.has(key) ? sea.leaf : sea.build;
   if (!tint) return im;
-  const id = key + '|' + tint;
-  const hit = seasonSkins.get(id);
+  let skins = seasonSkins.get(im);
+  if (!skins) seasonSkins.set(im, skins = new Map());
+  const hit = skins.get(tint);
   if (hit) return hit;
   const w = im.naturalWidth || im.width, h = im.naturalHeight || im.height;
   if (!w || !h) return im;
@@ -4141,7 +4161,7 @@ function seasonSkin(im, key) {
     c.fillStyle = tint;
     c.fillRect(0, 0, w, h);
   } catch (e) { return im; }      // out of memory, or a tainted canvas: no season rather than no village
-  seasonSkins.set(id, cv);
+  skins.set(tint, cv);
   return cv;
 }
 
@@ -4350,7 +4370,7 @@ function artRect(p) {
   const a = tileToWorld(p.c, p.r), d = tileToWorld(p.c + b.w - 1, p.r + b.h - 1);
   const cx = (a.x + d.x) / 2, cy = (a.y + d.y) / 2;
   const grow = growOf(p);
-  const f = ART_FIT[p.key] || FIT_DEF;
+  const f = ART_FIT[lookOf(p)] || ART_FIT[p.key] || FIT_DEF;
   const fw = (b.w + b.h) * TW / 2;          // width of the plot's diamond
   const wid = fw * f.w * grow;
   const hgt = art.height * (wid / art.width);
@@ -8010,7 +8030,7 @@ for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER]) for (let i = 1; i <
    moment it finished, and artFor remembers a miss. */
 for (let i = 1; i <= BEACON_STAGES; i++) beaconArt(i);
 for (const k of ['ground', 'water', 'tree_pine', 'tree_oak', 'tree_birch', 'rock', 'bush', 'stump', 'flowers_wild', 'sheep', 'sheep_rest']) artFor(k);
-for (const k of STATUE_LOOKS) artFor(k);
+for (const set of Object.values(LOOKS)) for (const k of set) artFor(k);
 for (const s of SEA_PROPS) artFor(s.key);
 
 /* test hooks */

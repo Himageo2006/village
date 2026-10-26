@@ -2995,3 +2995,37 @@ LEFT. Nobody aboard, no water.
 ```
 
 The rowing boat came back on a painted chequerboard; prep-art.js keyed it.
+
+---
+---
+
+# 38 — Cottage looks → `art/house_stone.png`, `art/house_thatch.png`  ✅ DONE
+
+A village of ten houses was ten copies of one cottage. Two more looks, chosen
+per house from its id (LOOKS in game.js, the same mechanism as the statues);
+a house whose look is missing is drawn as the plain cottage. Generated in one
+conversation with `art/original/house.png` attached for scale, angle and
+light; each look has its own ART_FIT entry because its front corner sits at a
+different place in the picture. Prompts in short:
+
+### 38.1 → `art/house_stone.png`
+
+```
+A second variant of the attached cottage, same size, angle, light and
+painted style: walls of rough grey fieldstone with pale quoins, a roof of
+blue-grey slate with timber bargeboards, a small round window in the gable,
+a plank door, a window box of red flowers, the stone chimney. Nothing around
+it -- no ground, no shadow.
+```
+
+### 38.2 → `art/house_thatch.png`
+
+```
+A THIRD cottage variant: whitewashed cob walls on a stone footing, a deep
+rounded THATCHED roof of golden straw with a ridge pattern, a brick-topped
+chimney, a green door with a climbing rose beside it, small shuttered
+windows. The LONG side faces the viewer's lower left with the door on that
+long front wall. Nothing around it.
+```
+
+The thatch came back on a painted chequerboard; prep-art.js keyed it.

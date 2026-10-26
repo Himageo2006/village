@@ -12988,6 +12988,25 @@
       fails.push('the village delivers ' + drift.toFixed(4) + '/s more in one season than another,'
         + ' so the time of year has reached the economy');
 
+    /* 4. one name, several pictures: each keeps its own in every season. The
+       tint cache was keyed by name, so in autumn every cottage wore whichever
+       look was tinted first, and every beacon stage the first stage. */
+    const keep3 = V.seasonForced;
+    try {
+      const sets = [['house', 'house_stone', 'house_thatch'], ['statue', 'statue_knight', 'statue_fisher']];
+      for (let i = 0; i < V.SEASONS.length; i++) {
+        V.seasonForced = i;
+        for (const set of sets) {
+          const ims = set.map(k => V.artFor(k)).filter(Boolean);
+          const skins = ims.map(im => V.seasonSkin(im, set[0]));
+          const looks = new Set(skins), drawn = new Set(ims);
+          if (looks.size < drawn.size)
+            fails.push(V.SEASONS[i].name + ': ' + drawn.size + ' looks of the ' + set[0] + ' are drawn as only '
+              + looks.size + ' -- the season wash hands one look\'s picture to the others');
+        }
+      }
+    } finally { V.seasonForced = keep3; }
+
     V.seasonForced = null;
     return { closest: +closest.toFixed(1), pair, shades: shades.map(c => c.map(v => Math.round(v)).join(',')), fails };
   };
