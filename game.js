@@ -1782,8 +1782,16 @@ const BUILDINGS = [
     blurb: 'A bed of wildflowers.' },
   { key: 'hedge',   name: 'Hedge',     w: 1, h: 1, cost: { wood: 16, food: 8 },   decor: true, charm: 7,  icon: '🌲',
     blurb: 'A clipped green hedge.' },
+  /* The ladder ran 1, 2, 5, 7, 12 and then 45, so a player saving towards
+     charm went from a lamp straight to a statue with nothing between; the
+     bench and the banner are the rungs it was missing, priced at about the
+     same wood per charm as the ornaments either side of them. */
+  { key: 'bench',   name: 'Bench',     w: 1, h: 1, cost: { wood: 24, food: 6 },   decor: true, charm: 9,  icon: '🪑',
+    blurb: 'Oak planks on log legs. Somewhere to sit and watch the village.' },
   { key: 'lamp',    name: 'Lamp',      w: 1, h: 1, cost: { wood: 30 },            decor: true, charm: 12, icon: '🏮',
     blurb: 'An iron lamp on a post, lit at dusk.' },
+  { key: 'banner',  name: 'Banner',    w: 1, h: 1, cost: { wood: 70, food: 40 },  decor: true, charm: 24, icon: '🚩',
+    blurb: 'The village colours on a tall pole, the same as on the hall.' },
   { key: 'statue',  name: 'Statue',    w: 1, h: 1, cost: { wood: 150, stone: 80 }, decor: true, charm: 45, icon: '🗿',
     blurb: 'A stone figure on a plinth. The pride of the village.' },
 
@@ -4549,7 +4557,7 @@ function flushBadges() {
    frames. */
 /* World height of each decoration at scale 1, for when art arrives. A path is
    not here: it is fitted to the tile diamond instead of standing on it. */
-const DECOR_H = { fence: 42, flowers: 34, hedge: 48, lamp: 80, statue: 88 };
+const DECOR_H = { fence: 42, flowers: 34, hedge: 48, bench: 40, lamp: 80, banner: 104, statue: 88 };
 
 function drawDecor(p, alpha) {
   const b = B(p.key), o = tileToWorld(p.c, p.r), n = hash(p.c * 13 + 7, p.r * 17 + 3);

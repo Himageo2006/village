@@ -2854,3 +2854,38 @@ tall. No pots, fences, stones or insects.
 
 This one came back on a painted chequerboard; prep-art.js keyed it and the
 119 small gaps the stems enclosed.
+
+---
+---
+
+# 34 — Two more ornaments → `art/bench.png`, `art/banner.png`  ✅ DONE
+
+The decorate tray's charm ran 1, 2, 5, 7, 12 and then 45: from a lamp straight
+to a statue. The bench (9 charm) and the banner (24) are the rungs between,
+priced at about the wood per charm of their neighbours. Generated in one
+conversation with `art/original/lamp.png` and `statue.png` attached, under the
+decoration rules of groups 18-23.
+
+### 34.1 → `art/bench.png`
+
+```
+A rustic wooden village bench, matching the attached lamp and statue. Small
+and low, about the footprint of one paving tile, running along the diagonal
+of the view. A seat of three thick weathered oak planks on two chunky log
+legs at each end, a low plank backrest, wooden pegs and one iron strap. A
+folded green cloth and a few fallen autumn leaves on the seat. No figures.
+CAMERA / STYLE / LIGHTING / BACKGROUND / FRAMING: as group 22.
+```
+
+### 34.2 → `art/banner.png`
+
+```
+A village banner on a pole: a little taller than the lamp post and only a
+hand's width across. A turned wooden pole in a small square base of grey
+stone blocks, a short crossbar near the top, and a long vertical royal blue
+banner (#2f4f8f) with a gold fleur-de-lis (#e2b23a), a gold fringe and a
+swallowtail point -- the town hall's own colours. A small gilded finial.
+No letters, no real-world flags.
+```
+
+It came back on a painted chequerboard; prep-art.js keyed it.
