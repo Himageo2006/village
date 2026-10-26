@@ -2902,7 +2902,19 @@ const beaconArt = i => artFor(BEACON + '_stage' + i);
 /* Which picture a building is drawn with. One each for everything in the
    game except the beacon, whose whole point is that it changes shape as it
    rises -- a sink nobody can see is a number, not a landmark. */
+/* The statue in three figures, one chosen per statue.
+   Fourteen of them is what the charm goal comes to -- the ceiling over the
+   best ornament -- and they were fourteen copies of one woman with a sheaf
+   of wheat. Chosen from the statue's id rather than its tile, so a statue
+   keeps its figure when it is moved and when the game reloads; and a
+   missing picture falls back to the first figure rather than to nothing. */
+const STATUE_LOOKS = ['statue', 'statue_knight', 'statue_fisher'];
 function buildingArt(p) {
+  if (p.key === 'statue') {
+    const look = STATUE_LOOKS[Math.floor(hash(p.id * 7 + 3, 11) * STATUE_LOOKS.length) % STATUE_LOOKS.length];
+    const im = look === 'statue' ? null : artFor(look);
+    if (im) return im;
+  }
   if (p.key === BEACON) {
     const set = beaconSet();
     if (set) return set[Math.min(BEACON_STAGES, Math.max(1, p.lvl | 0)) - 1];
@@ -7955,6 +7967,7 @@ for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER]) for (let i = 1; i <
    moment it finished, and artFor remembers a miss. */
 for (let i = 1; i <= BEACON_STAGES; i++) beaconArt(i);
 for (const k of ['ground', 'water', 'tree_pine', 'tree_oak', 'tree_birch', 'rock', 'bush', 'stump', 'flowers_wild']) artFor(k);
+for (const k of STATUE_LOOKS) artFor(k);
 
 /* test hooks */
 window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return placed; }, B, BUILDINGS, tileToWorld, worldToTile,

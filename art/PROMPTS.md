@@ -2889,3 +2889,38 @@ No letters, no real-world flags.
 ```
 
 It came back on a painted chequerboard; prep-art.js keyed it.
+
+---
+---
+
+# 35 — The statue in three figures → `art/statue_knight.png`, `art/statue_fisher.png`  ✅ DONE
+
+The charm goal comes to about fourteen statues -- the ceiling over the best
+ornament -- and they were fourteen copies of one woman with a sheaf of wheat.
+Two more figures on the same plinth; each statue takes one of the three by its
+id (STATUE_LOOKS in game.js), so it keeps its figure when moved or reloaded.
+Same price, same charm: only the picture changes.
+
+Generated in one conversation with `art/original/statue.png` attached and the
+instruction to keep the plinth identical; both came back at the original's
+exact size.
+
+### 35.1 → `art/statue_knight.png`
+
+```
+A SECOND statue for the set -- same style, camera, lighting, scale and the
+SAME stone plinth as the attached one; only the figure changes. A carved
+medieval knight in plate armour and a long surcoat, both hands on the pommel
+of a great sword planted point-down, a kite shield against his leg, head
+bare. The same pale weathered sandstone with moss and lichen -- a carving,
+no paint, no metal shine. Silhouette clearly different from the attached.
+```
+
+### 35.2 → `art/statue_fisher.png`
+
+```
+A THIRD statue for the set, same plinth. A carved sturdy old fisherman in a
+long oilskin coat and a sou'wester, full beard, one hand shading his eyes as
+he looks out to sea, a coiled net over his shoulder. Same sandstone, moss
+and lichen. No water, no boats.
+```
