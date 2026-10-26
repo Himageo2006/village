@@ -196,8 +196,13 @@ for(let r=0;r<GH;r++) for(let c=0;c<GW;c++){
     /* Rocks and pines keep exactly the share of tiles they always had; the
        oaks give some of theirs to birches and the bushes some of theirs to
        stumps and wildflowers, so the island reads less like four stamps
-       repeated and nothing moves. */
-    const kind = n>0.955 ? (v<0.55?'rock':v<0.72?'bush':v<0.86?'stump':'flowers_wild')
+       repeated and nothing moves. The sheep take one tile from the bushes and
+       one from the flowers: the island is fixed, and its small scenery falls on
+       eight tiles -- three rocks, then values .603 .669 .765 .903 .923 -- so
+       the bands are set to give one bush, one grazing sheep, one stump, one
+       patch of flowers and one sheep lying down, rather than a share that
+       would have turned both flower tiles into sheep. */
+    const kind = n>0.955 ? (v<0.55?'rock':v<0.64?'bush':v<0.72?'sheep':v<0.86?'stump':v<0.915?'flowers_wild':'sheep_rest')
                          : (v<0.62?'tree_pine':v<0.84?'tree_oak':'tree_birch');
     SCENERY.push({c,r,kind,rock:kind==='rock',s:0.78+((n*97)%1)*0.5,f:(n*31)%1});
   }
@@ -4005,10 +4010,10 @@ function drawGround() {
 }
 /* World height of each kind at scale 1, set against a cottage at ~207px so the
    trees read as trees rather than shrubs or redwoods. */
-const SCENERY_H = { tree_pine: 115, tree_oak: 100, tree_birch: 122, rock: 54, bush: 46, stump: 38, flowers_wild: 30 };
+const SCENERY_H = { tree_pine: 115, tree_oak: 100, tree_birch: 122, rock: 54, bush: 46, stump: 38, flowers_wild: 30, sheep: 30, sheep_rest: 22 };
 /* What a newer kind is drawn as while its own picture is missing, so a lost
    file shows the kind it was split from rather than the procedural tree. */
-const SCENERY_FALLBACK = { tree_birch: 'tree_oak', stump: 'bush', flowers_wild: 'bush' };
+const SCENERY_FALLBACK = { tree_birch: 'tree_oak', stump: 'bush', flowers_wild: 'bush', sheep: 'bush', sheep_rest: 'bush' };
 
 /* ---------- the time of year ----------
 
@@ -7966,7 +7971,7 @@ for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER]) for (let i = 1; i <
    a village with none of them drawn would otherwise send five requests the
    moment it finished, and artFor remembers a miss. */
 for (let i = 1; i <= BEACON_STAGES; i++) beaconArt(i);
-for (const k of ['ground', 'water', 'tree_pine', 'tree_oak', 'tree_birch', 'rock', 'bush', 'stump', 'flowers_wild']) artFor(k);
+for (const k of ['ground', 'water', 'tree_pine', 'tree_oak', 'tree_birch', 'rock', 'bush', 'stump', 'flowers_wild', 'sheep', 'sheep_rest']) artFor(k);
 for (const k of STATUE_LOOKS) artFor(k);
 
 /* test hooks */

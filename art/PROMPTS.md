@@ -2924,3 +2924,37 @@ long oilskin coat and a sou'wester, full beard, one hand shading his eyes as
 he looks out to sea, a coiled net over his shoulder. Same sandstone, moss
 and lichen. No water, no boats.
 ```
+
+---
+---
+
+# 36 — Sheep on the open grass → `art/sheep.png`, `art/sheep_rest.png`  ✅ DONE
+
+Everything out on the open ground was a plant or a rock. Two sheep -- one
+grazing, one lying down -- as scenery: no behaviour, just the one thing on
+the island that is alive. Generated in one conversation with
+`art/original/bush.png` and `villager_farmer.png` attached for style and
+scale (a sheep's back about at the farmer's knee).
+
+The island is fixed and its small scenery falls on eight tiles, so the bands
+in the SCENERY kind line are set to give one of each: three rocks as before,
+then a bush, a grazing sheep, a stump, a patch of flowers and a sheep lying
+down. Missing pictures fall back to the bush.
+
+### 36.1 → `art/sheep.png`
+
+```
+A single grazing sheep, matching the attached bush (style) and farmer
+(scale). Side-on along the diagonal, facing the lower left. A plump fluffy
+white sheep, the fleece a few chunky rounded lumps, black face and legs,
+small ears out sideways, head lowered to graze. Friendly and a little
+comical. Clearly smaller than the bush. No fence, shepherd or grass.
+```
+
+### 36.2 → `art/sheep_rest.png`
+
+```
+The SAME sheep lying down resting: legs tucked under, a low round cloud of
+fleece on the ground, head up and turned slightly to the viewer, eyes half
+closed. Lower and a little wider than the grazing one.
+```

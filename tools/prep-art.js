@@ -43,7 +43,7 @@ const KEYS = [
   'house', 'farm', 'lumber', 'store', 'hall', 'well', 'mill', 'market', 'quarry',
   'find_stones', 'find_orchard', 'find_ruin', 'find_wreck',
   'villager_farmer', 'villager_basket', 'villager_woodcutter', 'villager_stonecutter', 'villager_trader', 'villager_miller',
-  'tree_pine', 'tree_oak', 'rock', 'bush', 'tree_birch', 'stump', 'flowers_wild',
+  'tree_pine', 'tree_oak', 'rock', 'bush', 'tree_birch', 'stump', 'flowers_wild', 'sheep', 'sheep_rest',
   'path', 'fence', 'flowers', 'hedge', 'lamp', 'statue', 'bench', 'banner', 'statue_knight', 'statue_fisher',
   'ground', 'water',
 ];
@@ -126,7 +126,7 @@ function flatten(data, w, h, ch) {
    listed gets MAX_W. */
 const CAP = {
   villager_farmer: 320, villager_basket: 320, villager_woodcutter: 320, villager_stonecutter: 320, villager_trader: 320, villager_miller: 320,
-  tree_pine: 560, tree_oak: 560, rock: 360, bush: 360, tree_birch: 560, stump: 360, flowers_wild: 360,
+  tree_pine: 560, tree_oak: 560, rock: 360, bush: 360, tree_birch: 560, stump: 360, flowers_wild: 360, sheep: 320, sheep_rest: 320,
   well: 420, hall: 800, mill: 800, market: 800,
   /* The beacon is capped on its WIDTH, not its longest side -- see stageSet.
      Same plot as a hall, so the same width. */
