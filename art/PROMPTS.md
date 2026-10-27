@@ -3181,3 +3181,54 @@ the back, white and blue cornflowers, a little pink rose bush at one corner,
 tiny yellow buds. Different colours from the attached red, pink and yellow
 bed. Transparent background.
 ```
+
+---
+---
+
+# 42 — Title screen and store art → `art/title_art.webp`, `art/logo.webp`, `store/feature-graphic.png`  ✅ DONE
+
+The game opened straight onto the island with nothing before it. A title
+screen now (index.html, #intro): a painting the shape of the canvas, the logo
+over its sky, one button over its water, faded into the running village by a
+tap -- which is also the first touch, so it wakes the sound. The store's
+feature graphic is the same island painted wide with the same logo over it.
+
+Generated with `store/1-village.jpg` and `resources/icon.png` attached for
+buildings, style and palette. Masters in `art/original/`; the game ships
+`title_art.webp` (1024x1536, q86) and `logo.webp` (trimmed, 900 wide).
+
+### 42.1 → `art/original/title_art.png`
+
+```
+The TITLE SCREEN key art. A tall PORTRAIT painting, 2:3, in the same warm
+painted style but richer and more cinematic: a small green island village in
+a turquoise sea at golden hour, seen from above at a gentle angle -- the
+timber-framed town hall with its bell tower and blue banners at the heart,
+red- and slate-roofed cottages, a thatched cottage, a windmill, wheat and
+vegetable fields, a market with striped awnings, dirt paths, tiny villagers,
+sheep, birch and pine trees, a white stone lighthouse with a glowing lamp on
+a rocky point, two small boats, gulls, soft sunbeams. Keep the TOP THIRD calm
+sky for the logo and the BOTTOM sixth calm water for a button. Absolutely NO
+text, letters, logo or UI.
+```
+
+### 42.2 → `art/original/logo.png`
+
+```
+The game's LOGO, wide, on a fully TRANSPARENT background. The word "Village"
+in big, chunky, friendly hand-lettered serif, carved from honey-coloured wood
+with a gold rim, a tiny red roof with a chimney on the V and a green leaf
+sprig on the final e; beneath it a cream parchment ribbon reading "ISLAND
+BUILDER" in dark-brown capitals. Spell both exactly. Nothing else.
+```
+
+It spelled both right first time.
+
+### 42.3 → `art/original/feature_art.png`
+
+```
+A WIDE LANDSCAPE version of the title painting for the store banner, composed
+for a 2:1 crop: the village in the RIGHT 55%, the LEFT 45% open calm sea
+under a golden-pink sky with the sun low, nothing important there because
+the logo goes over it. Everything important in the middle band. NO text.
+```

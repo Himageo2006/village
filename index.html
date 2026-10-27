@@ -27,6 +27,68 @@
   pointer-events:none;padding-top:env(safe-area-inset-top,0px);
   padding-bottom:env(safe-area-inset-bottom,0px)"></div>
 <div id="wrap"><canvas id="c" width="1024" height="1536"></canvas></div>
+<!-- The title screen. A painting the same shape as the canvas, the logo over
+     its sky and one button over its water; a tap anywhere fades it into the
+     village, which has been running underneath all along. It is the first
+     touch of the session, so it is also what wakes the sound. -->
+<style>
+  #intro{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;
+    overflow:hidden;cursor:pointer;touch-action:none;-webkit-user-select:none;user-select:none;
+    -webkit-tap-highlight-color:transparent;transition:opacity .55s ease}
+  #intro.gone{opacity:0;pointer-events:none}
+  /* beside a tall picture on a wide screen: the same painting, blurred, not bars */
+  #intro .wash{position:absolute;inset:-40px;background:#0a3940 url(art/title_art.webp) center/cover;
+    filter:blur(28px) brightness(.7)}
+  #intro .card{position:relative;height:100%;max-width:100%;aspect-ratio:2/3;overflow:hidden;
+    box-shadow:0 0 60px rgba(0,0,0,.45)}
+  #intro .art{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
+    animation:introDrift 24s ease-in-out infinite alternate}
+  #intro .logo{position:absolute;left:8%;width:84%;top:calc(3% + env(safe-area-inset-top,0px));
+    filter:drop-shadow(0 6px 10px rgba(60,25,5,.45));animation:introFloat 5s ease-in-out infinite}
+  #intro .title{position:absolute;left:0;right:0;top:calc(6% + env(safe-area-inset-top,0px));
+    text-align:center;color:#fff3d6;font:800 clamp(40px,11vmin,96px)/1 Georgia,serif;
+    text-shadow:0 3px 0 #8a4b1c,0 8px 18px rgba(0,0,0,.45);display:none}
+  #intro .go{position:absolute;left:50%;bottom:calc(7% + env(safe-area-inset-bottom,0px));
+    transform:translateX(-50%);padding:.7em 1.9em;border-radius:999px;white-space:nowrap;
+    font:700 clamp(18px,4.6vmin,34px)/1.1 Georgia,serif;color:#fff8e6;letter-spacing:.02em;
+    background:linear-gradient(#c98a3c,#8f5420);border:3px solid #f3d27a;
+    box-shadow:0 5px 0 #5e3412,0 10px 22px rgba(0,0,0,.4);text-shadow:0 2px 0 #5e3412;
+    animation:introPulse 2.2s ease-in-out infinite}
+  @keyframes introDrift{from{transform:scale(1)}to{transform:scale(1.06) translateY(-1.2%)}}
+  @keyframes introFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-1.4%)}}
+  @keyframes introPulse{0%,100%{transform:translateX(-50%) scale(1)}50%{transform:translateX(-50%) scale(1.05)}}
+  @media (prefers-reduced-motion:reduce){#intro .art,#intro .logo,#intro .go{animation:none}}
+</style>
+<div id="intro" role="button" aria-label="Start">
+  <div class="wash"></div>
+  <div class="card">
+    <img class="art" src="art/title_art.webp" alt="">
+    <img class="logo" src="art/logo.webp" alt="Village: Island Builder"
+      onerror="this.remove();document.querySelector('#intro .title').style.display='block'">
+    <div class="title">Village</div>
+    <div class="go">Tap to begin</div>
+  </div>
+</div>
 <script src="game.js"></script>
+<script>
+(function () {
+  const intro = document.getElementById('intro');
+  if (!intro) return;
+  // a test page or a harness asks for the village straight away
+  if (/[?&]nointro\b/.test(location.search)) { intro.remove(); return; }
+  try {
+    // someone coming back to a village is not beginning one
+    const V = window.__v;
+    if (V && V.placed && V.placed.length > 1) intro.querySelector('.go').textContent = 'Continue';
+  } catch (e) {}
+  let done = false;
+  intro.addEventListener('pointerup', () => {
+    if (done) return; done = true;
+    try { window.__v && window.__v.audioOn(); } catch (e) {}
+    intro.classList.add('gone');
+    setTimeout(() => intro.remove(), 600);
+  });
+})();
+</script>
 </body>
 </html>

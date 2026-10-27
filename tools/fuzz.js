@@ -17,6 +17,9 @@
    done -- place(), sell() and the rest all call save(), so a run WILL overwrite
    whatever was in local storage while it is going. Do not kill it halfway
    through on a device whose village you care about. */
+// The title screen covers the page until someone taps it; the sweeps want
+// the village, so it goes before any of them looks.
+{ const intro = document.getElementById('intro'); if (intro) intro.remove(); }
 (function () {
   /* Strict, so that a mistake this file has already made once cannot be made
      again quietly.

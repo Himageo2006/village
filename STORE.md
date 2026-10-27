@@ -121,9 +121,16 @@ The five shots are the five below, in that order, and they are frames the
 game actually drew rather than mock-ups: the canvas was asked for a 1080×1920
 phone, which makes it 1024×1820, and each frame came off `toDataURL` and was
 scaled up to 1080×1920. JPEG at quality 92, which is indistinguishable from
-the PNG on this art down to the HUD text and a fifth of the size. The feature
-graphic is a 500-pixel band of roofs out of the same village with the name
-laid over an opaque left panel.
+the PNG on this art down to the HUD text and a fifth of the size.
+
+The feature graphic is the one picture here that is painted rather than
+captured: a wide golden-hour painting of the village (`art/original/
+feature_art.png`, PROMPTS.md group 42) cut to 1024x500, with the game's logo
+over its open sea and the four promises under it. It is the same island,
+buildings and logo as the title screen, so the listing and the first thing
+the app shows are one picture. Rebuilt by compositing, not by hand: the
+painting, a soft shade behind the lettering, the trimmed logo at 430 wide,
+two lines of Georgia in cream with a brown outline.
 
 **They will want redoing once the quarry has a picture.** Every shot of a
 finished village now contains a quarry drawn by the procedural stand-in, and
