@@ -560,13 +560,20 @@ const STOCK_MAX=CARRY*2;    // a workplace stops filling once it has this much w
    playing in, not a stealth game, and a build bar you cannot read at 2am is a
    bug however pretty it looks. */
 const DAY_MS = 8 * 60 * 1000;         // a full cycle
-const NIGHT_MAX = 0.42;               // strongest wash, tuned to stay readable
+const NIGHT_MAX = 0.36;               // strongest wash, tuned to stay readable
 const dayPhase = () => (Date.now() % DAY_MS) / DAY_MS;
 
-/* sun: 1 at noon, 0 at dawn and dusk, -1 at midnight. */
+/* sun: 1 at noon, 0 at dawn and dusk, -1 at midnight.
+
+   The night used to begin while the sun was still a quarter of the way up and
+   creep in from there, which washed the island navy for 58% of every day --
+   most of the time anyone looked at it, the village was dimmer than its own
+   pictures. It now begins once the sun is well down and is fully dark only
+   around midnight: dimmed for 40% of the day and at its darkest for 14%,
+   with dusk and dawn left to the warm light. */
 function sky() {
   const sun = Math.cos((dayPhase() - 0.25) * Math.PI * 2);
-  const night = Math.max(0, Math.min(1, (0.25 - sun) / 1.1));
+  const night = Math.max(0, Math.min(1, (-0.3 - sun) / 0.6));
   const warm = Math.max(0, 1 - Math.abs(sun) * 2.6);   // peaks at sunrise and sunset
   return { sun, night, warm };
 }
@@ -3977,9 +3984,15 @@ function tilePath(c, r) {
      faceW  width of the grass surface as a fraction of the image width
      ax,ay  where the near corner of that surface sits in the image
 
-   The measured top face came out 1761 x 880 -- 2.001:1, so the plate really is
-   drawn at the same projection as the tile grid and lines up exactly. */
-const GROUND_FIT = { faceW: 0.9932, ax: 0.4994, ay: 0.9921 };
+   The plate is the lush one: flowered grass over sandstone cliffs, a strip of
+   sand and a line of surf, all hanging BELOW the grass rather than eating
+   into it. The generator never draws an exact diamond -- its first try
+   squashed the front of the grass by a sixth to make room for the cliffs, its
+   second came back a kite with the side corners low -- so the picture was
+   warped onto one: two affine triangles split on the left-right line, which
+   meet without a seam and stretch the cliffs by a sixth at most. The grass
+   face is now 1501 x 750.5, exactly 2:1, with its corners on the grid's. */
+const GROUND_FIT = { faceW: 0.9446, ax: 0.5000, ay: 0.7245 };
 
 /* The sea is one painted image mirrored into a 2x2 tile, which makes it repeat
    with no seam whatever the artwork does at its edges: every tile boundary
@@ -4012,7 +4025,7 @@ function waterPattern() {
    simply not there. */
 const SEA_PROPS = [
   { key: 'boat_fishing', fx: -0.12, top: true,  dy: -230, h: 100 },
-  { key: 'boat_row',     fx:  0.11, top: false, dy:  210, h: 52 },
+  { key: 'boat_row',     fx:  0.11, top: false, dy:  330, h: 52 },   // clear of the cliffs and sand
 ];
 function drawSeaProps(b) {
   const W = b.x1 - b.x0, cx = (b.x0 + b.x1) / 2;
@@ -5383,6 +5396,26 @@ const chipsBot = () => {
   const u = US(), cs = chipRects();
   return cs.length ? Math.max(...cs.map(c => c.y + c.h / 2)) : hudTop() + 90 * u;
 };
+/* The interface's panels are carved wood with a gold rim -- the logo's
+   material and the title screen's button -- where they were translucent dark
+   green. Kept dark on purpose: every colour of writing on them was chosen for
+   contrast against a dark backing, the selected card was once lightened and
+   lost its gold price to it, and the contrast sweeps measure exactly this.
+   What says "selected" is the rim, brighter and thicker, not the fill. */
+const WOOD_RIM = 'rgba(214,170,88,.80)', WOOD_ON = '#f3d27a';
+function woodPanel(x, y, w, h, r, rim, rimW, warm) {
+  const gr = g.createLinearGradient(0, y, 0, y + h);
+  gr.addColorStop(0, warm ? 'rgba(84,36,24,.94)' : 'rgba(74,47,24,.93)');
+  gr.addColorStop(1, warm ? 'rgba(52,20,14,.94)' : 'rgba(42,26,13,.93)');
+  g.fillStyle = gr;
+  g.beginPath(); g.roundRect(x, y, w, h, r); g.fill();
+  g.save(); g.clip();                    // the bevel catching the light, inside the rim
+  g.strokeStyle = 'rgba(255,222,160,.14)'; g.lineWidth = 2;
+  g.beginPath(); g.roundRect(x + 3, y + 3, w - 6, h - 6, Math.max(0, r - 3)); g.stroke();
+  g.restore();
+  g.strokeStyle = rim || WOOD_RIM; g.lineWidth = rimW || 2.5;
+  g.beginPath(); g.roundRect(x, y, w, h, r); g.stroke();
+}
 function drawHUD() {
   const u = US();
   // resources
@@ -5402,10 +5435,7 @@ function drawHUD() {
     ? potentialRate() : null;
   const chip = (c, icon, k, val, cap, col, rate, lost) => {
     const x = c.x, ry = c.y, wch = c.w, h = c.h, full = isFull(k);
-    g.fillStyle = 'rgba(16,26,14,.80)';
-    g.strokeStyle = full ? 'rgba(235,150,110,.75)' : 'rgba(255,255,255,.14)';
-    g.lineWidth = full ? 3 : 2;
-    g.beginPath(); g.roundRect(x, ry - h / 2, wch, h, h / 2); g.fill(); g.stroke();
+    woodPanel(x, ry - h / 2, wch, h, h / 2, full ? 'rgba(235,150,110,.85)' : null, full ? 3 : 2.5);
     g.textAlign = 'left'; g.font = `${Math.round(28 * u)}px Segoe UI, sans-serif`;
     g.fillStyle = '#fff'; g.fillText(icon, x + 16 * u, ry - 1 * u);
     /* The most-looked-at number in the game, and it was spilling out of its own
@@ -5470,8 +5500,7 @@ function drawHUD() {
       continue;
     }
     const x = c.x, ry = c.y, wch = c.w, hh = c.h;
-    g.fillStyle = 'rgba(16,26,14,.80)'; g.strokeStyle = 'rgba(255,255,255,.14)'; g.lineWidth = 2;
-    g.beginPath(); g.roundRect(x, ry - hh / 2, wch, hh, hh / 2); g.fill(); g.stroke();
+    woodPanel(x, ry - hh / 2, wch, hh, hh / 2);
     g.textAlign = 'left'; g.font = `${Math.round(28 * u)}px Segoe UI, sans-serif`;
     g.fillStyle = '#fff'; g.fillText('✨', x + 16 * u, ry - 1 * u);
     const cd = charmDelivered();
@@ -5498,10 +5527,8 @@ function drawHUD() {
        about 4.2 -- on the one card the player is looking at. Never measured,
        because no sweep had a card selected. Darker, still plainly green, and
        the bright border is what says "selected" anyway. */
-    g.fillStyle = sel ? 'rgba(38,64,28,.95)' : can ? 'rgba(22,32,20,.92)' : 'rgba(40,22,20,.92)';
-    g.strokeStyle = sel ? '#9fe86b' : can ? 'rgba(255,255,255,.22)' : 'rgba(200,110,90,.5)';
-    g.lineWidth = sel ? 4 : 2.5;
-    g.beginPath(); g.roundRect(r.x - r.w / 2, r.y - r.h / 2, r.w, r.h, 16); g.fill(); g.stroke();
+    woodPanel(r.x - r.w / 2, r.y - r.h / 2, r.w, r.h, 16,
+      sel ? WOOD_ON : can ? WOOD_RIM : 'rgba(200,110,90,.6)', sel ? 4 : 2.5, !sel && !can);
     g.textAlign = 'center'; g.textBaseline = 'middle';
     g.globalAlpha = full ? 0.55 : 1;
     /* Laid out in measured bands, not fractions of the card. With two costs
@@ -5699,12 +5726,10 @@ function drawHUD() {
   for (const t of tabRects()) {
     const on = barMode === t.mode;
     g.save();
-    g.fillStyle = on ? 'rgba(60,96,44,.95)' : 'rgba(18,26,16,.9)';
-    g.strokeStyle = on ? '#9fe86b' : 'rgba(255,255,255,.18)'; g.lineWidth = on ? 3 : 2;
-    g.beginPath(); g.roundRect(t.x - t.w / 2, t.y - t.h / 2, t.w, t.h, t.h / 2); g.fill(); g.stroke();
+    woodPanel(t.x - t.w / 2, t.y - t.h / 2, t.w, t.h, t.h / 2, on ? WOOD_ON : null, on ? 3.5 : 2.5);
     g.textAlign = 'center'; g.textBaseline = 'middle';
     g.font = `bold ${Math.round(22 * u)}px Segoe UI, sans-serif`;
-    g.fillStyle = on ? '#eaffd6' : '#9fb094';
+    g.fillStyle = on ? '#fff3d6' : '#cdb894';
     g.fillText(t.label, t.x, t.y);
     /* Trading is where surplus food turns back into wood -- at a full village
        it is 30% of wood income -- but only if you go and look. A count on the
@@ -5754,8 +5779,7 @@ function drawHUD() {
     /* Sat on its own height, not a fixed 16 above the tabs: the pill is 41
        tall, so half of it is 20, and its bottom covered the top of the tabs. */
     const y = tabRects()[0].y - tabRects()[0].h / 2 - ph / 2 - 6 * u;
-    g.fillStyle = 'rgba(16,26,14,.86)'; g.strokeStyle = 'rgba(255,255,255,.16)'; g.lineWidth = 2;
-    g.beginPath(); g.roundRect(W / 2 - pw / 2, y - ph / 2, pw, ph, ph / 2); g.fill(); g.stroke();
+    woodPanel(W / 2 - pw / 2, y - ph / 2, pw, ph, ph / 2);
     g.fillStyle = refused ? '#f0c79a' : '#cfe0a8';
     g.fillText(fit.lines[0], W / 2, y);
     g.restore();
@@ -5989,8 +6013,7 @@ function drawGoal() {
   const tw = Math.max(...fit.lines.map(l => g.measureText(l).width));
   const w = Math.min(W - 40 * u, tw + 56 * u);
   const hh = Math.max(52 * u, fit.lines.length * fit.px * 1.22 + 28 * u);
-  g.fillStyle = 'rgba(16,26,14,.80)'; g.strokeStyle = 'rgba(255,255,255,.16)'; g.lineWidth = 2;
-  g.beginPath(); g.roundRect(W / 2 - w / 2, y - hh / 2, w, hh, Math.min(hh, 52 * u) / 2); g.fill(); g.stroke();
+  woodPanel(W / 2 - w / 2, y - hh / 2, w, hh, Math.min(hh, 52 * u) / 2);
   g.fillStyle = '#c8d9b8';
   pillLines(fit, W / 2, y);
   g.restore();
@@ -6451,8 +6474,7 @@ function muteRect() {
 function drawMute() {
   const R = muteRect(), u = US();
   g.save();
-  g.fillStyle = 'rgba(16,26,14,.78)'; g.strokeStyle = 'rgba(255,255,255,.14)'; g.lineWidth = 2;
-  g.beginPath(); g.arc(R.x, R.y, R.r, 0, 7); g.fill(); g.stroke();
+  woodPanel(R.x - R.r, R.y - R.r, R.r * 2, R.r * 2, R.r);
   g.textAlign = 'center'; g.textBaseline = 'middle';
   g.font = `${Math.round(30 * u)}px Segoe UI, sans-serif`;
   g.fillStyle = muted ? '#8d9487' : '#fff';

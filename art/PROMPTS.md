@@ -3232,3 +3232,44 @@ for a 2:1 crop: the village in the RIGHT 55%, the LEFT 45% open calm sea
 under a golden-pink sky with the sun low, nothing important there because
 the logo goes over it. Everything important in the middle band. NO text.
 ```
+
+---
+---
+
+# 43 — The island itself → `art/original/ground_t.png` → `art/ground.webp`  ✅ DONE
+
+The ground plate everything stands on was a flat lawn with a thin rim of
+earth. Repainted to look like the title screen's island: bright flowered
+grass over sandstone cliffs, a strip of golden sand and a line of surf.
+
+The grass face has to be an exact 2:1 diamond, because the tile grid is laid
+on it, and the generator does not draw one:
+
+- asked to repaint the old plate "keeping exactly the same shape", it
+  squashed the front of the grass by a sixth to make room for its cliffs and
+  tilted the whole face (the right corner 38 px low);
+- given a template -- a magenta 2:1 diamond on a 1536x1024 canvas, "grass
+  inside, cliffs below the two lower edges" -- it ignored the template's
+  position but drew a near-diamond with the cliffs properly underneath:
+  front-edge slopes 0.463 and -0.488 against 0.5, the side corners 57% of the
+  way down rather than half.
+
+That second one (`ground_t.png`) was straightened in code: the grass found by
+colour, its four corners measured, and the picture warped onto a true diamond
+by two affine triangles split on the left-right line. They meet without a
+seam, and the stretch is mild (the back half to 85%, the front to 115%, cliffs
+included). `ground_island.png` is the warped result; its grass face is
+1501 x 750.5 and GROUND_FIT in game.js is measured off it.
+
+### 43.1 → `art/original/ground_t.png`
+
+```
+Repaint it ON this attached template, keeping the same 1536x1024 canvas:
+paint lush flowered grass so it fills EXACTLY the magenta diamond -- the
+grass edges on the four magenta lines, all four corners where they are --
+and the sandstone cliffs, mossy rocks, ferns and a narrow band of golden
+sand with white surf foam entirely BELOW the two lower magenta edges,
+hanging into the empty space under the diamond, never covering it. Remove
+the magenta line, the pale fill and the words. Everything outside the
+island fully transparent.
+```
