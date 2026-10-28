@@ -3730,3 +3730,27 @@ from its mouth, water spilling in soft streams from the upper bowl into the
 basin, a little moss and two water lilies. Same warm light. No figures, no
 text. Nothing beyond the basin: fully transparent background.
 ```
+
+---
+---
+
+# 58 — Sea stacks → `art/sea_rocks.png`  ✅ DONE
+
+Rocks in the open water below the south-west cliffs, painted with their own
+surf so they are drawn as they are, without the boats' waterline treatment
+(`still` in SEA_PROPS). Same conversation, with `art/original/rock.png`
+attached for the style.
+
+### 58.1 → `art/sea_rocks.png`
+
+```
+Next: a small group of sea rocks to stand in the open sea near the island,
+in the same painterly style, light and high isometric camera angle as the
+attached rock: three or four craggy sandstone-and-grey sea stacks of
+different heights rising out of the water, streaked with white where
+seabirds rest, dark green seaweed at their feet, two white seagulls perched
+on the tallest one, and a ring of white surf foam and small splashes around
+their bases. Only the rocks, the gulls and the foam at the waterline -- no
+open water beyond the foam, no horizon, no text. Fully transparent
+background.
+```

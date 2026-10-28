@@ -4054,6 +4054,7 @@ const SEA_PROPS = [
   { key: 'boat_fishing', fx: -0.12, top: true,  dy: -230, h: 100 },
   { key: 'boat_row',     fx:  0.11, top: false, dy:  330, h: 52 },   // clear of the cliffs and sand
   { key: 'boat_ketch',   fx:  0.24, top: true,  dy: -100, h: 132 },  // under sail, off the north-east shore
+  { key: 'sea_rocks',    fx: -0.14, top: false, dy:  390, h: 150, still: true },  // sea stacks off the south-west cliffs
 ];
 function drawSeaProps(b) {
   const W = b.x1 - b.x0, cx = (b.x0 + b.x1) / 2;
@@ -4062,6 +4063,8 @@ function drawSeaProps(b) {
     if (!art) continue;
     const x = cx + s.fx * W, y = (s.top ? b.y0 : b.y1) + s.dy;
     const hgt = s.h, wid = art.width * (hgt / art.height);
+    // rocks are painted with their own surf at the waterline: drawn as they are
+    if (s.still) { g.drawImage(art, x - wid / 2, y - hgt, wid, hgt); continue; }
     g.save();
     // the hull sits IN the water: a darker patch under it ...
     g.fillStyle = 'rgba(8,40,58,.28)';
