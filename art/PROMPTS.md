@@ -3519,3 +3519,25 @@ gaps between them, a narrower and more ragged silhouette than the attached
 pine, a few brown cones, and a little tuft of grass and a fern at its foot.
 One tree only, no other objects, no text. Fully transparent background.
 ```
+
+---
+---
+
+# 50 — A ship under sail → `art/boat_ketch.png`  ✅ DONE
+
+A third boat for the sea, in the open water off the island's north-east
+shore beside the fishing boat (SEA_PROPS). Same conversation, with
+`art/original/boat_fishing.png` attached.
+
+### 50.1 → `art/boat_ketch.png`
+
+```
+Next: a third boat for the sea around the island (attached: the current
+fishing boat), at the same scale, camera angle and painterly style: a small
+two-masted merchant ketch under sail, a dark varnished wooden hull with a
+white stripe, two cream canvas sails filled by the breeze and a small red
+pennant at the mast top, a few crates and barrels lashed on deck, heeling
+very slightly, pointing along the same diagonal as the attached boat. Only
+the boat itself, drawn down to the waterline -- no water, no wake, no
+reflection, no people, no text. Fully transparent background.
+```

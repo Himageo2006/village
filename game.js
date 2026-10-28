@@ -4029,12 +4029,14 @@ function waterPattern() {
    it is tall and the screen is the other way round -- and it was empty. Two
    boats, placed against the island's own bounds so they stay off the coast at
    any size, in the two stretches a portrait screen leaves empty: the open
-   water above the island's top corner and below its southern cliffs. Nothing about them moves or can be touched; they are scenery for the
+   water above the island's top corner and below its southern cliffs. A third,
+   a ketch under sail, keeps the fishing boat company in the upper water. Nothing about them moves or can be touched; they are scenery for the
    water, as the sheep are for the grass. A boat whose picture is missing is
    simply not there. */
 const SEA_PROPS = [
   { key: 'boat_fishing', fx: -0.12, top: true,  dy: -230, h: 100 },
   { key: 'boat_row',     fx:  0.11, top: false, dy:  330, h: 52 },   // clear of the cliffs and sand
+  { key: 'boat_ketch',   fx:  0.24, top: true,  dy: -100, h: 132 },  // under sail, off the north-east shore
 ];
 function drawSeaProps(b) {
   const W = b.x1 - b.x0, cx = (b.x0 + b.x1) / 2;
