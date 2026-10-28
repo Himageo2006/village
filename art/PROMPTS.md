@@ -3661,3 +3661,26 @@ and white spiralling down around the pole, their loose ends fluttering a
 little. A small gilded ball on top. Same painterly style and warm light. No
 figures, no text. Nothing beyond the base: fully transparent background.
 ```
+
+---
+---
+
+# 55 — A pumpkin patch → `art/farm_pumpkin.png`  ✅ DONE
+
+A fourth farm look, with `art/original/farm.png` attached, same conversation.
+It came back with the field's fence on the plot's diamond and takes the
+barley field's fit.
+
+### 55.1 → `art/farm_pumpkin.png`
+
+```
+Next: a FOURTH variant of the attached farm, the same size, footprint (a 2x2
+square field), camera angle, light and painted style, with the same low
+fence around the field. This one is a pumpkin and squash patch: rows of big
+orange pumpkins and a few green and yellow squashes on sprawling vines with
+broad green leaves, a friendly straw scarecrow in a patched blue coat and
+floppy hat standing in the middle, a small wooden handcart with three
+pumpkins at the gate, and a few sunflowers along one fence. Nothing around
+it -- no ground beyond the field, no shadow, no text. Fully transparent
+background.
+```

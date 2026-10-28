@@ -155,6 +155,7 @@ const ART_FIT = {
   farm:   { w: 0.85, ax: 0.531, ay: 1.000 },
   farm_veg:    { w: 0.85, ax: 0.531, ay: 0.998 },
   farm_barley: { w: 0.85, ax: 0.526, ay: 0.998 },
+  farm_pumpkin: { w: 0.85, ax: 0.526, ay: 0.995 },
   lumber: { w: 1.18, ax: 0.570, ay: 1.000 },
   lumber_pit:  { w: 1.18, ax: 0.660, ay: 0.95 },
   lumber_cabin: { w: 1.18, ax: 0.600, ay: 0.97 },
@@ -2953,7 +2954,7 @@ const beaconArt = i => artFor(BEACON + '_stage' + i);
 const LOOKS = {
   statue: ['statue', 'statue_knight', 'statue_fisher'],
   house:  ['house', 'house_stone', 'house_thatch', 'house_fisher'],
-  farm:   ['farm', 'farm_veg', 'farm_barley'],
+  farm:   ['farm', 'farm_veg', 'farm_barley', 'farm_pumpkin'],
   lumber: ['lumber', 'lumber_pit', 'lumber_cabin'],
   well:   ['well', 'well_iron', 'well_thatch'],
   store:  ['store', 'store_granary', 'store_barn'],
