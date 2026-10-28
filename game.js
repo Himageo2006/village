@@ -4107,7 +4107,7 @@ function drawGround() {
 }
 /* World height of each kind at scale 1, set against a cottage at ~207px so the
    trees read as trees rather than shrubs or redwoods. */
-const SCENERY_H = { tree_pine: 115, tree_oak: 100, tree_cherry: 100, tree_birch: 122, rock: 54, bush: 46, stump: 38, flowers_wild: 30, sheep: 30, sheep_rest: 22 };
+const SCENERY_H = { tree_pine: 115, tree_spruce: 118, tree_oak: 100, tree_cherry: 100, tree_birch: 122, rock: 54, bush: 46, stump: 38, flowers_wild: 30, sheep: 30, sheep_rest: 22 };
 /* What a newer kind is drawn as while its own picture is missing, so a lost
    file shows the kind it was split from rather than the procedural tree. */
 const SCENERY_FALLBACK = { tree_birch: 'tree_oak', tree_cherry: 'tree_oak', stump: 'bush', flowers_wild: 'bush', sheep: 'bush', sheep_rest: 'bush' };
@@ -4182,7 +4182,7 @@ const season = () => SEASONS[seasonIdx()];
 /* Rocks do not change colour in October, and neither does a dirt path or a
    stone statue -- they take the building wash, which is slight, rather than
    the leaf one. */
-const SEASON_LEAF = new Set(['tree_pine', 'tree_oak', 'tree_cherry', 'tree_birch', 'bush', 'flowers_wild']);
+const SEASON_LEAF = new Set(['tree_pine', 'tree_spruce', 'tree_oak', 'tree_cherry', 'tree_birch', 'bush', 'flowers_wild']);
 const seasonSkins = new WeakMap();      // picture -> (tint -> canvas)
 function seasonSkin(im, key) {
   const sea = season();
@@ -4211,7 +4211,12 @@ function seasonSkin(im, key) {
 
 function drawScenery(o) {
   const p = tileToWorld(o.c, o.r), s2 = o.s;
-  const kind = artFor(o.kind) || !SCENERY_FALLBACK[o.kind] ? o.kind : SCENERY_FALLBACK[o.kind];
+  let kind = artFor(o.kind) || !SCENERY_FALLBACK[o.kind] ? o.kind : SCENERY_FALLBACK[o.kind];
+  /* About a third of the pines are drawn as the spruce: the island's pines are two
+     thirds of its trees, and one picture twenty times over read as a stamp
+     (on the island as it is, 7 of the 21).
+     Only the picture changes -- the tile is still a pine to everything else. */
+  if (kind === 'tree_pine' && hash(o.c * 5 + 1, o.r * 3 + 7) < 0.5 && artFor('tree_spruce')) kind = 'tree_spruce';
   const art = artFor(kind);
   if (art) {
     const hgt = (SCENERY_H[kind] || 90) * s2, wid = art.width * (hgt / art.height);
@@ -8085,7 +8090,7 @@ for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER]) for (let i = 1; i <
    a village with none of them drawn would otherwise send five requests the
    moment it finished, and artFor remembers a miss. */
 for (let i = 1; i <= BEACON_STAGES; i++) beaconArt(i);
-for (const k of ['ground', 'water', 'tree_pine', 'tree_oak', 'tree_cherry', 'tree_birch', 'rock', 'bush', 'stump', 'flowers_wild', 'sheep', 'sheep_rest']) artFor(k);
+for (const k of ['ground', 'water', 'tree_pine', 'tree_spruce', 'tree_oak', 'tree_cherry', 'tree_birch', 'rock', 'bush', 'stump', 'flowers_wild', 'sheep', 'sheep_rest']) artFor(k);
 for (const set of Object.values(LOOKS)) for (const k of set) artFor(k);
 for (const s of SEA_PROPS) artFor(s.key);
 

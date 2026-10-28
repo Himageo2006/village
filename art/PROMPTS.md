@@ -3496,3 +3496,26 @@ small wooden cart half full of slate. Different colours from the attached
 white stone and the honey sandstone quarries. Nothing around it -- no
 ground, no shadow, no text. Fully transparent background.
 ```
+
+---
+---
+
+# 49 — A second conifer → `art/tree_spruce.png`  ✅ DONE
+
+Twenty-one of the island's thirty-three trees were one pine. About a third
+of them (7 of the 21) are now drawn as this spruce, chosen by tile; the tile
+is still a pine to everything else. Same conversation, with
+`art/original/tree_pine.png` attached.
+
+### 49.1 → `art/tree_spruce.png`
+
+```
+Next: a SECOND conifer for the same island (attached: the current pine), at
+the same height, scale, camera angle and painterly style, so the two can
+stand side by side in a forest without looking like copies. This one is a
+Scots pine / spruce mix: a slightly leaning reddish-orange trunk with flaky
+bark visible low down, uneven layered tiers of deep blue-green needles with
+gaps between them, a narrower and more ragged silhouette than the attached
+pine, a few brown cones, and a little tuft of grass and a fern at its foot.
+One tree only, no other objects, no text. Fully transparent background.
+```
