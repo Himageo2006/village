@@ -3604,3 +3604,24 @@ purple heather and little white flowers tucked between them. Same light as
 the attached rock. Nothing beyond the boulders and their plants: no ground
 plane, no shadow, no text. Fully transparent background.
 ```
+
+---
+---
+
+# 53 — A goat → `art/goat.png`  ✅ DONE
+
+A second grazing animal beside the sheep. The island's small scenery falls on
+a fixed handful of tiles, so the goat takes the stump's (the stump comes back
+if the goat's picture is missing). Same conversation, with
+`art/original/sheep.png` attached.
+
+### 53.1 → `art/goat.png`
+
+```
+Next: a grazing animal to join the attached sheep on the island, at the same
+scale, camera angle and painterly style: a small brown-and-white goat with
+little curved horns and a tiny beard, standing on all four legs with its
+head down nibbling grass, facing along the same diagonal as the sheep, about
+the sheep's size. Only the goat -- no ground, no grass patch, no shadow, no
+text. Fully transparent background.
+```
