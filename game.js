@@ -2962,8 +2962,8 @@ const LOOKS = {
   quarry: ['quarry', 'quarry_pit', 'quarry_slate'],
   lamp:   ['lamp', 'lamp_bracket', 'lamp_stone'],
   flowers: ['flowers', 'flowers_planter', 'flowers_tulip'],
-  bench:  ['bench', 'bench_stone'],
-  banner: ['banner', 'banner_pennant'],
+  bench:  ['bench', 'bench_stone', 'bench_rose'],
+  banner: ['banner', 'banner_pennant', 'banner_maypole'],
 };
 const STATUE_LOOKS = LOOKS.statue;
 /* The town hall is the one building whose look follows its level instead of
@@ -4700,7 +4700,8 @@ function flushBadges() {
    frames. */
 /* World height of each decoration at scale 1, for when art arrives. A path is
    not here: it is fitted to the tile diamond instead of standing on it. */
-const DECOR_H = { fence: 42, flowers: 34, hedge: 48, bench: 40, lamp: 80, banner: 104, statue: 88 };
+const DECOR_H = { fence: 42, flowers: 34, hedge: 48, bench: 40, lamp: 80, banner: 104, statue: 88,
+  bench_rose: 56 };   // a look taller than its kind: the bench stands under a rose arch
 /* Where a pole stands across its picture, for the looks whose flag flies out
    to one side: centring the picture would plant the pole a third of a tile
    off its own square. Everything else stands on its middle. */
@@ -4726,7 +4727,7 @@ function drawDecor(p, alpha) {
     } else {
       g.fillStyle = 'rgba(10,18,8,.28)';
       g.beginPath(); g.ellipse(o.x, o.y + 3, 24, 11, 0, 0, 7); g.fill();
-      const hgt = DECOR_H[p.key] || 48, wid = art.width * (hgt / art.height);
+      const hgt = DECOR_H[lookOf(p)] || DECOR_H[p.key] || 48, wid = art.width * (hgt / art.height);
       g.drawImage(seasonSkin(art, p.key), o.x - wid * (DECOR_AX[lookOf(p)] || 0.5), o.y - hgt, wid, hgt);
     }
     g.restore(); return;

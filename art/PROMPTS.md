@@ -3625,3 +3625,39 @@ head down nibbling grass, facing along the same diagonal as the sheep, about
 the sheep's size. Only the goat -- no ground, no grass patch, no shadow, no
 text. Fully transparent background.
 ```
+
+---
+---
+
+# 54 — A third bench and banner → `art/bench_rose.png`, `art/banner_maypole.png`  ✅ DONE
+
+Each with its original attached, in the same conversation. The rose arch is
+taller than a bench, so an ornament's height can now be set per look
+(DECOR_H in game.js); the maypole stands on its middle like the original.
+
+### 54.1 → `art/bench_rose.png`
+
+```
+Next: a THIRD village bench variant (attached: the original bench), at the
+same scale, camera angle and footprint, running along the same diagonal.
+This one is a white-painted wooden garden bench set under a small arched
+rose trellis: the arch of thin white-painted timber laths covered in
+climbing pink and red roses and green leaves, curving over the bench, the
+bench with a slatted back and curled armrests, a little lavender at its
+feet. Keep the whole thing only a little taller than the attached bench is
+wide. Same painterly style and warm light. No figures, no text. Fully
+transparent background.
+```
+
+### 54.2 → `art/banner_maypole.png`
+
+```
+Next: a THIRD village banner variant (attached: the original banner), at the
+same height, scale and camera angle, standing straight up in the middle of
+its picture. This one is a little village maypole: a slender white-painted
+pole on a small round base of grey stones with daisies, a garland crown of
+green leaves and flowers near the top, and long ribbons in red, blue, yellow
+and white spiralling down around the pole, their loose ends fluttering a
+little. A small gilded ball on top. Same painterly style and warm light. No
+figures, no text. Nothing beyond the base: fully transparent background.
+```
