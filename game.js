@@ -2953,7 +2953,7 @@ const beaconArt = i => artFor(BEACON + '_stage' + i);
    carry its own ART_FIT entry, because a cottage of stone is not drawn with
    its front corner exactly where a timber one is. */
 const LOOKS = {
-  statue: ['statue', 'statue_knight', 'statue_fisher'],
+  statue: ['statue', 'statue_knight', 'statue_fisher', 'statue_fountain'],
   house:  ['house', 'house_stone', 'house_thatch', 'house_fisher', 'house_baker'],
   farm:   ['farm', 'farm_veg', 'farm_barley', 'farm_pumpkin'],
   lumber: ['lumber', 'lumber_pit', 'lumber_cabin'],

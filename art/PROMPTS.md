@@ -3707,3 +3707,26 @@ like a loaf of bread (no letters), a window with a shelf of round loaves,
 and a sack of flour and a basket of baguettes by the door. Nothing around it
 -- no ground, no shadow, no text. Fully transparent background.
 ```
+
+---
+---
+
+# 57 — A fountain → `art/statue_fountain.png`  ✅ DONE
+
+A fourth statue look, with `art/original/statue.png` attached, same
+conversation. Same price and charm as every statue; only the picture
+changes.
+
+### 57.1 → `art/statue_fountain.png`
+
+```
+Next: a FOURTH village statue variant (attached: the original statue), at
+the same height, scale, camera angle and painterly style, standing straight
+up in the middle of its picture on the same one-tile footprint. This one is
+a small tiered stone fountain: a round basin of pale carved stone holding
+clear turquoise water, a slender pedestal rising from it to a smaller bowl,
+and on top a little stone fish leaping with a thin arc of water spouting
+from its mouth, water spilling in soft streams from the upper bowl into the
+basin, a little moss and two water lilies. Same warm light. No figures, no
+text. Nothing beyond the basin: fully transparent background.
+```
