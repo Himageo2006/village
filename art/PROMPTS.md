@@ -3779,16 +3779,20 @@ the foam, no horizon, no text. Fully transparent background.
 
 # 60 — Double lantern → `art/lamp_double.png`  ✅ DONE
 
-A fourth lamp look: a twin-armed iron post with two lanterns. Asked for with
+A fourth lamp look: a green iron post with a crossarm and two lanterns. Asked for with
 the current lamp attached.
 
 ### 60.1 → `art/lamp_double.png`
 
 ```
-Next: a FOURTH street lamp for the same island (attached: the current lamp),
-same height, scale, camera angle and painterly style: a dark iron post that
-splits into two curled arms, each holding a small glass lantern with a warm
-glowing flame. One lamp only, no ground plane, no shadow, no text. Fully
+Next: a FOURTH village lamp variant (attached: the original lamp), at the
+same height, scale and camera angle, standing straight up in the middle of
+its picture. This one is a double lantern post: a dark green painted
+cast-iron post with a fluted base on a small square of cobbles, a decorative
+crossarm near the top with two little glass lanterns hanging from scrolled
+hooks, one on each side, both glowing warm amber, and a small basket of
+trailing red and white flowers hanging from the middle of the crossarm. Same
+painterly style and warm light. No text. Nothing beyond the base: fully
 transparent background.
 ```
 
@@ -3796,17 +3800,19 @@ transparent background.
 
 # 61 — Flower barrel → `art/flowers_barrel.png`  ✅ DONE
 
-A fourth flowers look: sunflowers in a half-barrel beside a little wheelbarrow
-of blooms. Asked for with the current flower bed attached.
+A fourth flowers look: a half-barrel and a wheelbarrow of sunflowers. Asked for with the current flower bed attached.
 
 ### 61.1 → `art/flowers_barrel.png`
 
 ```
-Next: a FOURTH flower decoration for the same island (attached: the current
-flower bed), same size, scale, camera angle and painterly style: a wooden
-half-barrel planted with sunflowers and marigolds, with a small wooden
-wheelbarrow of colourful blooms beside it. No ground plane, no shadow, no
-text. Fully transparent background.
+Next: a FOURTH flower bed variant (attached: the original bed), at the same
+size, footprint, scale and camera angle. This one is an old wooden
+half-barrel planter and a wheelbarrow side by side, both overflowing with
+bright sunflowers, orange marigolds and blue cornflowers, a few leaves and
+petals on the ground at their feet. Different colours from the
+red-pink-yellow original, the purple lavender planter and the orange tulip
+bed. Same painterly style and warm light. No text. Nothing beyond the
+planters: fully transparent background.
 ```
 
 ---
