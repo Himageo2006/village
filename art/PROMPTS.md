@@ -3354,3 +3354,54 @@ petals drifting down, and a little ring of fallen pink petals and grass on
 the ground at its foot. About the oak's size. One tree only, no other
 objects, no text. Fully transparent background.
 ```
+
+---
+---
+
+# 47 — A third lamp and flower bed, a fourth cottage → `art/lamp_stone.png`, `art/flowers_tulip.png`, `art/house_fisher.png`  ✅ DONE
+
+Lamps and flower beds are what a village is mostly made of once the charm
+goals start, and houses are the most-built building. Each original was
+attached to its own request in the group 44 conversation. The stone
+lantern's flame was found by colour, 56 above its foot at lamp height, and
+LAMP_GLOW puts the night light there.
+
+### 47.1 → `art/lamp_stone.png`
+
+```
+Next: a THIRD village lamp variant (attached: the original lamp), at the
+same height, scale and camera angle, standing straight up in the middle of
+its picture. This one is a carved stone lantern pillar: a square base of
+pale grey stone blocks, a slender stone column, and on top a small stone
+lantern house with a little peaked slate roof and four open arched windows,
+a warm amber candle flame glowing inside; a little moss on the base and a
+sprig of white flowers at its foot. Same painterly style and warm light as
+the attached lamp. No text. Nothing beyond the base: fully transparent
+background.
+```
+
+### 47.2 → `art/flowers_tulip.png`
+
+```
+Next: a THIRD flower bed variant (attached: the original bed), at the same
+size, footprint, scale and camera angle. This one is a round bed ringed with
+small rounded fieldstones: tall orange and golden tulips and white daisies
+in the middle, a ring of blue forget-me-nots around them, and a few bright
+green leaves spilling over the stones. Different colours from the original
+red, pink and yellow bed and from a purple lavender planter. Same painterly
+style and warm light. No text. Nothing beyond the bed: fully transparent
+background.
+```
+
+### 47.3 → `art/house_fisher.png`
+
+```
+Next: a FOURTH variant of the attached cottage, the same size, footprint,
+angle, light and painted style: a fisherman's cottage by the sea.
+Whitewashed walls over a low base of rough stone, a steep roof of weathered
+red-brown clay tiles, sky-blue painted shutters and a blue plank door, a
+small round window in the gable, a fishing net and two cork floats hung on
+the side wall, a lobster pot and a coil of rope by the door, a whitewashed
+chimney. Nothing around it -- no ground, no shadow, no text. Fully
+transparent background.
+```

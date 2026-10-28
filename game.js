@@ -150,6 +150,7 @@ function artFor(key) {
 const ART_FIT = {
   house:  { w: 1.20, ax: 0.652, ay: 0.994 },
   house_stone:  { w: 1.20, ax: 0.684, ay: 0.997 },
+  house_fisher: { w: 1.22, ax: 0.672, ay: 1.000 },
   house_thatch: { w: 1.20, ax: 0.694, ay: 1.000 },
   farm:   { w: 0.85, ax: 0.531, ay: 1.000 },
   farm_veg:    { w: 0.85, ax: 0.531, ay: 0.998 },
@@ -594,7 +595,7 @@ function drawSky() {
 /* Lamps are drawn AFTER the night wash so their light sits on top of it rather
    than being dimmed along with everything else. The light goes where each
    look's lantern is: on top of the post, or hanging off its bracket. */
-const LAMP_GLOW = { lamp: { dx: 0, dy: -52 }, lamp_bracket: { dx: 8, dy: -42 } };
+const LAMP_GLOW = { lamp: { dx: 0, dy: -52 }, lamp_bracket: { dx: 8, dy: -42 }, lamp_stone: { dx: 0, dy: -56 } };
 function drawLamps() {
   const { night } = sky();
   if (night < 0.04) return;
@@ -2941,7 +2942,7 @@ const beaconArt = i => artFor(BEACON + '_stage' + i);
    its front corner exactly where a timber one is. */
 const LOOKS = {
   statue: ['statue', 'statue_knight', 'statue_fisher'],
-  house:  ['house', 'house_stone', 'house_thatch'],
+  house:  ['house', 'house_stone', 'house_thatch', 'house_fisher'],
   farm:   ['farm', 'farm_veg', 'farm_barley'],
   lumber: ['lumber', 'lumber_pit'],
   well:   ['well', 'well_iron'],
@@ -2949,8 +2950,8 @@ const LOOKS = {
   mill:   ['mill', 'mill_post'],
   market: ['market', 'market_hall'],
   quarry: ['quarry', 'quarry_pit'],
-  lamp:   ['lamp', 'lamp_bracket'],
-  flowers: ['flowers', 'flowers_planter'],
+  lamp:   ['lamp', 'lamp_bracket', 'lamp_stone'],
+  flowers: ['flowers', 'flowers_planter', 'flowers_tulip'],
   bench:  ['bench', 'bench_stone'],
   banner: ['banner', 'banner_pennant'],
 };
