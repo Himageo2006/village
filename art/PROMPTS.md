@@ -3331,3 +3331,26 @@ border, the lower one cream with a crimson stripe. No letters, no emblems of
 real countries. Same painterly style and warm light as the attached banner.
 Nothing beyond the base: fully transparent background.
 ```
+
+---
+---
+
+# 46 — A flowering cherry → `art/tree_cherry.png`  ✅ DONE
+
+Thirty-odd trees, all green. The oaks give a slice of their band to a cherry
+in blossom, which lands on two tiles of the island: two spots of pink, and
+no rock, pine or small scenery moves. Same conversation as group 44, with
+`art/original/tree_oak.png` attached.
+
+### 46.1 → `art/tree_cherry.png`
+
+```
+Next: a new single tree for the same island (attached: the current oak), at
+the same scale, camera angle and painterly style: a flowering cherry tree in
+full spring blossom. A gnarled dark reddish-brown trunk that splits into a
+few curving branches, a rounded airy crown of soft pink and pale pink blossom
+clouds with a few fresh green leaves showing through, a handful of loose
+petals drifting down, and a little ring of fallen pink petals and grass on
+the ground at its foot. About the oak's size. One tree only, no other
+objects, no text. Fully transparent background.
+```
