@@ -135,7 +135,7 @@ const CAP = {
   ground: 1800,
   // the water is mirrored into a 2x2 tile at runtime, so its pixels cost four
   // times what they measure here; it is a soft background and can take it
-  water: 900,
+  water: 1400,
 };
 
 const near = (p, c, tol) => Math.abs(p[0] - c[0]) < tol && Math.abs(p[1] - c[1]) < tol && Math.abs(p[2] - c[2]) < tol;

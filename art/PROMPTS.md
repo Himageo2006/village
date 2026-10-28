@@ -3273,3 +3273,24 @@ hanging into the empty space under the diamond, never covering it. Remove
 the magenta line, the pale fill and the words. Everything outside the
 island fully transparent.
 ```
+
+## 44. The open sea
+
+The first water was a 900-wide painting with a few strong features, and on a
+phone its repeat showed every third of a screen. This one is evenly lit, with
+small crests scattered and no single bright spot, sent with the old texture
+attached. Kept at 1400 x 700; the game mirrors it into a 2800 x 1400 tile.
+
+### 44.1 → `art/original/water.png`
+
+```
+Next: the SEA around the island (attached: the current water texture).
+Please paint a new open-sea texture, seen from the same high isometric
+angle, to tile across a large area: clear bright turquoise water like the
+title painting, deeper teal in places, soft sunlit caustic ripples, and only
+a FEW small scattered white wave crests -- spread evenly and irregularly
+with no big feature, no single bright spot, no horizon, no land, no boats,
+no objects, and no strong directional pattern, so that a repeat of it is
+hard to notice. Evenly lit edge to edge with no vignette. Wide landscape,
+fill the whole canvas.
+```
