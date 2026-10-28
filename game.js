@@ -162,6 +162,8 @@ const ART_FIT = {
   store_granary: { w: 1.09, ax: 0.558, ay: 0.998 },
   store_barn: { w: 1.09, ax: 0.560, ay: 0.99 },
   hall:   { w: 1.15, ax: 0.500, ay: 0.999 },
+  hall_2: { w: 1.15, ax: 0.500, ay: 0.995 },
+  hall_3: { w: 1.15, ax: 0.500, ay: 0.995 },
   // ax measured 0.344, which is the water trough spilling off the well's
   // lower-left, not the well. Set to the centre of the stone ring by hand --
   // exactly the case measure-art.js warns about for broad-based objects.
@@ -2962,14 +2964,25 @@ const LOOKS = {
   banner: ['banner', 'banner_pennant'],
 };
 const STATUE_LOOKS = LOOKS.statue;
+/* The town hall is the one building whose look follows its level instead of
+   its id: there is only ever one, and raising it was the one upgrade nobody
+   could see. A clock tower at level 3, the guildhall at level 5; a stage whose
+   picture is missing falls back to the one below. It changes when the upgrade
+   is finished, not when it is paid for. */
+const HALL_STAGES = [[5, 'hall_3'], [3, 'hall_2']];
+function hallLook(p) {
+  for (const [l, k] of HALL_STAGES) if (lvlHeld(p) >= l && artFor(k)) return k;
+  return p.key;
+}
 function lookOf(p) {
+  if (p.key === 'hall') return hallLook(p);
   const set = LOOKS[p.key];
   if (!set) return p.key;
   const look = set[Math.floor(hash(p.id * 7 + 3, 11) * set.length) % set.length];
   return look !== p.key && artFor(look) ? look : p.key;
 }
 function buildingArt(p) {
-  if (LOOKS[p.key]) {
+  if (LOOKS[p.key] || p.key === 'hall') {
     const look = lookOf(p);
     if (look !== p.key) return artFor(look);
   }
@@ -8094,6 +8107,7 @@ for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER]) for (let i = 1; i <
 for (let i = 1; i <= BEACON_STAGES; i++) beaconArt(i);
 for (const k of ['ground', 'water', 'tree_pine', 'tree_spruce', 'tree_oak', 'tree_cherry', 'tree_birch', 'rock', 'bush', 'stump', 'flowers_wild', 'sheep', 'sheep_rest']) artFor(k);
 for (const set of Object.values(LOOKS)) for (const k of set) artFor(k);
+for (const [, k] of HALL_STAGES) artFor(k);
 for (const s of SEA_PROPS) artFor(s.key);
 
 /* test hooks */

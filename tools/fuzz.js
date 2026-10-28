@@ -12996,7 +12996,7 @@
        look was tinted first, and every beacon stage the first stage. */
     const keep3 = V.seasonForced;
     try {
-      const sets = [['house', 'house_stone', 'house_thatch', 'house_fisher'], ['farm', 'farm_veg', 'farm_barley'], ['lumber', 'lumber_pit', 'lumber_cabin'], ['well', 'well_iron', 'well_thatch'], ['store', 'store_granary', 'store_barn'], ['mill', 'mill_post', 'mill_smock'], ['market', 'market_hall', 'market_fish'], ['quarry', 'quarry_pit', 'quarry_slate'], ['lamp', 'lamp_bracket', 'lamp_stone'], ['flowers', 'flowers_planter', 'flowers_tulip'], ['bench', 'bench_stone'], ['banner', 'banner_pennant'], ['statue', 'statue_knight', 'statue_fisher']];
+      const sets = [['house', 'house_stone', 'house_thatch', 'house_fisher'], ['farm', 'farm_veg', 'farm_barley'], ['lumber', 'lumber_pit', 'lumber_cabin'], ['well', 'well_iron', 'well_thatch'], ['store', 'store_granary', 'store_barn'], ['mill', 'mill_post', 'mill_smock'], ['market', 'market_hall', 'market_fish'], ['quarry', 'quarry_pit', 'quarry_slate'], ['lamp', 'lamp_bracket', 'lamp_stone'], ['flowers', 'flowers_planter', 'flowers_tulip'], ['bench', 'bench_stone'], ['banner', 'banner_pennant'], ['statue', 'statue_knight', 'statue_fisher'], ['hall', 'hall_2', 'hall_3']];
       for (let i = 0; i < V.SEASONS.length; i++) {
         V.seasonForced = i;
         for (const set of sets) {
@@ -13009,6 +13009,20 @@
         }
       }
     } finally { V.seasonForced = keep3; }
+
+    /* 5. the hall wears the stage its held level has earned: the original to
+       level 2, the clock tower from 3, the guildhall at 5 -- and an upgrade
+       still being built shows the stage below until it is finished. */
+    const hall = { key: 'hall', id: 1, c: 0, r: 0, t: 1, lvl: 1 };
+    const want = [null, 'hall', 'hall', 'hall_2', 'hall_2', 'hall_3'];
+    for (let l = 1; l <= 5; l++) {
+      hall.lvl = l; hall.t = 1;
+      const got = V.buildingArt(hall), exp = V.artFor(want[l]);
+      if (exp && got !== exp) fails.push('a level ' + l + ' hall is not drawn as ' + want[l]);
+      hall.t = 0.5;
+      const mid = V.buildingArt(hall), below = V.artFor(want[l - 1] || 'hall');
+      if (l > 1 && below && mid !== below) fails.push('a hall still building to level ' + l + ' already shows its new stage');
+    }
 
     V.seasonForced = null;
     return { closest: +closest.toFixed(1), pair, shades: shades.map(c => c.map(v => Math.round(v)).join(',')), fails };

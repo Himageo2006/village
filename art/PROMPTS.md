@@ -3541,3 +3541,45 @@ very slightly, pointing along the same diagonal as the attached boat. Only
 the boat itself, drawn down to the waterline -- no water, no wake, no
 reflection, no people, no text. Fully transparent background.
 ```
+
+---
+---
+
+# 51 — The town hall grows → `art/hall_2.png`, `art/hall_3.png`  ✅ DONE
+
+Raising the hall was the one upgrade you could not see. Two grander stages
+of the same building on the same plot: a clock tower from level 3, the
+guildhall at level 5 (HALL_STAGES in game.js; the look changes when the
+upgrade is finished). The first was generated with `art/original/hall.png`
+attached; the second in the same thread, from the first.
+
+### 51.1 → `art/hall_2.png`
+
+```
+Next: the attached town hall, UPGRADED one step -- the same building grown
+grander, keeping its footprint (a 2x2 square), camera angle, light, painted
+style, red tile roofs, timber framing, blue-and-gold fleur-de-lis banners
+and front steps so it is clearly the same hall. Add: a taller bell tower
+with a little clock face (no numbers needed) and a copper-green spire, a
+second wing with a row of arched windows, window boxes of red flowers, a
+pair of carved stone lamp posts flanking the steps, and a gilded
+weathervane. About 15 percent taller than the attached hall, no wider.
+Nothing around it -- no ground, no shadow, no text. Fully transparent
+background.
+```
+
+### 51.2 → `art/hall_3.png`
+
+```
+Lovely. Now the FINAL upgrade of that same town hall (the one you just
+drew): the grandest version, keeping the same footprint (a 2x2 square),
+camera angle, light, painted style, red tile roofs, timber framing and
+blue-and-gold fleur-de-lis banners so it is clearly the same building. Make
+it a proud guildhall: a tall square clock tower with a gilded clock face, an
+open belfry and a tall copper-green spire with a golden finial, a front
+arcade of three stone arches at the top of the steps, a small balcony with a
+blue-and-gold banner hanging from it, gilded trim, ivy on one corner, and
+blue-and-gold pennants on the roof ridges. About 25 percent taller than the
+attached original hall, no wider. Nothing around it -- no ground, no shadow,
+no text. Fully transparent background.
+```
