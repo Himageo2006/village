@@ -3583,3 +3583,24 @@ blue-and-gold pennants on the roof ridges. About 25 percent taller than the
 attached original hall, no wider. Nothing around it -- no ground, no shadow,
 no text. Fully transparent background.
 ```
+
+---
+---
+
+# 52 — Mossy boulders → `art/rock_moss.png`  ✅ DONE
+
+The island's three rocks were one picture; two of them are now drawn as this
+cluster (SCENERY_ALT in game.js, which also holds the spruce). Same
+conversation, with `art/original/rock.png` attached.
+
+### 52.1 → `art/rock_moss.png`
+
+```
+Next: a SECOND rock for the same island (attached: the current rock), at the
+same size, scale, camera angle and painterly style. This one is a cluster of
+three rounded granite boulders of different sizes, warm grey with flecks,
+the biggest one capped with soft green moss, a few ferns and a clump of
+purple heather and little white flowers tucked between them. Same light as
+the attached rock. Nothing beyond the boulders and their plants: no ground
+plane, no shadow, no text. Fully transparent background.
+```
