@@ -3830,3 +3830,36 @@ hydrangea shrub with big soft mophead blooms in pale blue, lilac and pink
 among glossy green leaves, a few fallen petals at its base. One bush only, no
 ground plane, no shadow, no text. Fully transparent background.
 ```
+
+---
+
+# 63 — Meadow flowers → `art/flowers_meadow.png`  ✅ DONE
+
+A second wildflower picture, swapped in for half the wildflower tiles.
+
+### 63.1 → `art/flowers_meadow.png`
+
+```
+Next: a SECOND wildflower patch for the same island (attached: the current
+one), same size, scale, camera angle and painterly style: a low clump of
+meadow wildflowers - red poppies, white daisies, blue cornflowers and yellow
+buttercups among soft grass tufts. One small clump only, no ground plane, no
+shadow, no text. Fully transparent background.
+```
+
+---
+
+# 64 — Weaver's cottage → `art/house_weaver.png`  ⏳ TODO (image limit hit)
+
+### 64.1 → `art/house_weaver.png`
+
+```
+Next: a SIXTH variant of the attached cottage, the same size, footprint,
+angle, light and painted style: a half-timbered weaver's cottage. Cream
+plaster walls crossed with dark oak beams, an upper storey that juts out
+slightly over the ground floor, a steep roof of mossy grey-green slate, small
+diamond-paned windows with pink geraniums in window boxes, a sky-blue door, a
+wooden spinning wheel and a basket of coloured wool skeins by the door, a
+tall brick chimney. Nothing around it -- no ground, no shadow, no text. Fully
+transparent background.
+```

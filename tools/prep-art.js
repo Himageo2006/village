@@ -43,7 +43,7 @@ const KEYS = [
   'house', 'farm', 'lumber', 'store', 'hall', 'well', 'mill', 'market', 'quarry',
   'find_stones', 'find_orchard', 'find_ruin', 'find_wreck',
   'villager_farmer', 'villager_basket', 'villager_woodcutter', 'villager_stonecutter', 'villager_trader', 'villager_miller',
-  'tree_pine', 'tree_oak', 'rock', 'bush', 'tree_birch', 'stump', 'flowers_wild', 'sheep', 'sheep_rest', 'boat_fishing', 'boat_row', 'tree_cherry', 'lamp_stone', 'flowers_tulip', 'house_fisher', 'lumber_cabin', 'well_thatch', 'store_barn', 'mill_smock', 'market_fish', 'quarry_slate', 'tree_spruce', 'boat_ketch', 'hall_2', 'hall_3', 'rock_moss', 'goat', 'bench_rose', 'banner_maypole', 'farm_pumpkin', 'house_baker', 'statue_fountain', 'sea_rocks', 'sea_dolphins', 'lamp_double', 'flowers_barrel', 'bush_hydrangea',
+  'tree_pine', 'tree_oak', 'rock', 'bush', 'tree_birch', 'stump', 'flowers_wild', 'sheep', 'sheep_rest', 'boat_fishing', 'boat_row', 'tree_cherry', 'lamp_stone', 'flowers_tulip', 'house_fisher', 'lumber_cabin', 'well_thatch', 'store_barn', 'mill_smock', 'market_fish', 'quarry_slate', 'tree_spruce', 'boat_ketch', 'hall_2', 'hall_3', 'rock_moss', 'goat', 'bench_rose', 'banner_maypole', 'farm_pumpkin', 'house_baker', 'statue_fountain', 'sea_rocks', 'sea_dolphins', 'lamp_double', 'flowers_barrel', 'bush_hydrangea', 'flowers_meadow',
   'path', 'fence', 'flowers', 'hedge', 'lamp', 'statue', 'bench', 'banner', 'statue_knight', 'statue_fisher', 'house_stone', 'house_thatch', 'farm_veg', 'farm_barley', 'lumber_pit', 'well_iron', 'store_granary', 'mill_post', 'market_hall', 'quarry_pit', 'lamp_bracket', 'flowers_planter', 'bench_stone', 'banner_pennant',
   'ground', 'water',
 ];
@@ -126,7 +126,7 @@ function flatten(data, w, h, ch) {
    listed gets MAX_W. */
 const CAP = {
   villager_farmer: 320, villager_basket: 320, villager_woodcutter: 320, villager_stonecutter: 320, villager_trader: 320, villager_miller: 320,
-  tree_pine: 560, tree_oak: 560, rock: 360, bush: 360, tree_birch: 560, stump: 360, flowers_wild: 360, sheep: 320, sheep_rest: 320, boat_fishing: 420, boat_row: 360, tree_cherry: 560, lamp_stone: 380, flowers_tulip: 300, house_fisher: 800, lumber_cabin: 800, well_thatch: 400, store_barn: 800, mill_smock: 800, market_fish: 800, quarry_slate: 800, tree_spruce: 560, boat_ketch: 420, hall_2: 800, hall_3: 800, rock_moss: 360, goat: 320, bench_rose: 360, banner_maypole: 400, farm_pumpkin: 800, house_baker: 800, statue_fountain: 400, sea_rocks: 480, sea_dolphins: 360, lamp_double: 380, flowers_barrel: 300, bush_hydrangea: 360,
+  tree_pine: 560, tree_oak: 560, rock: 360, bush: 360, tree_birch: 560, stump: 360, flowers_wild: 360, sheep: 320, sheep_rest: 320, boat_fishing: 420, boat_row: 360, tree_cherry: 560, lamp_stone: 380, flowers_tulip: 300, house_fisher: 800, lumber_cabin: 800, well_thatch: 400, store_barn: 800, mill_smock: 800, market_fish: 800, quarry_slate: 800, tree_spruce: 560, boat_ketch: 420, hall_2: 800, hall_3: 800, rock_moss: 360, goat: 320, bench_rose: 360, banner_maypole: 400, farm_pumpkin: 800, house_baker: 800, statue_fountain: 400, sea_rocks: 480, sea_dolphins: 360, lamp_double: 380, flowers_barrel: 300, bush_hydrangea: 360, flowers_meadow: 360,
   well: 420, hall: 800, mill: 800, market: 800,
   /* The beacon is capped on its WIDTH, not its longest side -- see stageSet.
      Same plot as a hall, so the same width. */
