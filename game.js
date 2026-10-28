@@ -157,23 +157,29 @@ const ART_FIT = {
   farm_barley: { w: 0.85, ax: 0.526, ay: 0.998 },
   lumber: { w: 1.18, ax: 0.570, ay: 1.000 },
   lumber_pit:  { w: 1.18, ax: 0.660, ay: 0.95 },
+  lumber_cabin: { w: 1.18, ax: 0.600, ay: 0.97 },
   store:  { w: 1.09, ax: 0.522, ay: 1.000 },
   store_granary: { w: 1.09, ax: 0.558, ay: 0.998 },
+  store_barn: { w: 1.09, ax: 0.560, ay: 0.99 },
   hall:   { w: 1.15, ax: 0.500, ay: 0.999 },
   // ax measured 0.344, which is the water trough spilling off the well's
   // lower-left, not the well. Set to the centre of the stone ring by hand --
   // exactly the case measure-art.js warns about for broad-based objects.
   well:   { w: 1.15, ax: 0.500, ay: 0.995 },
   well_iron:   { w: 1.15, ax: 0.500, ay: 0.98 },
+  well_thatch: { w: 1.15, ax: 0.500, ay: 0.98 },
   // the tower base matches its plot; the sails then overhang by a good margin,
   // which is what a windmill does
   mill:   { w: 1.05, ax: 0.551, ay: 0.998 },
   mill_post:   { w: 1.15, ax: 0.520, ay: 0.97 },
+  mill_smock:  { w: 1.00, ax: 0.540, ay: 0.98 },
   market: { w: 1.10, ax: 0.561, ay: 0.999 },
   market_hall: { w: 1.10, ax: 0.653, ay: 1.000 },
+  market_fish: { w: 1.10, ax: 0.560, ay: 0.99 },
   // the shed's near post is the front corner; the rock cut rises behind it
   quarry: { w: 1.18, ax: 0.680, ay: 1.000 },
   quarry_pit:  { w: 1.18, ax: 0.637, ay: 1.000 },
+  quarry_slate: { w: 1.18, ax: 0.640, ay: 0.99 },
   /* The landmarks found on claimed land. A scattered group has no front
      corner of its own -- the lowest pixel is whichever stone or tree
      happens to stand nearest -- so ax is the middle of the group, set by
@@ -2944,12 +2950,12 @@ const LOOKS = {
   statue: ['statue', 'statue_knight', 'statue_fisher'],
   house:  ['house', 'house_stone', 'house_thatch', 'house_fisher'],
   farm:   ['farm', 'farm_veg', 'farm_barley'],
-  lumber: ['lumber', 'lumber_pit'],
-  well:   ['well', 'well_iron'],
-  store:  ['store', 'store_granary'],
-  mill:   ['mill', 'mill_post'],
-  market: ['market', 'market_hall'],
-  quarry: ['quarry', 'quarry_pit'],
+  lumber: ['lumber', 'lumber_pit', 'lumber_cabin'],
+  well:   ['well', 'well_iron', 'well_thatch'],
+  store:  ['store', 'store_granary', 'store_barn'],
+  mill:   ['mill', 'mill_post', 'mill_smock'],
+  market: ['market', 'market_hall', 'market_fish'],
+  quarry: ['quarry', 'quarry_pit', 'quarry_slate'],
   lamp:   ['lamp', 'lamp_bracket', 'lamp_stone'],
   flowers: ['flowers', 'flowers_planter', 'flowers_tulip'],
   bench:  ['bench', 'bench_stone'],

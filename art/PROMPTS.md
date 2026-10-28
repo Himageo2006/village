@@ -3405,3 +3405,94 @@ the side wall, a lobster pot and a coil of rope by the door, a whitewashed
 chimney. Nothing around it -- no ground, no shadow, no text. Fully
 transparent background.
 ```
+
+---
+---
+
+# 48 — A third look for every workplace → `art/lumber_cabin.png`, `well_thatch.png`, `store_barn.png`, `mill_smock.png`, `market_fish.png`, `quarry_slate.png`  ✅ DONE
+
+The six workplaces that had two looks get a third, each generated with its
+original attached in the group 44 conversation and asked for the original's
+footprint. Fitted by eye on fitsheet renders against their originals; the
+smock mill came back a head taller than the stone mill and is drawn a little
+narrower to match it.
+
+### 48.1 → `art/lumber_cabin.png`
+
+```
+Next: a THIRD variant of the attached lumber camp, the same size, footprint
+(a 2x1 rectangle running along the same diagonal), camera angle, light and
+painted style. This one is a woodcutter's log cabin workshop: walls of round
+stacked logs with notched corners, a low roof of green turf and moss with a
+few little white flowers, a wide open front with a sawhorse and a half-cut
+log inside, a tall neat stack of split firewood along one side under a small
+lean-to, a big splitting stump with an axe in it, and a small handcart with
+three logs. Nothing around it -- no ground, no shadow, no text. Fully
+transparent background.
+```
+
+### 48.2 → `art/well_thatch.png`
+
+```
+Next: a THIRD variant of the attached village well, the same size, footprint
+(one square tile), camera angle, light and painted style. This one is a
+round well of warm honey-coloured sandstone with a cone-shaped golden
+thatched roof on two stout timber posts, a wooden windlass with a crank and a
+rope, a wooden bucket hanging over the water and a second bucket on the rim,
+a little stone trough at its foot with ferns and yellow wildflowers. Nothing
+around it -- no ground, no shadow, no text. Fully transparent background.
+```
+
+### 48.3 → `art/store_barn.png`
+
+```
+Next: a THIRD variant of the attached storehouse, the same size, footprint
+(a 2x2 square), camera angle, light and painted style. This one is a big
+farm barn: vertical plank walls painted barn red with white trim and white
+X-braced double doors, a steep gambrel roof of grey-brown wooden shingles, an
+open hay loft door high in the gable with a pulley beam and hay spilling out,
+a stone foundation, and round hay bales, sacks of grain and a couple of
+barrels stacked beside the doors. Nothing around it -- no ground, no shadow,
+no text. Fully transparent background.
+```
+
+### 48.4 → `art/mill_smock.png`
+
+```
+Next: a THIRD variant of the attached windmill, the same size, footprint (a
+2x2 square), camera angle, light and painted style. This one is a smock
+mill: a tall eight-sided tower clad in white-painted weatherboard on a low
+base of red brick, a dark brown thatched cap on top, four big lattice sails
+with cream canvas facing the viewer at the same angle as the attached mill,
+a little wooden gallery with a railing running around the tower halfway up,
+a small green door at the bottom, and flour sacks and a wheelbarrow by the
+door. Nothing around it -- no ground, no shadow, no text. Fully transparent
+background.
+```
+
+### 48.5 → `art/market_fish.png`
+
+```
+Next: a THIRD variant of the attached market, the same size, footprint (a
+2x2 square), camera angle, light and painted style. This one is a harbour
+fish market: an open timber frame with a roof of blue-and-white striped
+canvas awnings, long wooden counters with silver fish laid on crushed ice, a
+big crab and a basket of mussels, hanging nets and a lantern, a scale,
+barrels and crates of lemons and herbs, and a little painted blue signboard
+with a fish shape (no letters). Nothing around it -- no ground, no shadow,
+no text. Fully transparent background.
+```
+
+### 48.6 → `art/quarry_slate.png`
+
+```
+Next: a THIRD variant of the attached quarry, the same size, footprint (a
+2x1 rectangle running along the same diagonal), camera angle, light and
+painted style. This one is a slate quarry: a stepped rock face of dark
+blue-grey slate split into flat layers, neat stacks of cut slate tiles and
+dressed blocks, a timber lifting tripod with a rope block and tackle holding
+a slab in the air, a stone-cutter's bench with a mallet and chisels, and a
+small wooden cart half full of slate. Different colours from the attached
+white stone and the honey sandstone quarries. Nothing around it -- no
+ground, no shadow, no text. Fully transparent background.
+```
