@@ -151,6 +151,7 @@ const ART_FIT = {
   house:  { w: 1.20, ax: 0.652, ay: 0.994 },
   house_stone:  { w: 1.20, ax: 0.684, ay: 0.997 },
   house_fisher: { w: 1.22, ax: 0.672, ay: 1.000 },
+  house_baker:  { w: 1.12, ax: 0.600, ay: 0.97 },
   house_thatch: { w: 1.20, ax: 0.694, ay: 1.000 },
   farm:   { w: 0.85, ax: 0.531, ay: 1.000 },
   farm_veg:    { w: 0.85, ax: 0.531, ay: 0.998 },
@@ -2953,7 +2954,7 @@ const beaconArt = i => artFor(BEACON + '_stage' + i);
    its front corner exactly where a timber one is. */
 const LOOKS = {
   statue: ['statue', 'statue_knight', 'statue_fisher'],
-  house:  ['house', 'house_stone', 'house_thatch', 'house_fisher'],
+  house:  ['house', 'house_stone', 'house_thatch', 'house_fisher', 'house_baker'],
   farm:   ['farm', 'farm_veg', 'farm_barley', 'farm_pumpkin'],
   lumber: ['lumber', 'lumber_pit', 'lumber_cabin'],
   well:   ['well', 'well_iron', 'well_thatch'],

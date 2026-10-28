@@ -12996,7 +12996,7 @@
        look was tinted first, and every beacon stage the first stage. */
     const keep3 = V.seasonForced;
     try {
-      const sets = [['house', 'house_stone', 'house_thatch', 'house_fisher'], ['farm', 'farm_veg', 'farm_barley', 'farm_pumpkin'], ['lumber', 'lumber_pit', 'lumber_cabin'], ['well', 'well_iron', 'well_thatch'], ['store', 'store_granary', 'store_barn'], ['mill', 'mill_post', 'mill_smock'], ['market', 'market_hall', 'market_fish'], ['quarry', 'quarry_pit', 'quarry_slate'], ['lamp', 'lamp_bracket', 'lamp_stone'], ['flowers', 'flowers_planter', 'flowers_tulip'], ['bench', 'bench_stone', 'bench_rose'], ['banner', 'banner_pennant', 'banner_maypole'], ['statue', 'statue_knight', 'statue_fisher'], ['hall', 'hall_2', 'hall_3']];
+      const sets = [['house', 'house_stone', 'house_thatch', 'house_fisher', 'house_baker'], ['farm', 'farm_veg', 'farm_barley', 'farm_pumpkin'], ['lumber', 'lumber_pit', 'lumber_cabin'], ['well', 'well_iron', 'well_thatch'], ['store', 'store_granary', 'store_barn'], ['mill', 'mill_post', 'mill_smock'], ['market', 'market_hall', 'market_fish'], ['quarry', 'quarry_pit', 'quarry_slate'], ['lamp', 'lamp_bracket', 'lamp_stone'], ['flowers', 'flowers_planter', 'flowers_tulip'], ['bench', 'bench_stone', 'bench_rose'], ['banner', 'banner_pennant', 'banner_maypole'], ['statue', 'statue_knight', 'statue_fisher'], ['hall', 'hall_2', 'hall_3']];
       for (let i = 0; i < V.SEASONS.length; i++) {
         V.seasonForced = i;
         for (const set of sets) {

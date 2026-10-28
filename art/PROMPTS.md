@@ -3684,3 +3684,26 @@ pumpkins at the gate, and a few sunflowers along one fence. Nothing around
 it -- no ground beyond the field, no shadow, no text. Fully transparent
 background.
 ```
+
+---
+---
+
+# 56 — The baker's cottage → `art/house_baker.png`  ✅ DONE
+
+A fifth house look, with `art/original/house.png` attached, same
+conversation. Its bread oven bulges out past the plot, so it is drawn a
+little smaller than the other cottages, front wall on the plot's long edge.
+
+### 56.1 → `art/house_baker.png`
+
+```
+Next: a FIFTH variant of the attached cottage, the same size, footprint (a
+2x1 rectangle along the same diagonal), angle, light and painted style: the
+village baker's cottage. Walls of warm ochre plaster with dark timber
+framing, a roof of mossy dark-green-grey slate, a round brick bread oven
+bulging from the side wall with its own little chimney puffing a wisp of
+smoke, a green Dutch door with the top half open, a hanging iron sign shaped
+like a loaf of bread (no letters), a window with a shelf of round loaves,
+and a sack of flour and a basket of baguettes by the door. Nothing around it
+-- no ground, no shadow, no text. Fully transparent background.
+```
