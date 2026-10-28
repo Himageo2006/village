@@ -4055,6 +4055,7 @@ const SEA_PROPS = [
   { key: 'boat_row',     fx:  0.11, top: false, dy:  330, h: 52 },   // clear of the cliffs and sand
   { key: 'boat_ketch',   fx:  0.24, top: true,  dy: -100, h: 132 },  // under sail, off the north-east shore
   { key: 'sea_rocks',    fx: -0.14, top: false, dy:  390, h: 150, still: true },  // sea stacks off the south-west cliffs
+  { key: 'sea_dolphins', fx:  0.34, top: false, dy:  230, h: 72,  still: true },  // leaping off the south-east shore
 ];
 function drawSeaProps(b) {
   const W = b.x1 - b.x0, cx = (b.x0 + b.x1) / 2;

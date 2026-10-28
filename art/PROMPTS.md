@@ -3754,3 +3754,23 @@ their bases. Only the rocks, the gulls and the foam at the waterline -- no
 open water beyond the foam, no horizon, no text. Fully transparent
 background.
 ```
+
+---
+---
+
+# 59 — Dolphins → `art/sea_dolphins.png`  ✅ DONE
+
+Two dolphins leaping off the south-east shore, a still sea prop like the
+stacks. Asked for in the same thread straight after the sea rocks.
+
+### 59.1 → `art/sea_dolphins.png`
+
+```
+Next, in the same painterly style, light and high isometric camera angle as
+the sea rocks you just drew: two friendly grey-blue dolphins leaping out of
+the sea side by side in a low arc, one slightly ahead of the other, with
+small white splashes and a ring of foam where they break the surface and a
+few flying droplets. Small in scale, about a third of the size of the sea
+rocks. Only the dolphins, the splashes and the foam -- no open water beyond
+the foam, no horizon, no text. Fully transparent background.
+```
