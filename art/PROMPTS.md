@@ -3774,3 +3774,53 @@ few flying droplets. Small in scale, about a third of the size of the sea
 rocks. Only the dolphins, the splashes and the foam -- no open water beyond
 the foam, no horizon, no text. Fully transparent background.
 ```
+
+---
+
+# 60 — Double lantern → `art/lamp_double.png`  ✅ DONE
+
+A fourth lamp look: a twin-armed iron post with two lanterns. Asked for with
+the current lamp attached.
+
+### 60.1 → `art/lamp_double.png`
+
+```
+Next: a FOURTH street lamp for the same island (attached: the current lamp),
+same height, scale, camera angle and painterly style: a dark iron post that
+splits into two curled arms, each holding a small glass lantern with a warm
+glowing flame. One lamp only, no ground plane, no shadow, no text. Fully
+transparent background.
+```
+
+---
+
+# 61 — Flower barrel → `art/flowers_barrel.png`  ✅ DONE
+
+A fourth flowers look: sunflowers in a half-barrel beside a little wheelbarrow
+of blooms. Asked for with the current flower bed attached.
+
+### 61.1 → `art/flowers_barrel.png`
+
+```
+Next: a FOURTH flower decoration for the same island (attached: the current
+flower bed), same size, scale, camera angle and painterly style: a wooden
+half-barrel planted with sunflowers and marigolds, with a small wooden
+wheelbarrow of colourful blooms beside it. No ground plane, no shadow, no
+text. Fully transparent background.
+```
+
+---
+
+# 62 — Hydrangea → `art/bush_hydrangea.png`  ✅ DONE
+
+A second bush picture, swapped in for half the bushes on the island.
+
+### 62.1 → `art/bush_hydrangea.png`
+
+```
+Next: a SECOND bush for the same island (attached: the current bush), at the
+same size, scale, camera angle and painterly style: a rounded flowering
+hydrangea shrub with big soft mophead blooms in pale blue, lilac and pink
+among glossy green leaves, a few fallen petals at its base. One bush only, no
+ground plane, no shadow, no text. Fully transparent background.
+```

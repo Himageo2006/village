@@ -607,7 +607,7 @@ function drawSky() {
 /* Lamps are drawn AFTER the night wash so their light sits on top of it rather
    than being dimmed along with everything else. The light goes where each
    look's lantern is: on top of the post, or hanging off its bracket. */
-const LAMP_GLOW = { lamp: { dx: 0, dy: -52 }, lamp_bracket: { dx: 8, dy: -42 }, lamp_stone: { dx: 0, dy: -56 } };
+const LAMP_GLOW = { lamp: { dx: 0, dy: -52 }, lamp_bracket: { dx: 8, dy: -42 }, lamp_stone: { dx: 0, dy: -56 }, lamp_double: { dx: 0, dy: -55 } };
 function drawLamps() {
   const { night } = sky();
   if (night < 0.04) return;
@@ -2962,8 +2962,8 @@ const LOOKS = {
   mill:   ['mill', 'mill_post', 'mill_smock'],
   market: ['market', 'market_hall', 'market_fish'],
   quarry: ['quarry', 'quarry_pit', 'quarry_slate'],
-  lamp:   ['lamp', 'lamp_bracket', 'lamp_stone'],
-  flowers: ['flowers', 'flowers_planter', 'flowers_tulip'],
+  lamp:   ['lamp', 'lamp_bracket', 'lamp_stone', 'lamp_double'],
+  flowers: ['flowers', 'flowers_planter', 'flowers_tulip', 'flowers_barrel'],
   bench:  ['bench', 'bench_stone', 'bench_rose'],
   banner: ['banner', 'banner_pennant', 'banner_maypole'],
 };
@@ -4130,7 +4130,7 @@ function drawGround() {
 }
 /* World height of each kind at scale 1, set against a cottage at ~207px so the
    trees read as trees rather than shrubs or redwoods. */
-const SCENERY_H = { goat: 30, tree_pine: 115, tree_spruce: 118, tree_oak: 100, tree_cherry: 100, tree_birch: 122, rock: 54, rock_moss: 50, bush: 46, stump: 38, flowers_wild: 30, sheep: 30, sheep_rest: 22 };
+const SCENERY_H = { goat: 30, tree_pine: 115, tree_spruce: 118, tree_oak: 100, tree_cherry: 100, tree_birch: 122, rock: 54, rock_moss: 50, bush: 46, bush_hydrangea: 46, stump: 38, flowers_wild: 30, sheep: 30, sheep_rest: 22 };
 /* What a newer kind is drawn as while its own picture is missing, so a lost
    file shows the kind it was split from rather than the procedural tree. */
 const SCENERY_FALLBACK = { goat: 'stump', tree_birch: 'tree_oak', tree_cherry: 'tree_oak', stump: 'bush', flowers_wild: 'bush', sheep: 'bush', sheep_rest: 'bush' };
@@ -4205,7 +4205,7 @@ const season = () => SEASONS[seasonIdx()];
 /* Rocks do not change colour in October, and neither does a dirt path or a
    stone statue -- they take the building wash, which is slight, rather than
    the leaf one. */
-const SEASON_LEAF = new Set(['tree_pine', 'tree_spruce', 'tree_oak', 'tree_cherry', 'tree_birch', 'bush', 'flowers_wild']);
+const SEASON_LEAF = new Set(['tree_pine', 'tree_spruce', 'tree_oak', 'tree_cherry', 'tree_birch', 'bush', 'bush_hydrangea', 'flowers_wild']);
 const seasonSkins = new WeakMap();      // picture -> (tint -> canvas)
 function seasonSkin(im, key) {
   const sea = season();
@@ -4237,7 +4237,7 @@ function seasonSkin(im, key) {
    thirds of the island's trees, and one picture twenty times over read as a
    stamp (on the island as it is, 7 of the 21). Only the picture changes -- the
    tile is still a pine, or a rock, to everything else. */
-const SCENERY_ALT = { tree_pine: ['tree_spruce', 0.5], rock: ['rock_moss', 0.5] };
+const SCENERY_ALT = { tree_pine: ['tree_spruce', 0.5], rock: ['rock_moss', 0.5], bush: ['bush_hydrangea', 0.5] };
 function drawScenery(o) {
   const p = tileToWorld(o.c, o.r), s2 = o.s;
   let kind = artFor(o.kind) || !SCENERY_FALLBACK[o.kind] ? o.kind : SCENERY_FALLBACK[o.kind];
@@ -8117,7 +8117,7 @@ for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER]) for (let i = 1; i <
    a village with none of them drawn would otherwise send five requests the
    moment it finished, and artFor remembers a miss. */
 for (let i = 1; i <= BEACON_STAGES; i++) beaconArt(i);
-for (const k of ['ground', 'water', 'tree_pine', 'tree_spruce', 'tree_oak', 'tree_cherry', 'tree_birch', 'rock', 'rock_moss', 'bush', 'stump', 'flowers_wild', 'sheep', 'sheep_rest', 'goat']) artFor(k);
+for (const k of ['ground', 'water', 'tree_pine', 'tree_spruce', 'tree_oak', 'tree_cherry', 'tree_birch', 'rock', 'rock_moss', 'bush', 'bush_hydrangea', 'stump', 'flowers_wild', 'sheep', 'sheep_rest', 'goat']) artFor(k);
 for (const set of Object.values(LOOKS)) for (const k of set) artFor(k);
 for (const [, k] of HALL_STAGES) artFor(k);
 for (const s of SEA_PROPS) artFor(s.key);
