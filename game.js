@@ -2951,6 +2951,8 @@ const LOOKS = {
   quarry: ['quarry', 'quarry_pit'],
   lamp:   ['lamp', 'lamp_bracket'],
   flowers: ['flowers', 'flowers_planter'],
+  bench:  ['bench', 'bench_stone'],
+  banner: ['banner', 'banner_pennant'],
 };
 const STATUE_LOOKS = LOOKS.statue;
 function lookOf(p) {
@@ -4667,6 +4669,10 @@ function flushBadges() {
 /* World height of each decoration at scale 1, for when art arrives. A path is
    not here: it is fitted to the tile diamond instead of standing on it. */
 const DECOR_H = { fence: 42, flowers: 34, hedge: 48, bench: 40, lamp: 80, banner: 104, statue: 88 };
+/* Where a pole stands across its picture, for the looks whose flag flies out
+   to one side: centring the picture would plant the pole a third of a tile
+   off its own square. Everything else stands on its middle. */
+const DECOR_AX = { banner: 0.33, banner_pennant: 0.25 };
 
 function drawDecor(p, alpha) {
   const b = B(p.key), o = tileToWorld(p.c, p.r), n = hash(p.c * 13 + 7, p.r * 17 + 3);
@@ -4689,7 +4695,7 @@ function drawDecor(p, alpha) {
       g.fillStyle = 'rgba(10,18,8,.28)';
       g.beginPath(); g.ellipse(o.x, o.y + 3, 24, 11, 0, 0, 7); g.fill();
       const hgt = DECOR_H[p.key] || 48, wid = art.width * (hgt / art.height);
-      g.drawImage(seasonSkin(art, p.key), o.x - wid / 2, o.y - hgt, wid, hgt);
+      g.drawImage(seasonSkin(art, p.key), o.x - wid * (DECOR_AX[lookOf(p)] || 0.5), o.y - hgt, wid, hgt);
     }
     g.restore(); return;
   }

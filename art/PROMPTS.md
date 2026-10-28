@@ -3294,3 +3294,40 @@ no objects, and no strong directional pattern, so that a repeat of it is
 hard to notice. Evenly lit edge to edge with no vignette. Wide landscape,
 fill the whole canvas.
 ```
+
+---
+---
+
+# 45 — Bench and banner looks → `art/bench_stone.png`, `art/banner_pennant.png`  ✅ DONE
+
+The last two repeated ornaments with one picture each. Same conversation as
+group 44, each with its original attached. The pennants fly out to one side,
+so the pole is a quarter of the way across the picture; DECOR_AX in game.js
+stands each banner look on its pole rather than on the picture's middle.
+
+### 45.1 → `art/bench_stone.png`
+
+```
+Next: a SECOND village bench variant (attached: the current bench), at the
+same size, scale, camera angle and footprint, running along the same
+diagonal. This one is a stone garden bench: a thick slab seat of pale
+weathered sandstone resting on two carved stone scroll supports, a little
+green moss in the cracks and around the feet, a small clump of daisies and
+grass at one end, and a terracotta pot of red geraniums standing beside it.
+Same painterly style and warm light as the attached bench. No figures, no
+text. Nothing beyond the bench and its pot: fully transparent background.
+```
+
+### 45.2 → `art/banner_pennant.png`
+
+```
+Next: a SECOND village banner variant (attached: the current banner), at the
+same height, scale and camera angle, still only a hand's width across. This
+one is a tall harbour flagpole: a slender weathered timber mast in a small
+round base of grey cobbles with a coil of rope at its foot, a little brass
+weathervane-ball finial on top, and two long tapering pennants flying from it
+to one side in the sea breeze -- the upper one deep crimson with a thin gold
+border, the lower one cream with a crimson stripe. No letters, no emblems of
+real countries. Same painterly style and warm light as the attached banner.
+Nothing beyond the base: fully transparent background.
+```
