@@ -8089,7 +8089,8 @@ setInterval(tick, 1000 / 30);
    the first time -- the first mill, the first statue, the first pan to a corner
    with a rock in it. They all ship inside the app; there is nothing to save by
    waiting. The stand-in stays for a file that genuinely will not load. */
-for (const b of BUILDINGS) artFor(b.key);
+// a kind drawn from a set of stages (the beacon) has no single picture to ask for
+for (const b of BUILDINGS) if (!SET_ART[b.key]) artFor(b.key);
 /* And frame the village again once its paintings are in. The opening fit runs
    before any image has loaded, so it measured every building as a tile either
    side of its centre -- narrower than the art -- and a returning player's first
