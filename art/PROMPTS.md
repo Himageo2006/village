@@ -4314,3 +4314,84 @@ geraniums, white daisies and trailing blue lobelia, a watering can leaning
 against one wheel. Same painterly style and warm light. No text. Nothing
 beyond the cart: fully transparent background.
 ```
+
+---
+
+# 90 — Finale painting → `art/finale_art.png`  ✅ DONE
+
+The finished island celebrating, framed above the "Your village is finished" card (art/finale_art.webp, 960x640). Asked for with the title painting attached; it is also the start frame of 91.
+
+### 90.1 → `art/finale_art.png`
+
+```
+Next: a wide LANDSCAPE painting (3:2, wider than tall) in exactly the same
+painterly style as the attached title painting, of the same kind of island
+village, now finished and celebrating at dusk: a little island with
+cottages, a windmill, a town hall with a clock tower, a market square, and a
+stone lighthouse beacon blazing on a headland; strings of warm paper
+lanterns between the houses, windows glowing gold, a few small fireworks
+blooming in a deep blue and rose-pink sky with the first stars, the calm
+turquoise sea reflecting the lights, a couple of small boats with lanterns.
+Seen from a high three-quarter angle, the whole island in frame with sea
+around it. No people close up, no text, no logo. Fill the whole frame (no
+transparency).
+```
+
+---
+
+# 91 — Finale loop → `art/finale_loop.mp4`  ✅ DONE (Leonardo, not ChatGPT)
+
+Plays in the finale frame once it is actually playing; the painting shows until
+then, and instead of it under reduced motion. Leonardo.ai, MiniMax H3, 16:9 HD
+1344x768, 6 s, Turbo, 90 credits, `art/original/finale_art.png` as the start
+frame. Looped the same way as 76, scaled to 960 wide:
+
+    ffmpeg -i raw.mp4 -filter_complex "[0:v]scale=960:-2,split[a][b];[a]trim=start=1.2,setpts=PTS-STARTPTS[A];[b]trim=end=1.2,setpts=PTS-STARTPTS[B];[A][B]xfade=transition=fade:duration=1.2:offset=4.183,format=yuv420p[v]" -map "[v]" -an -c:v libx264 -preset slow -crf 28 -movflags +faststart finale_loop.mp4
+
+### 91.1 → `art/finale_loop.mp4`
+
+```
+Gentle living painting, static camera, no zoom, no pan. Small colourful
+fireworks bloom softly and fade in the dusk sky, stars twinkle, the
+lighthouse beam sweeps slowly, paper lanterns sway gently and glow, light
+reflections shimmer on the calm sea, small waves lap at the rocks, the
+windmill sails turn slowly, the little sailboats bob gently. Everything else
+stays still and exactly as painted. Calm, festive, painterly style kept, no
+new objects, no people appearing, no text.
+```
+
+---
+
+# 92 — Festival bunting → `art/banner_bunting.png`  ✅ DONE
+
+A fifth banner look; its pole stands at DECOR_AX 0.28. Came back on a painted checkerboard.
+
+### 92.1 → `art/banner_bunting.png`
+
+```
+Next: a FIFTH banner variant (attached: the original banner), at the same
+size, height, scale and camera angle, the pole standing in the same place.
+This one is a tall wooden pole strung with a long line of colourful
+triangular festival bunting and three round paper lanterns (red, yellow,
+blue) hanging from a crossbar, a few ribbons fluttering. Same painterly
+style and warm light. No text or letters. Nothing beyond it: fully
+transparent background.
+```
+
+---
+
+# 93 — Birdbath sundial → `art/statue_birdbath.png`  ✅ DONE
+
+A sixth statue look.
+
+### 93.1 → `art/statue_birdbath.png`
+
+```
+Next: a SIXTH statue variant (attached: the original statue), at the same
+size, height, footprint, scale and camera angle. This one is a stone
+birdbath sundial: a round carved stone pedestal on a square plinth, a
+shallow basin of water on top with two little sparrows bathing and
+splashing, a bronze sundial set in the plinth's front, ivy and small blue
+forget-me-nots around the base. Same painterly style and warm light. No
+text. Nothing beyond it: fully transparent background.
+```

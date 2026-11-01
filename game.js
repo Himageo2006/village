@@ -2961,7 +2961,7 @@ const beaconArt = i => artFor(BEACON + '_stage' + i);
    carry its own ART_FIT entry, because a cottage of stone is not drawn with
    its front corner exactly where a timber one is. */
 const LOOKS = {
-  statue: ['statue', 'statue_knight', 'statue_fisher', 'statue_fountain', 'statue_dragon'],
+  statue: ['statue', 'statue_knight', 'statue_fisher', 'statue_fountain', 'statue_dragon', 'statue_birdbath'],
   house:  ['house', 'house_stone', 'house_thatch', 'house_fisher', 'house_baker', 'house_weaver'],
   farm:   ['farm', 'farm_veg', 'farm_barley', 'farm_pumpkin', 'farm_vine'],
   lumber: ['lumber', 'lumber_pit', 'lumber_cabin', 'lumber_saw'],
@@ -2973,7 +2973,7 @@ const LOOKS = {
   lamp:   ['lamp', 'lamp_bracket', 'lamp_stone', 'lamp_double', 'lamp_ship'],
   flowers: ['flowers', 'flowers_planter', 'flowers_tulip', 'flowers_barrel', 'flowers_cart'],
   bench:  ['bench', 'bench_stone', 'bench_rose', 'bench_tree'],
-  banner: ['banner', 'banner_pennant', 'banner_maypole', 'banner_windsock'],
+  banner: ['banner', 'banner_pennant', 'banner_maypole', 'banner_windsock', 'banner_bunting'],
   hedge:  ['hedge', 'hedge_topiary', 'hedge_lavender'],
   fence:  ['fence', 'fence_picket', 'fence_stone'],
 };
@@ -3721,6 +3721,7 @@ const modalUp = () => claimAsk || !!away || !!finished;
    cold start puts it back up. */
 function closeFinished() {
   finished = null;
+  stopFinale();
   if (!tutSeen.includes(FINISH_ID)) { tutSeen.push(FINISH_ID); save(); }
 }
 const FINISH_ID = 'complete';
@@ -4729,7 +4730,7 @@ const DECOR_H = { fence: 42, flowers: 34, hedge: 48, bench: 40, lamp: 80, banner
 /* Where a pole stands across its picture, for the looks whose flag flies out
    to one side: centring the picture would plant the pole a third of a tile
    off its own square. Everything else stands on its middle. */
-const DECOR_AX = { banner: 0.33, banner_pennant: 0.25, banner_windsock: 0.21, lamp_ship: 0.61 };
+const DECOR_AX = { banner: 0.33, banner_pennant: 0.25, banner_windsock: 0.21, banner_bunting: 0.28, lamp_ship: 0.61 };
 
 function drawDecor(p, alpha) {
   const b = B(p.key), o = tileToWorld(p.c, p.r), n = hash(p.c * 13 + 7, p.r * 17 + 3);
@@ -6481,6 +6482,44 @@ function drawAway() {
    already knows a full-width card with "tap to continue" at the bottom is
    something to read and dismiss, and a new pattern for a screen seen once would
    have to teach itself. */
+/* The finished island celebrating, framed above the card: a painting, and a
+   loop of it come to life once the clip is actually playing. Neither is loaded
+   until the card first goes up -- nobody pays for a 1 MB clip they may never
+   reach -- and a missing file just leaves the painting, or nothing. */
+let finaleStill = null, finaleClip = null;
+function drawFinale(R) {
+  const u = R.u;
+  if (!finaleStill) {
+    finaleStill = new Image(); finaleStill.src = 'art/finale_art.webp';
+    if (!reduceMotion) {
+      finaleClip = document.createElement('video');
+      Object.assign(finaleClip, { muted: true, loop: true, playsInline: true, preload: 'auto' });
+      finaleClip.onerror = () => { finaleClip = null; };
+      finaleClip.src = 'art/finale_loop.mp4';
+      finaleClip.play().catch(() => {});
+    }
+  }
+  const live = finaleClip && finaleClip.readyState >= 2 && !finaleClip.paused;
+  const pic = live ? finaleClip : finaleStill.complete && finaleStill.naturalWidth ? finaleStill : null;
+  if (!pic) return;
+  // as wide as the card, or as tall as the room between the HUD and the card
+  const gap = 22 * u, bot = R.y - R.h / 2 - gap, room = bot - hudTop() - 96 * u;
+  let w = R.w, h = w * 2 / 3;
+  if (h > room) { h = room; w = h * 3 / 2; }
+  if (h < 120 * u) return;
+  const x = R.x - w / 2, y = bot - h;
+  g.save();
+  g.beginPath(); g.roundRect(x, y, w, h, 18 * u); g.clip();
+  // the clip is 16:9 and the painting 3:2: both cover the frame from its middle
+  const sw = pic.videoWidth || pic.naturalWidth, sh = pic.videoHeight || pic.naturalHeight;
+  const s = Math.max(w / sw, h / sh);
+  g.drawImage(pic, R.x - sw * s / 2, y + h / 2 - sh * s / 2, sw * s, sh * s);
+  g.restore();
+  g.strokeStyle = 'rgba(232,201,138,.65)'; g.lineWidth = 3;
+  g.beginPath(); g.roundRect(x, y, w, h, 18 * u); g.stroke();
+}
+function stopFinale() { if (finaleClip) finaleClip.pause(); }
+
 function drawFinished() {
   /* One card at a time, and this one waits for all of them.
 
@@ -6498,6 +6537,7 @@ function drawFinished() {
   const R = awayRect(), u = R.u;
   g.save();
   g.fillStyle = 'rgba(6,10,6,.66)'; g.fillRect(0, screenTop(), W, screenBot() - screenTop());
+  drawFinale(R);
   g.fillStyle = 'rgba(16,26,15,.98)'; g.strokeStyle = 'rgba(232,201,138,.65)'; g.lineWidth = 3;
   g.beginPath(); g.roundRect(R.x - R.w / 2, R.y - R.h / 2, R.w, R.h, 24 * u); g.fill(); g.stroke();
   g.textAlign = 'center'; g.textBaseline = 'middle';
