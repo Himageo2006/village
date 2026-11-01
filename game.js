@@ -153,20 +153,29 @@ const ART_FIT = {
   house_fisher: { w: 1.22, ax: 0.672, ay: 1.000 },
   house_baker:  { w: 1.12, ax: 0.600, ay: 0.97 },
   house_weaver: { w: 1.06, ax: 0.644, ay: 0.99 },
+  house_potter: { w: 1.16, ax: 0.500, ay: 0.99 },
+  house_bee:    { w: 1.04, ax: 0.450, ay: 0.98 },
+  house_oak:    { w: 1.30, ax: 0.470, ay: 0.98 },
   house_thatch: { w: 1.20, ax: 0.694, ay: 1.000 },
   farm:   { w: 0.85, ax: 0.531, ay: 1.000 },
   farm_veg:    { w: 0.85, ax: 0.531, ay: 0.998 },
   farm_barley: { w: 0.85, ax: 0.526, ay: 0.998 },
   farm_pumpkin: { w: 0.85, ax: 0.526, ay: 0.995 },
   farm_vine:    { w: 0.85, ax: 0.521, ay: 0.995 },
+  farm_orchard: { w: 0.85, ax: 0.507, ay: 0.995 },
+  farm_hops:    { w: 0.85, ax: 0.476, ay: 0.996 },
   lumber: { w: 1.18, ax: 0.570, ay: 1.000 },
   lumber_pit:  { w: 1.18, ax: 0.660, ay: 0.95 },
   lumber_cabin: { w: 1.18, ax: 0.600, ay: 0.97 },
   lumber_saw: { w: 1.15, ax: 0.600, ay: 0.97 },
+  lumber_charcoal: { w: 1.15, ax: 0.530, ay: 0.96 },
+  lumber_cart: { w: 1.15, ax: 0.500, ay: 0.97 },
   store:  { w: 1.09, ax: 0.522, ay: 1.000 },
   store_granary: { w: 1.09, ax: 0.558, ay: 0.998 },
   store_barn: { w: 1.09, ax: 0.560, ay: 0.99 },
   store_tithe: { w: 1.09, ax: 0.580, ay: 0.99 },
+  store_staddle: { w: 1.12, ax: 0.450, ay: 0.97 },
+  store_cellar: { w: 1.10, ax: 0.500, ay: 0.97 },
   hall:   { w: 1.15, ax: 0.500, ay: 0.999 },
   hall_2: { w: 1.15, ax: 0.500, ay: 0.995 },
   hall_3: { w: 1.15, ax: 0.500, ay: 0.995 },
@@ -177,21 +186,29 @@ const ART_FIT = {
   well_iron:   { w: 1.15, ax: 0.500, ay: 0.98 },
   well_thatch: { w: 1.15, ax: 0.500, ay: 0.98 },
   well_pump: { w: 1.15, ax: 0.480, ay: 0.98 },
+  well_wish: { w: 1.30, ax: 0.500, ay: 0.96 },
+  well_wheel: { w: 1.30, ax: 0.430, ay: 0.97 },
   // the tower base matches its plot; the sails then overhang by a good margin,
   // which is what a windmill does
   mill:   { w: 1.05, ax: 0.551, ay: 0.998 },
   mill_post:   { w: 1.15, ax: 0.520, ay: 0.97 },
   mill_smock:  { w: 1.00, ax: 0.540, ay: 0.98 },
+  mill_tower:  { w: 1.10, ax: 0.500, ay: 0.98 },
+  mill_cider:  { w: 1.10, ax: 0.500, ay: 0.98 },
   mill_water:  { w: 1.05, ax: 0.520, ay: 0.98 },
   market: { w: 1.10, ax: 0.561, ay: 0.999 },
   market_hall: { w: 1.10, ax: 0.653, ay: 1.000 },
   market_fish: { w: 1.10, ax: 0.560, ay: 0.99 },
   market_cheese: { w: 1.10, ax: 0.600, ay: 0.99 },
+  market_fruit: { w: 1.10, ax: 0.520, ay: 0.97 },
+  market_flower: { w: 1.10, ax: 0.500, ay: 0.97 },
   // the shed's near post is the front corner; the rock cut rises behind it
   quarry: { w: 1.18, ax: 0.680, ay: 1.000 },
   quarry_pit:  { w: 1.18, ax: 0.637, ay: 1.000 },
   quarry_slate: { w: 1.18, ax: 0.640, ay: 0.99 },
   quarry_marble: { w: 1.18, ax: 0.620, ay: 0.99 },
+  quarry_sand: { w: 1.18, ax: 0.549, ay: 0.98 },
+  quarry_clay: { w: 1.18, ax: 0.500, ay: 0.97 },
   /* The landmarks found on claimed land. A scattered group has no front
      corner of its own -- the lowest pixel is whichever stone or tree
      happens to stand nearest -- so ax is the middle of the group, set by
@@ -615,7 +632,7 @@ function drawSky() {
 /* Lamps are drawn AFTER the night wash so their light sits on top of it rather
    than being dimmed along with everything else. The light goes where each
    look's lantern is: on top of the post, or hanging off its bracket. */
-const LAMP_GLOW = { lamp: { dx: 0, dy: -52 }, lamp_bracket: { dx: 8, dy: -42 }, lamp_stone: { dx: 0, dy: -56 }, lamp_double: { dx: 0, dy: -55 }, lamp_ship: { dx: -10, dy: -52 } };
+const LAMP_GLOW = { lamp: { dx: 0, dy: -52 }, lamp_bracket: { dx: 8, dy: -42 }, lamp_stone: { dx: 0, dy: -56 }, lamp_double: { dx: 0, dy: -55 }, lamp_ship: { dx: -10, dy: -52 }, lamp_basket: { dx: 6, dy: -60 }, lamp_crook: { dx: -5, dy: -56 } };
 function drawLamps() {
   const { night } = sky();
   if (night < 0.04) return;
@@ -2961,21 +2978,21 @@ const beaconArt = i => artFor(BEACON + '_stage' + i);
    carry its own ART_FIT entry, because a cottage of stone is not drawn with
    its front corner exactly where a timber one is. */
 const LOOKS = {
-  statue: ['statue', 'statue_knight', 'statue_fisher', 'statue_fountain', 'statue_dragon', 'statue_birdbath'],
-  house:  ['house', 'house_stone', 'house_thatch', 'house_fisher', 'house_baker', 'house_weaver'],
-  farm:   ['farm', 'farm_veg', 'farm_barley', 'farm_pumpkin', 'farm_vine'],
-  lumber: ['lumber', 'lumber_pit', 'lumber_cabin', 'lumber_saw'],
-  well:   ['well', 'well_iron', 'well_thatch', 'well_pump'],
-  store:  ['store', 'store_granary', 'store_barn', 'store_tithe'],
-  mill:   ['mill', 'mill_post', 'mill_smock', 'mill_water'],
-  market: ['market', 'market_hall', 'market_fish', 'market_cheese'],
-  quarry: ['quarry', 'quarry_pit', 'quarry_slate', 'quarry_marble'],
-  lamp:   ['lamp', 'lamp_bracket', 'lamp_stone', 'lamp_double', 'lamp_ship'],
-  flowers: ['flowers', 'flowers_planter', 'flowers_tulip', 'flowers_barrel', 'flowers_cart'],
-  bench:  ['bench', 'bench_stone', 'bench_rose', 'bench_tree', 'bench_swing'],
-  banner: ['banner', 'banner_pennant', 'banner_maypole', 'banner_windsock', 'banner_bunting'],
-  hedge:  ['hedge', 'hedge_topiary', 'hedge_lavender'],
-  fence:  ['fence', 'fence_picket', 'fence_stone'],
+  statue: ['statue', 'statue_knight', 'statue_fisher', 'statue_fountain', 'statue_dragon', 'statue_birdbath', 'statue_bear', 'statue_scarecrow'],
+  house:  ['house', 'house_stone', 'house_thatch', 'house_fisher', 'house_baker', 'house_weaver', 'house_potter', 'house_bee', 'house_oak'],
+  farm:   ['farm', 'farm_veg', 'farm_barley', 'farm_pumpkin', 'farm_vine', 'farm_orchard', 'farm_hops'],
+  lumber: ['lumber', 'lumber_pit', 'lumber_cabin', 'lumber_saw', 'lumber_charcoal', 'lumber_cart'],
+  well:   ['well', 'well_iron', 'well_thatch', 'well_pump', 'well_wish', 'well_wheel'],
+  store:  ['store', 'store_granary', 'store_barn', 'store_tithe', 'store_staddle', 'store_cellar'],
+  mill:   ['mill', 'mill_post', 'mill_smock', 'mill_water', 'mill_tower', 'mill_cider'],
+  market: ['market', 'market_hall', 'market_fish', 'market_cheese', 'market_fruit', 'market_flower'],
+  quarry: ['quarry', 'quarry_pit', 'quarry_slate', 'quarry_marble', 'quarry_sand', 'quarry_clay'],
+  lamp:   ['lamp', 'lamp_bracket', 'lamp_stone', 'lamp_double', 'lamp_ship', 'lamp_basket', 'lamp_crook'],
+  flowers: ['flowers', 'flowers_planter', 'flowers_tulip', 'flowers_barrel', 'flowers_cart', 'flowers_sun'],
+  bench:  ['bench', 'bench_stone', 'bench_rose', 'bench_tree', 'bench_swing', 'bench_picnic', 'bench_campfire'],
+  banner: ['banner', 'banner_pennant', 'banner_maypole', 'banner_windsock', 'banner_bunting', 'banner_vane', 'banner_kite'],
+  hedge:  ['hedge', 'hedge_topiary', 'hedge_lavender', 'hedge_wild', 'hedge_holly', 'hedge_beech'],
+  fence:  ['fence', 'fence_picket', 'fence_stone', 'fence_wattle', 'fence_rope', 'fence_iron'],
 };
 const STATUE_LOOKS = LOOKS.statue;
 /* The town hall is the one building whose look follows its level instead of
@@ -4070,6 +4087,8 @@ const SEA_PROPS = [
   { key: 'sea_seals',    fx:  0.07, top: true,  dy: -150, h: 84,  still: true },  // basking off the northern tip
   { key: 'sea_whale',    fx: -0.30, top: false, dy:  250, h: 96,  still: true },  // diving off the south-west
   { key: 'sea_buoy',     fx:  0.17, top: true,  dy:  -30, h: 64,  still: true },  // a bell buoy out to the north-east
+  { key: 'sea_turtle',   fx:  0.19, top: false, dy:  110, h: 52,  still: true },  // a turtle surfacing off the south-east
+  { key: 'sea_sandbar',  fx: -0.19, top: true,  dy:  -40, h: 84,  still: true },  // a sandbar with gulls off the north-west
 ];
 function drawSeaProps(b) {
   const W = b.x1 - b.x0, cx = (b.x0 + b.x1) / 2;
@@ -4144,7 +4163,7 @@ function drawGround() {
 }
 /* World height of each kind at scale 1, set against a cottage at ~207px so the
    trees read as trees rather than shrubs or redwoods. */
-const SCENERY_H = { goat: 30, cow: 40, tree_pine: 115, tree_spruce: 118, tree_oak: 100, tree_willow: 96, tree_poplar: 126, tree_cherry: 100, tree_birch: 122, rock: 54, rock_moss: 50, bush: 46, bush_hydrangea: 46, stump: 38, log_mushroom: 34, flowers_wild: 30, flowers_meadow: 30, sheep: 30, sheep_rest: 22, sheep_lambs: 26, skeps: 40 };
+const SCENERY_H = { goat: 30, cow: 40, tree_pine: 115, tree_spruce: 118, tree_oak: 100, tree_willow: 96, tree_poplar: 126, tree_cherry: 100, tree_birch: 122, rock: 54, rock_moss: 50, bush: 46, bush_hydrangea: 46, stump: 38, log_mushroom: 34, flowers_wild: 30, flowers_meadow: 30, sheep: 30, sheep_rest: 22, sheep_lambs: 26, skeps: 40, snowman: 50 };
 /* What a newer kind is drawn as while its own picture is missing, so a lost
    file shows the kind it was split from rather than the procedural tree. */
 const SCENERY_FALLBACK = { goat: 'stump', cow: 'stump', tree_birch: 'tree_oak', tree_cherry: 'tree_oak', stump: 'bush', flowers_wild: 'bush', sheep: 'bush', sheep_rest: 'bush', sheep_lambs: 'sheep_rest' };
@@ -4255,9 +4274,9 @@ const SCENERY_ALT = { tree_pine: ['tree_spruce', 0.5], rock: ['rock_moss', 0.5],
 /* The small scenery is one tile of each kind -- the island is fixed, see the
    bands in the generator -- so a share is all or nothing: the goat's tile hashes
    to .98 and the cow never came. Those tiles change with the calendar instead,
-   which is what lambs and hives and mushrooms do anyway. */
+   which is what lambs and hives and mushrooms (and snowmen) do anyway. */
 const SEASON_ALT = { sheep_rest: { spring: 'sheep_lambs' }, flowers_wild: { summer: 'skeps' },
-  bush: { summer: 'bush_hydrangea', autumn: 'log_mushroom' }, goat: { autumn: 'cow', winter: 'cow' } };
+  bush: { summer: 'bush_hydrangea', autumn: 'log_mushroom', winter: 'snowman' }, goat: { autumn: 'cow', winter: 'cow' } };
 function drawScenery(o) {
   const p = tileToWorld(o.c, o.r), s2 = o.s;
   let kind = artFor(o.kind) || !SCENERY_FALLBACK[o.kind] ? o.kind : SCENERY_FALLBACK[o.kind];
@@ -4731,14 +4750,20 @@ const DECOR_H = { fence: 42, flowers: 34, hedge: 48, bench: 40, lamp: 80, banner
   bench_rose: 56,     // looks taller than their kind: the bench stands under a rose arch
   bench_tree: 66,     // ... or rings an apple tree
   bench_swing: 58,    // ... or hangs from a frame
+  bench_picnic: 44,   // ... or is a whole picnic table
+  bench_campfire: 46, // ... or two logs round a fire
   hedge_topiary: 54,  // ... or carries clipped balls on top
   fence_picket: 46,   // ... or has taller pickets
+  fence_rope: 50,     // ... or tall driftwood posts
+  fence_iron: 50,     // ... or brick pillars
   hedge_lavender: 56,  // ... or flowers above its leaves
-  flowers_cart: 42 };  // ... or rides in a handcart
+  flowers_cart: 42,   // ... or rides in a handcart
+  flowers_sun: 58,    // ... or is sunflowers
+  hedge_wild: 54 };   // ... or has grown shaggy
 /* Where a pole stands across its picture, for the looks whose flag flies out
    to one side: centring the picture would plant the pole a third of a tile
    off its own square. Everything else stands on its middle. */
-const DECOR_AX = { banner: 0.33, banner_pennant: 0.25, banner_windsock: 0.21, banner_bunting: 0.28, lamp_ship: 0.61 };
+const DECOR_AX = { banner: 0.33, banner_pennant: 0.25, banner_windsock: 0.21, banner_bunting: 0.28, banner_kite: 0.28, lamp_ship: 0.61 };
 
 function drawDecor(p, alpha) {
   const b = B(p.key), o = tileToWorld(p.c, p.r), n = hash(p.c * 13 + 7, p.r * 17 + 3);
@@ -5712,7 +5737,8 @@ function drawHUD() {
       if (taken.has(i)) continue;
       const r = slots[i];
       g.save();
-      g.fillStyle = 'rgba(16,26,14,.80)'; g.strokeStyle = 'rgba(255,255,255,.28)'; g.lineWidth = 2;
+      // near-opaque: at .80 a bright sea prop behind the board took the label under 4.5:1
+      g.fillStyle = 'rgba(16,26,14,.88)'; g.strokeStyle = 'rgba(255,255,255,.28)'; g.lineWidth = 2;
       g.setLineDash([10, 8]);
       g.beginPath(); g.roundRect(r.x - r.w / 2, r.y - r.h / 2, r.w, r.h, 16); g.fill(); g.stroke();
       g.setLineDash([]);
@@ -6510,8 +6536,12 @@ function drawFinale(R) {
   const live = finaleClip && finaleClip.readyState >= 2 && !finaleClip.paused;
   const pic = live ? finaleClip : finaleStill.complete && finaleStill.naturalWidth ? finaleStill : null;
   if (!pic) return;
-  // as wide as the card, or as tall as the room between the HUD and the card
-  const gap = 22 * u, bot = R.y - R.h / 2 - gap, room = bot - hudTop() - 96 * u;
+  /* As wide as the card, or as tall as the room between the HUD and the card --
+     and below the save warning when one is up: a finished village that cannot
+     be saved drew the warning straight across the picture. */
+  const warned = saveFailed || loadedFromBackup || otherBuild;
+  const ceiling = Math.max(hudTop() + 96 * u, warned ? chipsBot() + 150 * u : 0);
+  const gap = 22 * u, bot = R.y - R.h / 2 - gap, room = bot - ceiling;
   let w = R.w, h = w * 2 / 3;
   if (h > room) { h = room; w = h * 3 / 2; }
   if (h < 120 * u) return;
@@ -8184,7 +8214,7 @@ for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER]) for (let i = 1; i <
    a village with none of them drawn would otherwise send five requests the
    moment it finished, and artFor remembers a miss. */
 for (let i = 1; i <= BEACON_STAGES; i++) beaconArt(i);
-for (const k of ['ground', 'water', 'tree_pine', 'tree_spruce', 'tree_oak', 'tree_willow', 'tree_poplar', 'tree_cherry', 'tree_birch', 'rock', 'rock_moss', 'bush', 'bush_hydrangea', 'stump', 'log_mushroom', 'flowers_wild', 'flowers_meadow', 'sheep', 'sheep_rest', 'sheep_lambs', 'skeps', 'goat', 'cow']) artFor(k);
+for (const k of ['ground', 'water', 'tree_pine', 'tree_spruce', 'tree_oak', 'tree_willow', 'tree_poplar', 'tree_cherry', 'tree_birch', 'rock', 'rock_moss', 'bush', 'bush_hydrangea', 'stump', 'log_mushroom', 'flowers_wild', 'flowers_meadow', 'sheep', 'sheep_rest', 'sheep_lambs', 'skeps', 'snowman', 'goat', 'cow']) artFor(k);
 for (const set of Object.values(LOOKS)) for (const k of set) artFor(k);
 for (const [, k] of HALL_STAGES) artFor(k);
 for (const s of SEA_PROPS) artFor(s.key);

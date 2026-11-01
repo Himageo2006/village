@@ -4428,3 +4428,644 @@ of rough timber, a striped cushion and a knitted blanket on the seat, a
 climbing honeysuckle twining up one post. Same painterly style and warm
 light. No text. Nothing beyond it: fully transparent background.
 ```
+
+---
+
+# 96 — Potter's cottage → `art/house_potter.png`  ✅ DONE
+
+A seventh house look.
+
+### 96.1 → `art/house_potter.png`
+
+```
+Next: a SEVENTH variant of the attached house, the same size, footprint,
+angle, light and painted style: a potter's cottage. Whitewashed walls with a
+blue-painted door and shutters, a roof of rounded terracotta tiles, a small
+round brick kiln with a chimney puffing smoke built against one side, a
+wooden shelf by the door lined with blue and cream glazed pots and jugs, a
+potter's wheel under a little lean-to, a few big clay urns planted with
+herbs. Nothing around it -- no ground beyond the cottage, no shadow, no
+text. Fully transparent background.
+```
+
+---
+
+# 97 — Fruit and bakery market → `art/market_fruit.png`  ✅ DONE
+
+A fifth market look.
+
+### 97.1 → `art/market_fruit.png`
+
+```
+Next: a FIFTH variant of the attached market, the same size, footprint,
+angle, light and painted style: a fruit and bakery market. Two wooden stalls
+under striped awnings in leaf green and cream: one piled with crates of red
+apples, pears, oranges and plums, the other with round loaves, braided
+breads and pies on wooden boards under a little glass bell; a hand-painted
+wooden sign with an apple picture (no letters), a wheelbarrow of melons, a
+few wicker baskets and a chalkboard easel with drawings only. Nothing around
+it -- no ground beyond the stalls, no shadow, no text. Fully transparent
+background.
+```
+
+---
+
+# 98 — Wishing well → `art/well_wish.png`  ✅ DONE
+
+A fifth well look, drawn a little larger than the others (w 1.30) because the picture includes its flower pots.
+
+### 98.1 → `art/well_wish.png`
+
+```
+Next: a FIFTH variant of the attached well, the same size, footprint, angle,
+light and painted style: a wishing well in a little flower garden. A round
+wall of smooth river stones topped with a ring of mossy capstones, a small
+pointed roof of blue-grey slate on two carved posts with a crank and a
+wooden bucket on a rope, a few shining coins on the rim, pots of pink and
+white flowers around the base and a tiny wooden stool beside it. Nothing
+around it -- no ground, no shadow, no text. Fully transparent background.
+```
+
+---
+
+# 99 — Raised granary → `art/store_staddle.png`  ✅ DONE
+
+A fifth storehouse look, on staddle stones.
+
+### 99.1 → `art/store_staddle.png`
+
+```
+Next: a FIFTH variant of the attached storehouse, the same size, footprint,
+angle, light and painted style: a raised granary on stone stilts. A long
+timber store with slatted plank walls standing on six mushroom-shaped stone
+pillars (staddle stones) to keep the mice out, a steep red clay-tile roof
+with a small stone cross-shaped finial at each end, a wooden ladder up to
+its door, sacks and baskets of grain stacked underneath, a few chickens
+pecking by the ladder. Nothing around it -- no ground, no shadow, no text.
+Fully transparent background.
+```
+
+---
+
+# 100 — Tower windmill → `art/mill_tower.png`  ✅ DONE
+
+A fifth mill look.
+
+### 100.1 → `art/mill_tower.png`
+
+```
+Next: a FIFTH variant of the attached mill, the same size, footprint, angle,
+light and painted style: a round stone tower windmill. A tall tapering
+whitewashed stone tower with small arched windows and a blue door, a pointed
+thatched cap on top, four sails of white canvas on wooden lattice frames, a
+little wooden balcony running round the tower under the sails, flour sacks
+and a handcart by the door, red poppies growing at the foot of the wall.
+Nothing around it -- no ground, no shadow, no text. Fully transparent
+background.
+```
+
+---
+
+# 101 — Charcoal clearing → `art/lumber_charcoal.png`  ✅ DONE
+
+A fifth lumber camp look.
+
+### 101.1 → `art/lumber_charcoal.png`
+
+```
+Next: a FIFTH variant of the attached lumber camp, the same size, footprint,
+angle, light and painted style: a charcoal burner's clearing. A domed
+charcoal clamp of stacked logs covered in turf with thin wisps of smoke
+seeping out, a small round woodsman's hut of upright logs with a conical
+bark roof, neatly split firewood stacked in a round pile, a two-man crosscut
+saw leaning on a sawbuck, a handcart of charcoal sacks and an axe in a
+stump. Nothing around it -- no ground beyond the clearing, no shadow, no
+text. Fully transparent background.
+```
+
+---
+
+# 102 — Sandstone quarry → `art/quarry_sand.png`  ✅ DONE
+
+A fifth quarry look.
+
+### 102.1 → `art/quarry_sand.png`
+
+```
+Next: a FIFTH variant of the attached quarry, the same size, footprint,
+angle, light and painted style: a sandstone quarry with a waterwheel. A
+stepped cut into warm red and ochre sandstone, a small wooden waterwheel
+turned by a trickle of water from a spring above powering a stone-cutting
+saw, a few squared red blocks stacked on a wooden sledge, a pulley tripod
+over the pit, a stonemason's lean-to shed with tools hanging on its wall and
+a cart with stone wheels. Nothing around it -- no ground beyond the quarry,
+no shadow, no text. Fully transparent background.
+```
+
+---
+
+# 103 — Apple orchard → `art/farm_orchard.png`  ✅ DONE
+
+A sixth farm look.
+
+### 103.1 → `art/farm_orchard.png`
+
+```
+Next: a SIXTH variant of the attached farm, the same size, footprint (a 2x2
+square field), camera angle, light and painted style, with the same low
+fence around the field. This one is a little apple orchard: four small round
+apple trees in a neat grid heavy with red apples, short green grass between
+them dotted with fallen apples and white clover, a wooden ladder leaning in
+one tree, two wicker baskets of picked apples and a small wooden cider
+barrel in a corner. Nothing around it -- no ground beyond the field, no
+shadow, no text. Fully transparent background.
+```
+
+---
+
+# 104 — Sea turtle → `art/sea_turtle.png`  ✅ DONE
+
+A still sea prop just off the south-east beach.
+
+### 104.1 → `art/sea_turtle.png`
+
+```
+Next, in the same painterly style, light and high isometric camera angle as
+the attached dolphins: a large green sea turtle swimming just under the
+surface with its head and the top of its patterned shell breaking the water,
+a few small fish darting beside it, a soft ring of white foam and gentle
+ripples around it. Small in scale, about the size of the dolphins. Only the
+turtle, the fish and the foam -- no open water beyond the foam, no horizon,
+no text. Fully transparent background.
+```
+
+---
+
+# 105 — Sandbar → `art/sea_sandbar.png`  ✅ DONE
+
+A still sea prop off the north-west, with gulls and a message in a bottle.
+
+### 105.1 → `art/sea_sandbar.png`
+
+```
+Next, in the same painterly style, light and high isometric camera angle as
+the attached sea rocks: a tiny sandbar just breaking the surface of the sea,
+pale golden sand with a few shells, a red crab, a piece of driftwood and a
+glass bottle with a rolled message inside, two white seagulls standing on
+it, a soft ring of white foam and ripples around the edge. Small in scale,
+about the size of the rocks. Only the sandbar and its foam -- no open water
+beyond the foam, no horizon, no text. Fully transparent background.
+```
+
+---
+
+# 106 — Wattle fence → `art/fence_wattle.png`  ✅ DONE
+
+A fourth fence look.
+
+### 106.1 → `art/fence_wattle.png`
+
+```
+Next: a FOURTH fence variant (attached: the original fence), at the same
+size, footprint, scale and camera angle, running the same direction. This
+one is a woven wattle fence: thin hazel and willow branches woven in and out
+between rough upright stakes, the stake tops sticking up unevenly, a few
+green leaves still on the twigs, tall grass, ferns and a couple of purple
+foxgloves growing at its foot. Same painterly style and warm light. No text.
+Nothing beyond the fence: fully transparent background.
+```
+
+---
+
+# 107 — Wild hedgerow → `art/hedge_wild.png`  ✅ DONE
+
+A fourth hedge look (DECOR_H 54).
+
+### 107.1 → `art/hedge_wild.png`
+
+```
+Next: a FOURTH hedge variant (attached: the original hedge), at the same
+size, footprint, scale and camera angle. This one is a wild hawthorn and
+bramble hedgerow: an untrimmed, slightly shaggy hedge of hawthorn covered in
+white may blossom, brambles with a few blackberries trailing out of it, a
+wild pink dog-rose climbing through, a small robin perched on a twig on top.
+Same painterly style and warm light. No text. Nothing beyond the hedge:
+fully transparent background.
+```
+
+---
+
+# 108 — Beekeeper's cottage → `art/house_bee.png`  ✅ DONE
+
+An eighth house look.
+
+### 108.1 → `art/house_bee.png`
+
+```
+Next: an EIGHTH variant of the attached house, the same size, footprint,
+angle, light and painted style: a beekeeper's cottage. Honey-coloured stone
+walls, a deep golden thatched roof with a rounded ridge, a round
+dovecote-style turret at one corner with a little conical thatched cap, a
+green door under a porch of climbing honeysuckle, three white wooden
+beehives in a row along the side wall with a few bees, jars of honey on a
+little bench by the door and lavender in pots. Nothing around it -- no
+ground beyond the cottage, no shadow, no text. Fully transparent background.
+```
+
+---
+
+# 109 — Weathervane → `art/banner_vane.png`  ✅ DONE
+
+A sixth banner look.
+
+### 109.1 → `art/banner_vane.png`
+
+```
+Next: a SIXTH banner variant (attached: the original banner), at the same
+size, height, scale and camera angle, the pole standing in the same place.
+This one is a tall weathervane: a slender wrought-iron pole on a small stone
+base, topped with a copper rooster weathervane turned green with age, the
+four compass arms below it ending in little iron arrowheads (no letters), a
+climbing rose twined up the bottom of the pole. Same painterly style and
+warm light. No text or letters. Nothing beyond it: fully transparent
+background.
+```
+
+---
+
+# 110 — Flower-basket lamp → `art/lamp_basket.png`  ✅ DONE
+
+A sixth lamp look; its night glow sits on the lantern (LAMP_GLOW dx 6, dy -60).
+
+### 110.1 → `art/lamp_basket.png`
+
+```
+Next: a SIXTH street lamp variant (attached: the original lamp), at the same
+size, height, scale and camera angle, the lantern centred on the post. This
+one is a hanging flower-basket lamp post: a dark green painted cast-iron
+post with a curly scrolled top holding a round glass lantern with a warm
+glowing flame, two hanging baskets of trailing pink petunias and white
+alyssum on little hooks either side, ivy curling up the base. Same painterly
+style and warm light. No text. Nothing beyond the lamp: fully transparent
+background.
+```
+
+---
+
+# 111 — A picnic table → `art/bench_picnic.png`  ✅ DONE
+
+Sixth bench. Reference: art/original/bench.png.
+
+### 111.1 → `art/bench_picnic.png`
+
+```
+Next: a SIXTH bench variant (attached: the original bench), at the same
+size, footprint, scale and camera angle. This one is a picnic table: a
+sturdy wooden table with two attached bench seats, a red and white checked
+cloth on top with a wicker picnic basket, a loaf of bread, a jug of lemonade
+and a bowl of strawberries, a sleepy ginger cat curled up on one seat. Same
+painterly style and warm light. No text. Nothing beyond it: fully
+transparent background.
+```
+
+---
+
+# 112 — A stone bear → `art/statue_bear.png`  ✅ DONE
+
+Seventh statue. Reference: art/original/statue.png.
+
+### 112.1 → `art/statue_bear.png`
+
+```
+Next: a SEVENTH statue variant (attached: the original statue), at the same
+size, footprint, scale and camera angle. This one is a weathered stone bear
+sitting up on a low round plinth, holding a carved stone honeycomb, moss on
+its shoulders, a small brass plaque, little wildflowers and a clay pot of
+honey at its feet, a bee or two. Same painterly style and warm light. No
+text. Nothing beyond it: fully transparent background.
+```
+
+---
+
+# 113 — A sunflower patch → `art/flowers_sun.png`  ✅ DONE
+
+Sixth flowers. Reference: art/original/flowers.png.
+
+### 113.1 → `art/flowers_sun.png`
+
+```
+Next: a SIXTH flowers variant (attached: the original flower bed), at the
+same size, footprint, scale and camera angle. This one is a sunflower patch:
+a low ring of round river stones holding a cluster of tall sunflowers at
+different heights, some nodding, with marigolds and blue cornflowers around
+their feet and a small sparrow perched on one flower head. Same painterly
+style and warm light. No text. Nothing beyond it: fully transparent
+background.
+```
+
+---
+
+# 114 — A harbour rope fence → `art/fence_rope.png`  ✅ DONE
+
+Fifth fence. Reference: art/original/fence.png.
+
+### 114.1 → `art/fence_rope.png`
+
+```
+Next: a FIFTH fence variant (attached: the original fence), at exactly the
+same size, footprint, length, scale and camera angle. This one is a harbour
+rope fence: weathered driftwood posts with thick hemp rope slung in loose
+loops between them, a cork float and a small coil of rope hanging from one
+post, a tuft of sea grass at the base. Same painterly style and warm light.
+No text. Nothing beyond it: fully transparent background.
+```
+
+---
+
+# 115 — A holly hedge → `art/hedge_holly.png`  ✅ DONE
+
+Fifth hedge. Reference: art/original/hedge.png. ChatGPT offered two; took the darker one.
+
+### 115.1 → `art/hedge_holly.png`
+
+```
+Next: a FIFTH hedge variant (attached: the original hedge), at exactly the
+same size, footprint, length, scale and camera angle. This one is a holly
+hedge: dense glossy dark green holly leaves clipped into a neat block,
+clusters of bright red berries all over it, a little robin perched on top
+and a few fallen berries at its foot. Same painterly style and warm light.
+No text. Nothing beyond it: fully transparent background.
+```
+
+---
+
+# 116 — A wheel well → `art/well_wheel.png`  ✅ DONE
+
+Sixth well. Reference: art/original/well.png.
+
+### 116.1 → `art/well_wheel.png`
+
+```
+Next: a SIXTH well variant (attached: the original well), at the same size,
+footprint, scale and camera angle. This one is a wheel well: a round
+fieldstone well under a little tiled roof on two oak posts, with a big
+wooden spoked hand-wheel on one side to wind the rope, a wooden bucket
+brimming with water on the rim, a tin ladle hanging from a nail, ferns
+growing between the stones. Same painterly style and warm light. No text.
+Nothing beyond it: fully transparent background.
+```
+
+---
+
+# 117 — A flower stall → `art/market_flower.png`  ✅ DONE
+
+Sixth market. Reference: art/original/market.png.
+
+### 117.1 → `art/market_flower.png`
+
+```
+Next: a SIXTH market variant (attached: the original market), at the same
+size, footprint, scale and camera angle. This one is a flower market stall:
+a wooden stall under a pink and cream striped awning, tiered shelves of
+buckets full of cut flowers (roses, tulips, daisies, lavender), hanging
+baskets dripping with blooms, a watering can, bundled bouquets wrapped in
+brown paper, a small chalkboard with no writing. Same painterly style and
+warm light. No text. Nothing beyond it: fully transparent background.
+```
+
+---
+
+# 118 — A root cellar → `art/store_cellar.png`  ✅ DONE
+
+Sixth storehouse. Reference: art/original/store.png.
+
+### 118.1 → `art/store_cellar.png`
+
+```
+Next: a SIXTH storehouse variant (attached: the original storehouse), at the
+same size, footprint, scale and camera angle. This one is a root cellar: a
+grassy earth mound with wildflowers on top, a stone archway front with a
+heavy round-topped oak door and iron hinges, a little chimney vent poking
+out of the turf, crates of potatoes, turnips and apples and a stack of
+firewood beside the door, a lantern on a hook. Same painterly style and warm
+light. No text. Nothing beyond it: fully transparent background.
+```
+
+---
+
+# 119 — A log hauling yard → `art/lumber_cart.png`  ✅ DONE
+
+Sixth lumber camp. Reference: art/original/lumber.png.
+
+### 119.1 → `art/lumber_cart.png`
+
+```
+Next: a SIXTH lumber camp variant (attached: the original lumber camp), at
+the same size, footprint, scale and camera angle. This one is a log hauling
+yard: a heavy wooden ox-cart (no animal) loaded with long chained pine logs,
+a timber skid ramp beside it, a neat cross-stacked pile of planks, a
+chopping block with an axe, a grindstone for sharpening and a pine sapling
+planted in a little fenced ring. Same painterly style and warm light. No
+text. Nothing beyond it: fully transparent background.
+```
+
+---
+
+# 120 — A clay pit and brickworks → `art/quarry_clay.png`  ✅ DONE
+
+Sixth quarry. Reference: art/original/quarry.png.
+
+### 120.1 → `art/quarry_clay.png`
+
+```
+Next: a SIXTH quarry variant (attached: the original quarry), at the same
+size, footprint, scale and camera angle. This one is a clay pit and
+brickworks: a shallow terracotta-red clay pit with a wooden plank walkway
+and a spade stuck in the clay, a small domed brick kiln with a glowing mouth
+and a wisp of smoke, rows of drying unfired bricks on a pallet, a stack of
+finished red bricks and a wheelbarrow. Same painterly style and warm light.
+No text. Nothing beyond it: fully transparent background.
+```
+
+---
+
+# 121 — A cider mill → `art/mill_cider.png`  ✅ DONE
+
+Sixth mill. Reference: art/original/mill.png.
+
+### 121.1 → `art/mill_cider.png`
+
+```
+Next: a SIXTH mill variant (attached: the original mill), at the same size,
+footprint, scale and camera angle. This one is a cider mill: a timber-framed
+open barn with a half-hipped thatched roof, inside it a big round stone
+trough with an upright stone crushing wheel on a wooden beam, a screw cider
+press with a basket of crushed apples, barrels stacked outside, crates and
+baskets of red and green apples, a small apple tree beside it. Same
+painterly style and warm light. No text. Nothing beyond it: fully
+transparent background.
+```
+
+---
+
+# 122 — A hop garden → `art/farm_hops.png`  ✅ DONE
+
+Seventh farm. Reference: art/original/farm.png.
+
+### 122.1 → `art/farm_hops.png`
+
+```
+Next: a SEVENTH farm variant (attached: the original farm), at the same
+size, footprint, scale and camera angle. This one is a hop garden: neat rows
+of tall wooden poles with twine strung between them, green hop bines
+climbing up and hanging with pale green hop cones, a small round oast house
+with a white cowl roof at one corner, wicker baskets of picked hops and a
+ladder leaning on a pole. Same painterly style and warm light. No text.
+Nothing beyond it: fully transparent background.
+```
+
+---
+
+# 123 — An oak-tree cottage → `art/house_oak.png`  ✅ DONE
+
+Ninth house. Reference: art/original/house.png. Drawn wider (w 1.30) since the crown spreads past the cottage.
+
+### 123.1 → `art/house_oak.png`
+
+```
+Next: a NINTH house variant (attached: the original house), at the same
+size, footprint, scale and camera angle. This one is an oak-tree cottage: a
+small round cottage built snugly around the trunk of a great old oak, the
+trunk rising through its mossy shingle roof into a leafy crown above, a
+round green door between the roots, little round windows with warm light, a
+spiral wooden stair winding up the trunk to a tiny lookout, a swing hanging
+from a branch. Same painterly style and warm light. No text. Nothing beyond
+it: fully transparent background.
+```
+
+---
+
+# 124 — A snowman → `art/snowman.png`  ✅ DONE
+
+Winter look of the island's bush tile (SEASON_ALT). Reference: art/original/bush.png.
+
+### 124.1 → `art/snowman.png`
+
+```
+Next: a winter scenery piece (attached: the bush, for scale, style and
+camera angle), at about the same size. A small friendly snowman standing on
+a little patch of snow: three snowballs, coal eyes and buttons, a carrot
+nose, a knitted red scarf and a battered old bucket for a hat, twig arms
+with a tiny mitten on one, a robin on his shoulder. Same painterly style and
+soft winter light. No text. Nothing beyond it: fully transparent background.
+```
+
+---
+
+# 125 — A scarecrow → `art/statue_scarecrow.png`  ✅ DONE
+
+Eighth statue. Reference: art/original/statue.png.
+
+### 125.1 → `art/statue_scarecrow.png`
+
+```
+Next: an EIGHTH statue variant (attached: the original statue), at the same
+size, footprint, scale and camera angle. This one is a cheerful scarecrow: a
+straw-stuffed figure on a wooden cross-post, patched blue dungarees and a
+checked shirt, a floppy straw hat with a sunflower tucked in the band, a
+stitched sacking face with a kind smile, straw poking from the cuffs, a crow
+perched on one arm, standing in a little tuft of wheat and a ring of
+pumpkins at its feet. Same painterly style and warm light. No text. Nothing
+beyond it: fully transparent background.
+```
+
+---
+
+# 126 — A shepherd's crook lantern → `art/lamp_crook.png`  ✅ DONE
+
+Seventh lamp. Reference: art/original/lamp.png. LAMP_GLOW sits on the jar.
+
+### 126.1 → `art/lamp_crook.png`
+
+```
+Next: a SEVENTH lamp variant (attached: the original lamp), at the same
+size, footprint, scale and camera angle. This one is a shepherd's crook
+lantern: a tall curved wooden shepherd's crook staked into a little mound of
+clover and stones, a glass jar lantern hanging from the hook glowing warm
+gold, a few tiny fireflies drifting around it, a twist of ivy climbing the
+staff. Same painterly style and warm light. No text. Nothing beyond it:
+fully transparent background.
+```
+
+---
+
+# 127 — A kite post → `art/banner_kite.png`  ✅ DONE
+
+Seventh banner. Reference: art/original/banner.png. DECOR_AX 0.28 stands the post, not the kite, on the tile.
+
+### 127.1 → `art/banner_kite.png`
+
+```
+Next: a SEVENTH banner variant (attached: the original banner), at the same
+size, footprint, scale and camera angle. This one is a kite post: a sturdy
+wooden post with a little reel of string tied to it, and a diamond-shaped
+patchwork kite (red, yellow and blue squares) flying just above and to one
+side of the post on a short taut string, with a long tail of knotted ribbon
+bows fluttering below it; a tuft of grass and a few daisies at the base of
+the post. Same painterly style and warm light. No text. Nothing beyond it:
+fully transparent background.
+```
+
+---
+
+# 128 — A campfire seat → `art/bench_campfire.png`  ✅ DONE
+
+Seventh bench. Reference: art/original/bench.png.
+
+### 128.1 → `art/bench_campfire.png`
+
+```
+Next: a SEVENTH bench variant (attached: the original bench), at the same
+size, footprint, scale and camera angle. This one is a campfire seat: two
+mossy split-log benches set at an angle around a small ring of stones with a
+crackling little campfire, a blackened kettle on a tripod over it, a stack
+of kindling, a tin mug resting on one log and a folded plaid blanket on the
+other. Same painterly style and warm light. No text. Nothing beyond it:
+fully transparent background.
+```
+
+---
+
+# 129 — A wrought iron railing → `art/fence_iron.png`  ✅ DONE
+
+Sixth fence. Reference: art/original/fence.png.
+
+### 129.1 → `art/fence_iron.png`
+
+```
+Next: a SIXTH fence variant (attached: the original fence), at exactly the
+same size, footprint, length, scale and camera angle. This one is a wrought
+iron garden railing: black iron railings with curled scroll tops and little
+spear finials between two short red-brick pillars capped with stone, a
+climbing rose with pink blooms twining along it, some ivy at the foot. Same
+painterly style and warm light. No text. Nothing beyond it: fully
+transparent background.
+```
+
+---
+
+# 130 — A copper beech hedge → `art/hedge_beech.png`  ✅ DONE
+
+Sixth hedge. Reference: art/original/hedge.png. Last image before the day's ChatGPT quota ran out.
+
+### 130.1 → `art/hedge_beech.png`
+
+```
+Next: a SIXTH hedge variant (attached: the original hedge), at exactly the
+same size, footprint, length, scale and camera angle. This one is a copper
+beech hedge: a neatly clipped block of rich russet, copper and deep red
+beech leaves, with a few golden leaves, a small arched gap cut through the
+middle like a tiny doorway, a hedgehog peeking out of it, a scatter of
+fallen leaves at the base. Same painterly style and warm light. No text.
+Nothing beyond it: fully transparent background.
+```
