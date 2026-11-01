@@ -615,7 +615,7 @@ function drawSky() {
 /* Lamps are drawn AFTER the night wash so their light sits on top of it rather
    than being dimmed along with everything else. The light goes where each
    look's lantern is: on top of the post, or hanging off its bracket. */
-const LAMP_GLOW = { lamp: { dx: 0, dy: -52 }, lamp_bracket: { dx: 8, dy: -42 }, lamp_stone: { dx: 0, dy: -56 }, lamp_double: { dx: 0, dy: -55 } };
+const LAMP_GLOW = { lamp: { dx: 0, dy: -52 }, lamp_bracket: { dx: 8, dy: -42 }, lamp_stone: { dx: 0, dy: -56 }, lamp_double: { dx: 0, dy: -55 }, lamp_ship: { dx: -10, dy: -52 } };
 function drawLamps() {
   const { night } = sky();
   if (night < 0.04) return;
@@ -2970,11 +2970,12 @@ const LOOKS = {
   mill:   ['mill', 'mill_post', 'mill_smock', 'mill_water'],
   market: ['market', 'market_hall', 'market_fish', 'market_cheese'],
   quarry: ['quarry', 'quarry_pit', 'quarry_slate', 'quarry_marble'],
-  lamp:   ['lamp', 'lamp_bracket', 'lamp_stone', 'lamp_double'],
-  flowers: ['flowers', 'flowers_planter', 'flowers_tulip', 'flowers_barrel'],
+  lamp:   ['lamp', 'lamp_bracket', 'lamp_stone', 'lamp_double', 'lamp_ship'],
+  flowers: ['flowers', 'flowers_planter', 'flowers_tulip', 'flowers_barrel', 'flowers_cart'],
   bench:  ['bench', 'bench_stone', 'bench_rose', 'bench_tree'],
   banner: ['banner', 'banner_pennant', 'banner_maypole', 'banner_windsock'],
-  hedge:  ['hedge', 'hedge_topiary'],
+  hedge:  ['hedge', 'hedge_topiary', 'hedge_lavender'],
+  fence:  ['fence', 'fence_picket', 'fence_stone'],
 };
 const STATUE_LOOKS = LOOKS.statue;
 /* The town hall is the one building whose look follows its level instead of
@@ -4067,6 +4068,7 @@ const SEA_PROPS = [
   { key: 'sea_dolphins', fx:  0.34, top: false, dy:  230, h: 72,  still: true },  // leaping off the south-east shore
   { key: 'sea_seals',    fx:  0.07, top: true,  dy: -150, h: 84,  still: true },  // basking off the northern tip
   { key: 'sea_whale',    fx: -0.30, top: false, dy:  250, h: 96,  still: true },  // diving off the south-west
+  { key: 'sea_buoy',     fx:  0.17, top: true,  dy:  -30, h: 64,  still: true },  // a bell buoy out to the north-east
 ];
 function drawSeaProps(b) {
   const W = b.x1 - b.x0, cx = (b.x0 + b.x1) / 2;
@@ -4141,10 +4143,10 @@ function drawGround() {
 }
 /* World height of each kind at scale 1, set against a cottage at ~207px so the
    trees read as trees rather than shrubs or redwoods. */
-const SCENERY_H = { goat: 30, cow: 40, tree_pine: 115, tree_spruce: 118, tree_oak: 100, tree_willow: 96, tree_poplar: 126, tree_cherry: 100, tree_birch: 122, rock: 54, rock_moss: 50, bush: 46, bush_hydrangea: 46, stump: 38, log_mushroom: 34, flowers_wild: 30, flowers_meadow: 30, sheep: 30, sheep_rest: 22 };
+const SCENERY_H = { goat: 30, cow: 40, tree_pine: 115, tree_spruce: 118, tree_oak: 100, tree_willow: 96, tree_poplar: 126, tree_cherry: 100, tree_birch: 122, rock: 54, rock_moss: 50, bush: 46, bush_hydrangea: 46, stump: 38, log_mushroom: 34, flowers_wild: 30, flowers_meadow: 30, sheep: 30, sheep_rest: 22, sheep_lambs: 26 };
 /* What a newer kind is drawn as while its own picture is missing, so a lost
    file shows the kind it was split from rather than the procedural tree. */
-const SCENERY_FALLBACK = { goat: 'stump', cow: 'stump', tree_birch: 'tree_oak', tree_cherry: 'tree_oak', stump: 'bush', flowers_wild: 'bush', sheep: 'bush', sheep_rest: 'bush' };
+const SCENERY_FALLBACK = { goat: 'stump', cow: 'stump', tree_birch: 'tree_oak', tree_cherry: 'tree_oak', stump: 'bush', flowers_wild: 'bush', sheep: 'bush', sheep_rest: 'bush', sheep_lambs: 'sheep_rest' };
 
 /* ---------- the time of year ----------
 
@@ -4248,7 +4250,7 @@ function seasonSkin(im, key) {
    thirds of the island's trees, and one picture twenty times over read as a
    stamp (on the island as it is, 7 of the 21). Only the picture changes -- the
    tile is still a pine, or a rock, to everything else. */
-const SCENERY_ALT = { tree_pine: ['tree_spruce', 0.5], rock: ['rock_moss', 0.5], bush: ['bush_hydrangea', 0.5], flowers_wild: ['flowers_meadow', 0.5], tree_oak: ['tree_willow', 0.35], tree_birch: ['tree_poplar', 0.4], goat: ['cow', 0.45], stump: ['log_mushroom', 0.45] };
+const SCENERY_ALT = { tree_pine: ['tree_spruce', 0.5], rock: ['rock_moss', 0.5], bush: ['bush_hydrangea', 0.5], flowers_wild: ['flowers_meadow', 0.5], tree_oak: ['tree_willow', 0.35], tree_birch: ['tree_poplar', 0.4], goat: ['cow', 0.45], stump: ['log_mushroom', 0.45], sheep_rest: ['sheep_lambs', 0.45] };
 function drawScenery(o) {
   const p = tileToWorld(o.c, o.r), s2 = o.s;
   let kind = artFor(o.kind) || !SCENERY_FALLBACK[o.kind] ? o.kind : SCENERY_FALLBACK[o.kind];
@@ -4720,11 +4722,14 @@ function flushBadges() {
 const DECOR_H = { fence: 42, flowers: 34, hedge: 48, bench: 40, lamp: 80, banner: 104, statue: 88,
   bench_rose: 56,     // looks taller than their kind: the bench stands under a rose arch
   bench_tree: 66,     // ... or rings an apple tree
-  hedge_topiary: 54 };  // ... or carries clipped balls on top
+  hedge_topiary: 54,  // ... or carries clipped balls on top
+  fence_picket: 46,   // ... or has taller pickets
+  hedge_lavender: 56,  // ... or flowers above its leaves
+  flowers_cart: 42 };  // ... or rides in a handcart
 /* Where a pole stands across its picture, for the looks whose flag flies out
    to one side: centring the picture would plant the pole a third of a tile
    off its own square. Everything else stands on its middle. */
-const DECOR_AX = { banner: 0.33, banner_pennant: 0.25, banner_windsock: 0.21 };
+const DECOR_AX = { banner: 0.33, banner_pennant: 0.25, banner_windsock: 0.21, lamp_ship: 0.61 };
 
 function drawDecor(p, alpha) {
   const b = B(p.key), o = tileToWorld(p.c, p.r), n = hash(p.c * 13 + 7, p.r * 17 + 3);
@@ -8131,7 +8136,7 @@ for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER]) for (let i = 1; i <
    a village with none of them drawn would otherwise send five requests the
    moment it finished, and artFor remembers a miss. */
 for (let i = 1; i <= BEACON_STAGES; i++) beaconArt(i);
-for (const k of ['ground', 'water', 'tree_pine', 'tree_spruce', 'tree_oak', 'tree_willow', 'tree_poplar', 'tree_cherry', 'tree_birch', 'rock', 'rock_moss', 'bush', 'bush_hydrangea', 'stump', 'log_mushroom', 'flowers_wild', 'flowers_meadow', 'sheep', 'sheep_rest', 'goat', 'cow']) artFor(k);
+for (const k of ['ground', 'water', 'tree_pine', 'tree_spruce', 'tree_oak', 'tree_willow', 'tree_poplar', 'tree_cherry', 'tree_birch', 'rock', 'rock_moss', 'bush', 'bush_hydrangea', 'stump', 'log_mushroom', 'flowers_wild', 'flowers_meadow', 'sheep', 'sheep_rest', 'sheep_lambs', 'goat', 'cow']) artFor(k);
 for (const set of Object.values(LOOKS)) for (const k of set) artFor(k);
 for (const [, k] of HALL_STAGES) artFor(k);
 for (const s of SEA_PROPS) artFor(s.key);

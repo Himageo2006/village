@@ -4193,3 +4193,124 @@ red-capped white-spotted toadstools and a few small brown mushrooms growing
 from it, a little fern beside it. One log only, no ground plane, no shadow,
 no text. Fully transparent background.
 ```
+
+---
+
+# 83 — Bell buoy → `art/sea_buoy.png`  ✅ DONE
+
+A still sea prop off the north-east, beside the ketch. Asked for with the rowing boat attached.
+
+### 83.1 → `art/sea_buoy.png`
+
+```
+Next, in the same painterly style, light and high isometric camera angle as
+the attached rowing boat: a red and white striped bell buoy floating in the
+sea, a small iron cage on top holding a brass bell, a white seagull perched
+on the top, a ring of white foam and small ripples around its base. Small in
+scale, about the size of the rowing boat. Only the buoy, the gull and the
+foam -- no open water beyond the foam, no horizon, no text. Fully
+transparent background.
+```
+
+---
+
+# 84 — Ewe and lambs → `art/sheep_lambs.png`  ✅ DONE
+
+Scenery: stands in for a resting sheep about half the time (SCENERY_ALT).
+
+### 84.1 → `art/sheep_lambs.png`
+
+```
+Next: in the same painterly style, scale, camera angle and light as the
+attached resting sheep: a fluffy white ewe lying down in the grass with two
+small lambs snuggled against her side, one lamb looking up, a few daisies
+around them. One small group only, no ground plane, no shadow, no text.
+Fully transparent background.
+```
+
+---
+
+# 85 — Picket fence → `art/fence_picket.png`  ✅ DONE
+
+The fence's first second look (DECOR_H 46).
+
+### 85.1 → `art/fence_picket.png`
+
+```
+Next: a SECOND fence variant (attached: the original fence), at the same
+size, footprint, scale and camera angle. This one is a white-painted picket
+fence: neat pointed white pickets on two rails, slightly weathered paint, a
+few climbing pink roses and green ivy twining along it, small daisies at its
+foot. Same painterly style and warm light. No text. Nothing beyond the
+fence: fully transparent background.
+```
+
+---
+
+# 86 — Lavender hedge → `art/hedge_lavender.png`  ✅ DONE
+
+A third hedge look (DECOR_H 56).
+
+### 86.1 → `art/hedge_lavender.png`
+
+```
+Next: a THIRD hedge variant (attached: the original hedge), at the same
+size, footprint, scale and camera angle. This one is a flowering lavender
+hedge: a low clipped rosemary-green hedge topped with dense spikes of purple
+lavender, a few white butterflies and a bumblebee over it, a small wooden
+bee skep at one end. Same painterly style and warm light. No text. Nothing
+beyond the hedge: fully transparent background.
+```
+
+---
+
+# 87 — Dry-stone wall → `art/fence_stone.png`  ✅ DONE
+
+A third fence look.
+
+### 87.1 → `art/fence_stone.png`
+
+```
+Next: a THIRD fence variant (attached: the original fence), at the same
+size, footprint, scale and camera angle, running the same direction. This
+one is a low dry-stone wall: rounded grey and honey-coloured field stones
+stacked without mortar, a row of upright capstones along the top, patches of
+green moss and a few tufts of grass and small yellow flowers growing from
+the gaps. Same painterly style and warm light. No text. Nothing beyond the
+wall: fully transparent background.
+```
+
+---
+
+# 88 — Ship's lantern → `art/lamp_ship.png`  ✅ DONE
+
+A fifth lamp look. The post stands off-centre (DECOR_AX 0.61) and the night glow hangs from its hook (LAMP_GLOW dx -10).
+
+### 88.1 → `art/lamp_ship.png`
+
+```
+Next: a FIFTH street lamp variant (attached: the original lamp), at the same
+size, height, scale and camera angle. This one is a rustic ship's lantern: a
+weathered wooden post with a curved iron hook arm at the top, a brass ship's
+lantern with a warm glowing candle hanging from it, a coil of rope around
+the base of the post and a small anchor leaning against it. Same painterly
+style and warm light. No text. Nothing beyond the lamp: fully transparent
+background.
+```
+
+---
+
+# 89 — Flower cart → `art/flowers_cart.png`  ✅ DONE
+
+A fifth flower bed look (DECOR_H 42). Came back on a painted checkerboard, which prep-art keys out.
+
+### 89.1 → `art/flowers_cart.png`
+
+```
+Next: a FIFTH flower bed variant (attached: the original flowers), at the
+same size, footprint, scale and camera angle. This one is a little old
+wooden handcart with two spoked wheels, its bed overflowing with pots of red
+geraniums, white daisies and trailing blue lobelia, a watering can leaning
+against one wheel. Same painterly style and warm light. No text. Nothing
+beyond the cart: fully transparent background.
+```
