@@ -4089,3 +4089,107 @@ breeze, a windmill's sails turn slowly. Everything else stays still and
 exactly as painted. Calm, peaceful, painterly style kept, no new objects, no
 people appearing, no text.
 ```
+
+---
+
+# 77 — Windsock → `art/banner_windsock.png`  ✅ DONE
+
+A fourth banner look; its pole stands a fifth of the way across (DECOR_AX 0.21).
+
+### 77.1 → `art/banner_windsock.png`
+
+```
+Next: a FOURTH banner variant (attached: the original banner), at the same
+height, scale and camera angle, its pole standing straight up in the middle
+of the picture. This one is a tall wooden pole with a big colourful
+kite-shaped wind sock of striped red, yellow and blue cloth streaming out
+sideways in the breeze, a small brass bell hanging under it, and a ring of
+little white stones at the foot of the pole. Same painterly style and warm
+light. No text. Nothing beyond the base: fully transparent background.
+```
+
+---
+
+# 78 — Willow → `art/tree_willow.png`  ✅ DONE
+
+Swapped in for about a third of the oaks.
+
+### 78.1 → `art/tree_willow.png`
+
+```
+Next: a SECOND broadleaf tree for the same island (attached: the current
+oak), at the same size, scale, camera angle and painterly style: a graceful
+weeping willow with a short sturdy trunk and long trailing curtains of soft
+green leaves hanging almost to the ground, a few small yellow catkins. One
+tree only, no ground plane, no shadow, no text. Fully transparent
+background.
+```
+
+---
+
+# 79 — Poplar → `art/tree_poplar.png`  ✅ DONE
+
+Swapped in for some of the birches.
+
+### 79.1 → `art/tree_poplar.png`
+
+```
+Next: a SECOND tall slim tree for the same island (attached: the current
+birch), at the same size, scale, camera angle and painterly style: a tall
+narrow Lombardy poplar, a slender column of fresh green leaves rising from a
+straight grey-brown trunk, its leaves catching the light with silvery
+undersides. One tree only, no ground plane, no shadow, no text. Fully
+transparent background.
+```
+
+---
+
+# 80 — Cow → `art/cow.png`  ✅ DONE
+
+Grazes on some of the goat tiles.
+
+### 80.1 → `art/cow.png`
+
+```
+Next: a farm animal for the same island (attached: the goat), in the same
+painterly style, scale relative to its size, camera angle and light: a
+friendly brown and white dairy cow standing side-on and grazing, head down
+to the grass, a small brass bell on a leather collar, swishing tail. About
+one and a half times the goat's size. One cow only, no ground plane, no
+shadow, no text. Fully transparent background.
+```
+
+---
+
+# 81 — Dragon statue → `art/statue_dragon.png`  ✅ DONE
+
+A fifth statue look.
+
+### 81.1 → `art/statue_dragon.png`
+
+```
+Next: a FIFTH statue variant (attached: the original statue), at the same
+height, scale and camera angle, standing straight up in the middle of its
+picture on a similar square stone plinth. This one is a friendly stone
+dragon sitting curled on top of the plinth, wings folded, tail wrapped
+around its feet, a little moss and lichen on its back, a few wildflowers
+growing at the base. Same painterly style and warm light. No text. Nothing
+beyond the plinth: fully transparent background.
+```
+
+---
+
+# 82 — Mushroom log → `art/log_mushroom.png`  ✅ DONE
+
+Lies on some of the stump tiles.
+
+### 82.1 → `art/log_mushroom.png`
+
+```
+Next: a SECOND small woodland prop for the same island (attached: the
+current tree stump), at the same size, scale, camera angle and painterly
+style: a short fallen mossy log lying on its side, with a cluster of
+red-capped white-spotted toadstools and a few small brown mushrooms growing
+from it, a little fern beside it. One log only, no ground plane, no shadow,
+no text. Fully transparent background.
+```
