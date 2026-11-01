@@ -3849,7 +3849,9 @@ shadow, no text. Fully transparent background.
 
 ---
 
-# 64 — Weaver's cottage → `art/house_weaver.png`  ⏳ TODO (image limit hit)
+# 64 — Weaver's cottage → `art/house_weaver.png`  ✅ DONE
+
+A sixth house look, sent again once the image limit reset.
 
 ### 64.1 → `art/house_weaver.png`
 
@@ -3862,4 +3864,228 @@ diamond-paned windows with pink geraniums in window boxes, a sky-blue door, a
 wooden spinning wheel and a basket of coloured wool skeins by the door, a
 tall brick chimney. Nothing around it -- no ground, no shadow, no text. Fully
 transparent background.
+```
+
+---
+
+# 65 — Cheese market → `art/market_cheese.png`  ✅ DONE
+
+A fourth market look: cheese and flower stalls under yellow awnings.
+
+### 65.1 → `art/market_cheese.png`
+
+```
+Next: a FOURTH variant of the attached market, the same size, footprint,
+angle, light and painted style: a cheese and flower market. Two wooden
+stalls under striped awnings in sunny yellow and white: one stacked with big
+golden cheese wheels and wedges on a chequered cloth, the other with buckets
+of cut sunflowers, roses and lavender bunches; a hand-painted wooden sign
+with a cheese wheel picture (no letters), a small cart of milk churns, a few
+wicker baskets. Nothing around it -- no ground beyond the stalls, no shadow,
+no text. Fully transparent background.
+```
+
+---
+
+# 66 — Pump well → `art/well_pump.png`  ✅ DONE
+
+A fourth well look: a green iron hand pump over a stone well and trough.
+
+### 66.1 → `art/well_pump.png`
+
+```
+Next: a FOURTH variant of the attached well, the same size, footprint,
+angle, light and painted style: a village pump well. A round low wall of
+rough pale limestone, a cast-iron hand pump painted dark green with a curved
+handle beside it, water trickling from its spout into a wooden trough, a
+little wooden roof on two posts over the pump with a hanging bucket, ivy and
+small yellow flowers creeping up the stones. Nothing around it -- no ground,
+no shadow, no text. Fully transparent background.
+```
+
+---
+
+# 67 — Seals → `art/sea_seals.png`  ✅ DONE
+
+A still sea prop off the northern tip, asked for with the dolphins attached.
+
+### 67.1 → `art/sea_seals.png`
+
+```
+Next, in the same painterly style, light and high isometric camera angle as
+the attached dolphins: three grey harbour seals lounging on a small flat wet
+rock poking out of the sea, one lifting its head and flippers, one asleep,
+one sliding into the water with a little splash, a ring of white foam around
+the rock. Small in scale, about the size of the dolphins. Only the seals,
+the rock and the foam -- no open water beyond the foam, no horizon, no text.
+Fully transparent background.
+```
+
+---
+
+# 68 — Whale tail → `art/sea_whale.png`  ✅ DONE
+
+A still sea prop off the south-west, opposite the dolphins.
+
+### 68.1 → `art/sea_whale.png`
+
+```
+Next, in the same painterly style, light and high isometric camera angle as
+the attached dolphins: the huge dark blue-grey tail fluke of a whale rising
+out of the sea as it dives, water pouring off its edges in white streams and
+droplets, a ring of white foam and a few ripples where it breaks the
+surface. About twice the size of the dolphins. Only the tail, the falling
+water and the foam -- no open water beyond the foam, no horizon, no text.
+Fully transparent background.
+```
+
+---
+
+# 69 — Watermill → `art/mill_water.png`  ✅ DONE
+
+A fourth mill look, the only one without sails.
+
+### 69.1 → `art/mill_water.png`
+
+```
+Next: a FOURTH variant of the attached mill, the same size, footprint,
+angle, light and painted style: a watermill. A two-storey mill house of pale
+stone with a dark timber upper floor and a red clay-tile roof, a big wooden
+water wheel turning on its side fed by a short wooden flume (sluice) of
+splashing water that runs into a small stone channel and pool at its foot,
+sacks of flour stacked by the door, a small window box of red flowers.
+Nothing around it -- no ground beyond the mill and its channel, no shadow,
+no text. Fully transparent background.
+```
+
+---
+
+# 70 — Tithe barn → `art/store_tithe.png`  ✅ DONE
+
+A fourth storehouse look in honey-coloured stone.
+
+### 70.1 → `art/store_tithe.png`
+
+```
+Next: a FOURTH variant of the attached storehouse, the same size, footprint,
+angle, light and painted style: a stone tithe barn. Long thick walls of
+honey-coloured stone with narrow slit windows and buttresses, a steep roof
+of weathered grey stone slates, tall arched double wooden doors standing
+open to show stacked crates, barrels and sacks inside, a wooden ladder
+leaning against the wall and a hay cart beside the door. Nothing around it
+-- no ground, no shadow, no text. Fully transparent background.
+```
+
+---
+
+# 71 — Sawmill yard → `art/lumber_saw.png`  ✅ DONE
+
+A fourth lumber camp look with a circular saw.
+
+### 71.1 → `art/lumber_saw.png`
+
+```
+Next: a FOURTH variant of the attached lumber camp, the same size,
+footprint, angle, light and painted style: a sawmill yard. An open-sided
+timber shed with a shingled roof sheltering a long saw bench with a big
+circular saw blade and a half-cut log, neat stacks of fresh pale planks
+drying on crossed battens, a pile of round logs held by wooden stakes, a
+sawhorse, a wheelbarrow of sawdust and wood shavings, an axe in a chopping
+block. Nothing around it -- no ground beyond the yard, no shadow, no text.
+Fully transparent background.
+```
+
+---
+
+# 72 — Marble quarry → `art/quarry_marble.png`  ✅ DONE
+
+A fourth quarry look in white and pink marble.
+
+### 72.1 → `art/quarry_marble.png`
+
+```
+Next: a FOURTH variant of the attached quarry, the same size, footprint,
+angle, light and painted style: a marble quarry. A stepped cut into gleaming
+white and pale pink marble with clean square ledges, a wooden crane with a
+rope and pulley lifting a white marble block, a few finished marble blocks
+and a half-carved column drum on wooden rollers, a mason's bench with
+chisels and mallets, a small tool shed with a red tile roof. Nothing around
+it -- no ground beyond the quarry, no shadow, no text. Fully transparent
+background.
+```
+
+---
+
+# 73 — Vineyard → `art/farm_vine.png`  ✅ DONE
+
+A fifth farm look.
+
+### 73.1 → `art/farm_vine.png`
+
+```
+Next: a FIFTH variant of the attached farm, the same size, footprint (a 2x2
+square field), camera angle, light and painted style, with the same low
+fence around the field. This one is a little vineyard: neat rows of grape
+vines on wooden posts and wires, heavy bunches of purple and green grapes, a
+wooden grape press and two oak barrels in one corner, a wicker harvest
+basket full of grapes, a few red roses planted at the ends of the rows.
+Nothing around it -- no ground beyond the field, no shadow, no text. Fully
+transparent background.
+```
+
+---
+
+# 74 — Tree bench → `art/bench_tree.png`  ✅ DONE
+
+A fourth bench look, taller than its kind (DECOR_H 66).
+
+### 74.1 → `art/bench_tree.png`
+
+```
+Next: a FOURTH bench variant (attached: the original bench), at the same
+size, footprint, scale and camera angle. This one is a round wooden bench
+built all the way around the trunk of a small young apple tree with a few
+red apples, a couple of fallen apples and leaves on the seat. Same painterly
+style and warm light. No text. Nothing beyond the bench and tree: fully
+transparent background.
+```
+
+---
+
+# 75 — Topiary hedge → `art/hedge_topiary.png`  ✅ DONE
+
+The hedge's first second look.
+
+### 75.1 → `art/hedge_topiary.png`
+
+```
+Next: a SECOND hedge variant (attached: the original hedge), at the same
+size, footprint, scale and camera angle. This one is a clipped boxwood
+topiary hedge: a low neat rectangular box hedge with three round topiary
+balls on top, tiny white flowers dotted through it, a few pink climbing
+roses on one end. Same painterly style and warm light. No text. Nothing
+beyond the hedge: fully transparent background.
+```
+
+---
+
+# 76 — Living title screen → `art/title_loop.mp4`  ✅ DONE (Leonardo, not ChatGPT)
+
+The title painting brought to life. Made in Leonardo.ai with MiniMax H3 (9:16,
+768x1344, 6 s, Turbo, 90 credits) and `art/original/title_art.png` as the
+start frame. The raw clip was turned into a seamless 5.4 s loop with ffmpeg by
+cross-fading its last 1.2 s into its first:
+
+    ffmpeg -i raw.mp4 -filter_complex "[0:v]split[a][b];[a]trim=start=1.2,setpts=PTS-STARTPTS[A];[b]trim=end=1.2,setpts=PTS-STARTPTS[B];[A][B]xfade=transition=fade:duration=1.2:offset=4.183,format=yuv420p[v]" -map "[v]" -an -c:v libx264 -preset slow -crf 27 -movflags +faststart title_loop.mp4
+
+### 76.1 → `art/title_loop.mp4`
+
+```
+Gentle living painting, static camera, no zoom, no pan. The sea shimmers and
+small waves lap softly at the island's beach, thin wisps of smoke rise
+slowly from the cottage chimneys, a few seagulls glide across the sky in the
+distance, clouds drift very slowly, leaves on the trees sway lightly in the
+breeze, a windmill's sails turn slowly. Everything else stays still and
+exactly as painted. Calm, peaceful, painterly style kept, no new objects, no
+people appearing, no text.
 ```

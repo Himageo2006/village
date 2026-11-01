@@ -57,12 +57,18 @@
   @keyframes introDrift{from{transform:scale(1)}to{transform:scale(1.06) translateY(-1.2%)}}
   @keyframes introFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-1.4%)}}
   @keyframes introPulse{0%,100%{transform:translateX(-50%) scale(1)}50%{transform:translateX(-50%) scale(1.05)}}
-  @media (prefers-reduced-motion:reduce){#intro .art,#intro .logo,#intro .go{animation:none}}
+  /* the painting come to life: waits invisible over the still until it is
+     actually playing, so a slow or missing file just leaves the painting */
+  #intro .live{opacity:0;transition:opacity 1.2s ease}
+  #intro .live.on{opacity:1}
+  @media (prefers-reduced-motion:reduce){#intro .art,#intro .logo,#intro .go{animation:none}#intro .live{display:none}}
 </style>
 <div id="intro" role="button" aria-label="Start">
   <div class="wash"></div>
   <div class="card">
     <img class="art" src="art/title_art.webp" alt="">
+    <video class="art live" src="art/title_loop.mp4" muted loop playsinline autoplay preload="auto"
+      onplaying="this.classList.add('on')" onerror="this.remove()"></video>
     <img class="logo" src="art/logo.webp" alt="Village: Island Builder"
       onerror="this.remove();document.querySelector('#intro .title').style.display='block'">
     <div class="title">Village</div>

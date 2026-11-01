@@ -152,17 +152,21 @@ const ART_FIT = {
   house_stone:  { w: 1.20, ax: 0.684, ay: 0.997 },
   house_fisher: { w: 1.22, ax: 0.672, ay: 1.000 },
   house_baker:  { w: 1.12, ax: 0.600, ay: 0.97 },
+  house_weaver: { w: 1.06, ax: 0.644, ay: 0.99 },
   house_thatch: { w: 1.20, ax: 0.694, ay: 1.000 },
   farm:   { w: 0.85, ax: 0.531, ay: 1.000 },
   farm_veg:    { w: 0.85, ax: 0.531, ay: 0.998 },
   farm_barley: { w: 0.85, ax: 0.526, ay: 0.998 },
   farm_pumpkin: { w: 0.85, ax: 0.526, ay: 0.995 },
+  farm_vine:    { w: 0.85, ax: 0.521, ay: 0.995 },
   lumber: { w: 1.18, ax: 0.570, ay: 1.000 },
   lumber_pit:  { w: 1.18, ax: 0.660, ay: 0.95 },
   lumber_cabin: { w: 1.18, ax: 0.600, ay: 0.97 },
+  lumber_saw: { w: 1.15, ax: 0.600, ay: 0.97 },
   store:  { w: 1.09, ax: 0.522, ay: 1.000 },
   store_granary: { w: 1.09, ax: 0.558, ay: 0.998 },
   store_barn: { w: 1.09, ax: 0.560, ay: 0.99 },
+  store_tithe: { w: 1.09, ax: 0.580, ay: 0.99 },
   hall:   { w: 1.15, ax: 0.500, ay: 0.999 },
   hall_2: { w: 1.15, ax: 0.500, ay: 0.995 },
   hall_3: { w: 1.15, ax: 0.500, ay: 0.995 },
@@ -172,18 +176,22 @@ const ART_FIT = {
   well:   { w: 1.15, ax: 0.500, ay: 0.995 },
   well_iron:   { w: 1.15, ax: 0.500, ay: 0.98 },
   well_thatch: { w: 1.15, ax: 0.500, ay: 0.98 },
+  well_pump: { w: 1.15, ax: 0.480, ay: 0.98 },
   // the tower base matches its plot; the sails then overhang by a good margin,
   // which is what a windmill does
   mill:   { w: 1.05, ax: 0.551, ay: 0.998 },
   mill_post:   { w: 1.15, ax: 0.520, ay: 0.97 },
   mill_smock:  { w: 1.00, ax: 0.540, ay: 0.98 },
+  mill_water:  { w: 1.05, ax: 0.520, ay: 0.98 },
   market: { w: 1.10, ax: 0.561, ay: 0.999 },
   market_hall: { w: 1.10, ax: 0.653, ay: 1.000 },
   market_fish: { w: 1.10, ax: 0.560, ay: 0.99 },
+  market_cheese: { w: 1.10, ax: 0.600, ay: 0.99 },
   // the shed's near post is the front corner; the rock cut rises behind it
   quarry: { w: 1.18, ax: 0.680, ay: 1.000 },
   quarry_pit:  { w: 1.18, ax: 0.637, ay: 1.000 },
   quarry_slate: { w: 1.18, ax: 0.640, ay: 0.99 },
+  quarry_marble: { w: 1.18, ax: 0.620, ay: 0.99 },
   /* The landmarks found on claimed land. A scattered group has no front
      corner of its own -- the lowest pixel is whichever stone or tree
      happens to stand nearest -- so ax is the middle of the group, set by
@@ -2954,18 +2962,19 @@ const beaconArt = i => artFor(BEACON + '_stage' + i);
    its front corner exactly where a timber one is. */
 const LOOKS = {
   statue: ['statue', 'statue_knight', 'statue_fisher', 'statue_fountain'],
-  house:  ['house', 'house_stone', 'house_thatch', 'house_fisher', 'house_baker'],
-  farm:   ['farm', 'farm_veg', 'farm_barley', 'farm_pumpkin'],
-  lumber: ['lumber', 'lumber_pit', 'lumber_cabin'],
-  well:   ['well', 'well_iron', 'well_thatch'],
-  store:  ['store', 'store_granary', 'store_barn'],
-  mill:   ['mill', 'mill_post', 'mill_smock'],
-  market: ['market', 'market_hall', 'market_fish'],
-  quarry: ['quarry', 'quarry_pit', 'quarry_slate'],
+  house:  ['house', 'house_stone', 'house_thatch', 'house_fisher', 'house_baker', 'house_weaver'],
+  farm:   ['farm', 'farm_veg', 'farm_barley', 'farm_pumpkin', 'farm_vine'],
+  lumber: ['lumber', 'lumber_pit', 'lumber_cabin', 'lumber_saw'],
+  well:   ['well', 'well_iron', 'well_thatch', 'well_pump'],
+  store:  ['store', 'store_granary', 'store_barn', 'store_tithe'],
+  mill:   ['mill', 'mill_post', 'mill_smock', 'mill_water'],
+  market: ['market', 'market_hall', 'market_fish', 'market_cheese'],
+  quarry: ['quarry', 'quarry_pit', 'quarry_slate', 'quarry_marble'],
   lamp:   ['lamp', 'lamp_bracket', 'lamp_stone', 'lamp_double'],
   flowers: ['flowers', 'flowers_planter', 'flowers_tulip', 'flowers_barrel'],
-  bench:  ['bench', 'bench_stone', 'bench_rose'],
+  bench:  ['bench', 'bench_stone', 'bench_rose', 'bench_tree'],
   banner: ['banner', 'banner_pennant', 'banner_maypole'],
+  hedge:  ['hedge', 'hedge_topiary'],
 };
 const STATUE_LOOKS = LOOKS.statue;
 /* The town hall is the one building whose look follows its level instead of
@@ -4056,6 +4065,8 @@ const SEA_PROPS = [
   { key: 'boat_ketch',   fx:  0.24, top: true,  dy: -100, h: 132 },  // under sail, off the north-east shore
   { key: 'sea_rocks',    fx: -0.14, top: false, dy:  390, h: 150, still: true },  // sea stacks off the south-west cliffs
   { key: 'sea_dolphins', fx:  0.34, top: false, dy:  230, h: 72,  still: true },  // leaping off the south-east shore
+  { key: 'sea_seals',    fx:  0.07, top: true,  dy: -150, h: 84,  still: true },  // basking off the northern tip
+  { key: 'sea_whale',    fx: -0.30, top: false, dy:  250, h: 96,  still: true },  // diving off the south-west
 ];
 function drawSeaProps(b) {
   const W = b.x1 - b.x0, cx = (b.x0 + b.x1) / 2;
@@ -4707,7 +4718,9 @@ function flushBadges() {
 /* World height of each decoration at scale 1, for when art arrives. A path is
    not here: it is fitted to the tile diamond instead of standing on it. */
 const DECOR_H = { fence: 42, flowers: 34, hedge: 48, bench: 40, lamp: 80, banner: 104, statue: 88,
-  bench_rose: 56 };   // a look taller than its kind: the bench stands under a rose arch
+  bench_rose: 56,     // looks taller than their kind: the bench stands under a rose arch
+  bench_tree: 66,     // ... or rings an apple tree
+  hedge_topiary: 54 };  // ... or carries clipped balls on top
 /* Where a pole stands across its picture, for the looks whose flag flies out
    to one side: centring the picture would plant the pole a third of a tile
    off its own square. Everything else stands on its middle. */

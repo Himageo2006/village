@@ -11,7 +11,8 @@ try { fs.mkdirSync(OUT, { recursive: true }); } catch (e) {}
 
 const MIME = {
   '.html':'text/html', '.js':'text/javascript', '.css':'text/css',
-  '.png':'image/png', '.jpg':'image/jpeg', '.json':'application/json'
+  '.png':'image/png', '.jpg':'image/jpeg', '.json':'application/json',
+  '.webp':'image/webp', '.mp4':'video/mp4'
 };
 
 http.createServer((req, res) => {
