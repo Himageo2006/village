@@ -4395,3 +4395,36 @@ splashing, a bronze sundial set in the plinth's front, ivy and small blue
 forget-me-nots around the base. Same painterly style and warm light. No
 text. Nothing beyond it: fully transparent background.
 ```
+
+---
+
+# 94 — Bee skeps → `art/skeps.png`  ✅ DONE
+
+Scenery: takes the wildflowers' tile in summer (SEASON_ALT). The island is fixed and has one tile of each small kind, so the hash shares in SCENERY_ALT were all or nothing -- the cow, the lambs, the mushroom log and the hydrangea never came. They now take their tiles by season: lambs in spring, hives and hydrangea in summer, mushrooms and the cow in autumn, the cow again in winter.
+
+### 94.1 → `art/skeps.png`
+
+```
+Next: in the same painterly style, scale, camera angle and light as the
+attached tree stump: two old straw bee skeps sitting on a low wooden stand,
+a few bees buzzing around them, a clump of purple clover and yellow
+buttercups at the foot of the stand. One small group only, no ground plane,
+no shadow, no text. Fully transparent background.
+```
+
+---
+
+# 95 — Swing seat → `art/bench_swing.png`  ✅ DONE
+
+A fifth bench look (DECOR_H 58). ChatGPT offered two; the second was kept.
+
+### 95.1 → `art/bench_swing.png`
+
+```
+Next: a FIFTH bench variant (attached: the original bench), at the same
+size, footprint, scale and camera angle. This one is a wooden garden swing
+seat: a slatted wooden bench seat hanging on two ropes from a simple A-frame
+of rough timber, a striped cushion and a knitted blanket on the seat, a
+climbing honeysuckle twining up one post. Same painterly style and warm
+light. No text. Nothing beyond it: fully transparent background.
+```

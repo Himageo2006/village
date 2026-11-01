@@ -2972,7 +2972,7 @@ const LOOKS = {
   quarry: ['quarry', 'quarry_pit', 'quarry_slate', 'quarry_marble'],
   lamp:   ['lamp', 'lamp_bracket', 'lamp_stone', 'lamp_double', 'lamp_ship'],
   flowers: ['flowers', 'flowers_planter', 'flowers_tulip', 'flowers_barrel', 'flowers_cart'],
-  bench:  ['bench', 'bench_stone', 'bench_rose', 'bench_tree'],
+  bench:  ['bench', 'bench_stone', 'bench_rose', 'bench_tree', 'bench_swing'],
   banner: ['banner', 'banner_pennant', 'banner_maypole', 'banner_windsock', 'banner_bunting'],
   hedge:  ['hedge', 'hedge_topiary', 'hedge_lavender'],
   fence:  ['fence', 'fence_picket', 'fence_stone'],
@@ -4144,7 +4144,7 @@ function drawGround() {
 }
 /* World height of each kind at scale 1, set against a cottage at ~207px so the
    trees read as trees rather than shrubs or redwoods. */
-const SCENERY_H = { goat: 30, cow: 40, tree_pine: 115, tree_spruce: 118, tree_oak: 100, tree_willow: 96, tree_poplar: 126, tree_cherry: 100, tree_birch: 122, rock: 54, rock_moss: 50, bush: 46, bush_hydrangea: 46, stump: 38, log_mushroom: 34, flowers_wild: 30, flowers_meadow: 30, sheep: 30, sheep_rest: 22, sheep_lambs: 26 };
+const SCENERY_H = { goat: 30, cow: 40, tree_pine: 115, tree_spruce: 118, tree_oak: 100, tree_willow: 96, tree_poplar: 126, tree_cherry: 100, tree_birch: 122, rock: 54, rock_moss: 50, bush: 46, bush_hydrangea: 46, stump: 38, log_mushroom: 34, flowers_wild: 30, flowers_meadow: 30, sheep: 30, sheep_rest: 22, sheep_lambs: 26, skeps: 40 };
 /* What a newer kind is drawn as while its own picture is missing, so a lost
    file shows the kind it was split from rather than the procedural tree. */
 const SCENERY_FALLBACK = { goat: 'stump', cow: 'stump', tree_birch: 'tree_oak', tree_cherry: 'tree_oak', stump: 'bush', flowers_wild: 'bush', sheep: 'bush', sheep_rest: 'bush', sheep_lambs: 'sheep_rest' };
@@ -4252,11 +4252,18 @@ function seasonSkin(im, key) {
    stamp (on the island as it is, 7 of the 21). Only the picture changes -- the
    tile is still a pine, or a rock, to everything else. */
 const SCENERY_ALT = { tree_pine: ['tree_spruce', 0.5], rock: ['rock_moss', 0.5], bush: ['bush_hydrangea', 0.5], flowers_wild: ['flowers_meadow', 0.5], tree_oak: ['tree_willow', 0.35], tree_birch: ['tree_poplar', 0.4], goat: ['cow', 0.45], stump: ['log_mushroom', 0.45], sheep_rest: ['sheep_lambs', 0.45] };
+/* The small scenery is one tile of each kind -- the island is fixed, see the
+   bands in the generator -- so a share is all or nothing: the goat's tile hashes
+   to .98 and the cow never came. Those tiles change with the calendar instead,
+   which is what lambs and hives and mushrooms do anyway. */
+const SEASON_ALT = { sheep_rest: { spring: 'sheep_lambs' }, flowers_wild: { summer: 'skeps' },
+  bush: { summer: 'bush_hydrangea', autumn: 'log_mushroom' }, goat: { autumn: 'cow', winter: 'cow' } };
 function drawScenery(o) {
   const p = tileToWorld(o.c, o.r), s2 = o.s;
   let kind = artFor(o.kind) || !SCENERY_FALLBACK[o.kind] ? o.kind : SCENERY_FALLBACK[o.kind];
-  const alt = SCENERY_ALT[kind];
-  if (alt && hash(o.c * 5 + 1, o.r * 3 + 7) < alt[1] && artFor(alt[0])) kind = alt[0];
+  const alt = SCENERY_ALT[kind], now = (SEASON_ALT[kind] || {})[season().key];
+  if (now && artFor(now)) kind = now;
+  else if (alt && hash(o.c * 5 + 1, o.r * 3 + 7) < alt[1] && artFor(alt[0])) kind = alt[0];
   const art = artFor(kind);
   if (art) {
     const hgt = (SCENERY_H[kind] || 90) * s2, wid = art.width * (hgt / art.height);
@@ -4723,6 +4730,7 @@ function flushBadges() {
 const DECOR_H = { fence: 42, flowers: 34, hedge: 48, bench: 40, lamp: 80, banner: 104, statue: 88,
   bench_rose: 56,     // looks taller than their kind: the bench stands under a rose arch
   bench_tree: 66,     // ... or rings an apple tree
+  bench_swing: 58,    // ... or hangs from a frame
   hedge_topiary: 54,  // ... or carries clipped balls on top
   fence_picket: 46,   // ... or has taller pickets
   hedge_lavender: 56,  // ... or flowers above its leaves
@@ -8176,7 +8184,7 @@ for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER]) for (let i = 1; i <
    a village with none of them drawn would otherwise send five requests the
    moment it finished, and artFor remembers a miss. */
 for (let i = 1; i <= BEACON_STAGES; i++) beaconArt(i);
-for (const k of ['ground', 'water', 'tree_pine', 'tree_spruce', 'tree_oak', 'tree_willow', 'tree_poplar', 'tree_cherry', 'tree_birch', 'rock', 'rock_moss', 'bush', 'bush_hydrangea', 'stump', 'log_mushroom', 'flowers_wild', 'flowers_meadow', 'sheep', 'sheep_rest', 'sheep_lambs', 'goat', 'cow']) artFor(k);
+for (const k of ['ground', 'water', 'tree_pine', 'tree_spruce', 'tree_oak', 'tree_willow', 'tree_poplar', 'tree_cherry', 'tree_birch', 'rock', 'rock_moss', 'bush', 'bush_hydrangea', 'stump', 'log_mushroom', 'flowers_wild', 'flowers_meadow', 'sheep', 'sheep_rest', 'sheep_lambs', 'skeps', 'goat', 'cow']) artFor(k);
 for (const set of Object.values(LOOKS)) for (const k of set) artFor(k);
 for (const [, k] of HALL_STAGES) artFor(k);
 for (const s of SEA_PROPS) artFor(s.key);
