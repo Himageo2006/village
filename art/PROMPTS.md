@@ -5350,3 +5350,67 @@ clouds drift slowly. Everything else stays still and exactly as painted.
 Fresh, joyful, painterly style kept, no new objects, no people appearing, no
 text.
 ```
+
+---
+
+# 140 — The first of each working building → `art/first_{quarry,store,mill,market}_clip.mp4`  ✅ DONE (Leonardo, not ChatGPT)
+
+Each plays once, when the first quarry, storehouse, mill or market in the
+village finishes building (celebrateFirst in game.js; not on a later one, and
+not on an upgrade). `art/first_<key>_clip.webp` is its first frame. Start frames
+`art/original/first_<key>_clip_frame.png`: the building's sprite over a blurred
+crop of the title painting, as 135 (the storehouse from `art/store.webp`, since
+its original has a baked checkerboard). Leonardo.ai, MiniMax H3, 16:9 HD, 6 s,
+Turbo, 90 credits; encoded as 131.
+
+### 140.1 → `art/first_mill_clip.mp4` ("The mill is turning")
+
+```
+Gentle living painting, static camera, no zoom, no pan. A newly finished stone
+windmill on a sunny island: its four canvas sails start to turn and pick up
+speed, turning smoothly round and round, a little puff of flour dust drifts
+from the open door, the wheat sheaf on the cart sways in the breeze, a few
+small birds flutter past, soft warm sunlight and gentle shadows. The windmill
+stays exactly as painted and in the same place, the blurred village behind
+stays still. Cheerful, painterly game-art style kept, no people appearing, no
+text.
+```
+
+### 140.2 → `art/first_market_clip.mp4` ("The market is open")
+
+```
+Gentle living painting, static camera, no zoom, no pan. A newly opened village
+market stall on a sunny island: the red and white striped awnings ripple softly
+in the breeze, the little pennant flags along the top flutter, the brass scales
+sway and settle, a few butterflies and petals drift past, the hanging cloths
+sway lightly, warm sunlight with soft moving dappled shadows. The market stays
+exactly as painted and in the same place, the blurred village behind stays
+still. Cheerful, festive, painterly game-art style kept, no people appearing,
+no text.
+```
+
+### 140.3 → `art/first_quarry_clip.mp4` ("The quarry is open")
+
+```
+Gentle living painting, static camera, no zoom, no pan. A newly finished stone
+quarry on a sunny island: little puffs of pale stone dust rise and drift slowly
+from the cut rock face, a few tiny pebbles tumble down the rubble and settle,
+fine dust motes glitter in the warm sunlight, a small bird hops on the stone
+blocks then flies away, soft shadows shift gently. The quarry, its wooden
+shelter and the stone blocks stay exactly as painted and in the same place, the
+blurred village behind stays still. Cheerful, painterly game-art style kept, no
+people appearing, no text.
+```
+
+### 140.4 → `art/first_store_clip.mp4` ("The storehouse is ready")
+
+```
+Gentle living painting, static camera, no zoom, no pan. A newly finished wooden
+storehouse barn on a sunny island: the hanging grain sack on the hoist rope
+sways gently back and forth, the rope creaks and swings, the open barn door
+moves slightly in the breeze, a few loose wheat stalks and seeds blow past, a
+small sparrow lands on a sack and pecks, warm sunlight and soft shadows shift
+gently. The storehouse, barrels and sacks stay exactly as painted and in the
+same place, the blurred village behind stays still. Cheerful, painterly
+game-art style kept, no people appearing, no text.
+```

@@ -3986,6 +3986,7 @@ function step(dt) {
       if (p.t >= 1) {
         recomputeCaps(); save(); SFX.done();
         if (p.key === 'hall' && lvlOf(p) > 1) celebrateHall(lvlOf(p));
+        else celebrateFirst(p);
       }
     }
   }
@@ -6628,6 +6629,16 @@ function celebrate(name, caption) {
   show = { name, caption, t: 0 };
 }
 const celebrateHall = lvl => celebrate('hall_up', 'Town hall · level ' + lvl);
+/* The first of each of the big working buildings is a moment too: it is what
+   opens stone, or doubles the bread, or brings the traders. Only the first --
+   a third mill is just more flour. */
+const FIRST_CLIP = { quarry: 'The quarry is open', store: 'The storehouse is ready',
+                     mill: 'The mill is turning', market: 'The market is open' };
+function celebrateFirst(p) {
+  if (!FIRST_CLIP[p.key] || lvlOf(p) !== 1) return;
+  if (placed.some(q => q !== p && q.key === p.key && q.t >= 1)) return;
+  celebrate('first_' + p.key + '_clip', FIRST_CLIP[p.key]);
+}
 function stepShow(dt) {
   if (!show) return;
   show.t += dt;
