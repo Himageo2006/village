@@ -841,7 +841,10 @@ function beaconTake(k, n) {
   const lvl = Math.min(BEACON_STAGES, Math.max(1, p.lvl | 0));
   const take = n * BEACON_SHARE;
   p.stock = (p.stock || 0) + take;
-  if (p.stock >= BEACON_NEED[lvl - 1]) { p.stock = 0; p.lvl = lvl + 1; SFX.upgrade(); save(); }
+  if (p.stock >= BEACON_NEED[lvl - 1]) {
+    p.stock = 0; p.lvl = lvl + 1; SFX.upgrade(); save();
+    if (p.lvl >= BEACON_STAGES) celebrate('beacon_lit', 'The beacon is lit');
+  }
   return take;
 }
 /* The beacon's half of a stretch the village worked unwatched: the same rule
@@ -1948,6 +1951,12 @@ function claimLand() {
   landTier++;
   placeFinds();                          // and what was already on it
   camFit(false, true);                   // the whole island, to show what was bought
+  /* What was found on it, filmed, when it was put down -- the stones, the
+     orchard, the cottage, the wreck. A ring with no room for its find today
+     gets the shore instead: the clip must not show a thing that is not there. */
+  const found = FINDS[landTier];
+  if (found && placed.some(p => p.key === found)) celebrate(found + '_clip', 'New land · ' + B(found).name);
+  else celebrate('land_new', 'New land · ring ' + (landTier + 1));
   claimAsk = false;
   save();
   SFX.upgrade();
@@ -3974,7 +3983,10 @@ function step(dt) {
       p.t = Math.min(1, p.t + dt / (p.build || BUILD_TIME));
       // a finished building has to be written down, or reloading replays its
       // construction from wherever the last save caught it
-      if (p.t >= 1) { recomputeCaps(); save(); SFX.done(); }
+      if (p.t >= 1) {
+        recomputeCaps(); save(); SFX.done();
+        if (p.key === 'hall' && lvlOf(p) > 1) celebrateHall(lvlOf(p));
+      }
     }
   }
   syncVillagers();
@@ -3983,6 +3995,7 @@ function step(dt) {
   stepFeedback(dt);
   stepHints(dt);
   stepGoals(dt);
+  stepShow(dt);
   stepOrders(dt);
   /* Everything the villagers carry in changes res without going through place(),
      so without this a session's whole harvest is lost on reload.
@@ -5882,6 +5895,7 @@ function drawHUD() {
     g.fillText(fit.lines[0], W / 2, y);
     g.restore();
   }
+  drawShow();
   drawMute();
   drawPanel();
   drawWho();
@@ -6450,10 +6464,11 @@ function saleCost(p) {
   return null;
 }
 function drawAway() {
-  if (!away) return;
+  if (!away) { if (awayClip && !awayClip.paused) awayClip.pause(); return; }
   const R = awayRect(), u = R.u;
   g.save();
   g.fillStyle = 'rgba(6,10,6,.66)'; g.fillRect(0, screenTop(), W, screenBot() - screenTop());
+  drawAwayPic(R);
   g.fillStyle = 'rgba(16,26,15,.98)'; g.strokeStyle = 'rgba(159,232,107,.5)'; g.lineWidth = 3;
   g.beginPath(); g.roundRect(R.x - R.w / 2, R.y - R.h / 2, R.w, R.h, 24 * u); g.fill(); g.stroke();
   g.textAlign = 'center'; g.textBaseline = 'middle';
@@ -6535,10 +6550,14 @@ function drawFinale(R) {
   }
   const live = finaleClip && finaleClip.readyState >= 2 && !finaleClip.paused;
   const pic = live ? finaleClip : finaleStill.complete && finaleStill.naturalWidth ? finaleStill : null;
-  if (!pic) return;
-  /* As wide as the card, or as tall as the room between the HUD and the card --
-     and below the save warning when one is up: a finished village that cannot
-     be saved drew the warning straight across the picture. */
+  if (pic) cardPicture(R, pic, 'rgba(232,201,138,.65)');
+}
+/* A picture framed above a card, the finale's and the away card's.
+   As wide as the card, or as tall as the room between the HUD and the card --
+   and below the save warning when one is up: a finished village that cannot
+   be saved drew the warning straight across the picture. */
+function cardPicture(R, pic, rim) {
+  const u = R.u;
   const warned = saveFailed || loadedFromBackup || otherBuild;
   const ceiling = Math.max(hudTop() + 96 * u, warned ? chipsBot() + 150 * u : 0);
   const gap = 22 * u, bot = R.y - R.h / 2 - gap, room = bot - ceiling;
@@ -6553,10 +6572,94 @@ function drawFinale(R) {
   const s = Math.max(w / sw, h / sh);
   g.drawImage(pic, R.x - sw * s / 2, y + h / 2 - sh * s / 2, sw * s, sh * s);
   g.restore();
-  g.strokeStyle = 'rgba(232,201,138,.65)'; g.lineWidth = 3;
+  g.strokeStyle = rim; g.lineWidth = 3;
   g.beginPath(); g.roundRect(x, y, w, h, 18 * u); g.stroke();
 }
 function stopFinale() { if (finaleClip) finaleClip.pause(); }
+
+/* And the away card's: a day going by over the village, played once from
+   the top each time the card comes up and left on its last frame -- evening,
+   the windows lit -- for as long as the card is read. Loaded the first time
+   the card is; under reduced motion it is the first frame. */
+let awayStill = null, awayClip = null, awayClipFor = null;
+function drawAwayPic(R) {
+  if (!awayStill) {
+    awayStill = new Image(); awayStill.src = 'art/away_day.webp';
+    if (!reduceMotion) {
+      awayClip = document.createElement('video');
+      Object.assign(awayClip, { muted: true, playsInline: true, preload: 'auto' });
+      awayClip.onerror = () => { awayClip = null; };
+      awayClip.src = 'art/away_day.mp4';
+    }
+  }
+  if (awayClip && awayClipFor !== away) {
+    awayClipFor = away; awayClip.currentTime = 0; awayClip.play().catch(() => {});
+  }
+  const live = awayClip && awayClip.readyState >= 2 && awayClip.currentTime > 0;
+  const pic = live ? awayClip : awayStill.complete && awayStill.naturalWidth ? awayStill : null;
+  if (pic) cardPicture(R, pic, 'rgba(159,232,107,.5)');
+}
+
+/* The big moments, filmed: the hall raised a level, a ring of land claimed,
+   the beacon lit. Each is the most expensive thing on offer at the time, and
+   the only sign one was done was the scaffolding coming down or the grass
+   getting wider. A short clip of it plays under the goal strip -- confetti
+   and doves for the hall, mist leaving the shore, the lamp catching -- and
+   fades by itself. It takes no taps: a player in the middle of placing
+   something keeps placing it. Each clip is loaded the first time its moment
+   comes, never before; under reduced motion it is the clip's first frame. */
+const SHOW_TIME = 7;                  // seconds on screen, the clips are 6.6
+const showArt = {};                   // name -> { still, clip }
+let show = null;                      // { name, caption, t }
+function celebrate(name, caption) {
+  let a = showArt[name];
+  if (!a) {
+    a = showArt[name] = { still: new Image(), clip: null };
+    a.still.src = 'art/' + name + '.webp';
+    if (!reduceMotion) {
+      const v = a.clip = document.createElement('video');
+      Object.assign(v, { muted: true, playsInline: true, preload: 'auto' });
+      v.onerror = () => { a.clip = null; };
+      v.src = 'art/' + name + '.mp4';
+    }
+  }
+  if (show && show.name !== name && showArt[show.name].clip) showArt[show.name].clip.pause();
+  if (a.clip) { a.clip.currentTime = 0; a.clip.play().catch(() => {}); }
+  show = { name, caption, t: 0 };
+}
+const celebrateHall = lvl => celebrate('hall_up', 'Town hall · level ' + lvl);
+function stepShow(dt) {
+  if (!show) return;
+  show.t += dt;
+  if (show.t >= SHOW_TIME) { const c = showArt[show.name].clip; show = null; if (c) c.pause(); }
+}
+function drawShow() {
+  if (!show) return;
+  const u = US(), { still, clip } = showArt[show.name];
+  const live = clip && clip.readyState >= 2 && clip.currentTime > 0;
+  const pic = live ? clip : still.complete && still.naturalWidth ? still : null;
+  if (!pic) return;
+  const t = show.t;
+  const a = Math.min(1, t / 0.35, (SHOW_TIME - t) / 0.6);
+  // below the goal strip, and below the save warning when one is up
+  const warned = saveFailed || loadedFromBackup || otherBuild;
+  const top = chipsBot() + (warned ? 150 : 84) * u;
+  const w = Math.min(W - 48 * u, 560 * u), h = w * 9 / 16, x = W / 2 - w / 2;
+  const y = top + (1 - a) * 14 * u;
+  g.save();
+  g.globalAlpha = a;
+  g.beginPath(); g.roundRect(x, y, w, h, 16 * u); g.save(); g.clip();
+  g.drawImage(pic, x, y, w, h);
+  g.restore();
+  g.strokeStyle = 'rgba(232,201,138,.75)'; g.lineWidth = 3; g.stroke();
+  const txt = show.caption;
+  g.font = `bold ${Math.round(22 * u)}px Segoe UI, sans-serif`;
+  const pw = g.measureText(txt).width + 44 * u, ph = 40 * u, py = y + h - ph / 2;
+  woodPanel(W / 2 - pw / 2, py - ph / 2, pw, ph, ph / 2);
+  g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#e8c98a';
+  g.fillText(txt, W / 2, py);
+  g.restore();
+}
 
 function drawFinished() {
   /* One card at a time, and this one waits for all of them.
@@ -8244,7 +8347,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   get armed() { return armed; }, set armed(v) { armed = v; },
   get ghost() { return ghost; }, set ghost(v) { ghost = v; },
   get sellArm() { return sellArm; }, set sellArm(v) { sellArm = v; }, SELL_ARM,
-  collectAway, grantAway, landTransit, duration, saleCost, get actx() { return actx; }, potentialRate, expectedRate, currentHint, get away() { return away; }, set away(v) { away = v; },
+  collectAway, grantAway, celebrate, celebrateHall, get show() { return show; }, landTransit, duration, saleCost, get actx() { return actx; }, potentialRate, expectedRate, currentHint, get away() { return away; }, set away(v) { away = v; },
   get hiddenAt() { return hiddenAt; }, set hiddenAt(v) { hiddenAt = v; },
   get hiddenSim() { return hiddenSim; }, set hiddenSim(v) { hiddenSim = v; }, AWAY_MIN, AWAY_MAX,
   GOALS, currentGoal, buyProgress, FINISH_ID, currentHint,

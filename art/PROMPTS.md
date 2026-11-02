@@ -5069,3 +5069,190 @@ middle like a tiny doorway, a hedgehog peeking out of it, a scatter of
 fallen leaves at the base. Same painterly style and warm light. No text.
 Nothing beyond it: fully transparent background.
 ```
+
+---
+
+# 131 — Town hall celebration → `art/hall_up.mp4`  ✅ DONE (Leonardo, not ChatGPT)
+
+Plays once under the goal strip when the hall finishes a level, then fades
+(`celebrate` in game.js); `art/hall_up.webp` is its first frame, shown
+until the clip is playing and instead of it under reduced motion. The start
+frame `art/original/hall_clip_frame.png` is the game's own `hall_3` composited
+over a blurred crop of the title painting. Leonardo.ai, MiniMax H3, 16:9 HD
+1344x768, 6 s, Turbo, 90 credits. Not looped -- the doves fly off -- just
+scaled to 960 wide:
+
+    ffmpeg -i raw.mp4 -vf "scale=960:-2,format=yuv420p" -an -c:v libx264 -preset slow -crf 28 -movflags +faststart hall_up.mp4
+
+### 131.1 → `art/hall_up.mp4`
+
+```
+Gentle living painting, static camera, no zoom, no pan. A festive celebration
+at the town hall: the bell in the clock tower swings and rings, the blue and
+gold banners and the little bunting flags flutter in the breeze, golden
+sparkles and small colourful confetti drift slowly down through the air, a
+few white doves fly up from behind the roof, the lanterns by the door glow
+warmly, the flowers in the window boxes sway lightly, soft sunlight shimmers.
+The building itself stays still and exactly as painted. Joyful, painterly
+style kept, no new buildings, no people appearing, no text.
+```
+
+---
+
+# 132 — The beacon lit → `art/beacon_lit.mp4`  ✅ DONE (Leonardo, not ChatGPT)
+
+Plays once when the beacon reaches its last stage (`celebrate('beacon_lit')`
+in beaconTake); `art/beacon_lit.webp` is its first frame. Start frame
+`art/original/beacon_clip_frame.png`: the game's `beacon_stage5` over a blurred
+crop of the finale painting's sunset. Leonardo.ai, MiniMax H3, 16:9 HD, 6 s,
+Turbo, 90 credits; encoded as 131.
+
+### 132.1 → `art/beacon_lit.mp4`
+
+```
+Gentle living painting, static camera, no zoom, no pan. The lighthouse is lit
+for the first time at dusk: the great lamp at the top flares up bright golden
+and a soft beam of light slowly sweeps out across the sky, warm glowing sparks
+and embers float up from the lantern room, the little weathervane turns, the
+windows glow, the pink sunset clouds drift slowly and the sea shimmers in the
+background. The tower itself stays still and exactly as painted. Triumphant,
+calm, painterly style kept, no new buildings, no people appearing, no text.
+```
+
+---
+
+# 133 — New land → `art/land_new.mp4`  ✅ DONE (Leonardo, not ChatGPT)
+
+Plays once when a ring of land is claimed and its find had no room to go down
+(`celebrate('land_new')` in
+claimLand); `art/land_new.webp` is its first frame. Start frame
+`art/original/land_clip_frame.png`: the sheep meadow and rocky shore cropped
+from the title painting. Leonardo.ai, MiniMax H3, 16:9 HD, 6 s, Turbo, 90
+credits; encoded as 131.
+
+### 133.1 → `art/land_new.mp4`
+
+```
+Gentle living painting, static camera, no zoom, no pan. A bright new morning on
+the island's shore: a thin soft morning mist drifts away off the meadow and the
+rocks, revealing the land in warm sunlight, waves roll in and break in white
+foam against the rocks, the sea shimmers turquoise, the sheep graze and one
+lifts its head, the wildflowers and grass sway in the breeze, two seagulls
+glide across. Everything else stays still and exactly as painted. Hopeful,
+peaceful, painterly style kept, no new buildings, no people appearing, no text.
+```
+
+---
+
+# 134 — A day going by → `art/away_day.mp4`  ✅ DONE (Leonardo, not ChatGPT)
+
+Framed above the "While you were away" card (`drawAwayPic`), played once from
+the top each time the card comes up and left on its last frame -- evening,
+windows lit. `art/away_day.webp` is its first frame. Start frame
+`art/original/away_clip_frame.png`: the village square cropped from the title
+painting. Leonardo.ai, MiniMax H3, 16:9 HD, 6 s, Turbo, 90 credits; encoded as 131.
+
+### 134.1 → `art/away_day.mp4`
+
+```
+Time-lapse living painting, static camera, no zoom, no pan. A whole day passes
+quickly over the village: the little villagers hurry about their work on the
+paths, the windmill sails spin, shadows sweep slowly across the ground, clouds
+race overhead, the sunlight turns warm golden then dusky blue as evening falls,
+and one by one the cottage windows and the street lanterns light up with a
+warm glow, chimney smoke curls up, the sea darkens and shimmers. The buildings
+stay exactly as painted. Cosy, peaceful, painterly style kept, no new
+buildings, no text.
+```
+
+---
+
+# 135 — The Old Stones → `art/find_stones_clip.mp4`  ✅ DONE (Leonardo, not ChatGPT)
+
+Plays once when the ring of land holding it is claimed (claimLand, captioned
+"New land · <its name>"); `art/find_stones_clip.webp` is its first frame. Named
+`_clip` because `art/find_stones.webp` is the find's own sprite. Start frame
+`art/original/find_stones_clip_frame.png`: the sprite over a blurred crop of the title
+painting. Leonardo.ai, MiniMax H3, 16:9 HD, 6 s, Turbo, 90 credits; encoded as 131.
+
+### 135.1 → `art/find_stones_clip.mp4`
+
+```
+Gentle living painting, static camera, no zoom, no pan. An ancient ring of
+standing stones discovered at dawn: soft white mist swirls slowly around the
+base of the stones, faint glowing golden runes shimmer softly on the stones and
+fade, tiny fireflies and motes of light drift up between them, the grass and
+wildflowers sway in the breeze, a beam of morning sunlight falls across the
+ring, the sea shimmers in the blurred background. The stones themselves stay
+still and exactly as painted. Mysterious, peaceful, painterly style kept, no
+new objects, no people appearing, no text.
+```
+
+---
+
+# 136 — The Wild Orchard → `art/find_orchard_clip.mp4`  ✅ DONE (Leonardo, not ChatGPT)
+
+Plays once when the ring of land holding it is claimed (claimLand, captioned
+"New land · <its name>"); `art/find_orchard_clip.webp` is its first frame. Named
+`_clip` because `art/find_orchard.webp` is the find's own sprite. Start frame
+`art/original/find_orchard_clip_frame.png`: the sprite over a blurred crop of the title
+painting. Leonardo.ai, MiniMax H3, 16:9 HD, 6 s, Turbo, 90 credits; encoded as 131.
+
+### 136.1 → `art/find_orchard_clip.mp4`
+
+```
+Gentle living painting, static camera, no zoom, no pan. A forgotten wild apple
+orchard rediscovered on a sunny afternoon: the leaves of the old apple trees
+rustle and sway in a warm breeze, a few white blossom petals and leaves drift
+down through the air, one ripe red apple drops softly into the grass,
+butterflies and a bumblebee flutter between the trees, dappled sunlight
+flickers through the branches, the long grass waves. The trees themselves stay
+in place exactly as painted. Warm, nostalgic, painterly style kept, no new
+objects, no people appearing, no text.
+```
+
+---
+
+# 137 — The Old Cottage → `art/find_ruin_clip.mp4`  ✅ DONE (Leonardo, not ChatGPT)
+
+Plays once when the ring of land holding it is claimed (claimLand, captioned
+"New land · <its name>"); `art/find_ruin_clip.webp` is its first frame. Named
+`_clip` because `art/find_ruin.webp` is the find's own sprite. Start frame
+`art/original/find_ruin_clip_frame.png`: the sprite over a blurred crop of the title
+painting. Leonardo.ai, MiniMax H3, 16:9 HD, 6 s, Turbo, 90 credits; encoded as 131.
+
+### 137.1 → `art/find_ruin_clip.mp4`
+
+```
+Gentle living painting, static camera, no zoom, no pan. The roofless ruin of
+the island's first cottage, found in the evening: warm golden sunset light
+slowly sweeps across the old stone walls, the ivy and leaves on the walls
+rustle and sway in the breeze, a few dry leaves blow across the floor, a faint
+wisp of smoke curls from the cold chimney as if remembering, small moths and
+dust motes glitter in the light, a little robin hops on the wall and flies
+away. The ruined walls stay still and exactly as painted. Wistful, quiet,
+painterly style kept, no new buildings, no people appearing, no text.
+```
+
+---
+
+# 138 — The Old Wreck → `art/find_wreck_clip.mp4`  ✅ DONE (Leonardo, not ChatGPT)
+
+Plays once when the ring of land holding it is claimed (claimLand, captioned
+"New land · <its name>"); `art/find_wreck_clip.webp` is its first frame. Named
+`_clip` because `art/find_wreck.webp` is the find's own sprite. Start frame
+`art/original/find_wreck_clip_frame.png`: the sprite over a blurred crop of the title
+painting. Leonardo.ai, MiniMax H3, 16:9 HD, 6 s, Turbo, 90 credits; encoded as 131.
+
+### 138.1 → `art/find_wreck_clip.mp4`
+
+```
+Gentle living painting, static camera, no zoom, no pan. An old wooden boat
+wreck washed up on a pebble shore, found at golden hour: gentle turquoise waves
+roll in around it and wash back in white foam, the water sparkles in the
+sunlight, the faded blue paint glints, a little crab scuttles out from under
+the hull, a seagull lands on the bow and then flies off, the old rope stirs in
+the wash, sea spray drifts in the breeze. The wreck itself stays still and
+exactly as painted. Adventurous, peaceful, painterly style kept, no new boats,
+no people appearing, no text.
+```
