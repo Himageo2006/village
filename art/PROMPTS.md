@@ -5256,3 +5256,97 @@ the wash, sea spray drifts in the breeze. The wreck itself stays still and
 exactly as painted. Adventurous, peaceful, painterly style kept, no new boats,
 no people appearing, no text.
 ```
+
+---
+
+# 139 — The title screen through the year → `art/title_{autumn,winter,spring}.webp` + `_loop.mp4`  ✅ DONE (Leonardo, not ChatGPT)
+
+The title screen picks its painting and loop by month, with the same months
+the island's seasons use (SEASON_OF in game.js); summer keeps the original
+`title_art` / `title_loop` (76). Each painting is the original repainted in
+Leonardo.ai with Nano Banana 2.1 (9:16, 768x1376, 43 credits) and
+`art/original/title_art.png` as the image reference; each loop is MiniMax H3
+(9:16 HD, 6 s, Turbo, 90 credits) with that painting as the start frame,
+cross-faded into a 5.4 s loop exactly as 76. Paintings kept as
+`art/original/title_{season}.png`.
+
+### 139.1 → `art/title_autumn.webp` (Nano Banana 2.1)
+
+```
+Repaint this exact painting as late autumn. Keep the exact same composition,
+camera angle, island, buildings, windmill, lighthouse, docks, boats, sea and
+painterly game-art style, every building in the same place. Change only the
+season: the trees turn rich orange, red and gold, fallen leaves lie on the
+paths and roofs, the wheat fields are harvested into golden stubble with round
+hay bales and a few orange pumpkins, warm hazy late-afternoon autumn light, a
+soft amber sky with light clouds, chimney smoke curling. Keep the empty space
+at the top of the sky for a logo. No text, no logo, no new buildings.
+```
+
+### 139.2 → `art/title_winter.webp` (Nano Banana 2.1)
+
+```
+Repaint this exact painting as a snowy winter. Keep the exact same
+composition, camera angle, island, buildings, windmill, lighthouse, docks,
+boats, sea and painterly game-art style, every building in the same place.
+Change only the season: thick soft snow on every roof, path and field,
+snow-dusted pine trees, bare birch trees, icicles on the eaves, the cottage
+windows glowing warm yellow, chimney smoke curling, a snowman in the square, a
+cold pale blue and pink winter sunset sky, the sea a deep cold blue with a
+little ice at the shore. Keep the empty space at the top of the sky for a
+logo. No text, no logo, no new buildings.
+```
+
+### 139.3 → `art/title_spring.webp` (Nano Banana 2.1)
+
+```
+Repaint this exact painting as early spring. Keep the exact same composition,
+camera angle, island, buildings, windmill, lighthouse, docks, boats, sea and
+painterly game-art style, every building in the same place. Change only the
+season: fresh bright green leaves, pink and white cherry and apple blossom on
+the trees, the fields freshly ploughed with young green shoots in rows,
+carpets of tulips, daffodils and bluebells along the paths, little lambs with
+the sheep, a fresh clear morning light, a soft pastel blue sky with fluffy
+white clouds. Keep the empty space at the top of the sky for a logo. No text,
+no logo, no new buildings.
+```
+
+### 139.4 → `art/title_autumn_loop.mp4` (MiniMax H3)
+
+```
+Gentle living painting, static camera, no zoom, no pan. An autumn afternoon on
+the island: orange and golden leaves drift down slowly from the trees and
+swirl along the paths in the breeze, the autumn trees sway gently, thin wisps
+of smoke rise slowly from the cottage chimneys, the windmill's sails turn
+slowly, the sea shimmers in the golden light and small waves lap at the rocks,
+a few seagulls glide in the distance, the clouds drift slowly. Everything else
+stays still and exactly as painted. Calm, cosy, painterly style kept, no new
+objects, no people appearing, no text.
+```
+
+### 139.5 → `art/title_winter_loop.mp4` (MiniMax H3)
+
+```
+Gentle living painting, static camera, no zoom, no pan. A winter evening on
+the island: soft snowflakes fall slowly and steadily over the whole village,
+thin wisps of smoke rise slowly from the snowy cottage chimneys, the warm
+yellow windows flicker gently, the lighthouse lamp glows, the windmill's sails
+turn slowly, the cold sea shimmers and small waves lap at the icy rocks, the
+pink clouds drift very slowly. Everything else stays still and exactly as
+painted. Calm, cosy, painterly style kept, no new objects, no people
+appearing, no text.
+```
+
+### 139.6 → `art/title_spring_loop.mp4` (MiniMax H3)
+
+```
+Gentle living painting, static camera, no zoom, no pan. A spring morning on
+the island: pink and white blossom petals drift slowly through the air from
+the flowering trees, the fresh green leaves and the tulips sway lightly in the
+breeze, butterflies flutter over the flowers, the little lambs skip beside the
+sheep, the windmill's sails turn slowly, the turquoise sea shimmers and small
+waves lap at the rocks, a few seagulls glide in the distance, the fluffy
+clouds drift slowly. Everything else stays still and exactly as painted.
+Fresh, joyful, painterly style kept, no new objects, no people appearing, no
+text.
+```

@@ -66,8 +66,8 @@
 <div id="intro" role="button" aria-label="Start">
   <div class="wash"></div>
   <div class="card">
-    <img class="art" src="art/title_art.webp" alt="">
-    <video class="art live" src="art/title_loop.mp4" muted loop playsinline autoplay preload="auto"
+    <img class="art" alt="">
+    <video class="art live" muted loop playsinline autoplay preload="auto"
       onplaying="this.classList.add('on')" onerror="this.remove()"></video>
     <img class="logo" src="art/logo.webp" alt="Village: Island Builder"
       onerror="this.remove();document.querySelector('#intro .title').style.display='block'">
@@ -75,6 +75,20 @@
     <div class="go">Tap to begin</div>
   </div>
 </div>
+<script>
+/* The title painting for the time of year, by the same months the island's
+   own seasons go by (SEASON_OF in game.js): summer is the original. Set here
+   rather than in the markup so only the one season's clip is ever fetched. */
+(function () {
+  var k = ['winter', 'winter', 'spring', 'spring', 'spring', 'summer', 'summer', 'summer',
+           'autumn', 'autumn', 'autumn', 'winter'][new Date().getMonth()];
+  var still = k === 'summer' ? 'art/title_art.webp' : 'art/title_' + k + '.webp';
+  var intro = document.getElementById('intro');
+  intro.querySelector('img.art').src = still;
+  intro.querySelector('video.live').src = k === 'summer' ? 'art/title_loop.mp4' : 'art/title_' + k + '_loop.mp4';
+  intro.querySelector('.wash').style.backgroundImage = 'url(' + still + ')';
+})();
+</script>
 <script src="game.js"></script>
 <script>
 (function () {
