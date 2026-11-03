@@ -5942,3 +5942,19 @@ What each one asked for, between the shared opening and closing:
 - **149.7 poplar, autumn:** keeping the same tall narrow shape, the leaves turned rich gold and yellow with a few touches of orange, a few leaves drifting down, a scatter of fallen leaves around the base.
 - **149.8 cherry, autumn:** no blossom; the leaves turned deep crimson, scarlet and orange, a few leaves drifting down, a scatter of fallen red leaves around the base.
 
+---
+
+# 150 — The ground cover in winter → `art/{rock,rock_moss,stump,log_mushroom,flowers_wild,flowers_meadow}_winter.png`  ✅ DONE
+
+With the trees in snow, the rocks, stumps and wildflowers were the last green
+things on a white island. Same chat and same pattern as 148, with the summer
+picture attached. The two flower patches don't just get snow: they become the
+two flowers that bloom in it, so a winter island still has a little colour.
+Capped at 360 px like their summer pictures.
+
+- **150.1 rock:** a soft cap of snow resting on top, frost on the stone, a little snow drift around the base, the grass tufts gone.
+- **150.2 mossy rock:** snow lying over the top and in the hollows, the moss mostly hidden with just a few dark green patches showing, frost on the stone, a little snow drift around the base. (ChatGPT added frosted ferns and winter heather.)
+- **150.3 stump:** a thick round cushion of snow on the cut top, snow on the roots, frost on the bark, a little snow drift around the base. (It kept the red toadstools.)
+- **150.4 mushroom log:** a long ridge of snow along the top of the log, the mushrooms gone, a few icicles hanging from the side, frost on the bark, a little snow drift around it.
+- **150.5 wildflowers:** the summer flowers gone; instead a little clump of white snowdrops with nodding heads and slender green leaves poking up through a patch of snow.
+- **150.6 meadow flowers:** the summer flowers gone; instead a low clump of winter hellebores (Christmas roses) with cream and soft pink cupped flowers and dark green leaves, sitting in a patch of snow, with a few frosted grass tufts.
