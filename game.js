@@ -6629,10 +6629,13 @@ function celebrate(name, caption) {
   show = { name, caption, t: 0 };
 }
 const celebrateHall = lvl => celebrate('hall_up', 'Town hall · level ' + lvl);
-/* The first of each of the big working buildings is a moment too: it is what
-   opens stone, or doubles the bread, or brings the traders. Only the first --
-   a third mill is just more flour. */
-const FIRST_CLIP = { quarry: 'The quarry is open', store: 'The storehouse is ready',
+/* The first of each working building is a moment too: the first roof, the
+   first field, the first wood coming in, then what opens stone, or doubles
+   the bread, or brings the traders. Only the first -- a third mill is just
+   more flour. */
+const FIRST_CLIP = { house: 'A first home', farm: 'The fields are sown',
+                     lumber: 'The woodcutters are in', well: 'The well is dug',
+                     quarry: 'The quarry is open', store: 'The storehouse is ready',
                      mill: 'The mill is turning', market: 'The market is open' };
 function celebrateFirst(p) {
   if (!FIRST_CLIP[p.key] || lvlOf(p) !== 1) return;

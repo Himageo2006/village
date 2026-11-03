@@ -5414,3 +5414,66 @@ gently. The storehouse, barrels and sacks stay exactly as painted and in the
 same place, the blurred village behind stays still. Cheerful, painterly
 game-art style kept, no people appearing, no text.
 ```
+
+---
+
+# 141 — The first house, farm, lumber camp and well → `art/first_{house,farm,lumber,well}_clip.mp4`  ✅ DONE (Leonardo, not ChatGPT)
+
+The early half of 140: the same celebrateFirst, the same rule (the first one
+finished, never an upgrade). Start frames `art/original/first_<key>_clip_frame.png`
+from the game sprites (`art/<key>.webp`) over the same blurred crop as 135.
+Leonardo.ai, MiniMax H3, 16:9 HD, 6 s, Turbo, 90 credits; encoded as 131. The
+farm's rows grow in until the whole field is wheat, which suits its caption.
+
+### 141.1 → `art/first_house_clip.mp4` ("A first home")
+
+```
+Gentle living painting, static camera, no zoom, no pan. A newly built cosy
+cottage on a sunny island, the very first home of a new village: a thin curl of
+wood smoke begins to rise slowly from the stone chimney, the warm glow in the
+window flickers softly as if a fire was just lit, a few small white petals and
+leaves drift past on the breeze, a little bird lands on the roof ridge, warm
+sunlight and soft shadows. The cottage stays exactly as painted and in the same
+place, the blurred village behind stays still. Warm, welcoming, painterly
+game-art style kept, no people appearing, no text.
+```
+
+### 141.2 → `art/first_farm_clip.mp4` ("The fields are sown")
+
+```
+Gentle living painting, static camera, no zoom, no pan. A newly planted wheat
+field on a sunny island: the rows of golden wheat sway in soft waves as the
+breeze passes over them, the ears of grain nod gently, a few butterflies
+flutter low over the crop, a little sparrow lands on the wooden fence rail,
+light seeds and chaff drift in the warm sunlight, soft cloud shadows pass
+slowly across the field. The field, the fence, the hay bales and the cart stay
+exactly as painted and in the same place, the blurred village behind stays
+still. Cheerful, painterly game-art style kept, no people appearing, no text.
+```
+
+### 141.3 → `art/first_lumber_clip.mp4` ("The woodcutters are in")
+
+```
+Gentle living painting, static camera, no zoom, no pan. A newly built lumber
+camp on a sunny island: a few fresh wood chips and curls of sawdust drift and
+fall slowly through the warm sunlight, fine sawdust motes glitter in the air, a
+few green leaves blow past from the forest, a little squirrel scampers onto the
+log pile and sits up, soft shadows shift gently. The wooden shelter, the
+stacked logs, the saw and the axe stay exactly as painted and in the same
+place, the blurred village behind stays still. Cheerful, painterly game-art
+style kept, no people appearing, no text.
+```
+
+### 141.4 → `art/first_well_clip.mp4` ("The well is dug")
+
+```
+Gentle living painting, static camera, no zoom, no pan. A newly built stone
+well on a sunny island: the water inside the well sparkles and ripples with
+soft light, the wooden bucket on its rope sways gently, a few drops of water
+fall and glint in the sunshine, a small bluebird lands on the edge of the well
+and takes a sip, the green moss and little leaves stir in the breeze, soft
+shadows shift gently. The well, its roof, the crank and the bucket stay
+exactly as painted and in the same place, the blurred village behind stays
+still. Fresh, cheerful, painterly game-art style kept, no people appearing, no
+text.
+```
