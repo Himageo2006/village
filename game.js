@@ -2559,6 +2559,7 @@ const GOALS = [
      contradiction inside the first two minutes. Housed first, the farm is
      staffed the moment it is finished. */
   { text: 'House four villagers',          done: () => villagers.length >= 4,  give: { wood: 25 },
+    clip: ['goal_villagers4_clip', 'Four to the village'],
     at: () => [villagers.length, 4] },
   { text: 'Build a farm',                  done: () => countOf('farm') >= 1,   give: { wood: 30, food: 20 } },
   { text: 'Raise the town hall to level 2', buy: 'hall', done: () => hallLevel() >= 2,      give: { wood: 60, food: 40 } },
@@ -2566,13 +2567,16 @@ const GOALS = [
   // not "at the market": trading needs no market, and naming one sends the
   // player looking for a building the hall will not allow for another two levels
   { text: 'Fill three trade orders',        done: () => ordersDone >= 3,        give: { wood: 100, food: 60 },
+    clip: ['goal_trade3_clip', 'Trade is flowing'],
     at: () => [ordersDone, 3] },
   { text: 'Claim land beyond your border', buy: 'land', done: () => landTier >= 1,          give: { wood: 120, food: 70 } },
-  { text: 'Upgrade any building to level 2', done: () => anyAtLevel(2),        give: { wood: 90, food: 50 } },
+  { text: 'Upgrade any building to level 2', done: () => anyAtLevel(2),        give: { wood: 90, food: 50 },
+    clip: ['goal_up2_clip', 'A building grows'] },
   { text: 'Dig a well',                    done: () => countOf('well') >= 1,   give: { wood: 110 } },
   { text: 'Raise the town hall to level 3', buy: 'hall', done: () => hallLevel() >= 3,      give: { wood: 180, food: 120 } },
   { text: 'Claim a third ring of land',    buy: 'land', done: () => landTier >= 2,          give: { wood: 350, food: 220 } },
   { text: 'Place five decorations',        done: () => decorCount() >= 5,      give: { wood: 150, food: 90 },
+    clip: ['goal_decor5_clip', 'A village worth a stroll'],
     at: () => [decorCount(), 5] },
   { text: 'Upgrade any building to level 3', done: () => anyAtLevel(3),        give: { wood: 250, food: 160 } },
   { text: 'Build a mill',                  done: () => countOf('mill') >= 1,   give: { wood: 350, food: 220 } },
@@ -2618,13 +2622,13 @@ const GOALS = [
      but not the hall. unitSweep holds both numbers now.) */
   { text: 'Build everything your hall allows',
     done: () => Object.keys(HALL[HALL_MAX].allow).every(k => countOf(k) >= HALL[HALL_MAX].allow[k]),
-    give: { wood: 2000, food: 1300 },
+    give: { wood: 2000, food: 1300 }, clip: ['goal_full_clip', 'Everything the hall allows'],
     at: () => { const a = HALL[HALL_MAX].allow; let have = 0, want = 0;
                 for (const k of Object.keys(a)) { have += Math.min(countOf(k), a[k]); want += a[k]; }
                 return [have, want]; } },
   { text: 'Fill the village with charm',   buy: 'charm',
     done: () => charmTotal() >= CHARM_FULL,
-    give: { wood: 2600, food: 1700 },
+    give: { wood: 2600, food: 1700 }, clip: ['goal_charm_clip', 'The village in bloom'],
     at: () => [Math.min(charmTotal(), CHARM_FULL), CHARM_FULL] },
   { text: 'Raise every workplace to level 5', buy: 'workplace',
     /* Counted at the level each has REACHED: one still under scaffolding on its
@@ -2632,7 +2636,7 @@ const GOALS = [
        moment the last upgrade was paid for. */
     done: () => { const w = placed.filter(p => B(p.key).jobs && p.key !== 'hall');
                   return w.length > 0 && w.every(p => lvlHeld(p) >= LVL_MAX); },
-    give: { wood: 3400, food: 2200 },
+    give: { wood: 3400, food: 2200 }, clip: ['goal_work_clip', 'Every workplace at its best'],
     at: () => { const w = placed.filter(p => B(p.key).jobs && p.key !== 'hall');
                 return [w.filter(p => lvlHeld(p) >= LVL_MAX).length, w.length]; } },
   /* The finale, and the one the completion card names. */
@@ -2810,6 +2814,11 @@ function stepGoals(dt) {
   goalDone = { g: g2, got, lost, age: 0 };
   goalIdx++;
   SFX.goal();
+  /* The goals with no building of their own to celebrate -- villagers, trade,
+     a first upgrade, a handful of decorations, and the last hour's three --
+     have a clip instead. A goal often finishes the moment the one before it
+     does, on the heels of a first-building clip, so it waits its turn. */
+  if (g2.clip) celebrateAfter(...g2.clip);
   save();
 }
 
@@ -6630,6 +6639,7 @@ function celebrate(name, caption) {
     if (!reduceMotion) {
       const v = a.clip = document.createElement('video');
       Object.assign(v, { muted: true, playsInline: true, preload: 'auto' });
+let showNext = null;                  // [name, caption] waiting for the one on screen
       v.onerror = () => { a.clip = null; };
       v.src = 'art/' + name + '.mp4';
     }
@@ -6662,11 +6672,19 @@ function celebrateFirst(p) {
 function stepShow(dt) {
   if (!show) return;
   show.t += dt;
-  if (show.t >= SHOW_TIME) { const c = showArt[show.name].clip; show = null; if (c) c.pause(); }
+  if (show.t >= SHOW_TIME) {
+    const c = showArt[show.name].clip; show = null; if (c) c.pause();
+    if (showNext) { const n = showNext; showNext = null; celebrate(...n); }
+  }
 }
 function drawShow() {
   if (!show) return;
   const u = US(), { still, clip } = showArt[show.name];
+// as celebrate, but never cutting into a clip already playing
+function celebrateAfter(name, caption) {
+  if (show) showNext = [name, caption];
+  else celebrate(name, caption);
+}
   const live = clip && clip.readyState >= 2 && clip.currentTime > 0;
   const pic = live ? clip : still.complete && still.naturalWidth ? still : null;
   if (!pic) return;

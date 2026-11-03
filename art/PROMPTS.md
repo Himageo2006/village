@@ -5738,3 +5738,133 @@ golden light, chimney smoke curls up from every roof, the icy sea darkens and
 shimmers. The buildings and the snow on the roofs stay exactly as painted. Cosy,
 magical, painterly style kept, no new buildings, no text.
 ```
+
+---
+
+# 146 — The last hour's three goals → `art/goal_{full,charm,work}_clip.mp4`  ✅ DONE (Leonardo, not ChatGPT)
+
+The three goals that name the last hour of play -- everything the hall
+allows, the charm ceiling, every workplace at level 5 -- arrived with only the
+strip, where every earlier step has a moment of its own already. Each now
+carries a `clip` that the goal banner plays (celebrate, captioned as below).
+Start frames `art/original/goal_*_clip_frame.png`, cropped sharp from the title
+painting: the square, market and docks (left 0, top 470, 1024x585), the
+gardens by the hall (left 0, top 590, 512x293), the mill and fields (left 0,
+top 307, 512x293). Leonardo.ai, MiniMax H3, 16:9 HD, 6 s, Turbo, 90 credits;
+encoded as 131. The mill's cap swings round with its sails in the last one.
+
+### 146.1 → `art/goal_full_clip.mp4` ("Everything the hall allows")
+
+```
+Gentle living painting, static camera, no zoom, no pan. A thriving complete
+village on a sunny island holding a festival: strings of colourful bunting
+flutter between the rooftops, the blue banners wave, a shower of confetti and
+flower petals drifts down over the square, the little villagers bustle along
+the paths and around the market stalls, the bell in the town hall tower swings,
+chimney smoke curls up, the sheep graze, the boat at the jetty bobs on the
+glittering sea, small birds wheel overhead. The buildings stay exactly as
+painted and in the same places. Joyful, abundant, painterly game-art style
+kept, no new buildings, no text.
+```
+
+### 146.2 → `art/goal_charm_clip.mp4` ("The village in bloom")
+
+```
+Gentle living painting, static camera, no zoom, no pan. A charming corner of a
+village in full bloom on a warm sunny afternoon: the rose bushes and flowerbeds
+burst open into even more colourful blossoms, butterflies and bees flutter
+between the flowers, a gentle shower of pink and white petals drifts down
+through the air, tiny golden sparkles shimmer over the gardens, the flower
+boxes sway, the little villagers stroll along the path, chimney smoke curls up,
+a soft rainbow glows faintly in the sky. The buildings stay exactly as painted
+and in the same places. Lovely, enchanting, painterly game-art style kept, no
+new buildings, no text.
+```
+
+### 146.3 → `art/goal_work_clip.mp4` ("Every workplace at its best")
+
+```
+Gentle living painting, static camera, no zoom, no pan. A busy working corner
+of a village by the sea on a bright golden afternoon, everything at full work:
+the windmill sails turn steadily round, the golden wheat in the fields ripples
+in waves in the wind, a puff of flour dust drifts from the mill door, the
+little villager carries a sack along the path, chimney smoke curls up from the
+cottage, the trees sway, the sea behind sparkles, a seagull glides across the
+sky. The buildings stay exactly as painted and in the same places. Productive,
+prosperous, painterly game-art style kept, no new buildings, no text.
+```
+
+---
+
+# 147 — Four earlier goals → `art/goal_{villagers4,trade3,up2,decor5}_clip.mp4`  ✅ DONE (Leonardo, not ChatGPT)
+
+The goals with no building of their own to celebrate: four villagers housed,
+three trade orders filled, the first upgrade, five decorations. Each carries a
+`clip` like 146's, and a goal's clip now waits for one already on screen
+(celebrateAfter) -- a goal often finishes on the heels of a first-building clip.
+Start frames `art/original/goal_*_clip_frame.png`: sprites over the same
+blurred crop as 135 -- the four villager sprites in a row, `market_hall`,
+`house`, and the lamp, flowerbed, bench and banner together. Leonardo.ai,
+MiniMax H3, 16:9 HD, 6 s, Turbo, 90 credits; encoded as 131. The market barely
+moves -- its bunting stirs and little else; worth redoing when there are
+credits (31 left, renewing 29 November).
+
+### 147.1 → `art/goal_villagers4_clip.mp4` ("Four to the village")
+
+```
+Gentle living painting, static camera, no zoom, no pan. Four cheerful villagers
+standing together in a sunny village, a farmer in green, a woman in a blue
+dress with a basket of vegetables, a bearded woodcutter with an axe on his
+shoulder, and a miller with a flour sack: they smile, wave hello and nod to one
+another, the woman lifts her basket a little, the woodcutter shifts the axe on
+his shoulder, the miller pats his flour sack and a puff of flour drifts up,
+their clothes and hair move softly in the breeze, a few flower petals drift
+past. The four villagers stay in the same places and look exactly as painted,
+the blurred village behind stays still. Warm, welcoming, painterly game-art
+style kept, no other people appearing, no text.
+```
+
+### 147.2 → `art/goal_trade3_clip.mp4` ("Trade is flowing")
+
+```
+Gentle living painting, static camera, no zoom, no pan. A covered wooden
+village market hall with a red tiled roof, piled with crates of apples,
+cheeses, bread and bolts of cloth, on a bright busy morning: the green and
+cream bunting along the eaves flutters, the hanging wheat sign swings gently,
+the brass scales tip and settle, a few gold coins glint and sparkle on the
+counter, two small sparrows hop among the crates pecking at crumbs, warm
+sunlight shifts across the goods. The market hall stays perfectly still,
+exactly as painted and in the same place, the blurred village behind stays
+still. Bustling, prosperous, painterly game-art style kept, no people
+appearing, no text.
+```
+
+### 147.3 → `art/goal_up2_clip.mp4` ("A building grows")
+
+```
+Gentle living painting, static camera, no zoom, no pan. A freshly improved
+half-timbered village cottage with a red tiled roof on a sunny morning: a sweep
+of golden sparkles runs over the roof and walls as if newly finished, warm
+light glows brighter in the window, a curl of chimney smoke rises from the
+stone chimney, a few wood shavings and a little dust drift away from the walls,
+two small birds land on the roof ridge, the trees in the background sway
+softly. The cottage stays perfectly still, exactly as painted and in the same
+place, the blurred village behind stays still. Proud, cheerful, painterly
+game-art style kept, no people appearing, no text.
+```
+
+### 147.4 → `art/goal_decor5_clip.mp4` ("A village worth a stroll")
+
+```
+Gentle living painting, static camera, no zoom, no pan. A pretty little village
+plaza with an iron street lamp, a stone-edged flowerbed, a wooden bench with a
+green blanket and a blue and gold banner, on a warm sunny afternoon: the banner
+waves in the breeze, the flowers sway and a bumblebee and a white butterfly
+flutter over them, the lamp glass glints, a few autumn leaves drift down onto
+the bench, a small robin hops along the bench, soft sunlight dapples across
+everything. The lamp, the flowerbed, the bench and the banner pole stay
+perfectly still, exactly as painted and in the same places, the blurred village
+behind stays still. Charming, peaceful, painterly game-art style kept, no
+people appearing, no text.
+```
+
