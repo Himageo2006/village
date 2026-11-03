@@ -4194,7 +4194,8 @@ function drawGround() {
 }
 /* World height of each kind at scale 1, set against a cottage at ~207px so the
    trees read as trees rather than shrubs or redwoods. */
-const SCENERY_H = { goat: 30, cow: 40, tree_pine: 115, tree_spruce: 118, tree_oak: 100, tree_willow: 96, tree_poplar: 126, tree_cherry: 100, tree_birch: 122, rock: 54, rock_moss: 50, bush: 46, bush_hydrangea: 46, stump: 38, log_mushroom: 34, flowers_wild: 30, flowers_meadow: 30, sheep: 30, sheep_rest: 22, sheep_lambs: 26, skeps: 40, snowman: 50 };
+const SCENERY_H = { goat: 30, cow: 40, tree_pine: 115, tree_spruce: 118, tree_oak: 100, tree_willow: 96, tree_poplar: 126, tree_cherry: 100, tree_birch: 122, rock: 54, rock_moss: 50, bush: 46, bush_hydrangea: 46, stump: 38, log_mushroom: 34, flowers_wild: 30, flowers_meadow: 30, sheep: 30, sheep_rest: 22, sheep_lambs: 26, skeps: 40, snowman: 50,
+  tree_oak_winter: 100, tree_pine_winter: 115, tree_spruce_winter: 118, tree_birch_winter: 122 };
 /* What a newer kind is drawn as while its own picture is missing, so a lost
    file shows the kind it was split from rather than the procedural tree. */
 const SCENERY_FALLBACK = { goat: 'stump', cow: 'stump', tree_birch: 'tree_oak', tree_cherry: 'tree_oak', stump: 'bush', flowers_wild: 'bush', sheep: 'bush', sheep_rest: 'bush', sheep_lambs: 'sheep_rest' };
@@ -4308,12 +4309,19 @@ const SCENERY_ALT = { tree_pine: ['tree_spruce', 0.5], rock: ['rock_moss', 0.5],
    which is what lambs and hives and mushrooms (and snowmen) do anyway. */
 const SEASON_ALT = { sheep_rest: { spring: 'sheep_lambs' }, flowers_wild: { summer: 'skeps' },
   bush: { summer: 'bush_hydrangea', autumn: 'log_mushroom', winter: 'snowman' }, goat: { autumn: 'cow', winter: 'cow' } };
+/* And the trees, which the wash alone left green under a pale tint all winter.
+   Keyed by the picture already chosen rather than by the tile, so a spruce
+   stays a spruce in the snow; a picture with no winter one keeps the wash. */
+const SEASON_LOOK = { tree_oak: { winter: 'tree_oak_winter' }, tree_pine: { winter: 'tree_pine_winter' },
+  tree_spruce: { winter: 'tree_spruce_winter' }, tree_birch: { winter: 'tree_birch_winter' } };
 function drawScenery(o) {
   const p = tileToWorld(o.c, o.r), s2 = o.s;
   let kind = artFor(o.kind) || !SCENERY_FALLBACK[o.kind] ? o.kind : SCENERY_FALLBACK[o.kind];
   const alt = SCENERY_ALT[kind], now = (SEASON_ALT[kind] || {})[season().key];
   if (now && artFor(now)) kind = now;
   else if (alt && hash(o.c * 5 + 1, o.r * 3 + 7) < alt[1] && artFor(alt[0])) kind = alt[0];
+  const look = (SEASON_LOOK[kind] || {})[season().key];
+  if (look && artFor(look)) kind = look;
   const art = artFor(kind);
   if (art) {
     const hgt = (SCENERY_H[kind] || 90) * s2, wid = art.width * (hgt / art.height);
@@ -6631,6 +6639,7 @@ function drawAwayPic(R) {
 const SHOW_TIME = 7;                  // seconds on screen, the clips are 6.6
 const showArt = {};                   // name -> { still, clip }
 let show = null;                      // { name, caption, t }
+let showNext = null;                  // [name, caption] waiting for the one on screen
 function celebrate(name, caption) {
   let a = showArt[name];
   if (!a) {
@@ -6639,7 +6648,6 @@ function celebrate(name, caption) {
     if (!reduceMotion) {
       const v = a.clip = document.createElement('video');
       Object.assign(v, { muted: true, playsInline: true, preload: 'auto' });
-let showNext = null;                  // [name, caption] waiting for the one on screen
       v.onerror = () => { a.clip = null; };
       v.src = 'art/' + name + '.mp4';
     }
@@ -6669,6 +6677,11 @@ function celebrateFirst(p) {
   if (placed.some(q => q !== p && q.key === p.key && q.t >= 1)) return;
   celebrate('first_' + p.key + '_clip', FIRST_CLIP[p.key]);
 }
+// as celebrate, but never cutting into a clip already playing
+function celebrateAfter(name, caption) {
+  if (show) showNext = [name, caption];
+  else celebrate(name, caption);
+}
 function stepShow(dt) {
   if (!show) return;
   show.t += dt;
@@ -6680,11 +6693,6 @@ function stepShow(dt) {
 function drawShow() {
   if (!show) return;
   const u = US(), { still, clip } = showArt[show.name];
-// as celebrate, but never cutting into a clip already playing
-function celebrateAfter(name, caption) {
-  if (show) showNext = [name, caption];
-  else celebrate(name, caption);
-}
   const live = clip && clip.readyState >= 2 && clip.currentTime > 0;
   const pic = live ? clip : still.complete && still.naturalWidth ? still : null;
   if (!pic) return;
@@ -8366,7 +8374,7 @@ for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER]) for (let i = 1; i <
    a village with none of them drawn would otherwise send five requests the
    moment it finished, and artFor remembers a miss. */
 for (let i = 1; i <= BEACON_STAGES; i++) beaconArt(i);
-for (const k of ['ground', 'water', 'tree_pine', 'tree_spruce', 'tree_oak', 'tree_willow', 'tree_poplar', 'tree_cherry', 'tree_birch', 'rock', 'rock_moss', 'bush', 'bush_hydrangea', 'stump', 'log_mushroom', 'flowers_wild', 'flowers_meadow', 'sheep', 'sheep_rest', 'sheep_lambs', 'skeps', 'snowman', 'goat', 'cow']) artFor(k);
+for (const k of ['ground', 'water', 'tree_pine', 'tree_spruce', 'tree_oak', 'tree_willow', 'tree_poplar', 'tree_cherry', 'tree_birch', 'rock', 'rock_moss', 'bush', 'bush_hydrangea', 'stump', 'log_mushroom', 'flowers_wild', 'flowers_meadow', 'sheep', 'sheep_rest', 'sheep_lambs', 'skeps', 'snowman', 'goat', 'cow', ...Object.values(SEASON_LOOK).flatMap(Object.values)]) artFor(k);
 for (const set of Object.values(LOOKS)) for (const k of set) artFor(k);
 for (const [, k] of HALL_STAGES) artFor(k);
 for (const s of SEA_PROPS) artFor(s.key);

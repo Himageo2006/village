@@ -5868,3 +5868,52 @@ behind stays still. Charming, peaceful, painterly game-art style kept, no
 people appearing, no text.
 ```
 
+---
+
+# 148 — The trees in winter → `art/tree_{oak,pine,spruce,birch}_winter.png`  ✅ DONE
+
+All winter the trees stayed in full leaf under a pale wash. Now each of the
+four main trees has a winter picture of its own, swapped in by SEASON_LOOK in
+game.js; the willow, poplar and cherry keep the wash for now. Each was made in
+the same chat with the summer tree attached, so the size, trunk position and
+camera match and the swap doesn't jump. Capped at 560 px like the summer trees.
+
+### 148.1 → `art/tree_oak_winter.png` (attach `art/original/tree_oak.png`)
+
+```
+Next: the WINTER version of this oak tree, at exactly the same size, trunk
+position, scale and camera angle. Bare branches with no leaves, snow resting
+along the boughs, a little snow drift around the base. Same painterly style as
+the others. No text. Nothing beyond it: fully transparent background.
+```
+
+ChatGPT added a robin on a branch, and the robin was kept.
+
+### 148.2 → `art/tree_pine_winter.png` (attach `art/original/tree_pine.png`)
+
+```
+Next: the WINTER version of this pine tree, at exactly the same size, trunk
+position, scale and camera angle. Green needles under thick snow on every
+tier, a few icicles, a little snow drift around the base. Same painterly style
+as the others. No text. Nothing beyond it: fully transparent background.
+```
+
+### 148.3 → `art/tree_spruce_winter.png` (attach `art/original/tree_spruce.png`)
+
+```
+Next: the WINTER version of this spruce tree, at exactly the same size, trunk
+position, scale and camera angle. Dark green needles weighed down with thick
+snow on every tier, a few icicles, a little snow drift around the base. Same
+painterly style as the others. No text. Nothing beyond it: fully transparent
+background.
+```
+
+### 148.4 → `art/tree_birch_winter.png` (attach `art/original/tree_birch.png`)
+
+```
+Next: the WINTER version of this birch tree, at exactly the same size, trunk
+position, scale and camera angle. Bare white-and-black birch branches with no
+leaves, snow resting along the branches, a little snow drift around the base.
+Same painterly style as the others. No text. Nothing beyond it: fully
+transparent background.
+```
