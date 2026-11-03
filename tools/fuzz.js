@@ -3015,6 +3015,11 @@
            at a time -- so without this the screen says "restored from a backup"
            and the check reads it as having said nothing about the version. */
         V.loadedFromBackup = false; V.saveFailed = false;
+        /* Nor has it claimed any land. The rich village before it left the
+           tier high, a refused save does not lower it, and the find clock then
+           lays the rings' landmarks back down whenever its second comes round
+           -- some runs before the count below, some after. */
+        V.landTier = 0;
         V.load(); V.landTransit(); V.step(0.001);
       };
       try {
@@ -10089,7 +10094,9 @@
       if (V.place(k, c, r)) V.placed[V.placed.length - 1].t = 1;
     }
     for (let i = 0; i < 60 * 30; i++) V.step(1 / 30);
-    V.panel = V.placed[1].id; V.barMode = 'build';
+    /* by key, not by index: the find clock may have put a ring's landmark down
+       between the hall and the store, and a find has no upgrade button */
+    V.panel = V.placed.find(p => p.key === 'store').id; V.barMode = 'build';
 
     const out = { read: null, shapes: 0 };
     try {
