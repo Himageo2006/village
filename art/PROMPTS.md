@@ -5917,3 +5917,28 @@ leaves, snow resting along the branches, a little snow drift around the base.
 Same painterly style as the others. No text. Nothing beyond it: fully
 transparent background.
 ```
+
+---
+
+# 149 — The rest of winter, and autumn → `art/tree_{willow,poplar,cherry}_winter.png`, `art/tree_{oak,birch,willow,poplar,cherry}_autumn.png`  ✅ DONE
+
+148 finished winter for the four main trees. This finishes it for the willow,
+poplar and cherry, and gives every leafy tree its own autumn picture in place
+of the orange wash. The pine and spruce are evergreen and keep the wash in
+autumn. Made in the same chat and the same way as 148: the summer tree
+attached, "Next: the WINTER/AUTUMN version of this … at exactly the same
+size, trunk position, scale and camera angle … Same painterly style as the
+others. No text. Nothing beyond it: fully transparent background." Capped at
+560 px; each ratio is within 0.03 of its summer tree.
+
+What each one asked for, between the shared opening and closing:
+
+- **149.1 willow, winter:** bare drooping willow wands with no leaves, a dusting of snow along the upper branches, a few small icicles hanging from the tips, a little snow drift around the base.
+- **149.2 poplar, winter:** bare upright branches with no leaves, keeping the same tall narrow shape, snow resting along the branches, a little snow drift around the base.
+- **149.3 cherry, winter:** bare dark branches with no blossom or leaves, snow resting along the branches, a little snow drift around the base.
+- **149.4 oak, autumn:** the full crown of leaves turned golden, amber, orange and russet, a few leaves drifting down, a scatter of fallen leaves around the base.
+- **149.5 birch, autumn:** the leaves turned bright butter-yellow and gold against the white bark, a few leaves drifting down, a scatter of fallen yellow leaves around the base.
+- **149.6 willow, autumn:** the long drooping fronds turned golden-yellow and pale amber, a few leaves drifting down, a scatter of fallen yellow leaves around the base.
+- **149.7 poplar, autumn:** keeping the same tall narrow shape, the leaves turned rich gold and yellow with a few touches of orange, a few leaves drifting down, a scatter of fallen leaves around the base.
+- **149.8 cherry, autumn:** no blossom; the leaves turned deep crimson, scarlet and orange, a few leaves drifting down, a scatter of fallen red leaves around the base.
+
