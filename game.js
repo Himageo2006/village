@@ -835,6 +835,7 @@ const beaconCut = () => {
   if (!p || p.t < 1) return 1;
   return BEACON_NEED[Math.min(BEACON_STAGES, Math.max(1, p.lvl | 0)) - 1] ? 1 - BEACON_SHARE : 1;
 };
+const BEACON_CAPTION = [null, null, 'The beacon is begun', 'The beacon is rising', 'The lantern is in'];
 function beaconTake(k, n) {
   if (!(n > 0) || beaconCut() === 1) return 0;   // none standing, or the top stage
   const p = beaconOf();
@@ -843,7 +844,10 @@ function beaconTake(k, n) {
   p.stock = (p.stock || 0) + take;
   if (p.stock >= BEACON_NEED[lvl - 1]) {
     p.stock = 0; p.lvl = lvl + 1; SFX.upgrade(); save();
+    /* hours apart at the end of the game, so each stage gets its own: the
+       first course, the tower, the lantern room, and then the light */
     if (p.lvl >= BEACON_STAGES) celebrate('beacon_lit', 'The beacon is lit');
+    else celebrate('beacon_up_' + p.lvl + '_clip', BEACON_CAPTION[p.lvl]);
   }
   return take;
 }
@@ -2520,6 +2524,8 @@ function fillOrder(o) {
   orders = orders.filter(q => q.id !== o.id);
   ordersDone++;
   SFX.goal();
+  // the first ship in is a moment; after that trade is just trade
+  if (ordersDone === 1) celebrate('first_trade_clip', 'The first trade');
   save();
   return true;
 }
@@ -6583,16 +6589,18 @@ function stopFinale() { if (finaleClip) finaleClip.pause(); }
 /* And the away card's: a day going by over the village, played once from
    the top each time the card comes up and left on its last frame -- evening,
    the windows lit -- for as long as the card is read. Loaded the first time
-   the card is; under reduced motion it is the first frame. */
+   the card is; under reduced motion it is the first frame. The day is one of
+   the season's, as the title painting is: summer is the original. */
 let awayStill = null, awayClip = null, awayClipFor = null;
 function drawAwayPic(R) {
   if (!awayStill) {
-    awayStill = new Image(); awayStill.src = 'art/away_day.webp';
+    const k = season().key, name = k === 'summer' ? 'away_day' : 'away_' + k;
+    awayStill = new Image(); awayStill.src = 'art/' + name + '.webp';
     if (!reduceMotion) {
       awayClip = document.createElement('video');
       Object.assign(awayClip, { muted: true, playsInline: true, preload: 'auto' });
       awayClip.onerror = () => { awayClip = null; };
-      awayClip.src = 'art/away_day.mp4';
+      awayClip.src = 'art/' + name + '.mp4';
     }
   }
   if (awayClip && awayClipFor !== away) {
@@ -6637,11 +6645,14 @@ const celebrateHall = lvl => celebrate(lvl < HALL_MAX ? 'hall_up_' + lvl + '_cli
 /* The first of each working building is a moment too: the first roof, the
    first field, the first wood coming in, then what opens stone, or doubles
    the bread, or brings the traders. Only the first -- a third mill is just
-   more flour. */
+   more flour. The decorations that make a place of it get one as well; the
+   path, fence and hedge do not, being laid by the dozen. */
 const FIRST_CLIP = { house: 'A first home', farm: 'The fields are sown',
                      lumber: 'The woodcutters are in', well: 'The well is dug',
                      quarry: 'The quarry is open', store: 'The storehouse is ready',
                      mill: 'The mill is turning', market: 'The market is open',
+                     flowers: 'The first flowers', bench: 'A bench to sit on',
+                     lamp: 'A light for the evening', banner: 'The village colours',
                      statue: 'A statue for the square' };
 function celebrateFirst(p) {
   if (!FIRST_CLIP[p.key] || lvlOf(p) !== 1) return;

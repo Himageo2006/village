@@ -5545,3 +5545,196 @@ glistens. The statue and its plinth stay perfectly still, exactly as painted
 and in the same place, the blurred village behind stays still. Serene, proud,
 painterly game-art style kept, no people appearing, no text.
 ```
+
+---
+
+# 143 — A clip for the first flowerbed, bench, lamp and banner → `art/first_{flowers,bench,lamp,banner}_clip.mp4`  ✅ DONE (Leonardo, not ChatGPT)
+
+The decorations that make a place of the village, each with its first one
+celebrated as the statue's is (FIRST_CLIP; place() calls celebrateFirst for a
+decoration). The path, fence and hedge get none, being laid by the dozen.
+Start frames `art/original/first_*_clip_frame.png`, the default sprite of each
+over the same blurred crop as 135. Leonardo.ai, MiniMax H3, 16:9 HD, 6 s,
+Turbo, 90 credits; encoded as 131. The lamp's clip lays a patch of grass under
+its base as the light comes up.
+
+### 143.1 → `art/first_lamp_clip.mp4` ("A light for the evening")
+
+```
+Gentle living painting, static camera, no zoom, no pan. A new iron street lamp
+on a stone base in a village as the evening falls: the sky behind slowly dims
+to a warm dusk, the lamp flickers and then lights up with a soft warm golden
+glow that spreads a halo of light around it, a few moths flutter around the
+glass, tiny glowing fireflies rise slowly from the grass. The lamp and its base
+stay perfectly still, exactly as painted and in the same place, the blurred
+village behind stays still. Cosy, magical, painterly game-art style kept, no
+people appearing, no text.
+```
+
+### 143.2 → `art/first_banner_clip.mp4` ("The village colours")
+
+```
+Gentle living painting, static camera, no zoom, no pan. A new blue and gold
+village banner with a golden fleur-de-lis hanging from a wooden pole on a stone
+base, on a bright sunny day: a breeze catches the banner and it ripples and
+waves proudly, its golden tassels swing, sunlight glints on the gold finial at
+the top of the pole, a few colourful confetti pieces and flower petals drift
+past on the wind. The pole and its stone base stay perfectly still, exactly as
+painted and in the same place, the blurred village behind stays still. Festive,
+proud, painterly game-art style kept, no people appearing, no text.
+```
+
+### 143.3 → `art/first_bench_clip.mp4` ("A bench to sit on")
+
+```
+Gentle living painting, static camera, no zoom, no pan. A new wooden village
+bench with a green blanket folded over it on a calm golden afternoon: a light
+breeze lifts the fringe of the green blanket, a few orange autumn leaves drift
+down and settle on the seat, a small robin hops onto the backrest and tilts its
+head, warm dappled sunlight shifts gently across the wood. The bench stays
+perfectly still, exactly as painted and in the same place, the blurred village
+behind stays still. Peaceful, cosy, painterly game-art style kept, no people
+appearing, no text.
+```
+
+### 143.4 → `art/first_flowers_clip.mp4` ("The first flowers")
+
+```
+Gentle living painting, static camera, no zoom, no pan. A newly planted
+flowerbed edged with grey stones, full of red poppies, pink, white and yellow
+flowers, on a fresh sunny spring morning: the flower heads open up and sway
+softly in the breeze, glistening dew drops sparkle on the leaves, a fat
+bumblebee and two small white butterflies flutter from flower to flower, a few
+petals lift and drift on the air. The stone edging stays perfectly still and
+the flowerbed stays exactly as painted and in the same place, the blurred
+village behind stays still. Fresh, cheerful, painterly game-art style kept, no
+people appearing, no text.
+```
+
+---
+
+# 144 — A clip for each beacon stage, and the first trade → `art/beacon_up_{2,3,4}_clip.mp4`, `art/first_trade_clip.mp4`  ✅ DONE (Leonardo, not ChatGPT)
+
+The beacon rises over hours of a finished village and only its last stage had
+a moment (`beacon_lit`). Now stages 2-4 each play their own when beaconTake
+raises it (the offline path, beaconAway, celebrates none, as before). The first
+trade order filled plays the ship (fillOrder, ordersDone reaching 1). Start
+frames `art/original/{beacon_up_N,first_trade}_clip_frame.png`: the
+`beacon_stageN` sprite over a blurred crop of the title painting's sea and
+trees (left 330, top 236, 420x240 -- clear of its own lighthouse), the ketch
+over its harbour (left 500, top 1060, 524x300) with no ground shadow.
+Leonardo.ai, MiniMax H3, 16:9 HD, 6 s, Turbo, 90 credits; encoded as 131. The
+beacon backdrops resolve into a sharp headland; stage 4's lantern glows warm
+from its first second despite "stays unlit", which reads as the light being
+tried before the lit stage.
+
+### 144.1 → `art/beacon_up_2_clip.mp4` ("The beacon is begun")
+
+```
+Gentle living painting, static camera, no zoom, no pan. The first course of a
+new stone beacon tower on a sunny island headland by the sea: a little puff of
+mortar dust drifts off the fresh stones, a few small pebbles settle, two white
+seagulls glide in and land on the top of the low wall, the sea behind glitters
+and its waves roll gently, the trees in front sway in the sea breeze. The stone
+tower stays perfectly still, exactly as painted and in the same place, the
+blurred sea behind stays in place. Hopeful, bright, painterly game-art style
+kept, no people appearing, no text.
+```
+
+### 144.2 → `art/beacon_up_3_clip.mp4` ("The beacon is rising")
+
+```
+Gentle living painting, static camera, no zoom, no pan. A tall new stone beacon
+tower with battlements and an iron band, half built, on a sunny island headland
+by the sea: golden afternoon sunlight sweeps slowly across the stones, a flock
+of seagulls circles the top of the tower and two of them land on the
+battlements, a thin wisp of stone dust drifts from the top, the sea behind
+sparkles and its waves roll, the trees in front sway in the sea breeze. The
+stone tower stays perfectly still, exactly as painted and in the same place,
+the blurred sea behind stays in place. Proud, hopeful, painterly game-art style
+kept, no people appearing, no text.
+```
+
+### 144.3 → `art/beacon_up_4_clip.mp4` ("The lantern is in")
+
+```
+Gentle living painting, static camera, no zoom, no pan. A tall stone lighthouse
+beacon tower with a new black iron lantern room and railing at its top, on an
+island headland by the sea at golden sunset: the warm sunset light glints and
+sparkles on the new glass and iron of the lantern room, the sky behind warms to
+orange and pink, seagulls circle the top of the tower, a tiny faint spark
+flickers once inside the empty lantern and fades, the sea behind shimmers with
+golden light, the trees in front sway in the breeze. The tower stays perfectly
+still, exactly as painted and in the same place, the lantern stays unlit, the
+blurred sea behind stays in place. Expectant, proud, painterly game-art style
+kept, no people appearing, no text.
+```
+
+### 144.4 → `art/first_trade_clip.mp4` ("The first trade")
+
+```
+Gentle living painting, static camera, no zoom, no pan. A small wooden
+two-masted trading ship loaded with crates and barrels, moored by a village
+jetty in clear turquoise water on a bright sunny day: the ship rocks gently up
+and down on the water, its white sails fill and billow softly in the breeze,
+the red pennant at the top of the mast flutters, ripples and little sparkles of
+sunlight dance on the water around the hull, two white seagulls swoop down and
+perch on the crates. The ship stays in the same place, exactly as painted, the
+blurred jetty behind stays still. Cheerful, prosperous, painterly game-art
+style kept, no people appearing, no text.
+```
+
+---
+
+# 145 — A day going by, for each season → `art/away_{spring,autumn,winter}.mp4`  ✅ DONE (Leonardo, not ChatGPT)
+
+The away card's day (134) by the time of year, chosen in drawAwayPic the way
+the title chooses its painting: summer keeps `away_day`. Start frames
+`art/original/away_{season}_clip_frame.png`: each season's title painting
+(768x1376) cropped at left 6, top 322, 759x434 -- the same fraction of the
+picture as 134's crop of the summer one, which lands a little closer in since
+those paintings are framed tighter. Leonardo.ai, MiniMax H3, 16:9 HD, 6 s,
+Turbo, 90 credits; encoded as 131, the first frame kept as the `.webp`. Spring's
+clouds cross low over the middle of the village for a second or so.
+
+### 145.1 → `art/away_spring.mp4`
+
+```
+Time-lapse living painting, static camera, no zoom, no pan. A whole spring day
+passes quickly over the village: the little villagers hurry about their work on
+the paths, the windmill sails spin, pink cherry blossom petals drift and swirl
+on the breeze, shadows sweep slowly across the ground, white clouds race
+overhead, the sunlight turns warm golden then dusky blue as evening falls, and
+one by one the cottage windows and the street lanterns light up with a warm
+glow, chimney smoke curls up, the sea darkens and shimmers. The buildings stay
+exactly as painted. Fresh, cosy, painterly style kept, no new buildings, no
+text.
+```
+
+### 145.2 → `art/away_autumn.mp4`
+
+```
+Time-lapse living painting, static camera, no zoom, no pan. A whole autumn day
+passes quickly over the village: the little villagers hurry about their work on
+the paths, the windmill sails spin, golden and orange leaves drift down and
+swirl across the paths, shadows sweep slowly across the ground, clouds race
+overhead, the low sunlight turns deep amber then dusky blue as evening falls,
+and one by one the cottage windows and the street lanterns light up with a warm
+glow, chimney smoke curls up thickly, the sea darkens and shimmers. The
+buildings stay exactly as painted. Cosy, mellow, painterly style kept, no new
+buildings, no text.
+```
+
+### 145.3 → `art/away_winter.mp4`
+
+```
+Time-lapse living painting, static camera, no zoom, no pan. A whole winter day
+passes quickly over the snowy village: the little villagers hurry about their
+work along the snowy paths, the windmill sails turn slowly, soft snowflakes fall
+gently, shadows sweep slowly across the snow, clouds drift overhead, the pale
+winter sunlight turns rosy pink then deep dusky blue as evening falls, and one
+by one the cottage windows and the street lanterns glow brighter with warm
+golden light, chimney smoke curls up from every roof, the icy sea darkens and
+shimmers. The buildings and the snow on the roofs stay exactly as painted. Cosy,
+magical, painterly style kept, no new buildings, no text.
+```
