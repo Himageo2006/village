@@ -5477,3 +5477,71 @@ exactly as painted and in the same place, the blurred village behind stays
 still. Fresh, cheerful, painterly game-art style kept, no people appearing, no
 text.
 ```
+
+---
+
+# 142 — A clip for each town hall level, and the first statue → `art/hall_up_{2,3,4}_clip.mp4`, `art/first_statue_clip.mp4`  ✅ DONE (Leonardo, not ChatGPT)
+
+Every hall upgrade used to play 131, which shows the level-5 hall. Now levels
+2-4 each have their own, showing the hall as it looks at that level (`hall.webp`
+for 2, `hall_2.webp` for 3 and 4; see HALL_STAGES), and 131 is kept for the top
+level (celebrateHall). The first statue plays when it is placed: decorations
+go up finished, so place() calls celebrateFirst itself. Start frames
+`art/original/{hall_up_N,first_statue}_clip_frame.png`, the sprite over the
+same blurred crop as 135. Leonardo.ai, MiniMax H3, 16:9 HD, 6 s, Turbo, 90
+credits; encoded as 131. Level 4 shares level 3's frame; its backdrop resolves
+over its first second into a sharp village at dusk, which is the point.
+
+### 142.1 → `art/hall_up_2_clip.mp4` ("Town hall · level 2")
+
+```
+Gentle living painting, static camera, no zoom, no pan. A village town hall on
+a sunny island celebrating its new rank: the bell in the little tower swings
+and rings back and forth, the blue banners with golden fleur-de-lis flutter
+proudly in the breeze, a shower of small colourful paper petals and confetti
+drifts down gently, two white doves fly up from the roof and circle, warm
+golden sunlight glows. The town hall stays exactly as painted and in the same
+place, the blurred village behind stays still. Joyful, festive, painterly
+game-art style kept, no people appearing, no text.
+```
+
+### 142.2 → `art/hall_up_3_clip.mp4` ("Town hall · level 3")
+
+```
+Gentle living painting, static camera, no zoom, no pan. A grand new village
+town hall with a clock tower on a bright sunny morning: the bell in the clock
+tower swings and rings, the hands of the clock tick forward, the golden
+weathervane on the green spire turns in the breeze, the blue banners flutter,
+the red flowers in the window boxes sway, a flock of small birds lifts off from
+the roof and wheels across the sky, sparkles of sunlight glint on the gold
+trim. The town hall stays exactly as painted and in the same place, the
+blurred village behind stays still. Proud, joyful, painterly game-art style
+kept, no people appearing, no text.
+```
+
+### 142.3 → `art/hall_up_4_clip.mp4` ("Town hall · level 4")
+
+```
+Gentle living painting, static camera, no zoom, no pan. A grand village town
+hall with a clock tower at golden dusk, celebrating: the sky behind slowly
+warms to orange and pink, the lanterns by the door and the windows light up
+one by one with a warm glow, small colourful fireworks burst softly high in
+the sky and their sparks drift down, the bell in the clock tower swings and
+rings, the blue banners flutter, glowing fireflies rise around the steps. The
+town hall stays exactly as painted and in the same place, the blurred village
+behind stays still. Magical, festive, painterly game-art style kept, no people
+appearing, no text.
+```
+
+### 142.4 → `art/first_statue_clip.mp4` ("A statue for the square")
+
+```
+Gentle living painting, static camera, no zoom, no pan. A newly unveiled stone
+statue of a harvest maiden holding a sheaf of wheat on a sunny island: a soft
+beam of golden sunlight falls across the statue, tiny golden sparkles shimmer
+and drift up around it, a few flower petals float down and settle at its base,
+two white doves flutter down and land on the plinth, the moss on the stones
+glistens. The statue and its plinth stay perfectly still, exactly as painted
+and in the same place, the blurred village behind stays still. Serene, proud,
+painterly game-art style kept, no people appearing, no text.
+```

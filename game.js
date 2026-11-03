@@ -3204,6 +3204,8 @@ function place(key, c, r) {
   recomputeCaps();
   save();
   SFX.place();
+  // decorations go up finished, so the first statue never passes the scaffold
+  if (b.decor) celebrateFirst(placed[placed.length - 1]);
   return true;
 }
 /* The ceilings the village would have if this building were gone -- what the
@@ -6628,7 +6630,10 @@ function celebrate(name, caption) {
   if (a.clip) { a.clip.currentTime = 0; a.clip.play().catch(() => {}); }
   show = { name, caption, t: 0 };
 }
-const celebrateHall = lvl => celebrate('hall_up', 'Town hall · level ' + lvl);
+/* Each level has its own: the bell and doves for the first, the new clock tower
+   by morning, then by dusk with fireworks, and the confetti for the last. */
+const celebrateHall = lvl => celebrate(lvl < HALL_MAX ? 'hall_up_' + lvl + '_clip' : 'hall_up',
+                                       'Town hall · level ' + lvl);
 /* The first of each working building is a moment too: the first roof, the
    first field, the first wood coming in, then what opens stone, or doubles
    the bread, or brings the traders. Only the first -- a third mill is just
@@ -6636,7 +6641,8 @@ const celebrateHall = lvl => celebrate('hall_up', 'Town hall · level ' + lvl);
 const FIRST_CLIP = { house: 'A first home', farm: 'The fields are sown',
                      lumber: 'The woodcutters are in', well: 'The well is dug',
                      quarry: 'The quarry is open', store: 'The storehouse is ready',
-                     mill: 'The mill is turning', market: 'The market is open' };
+                     mill: 'The mill is turning', market: 'The market is open',
+                     statue: 'A statue for the square' };
 function celebrateFirst(p) {
   if (!FIRST_CLIP[p.key] || lvlOf(p) !== 1) return;
   if (placed.some(q => q !== p && q.key === p.key && q.t >= 1)) return;
