@@ -6009,3 +6009,28 @@ from the summer ones by up to 4% (weaver 716 -> 691). The winter picture is
 therefore hung from the summer picture's base rather than fitted on its own:
 see artRect. The "oak-framed house" is the treehouse in an oak; it came back
 with snow on the oak's leaves and on the turf roof.
+
+# 153 — Snow on the hall and the storehouses → `art/hall{,_2,_3}_winter.png`, `art/store{,_granary,_barn,_tithe,_staddle,_cellar}_winter.png`  ✅ DONE
+
+After the houses, the town hall and the storehouses were the next most common
+buildings still under a pale wash. A winter picture for each of the hall's
+three stages (`hall`, `hall_2`, `hall_3`) and each of the six storehouse looks,
+added to WINTER_LOOKS in game.js. Same chat, summer picture attached, the
+houses' prompt with the light and smoke taken out:
+
+```
+Next: the WINTER version of this <building>, at exactly the same size,
+position, scale and camera angle, with the base, footprint and outline
+exactly as in the original. Thick snow lying on the roof and along the eaves,
+a few icicles hanging from the eaves, snow capping the crates, sacks and
+barrels outside and on any ledges. No smoke. Keep the walls, doors and base
+unchanged, with only a thin dusting of snow at the foot of the walls and no
+snow drifts spreading beyond the building. Same painterly style as the
+others. No text. Nothing beyond it: fully transparent background.
+```
+
+Names used: "town hall", "town hall with its clock tower", "grand guildhall"
+(those three said "No chimney smoke"), "storehouse", "granary", "barn" (snow
+on the hay), "tithe barn", "staddle store" (snow on the staddle stones),
+"cellar store". The proportions came back within 3% of the summer ones; the
+pictures hang from the summer base as the houses' do.
