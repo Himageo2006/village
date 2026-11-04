@@ -6078,3 +6078,50 @@ told "The flowers become winter ones: holly sprigs, red winterberries, white
 hellebores, evergreen wreaths and pine boughs, with no summer blooms."
 
 All twelve came back within 1.3% of the summer proportions.
+
+# 155 — Snow on the lumber camps and the wells → `art/lumber{,_pit,_cabin,_saw,_charcoal,_cart}_winter.png`, `art/well{,_iron,_thatch,_pump,_wish,_wheel}_winter.png`  ✅ DONE
+
+A winter picture for each of the six lumber looks and the six well looks,
+added to WINTER_LOOKS in game.js. Same chat, summer picture attached, round
+153's prompt adapted again.
+
+Lumber ("lumber camp", "saw pit", "woodcutter's cabin", "sawmill", "timber
+yard with its log cart"):
+
+```
+Next: the WINTER version of this <camp>, at exactly the same size, position,
+scale and camera angle, with the base, footprint and outline exactly as in
+the original. Thick snow lying on any roof and along the eaves, a few icicles
+hanging from the eaves, snow capping the log piles, stumps, tools and
+sawhorses. No smoke. Keep the buildings, logs and base unchanged, with only a
+thin dusting of snow on the ground and no snow drifts spreading beyond it.
+Same painterly style as the others. No text. Nothing beyond it: fully
+transparent background.
+```
+
+The charcoal burners' camp kept its smoke and its mound bare: "the warm
+charcoal mound itself stays dark and free of snow. Keep any smoke exactly as
+in the original, no more."
+
+Wells ("well", "thatched well", "wishing well", "wheel well"):
+
+```
+Next: the WINTER version of this <well>, at exactly the same size, position,
+scale and camera angle, with the base, footprint and outline exactly as in
+the original. Thick snow lying on its little roof, a few icicles hanging from
+the roof edge and the bucket, snow capping the stone rim, the winch and any
+buckets or barrels beside it. Keep the well, rope and base unchanged, with
+only a thin dusting of snow at the foot and no snow drifts spreading beyond
+it. Same painterly style as the others. No text. Nothing beyond it: fully
+transparent background.
+```
+
+The iron well had "a line of snow along the top of the ironwork"; the pump
+"a thin skin of ice on the trough"; the wishing well's flowers became "frosted
+evergreens and red winter berries"; the wheel well "a line of snow along the
+top of the big wheel". The iron well and the wishing well came back as a
+choice of two; the first of each was taken, the second of the wishing well
+having grown a drift and a trough beyond its base.
+
+The wells are capped at 400 like their summer pictures. Proportions within 3%
+of the summer ones.

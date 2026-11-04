@@ -4535,15 +4535,15 @@ const growOf = p => established(p) ? 1 : 0.35 + 0.65 * Math.max(0, Math.min(1, p
 /* Snow on the roofs. A pale wash over every roof was all winter had, and it
    reads as a grey village rather than a snowed-on one; the houses -- the
    commonest building by far -- the hall at each of its stages, the
-   storehouses, the mills and the market stalls have their own painting with
-   the snow lying on them.
+   storehouses, mills, market stalls, lumber camps and wells have their own
+   painting with the snow lying on them.
    Painted to the summer one's frame, but a curl of smoke or a run of icicles
    moves the top of the trim by a few per cent, so it stands on the
    summer picture's base: the front corner is found from the summer picture
    and the winter one is hung from there. Not washed, either: the snow is
    the winter. */
 const WINTER_LOOKS = new Set([...LOOKS.house, 'hall', 'hall_2', 'hall_3', ...LOOKS.store,
-  ...LOOKS.mill, ...LOOKS.market]);
+  ...LOOKS.mill, ...LOOKS.market, ...LOOKS.lumber, ...LOOKS.well]);
 function winterArt(p) {
   if (season().key !== 'winter') return null;
   const look = lookOf(p);
