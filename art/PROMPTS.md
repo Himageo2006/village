@@ -6034,3 +6034,47 @@ Names used: "town hall", "town hall with its clock tower", "grand guildhall"
 on the hay), "tithe barn", "staddle store" (snow on the staddle stones),
 "cellar store". The proportions came back within 3% of the summer ones; the
 pictures hang from the summer base as the houses' do.
+
+# 154 — Snow on the mills and the market stalls → `art/mill{,_post,_smock,_water,_tower,_cider}_winter.png`, `art/market{,_hall,_fish,_cheese,_fruit,_flower}_winter.png`  ✅ DONE
+
+The next tallest buildings still under the pale wash. A winter picture for
+each of the six mill looks and the six market looks, added to WINTER_LOOKS in
+game.js. Same chat, summer picture attached, round 153's prompt adapted.
+
+Mills ("windmill", "post mill", "smock mill", "tower mill", "cider mill"):
+
+```
+Next: the WINTER version of this <mill>, at exactly the same size, position,
+scale and camera angle, with the base, footprint, outline and sails exactly
+as in the original. Thick snow lying on the roof and cap, a thin line of snow
+along the top edges of the sails, a few icicles hanging from the eaves, snow
+capping the sacks and barrels outside and on any ledges. No smoke. Keep the
+walls, doors, sails and base unchanged, with only a thin dusting of snow at
+the foot of the walls and no snow drifts spreading beyond the building. Same
+painterly style as the others. No text. Nothing beyond it: fully transparent
+background.
+```
+
+The watermill kept its wheel ("icicles ... from the rim of the water wheel,
+the water in the race dark and cold but still flowing"); the cider mill has
+no sails ("snow capping the barrels, crates and press").
+
+Market stalls ("market stall", "market hall", "fish stall", "cheese stall",
+"fruit stall"):
+
+```
+Next: the WINTER version of this <stall>, at exactly the same size, position,
+scale and camera angle, with the base, footprint and outline exactly as in
+the original. Thick snow lying on the awning or roof, a few icicles hanging
+from its edge, a little snow capping the crates, sacks and barrels around it,
+the goods on the counter still bright and on show. No smoke. Keep the stall,
+counter and base unchanged, with only a thin dusting of snow at the foot and
+no snow drifts spreading beyond it. Same painterly style as the others. No
+text. Nothing beyond it: fully transparent background.
+```
+
+The flower stall's summer blooms would have read wrong in snow, so it was
+told "The flowers become winter ones: holly sprigs, red winterberries, white
+hellebores, evergreen wreaths and pine boughs, with no summer blooms."
+
+All twelve came back within 1.3% of the summer proportions.
