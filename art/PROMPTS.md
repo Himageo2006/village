@@ -6125,3 +6125,39 @@ having grown a drift and a trough beyond its base.
 
 The wells are capped at 400 like their summer pictures. Proportions within 3%
 of the summer ones.
+
+# 156 — Snow on the farms → `art/farm{,_veg,_barley,_pumpkin,_vine,_orchard,_hops}_winter.png`  ✅ DONE
+
+A winter picture for each of the seven farm looks, added to WINTER_LOOKS in
+game.js. The fields lie under snow: bare soil and bare branches, nothing
+growing.
+
+The wheat farm and the vegetable plots came from the same ChatGPT chat as
+rounds 153 to 155, with round 155's prompt adapted ("snow lying over the
+fields, the rows bare, snow capping the fences, baskets and tools"). ChatGPT
+then ran out of image creations for the day.
+
+The other five came from Leonardo (app.leonardo.ai), GPT Image 2.5 Flare at
+Medium quality, 1:1 Small (1024), with the summer picture as an image
+reference: 23 tokens each, 115 of the month's 150. Leonardo will not paint a
+transparent background, so it was asked for a flat colour to key out:
+
+```
+Edit the reference image: the WINTER version of this <farm>, at exactly the
+same size, position, scale and camera angle, with the base, footprint and
+outline exactly as in the original. <what winter does to it>. Snow capping
+the fence posts and rails. Keep the fence and base unchanged, with no snow
+drifts spreading beyond it. Same painterly style. No text. Isolated on a
+plain flat solid magenta (#FF00FF) background with nothing else in the
+picture.
+```
+
+The barley field was asked for a white background and keyed fine. Magenta
+left patches where the background is walled in (between the hop poles, inside
+the fence) and a pink fringe on the bare branches, which the edge-flood keyer
+can't reach; those four were keyed by colour everywhere, un-mixing the
+magenta from the anti-aliased edges, before prep-art.
+
+The Leonardo pictures stand 5 to 20% taller than the summer ones (the hop
+poles, the bare orchard trees, the vine trellis); they hang from the summer
+picture's base like the others, so the footprint is unchanged.
