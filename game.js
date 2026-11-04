@@ -4197,7 +4197,8 @@ function drawGround() {
 const SCENERY_H = { goat: 30, cow: 40, tree_pine: 115, tree_spruce: 118, tree_oak: 100, tree_willow: 96, tree_poplar: 126, tree_cherry: 100, tree_birch: 122, rock: 54, rock_moss: 50, bush: 46, bush_hydrangea: 46, stump: 38, log_mushroom: 34, flowers_wild: 30, flowers_meadow: 30, sheep: 30, sheep_rest: 22, sheep_lambs: 26, skeps: 40, snowman: 50,
   tree_oak_winter: 100, tree_pine_winter: 115, tree_spruce_winter: 118, tree_birch_winter: 122,
   tree_willow_winter: 96, tree_poplar_winter: 126, tree_cherry_winter: 100, tree_oak_autumn: 100, tree_birch_autumn: 122, tree_willow_autumn: 96, tree_poplar_autumn: 126, tree_cherry_autumn: 100,
-  rock_winter: 54, rock_moss_winter: 50, stump_winter: 38, log_mushroom_winter: 34, flowers_wild_winter: 30, flowers_meadow_winter: 30 };
+  rock_winter: 54, rock_moss_winter: 50, stump_winter: 38, log_mushroom_winter: 34, flowers_wild_winter: 30, flowers_meadow_winter: 30,
+  tree_cherry_summer: 100, flowers_wild_spring: 30, flowers_meadow_spring: 30, flowers_wild_autumn: 30, flowers_meadow_autumn: 30 };
 /* What a newer kind is drawn as while its own picture is missing, so a lost
    file shows the kind it was split from rather than the procedural tree. */
 const SCENERY_FALLBACK = { goat: 'stump', cow: 'stump', tree_birch: 'tree_oak', tree_cherry: 'tree_oak', stump: 'bush', flowers_wild: 'bush', sheep: 'bush', sheep_rest: 'bush', sheep_lambs: 'sheep_rest' };
@@ -4320,13 +4321,16 @@ const SEASON_LOOK = {
   tree_birch: { autumn: 'tree_birch_autumn', winter: 'tree_birch_winter' },
   tree_willow: { autumn: 'tree_willow_autumn', winter: 'tree_willow_winter' },
   tree_poplar: { autumn: 'tree_poplar_autumn', winter: 'tree_poplar_winter' },
-  tree_cherry: { autumn: 'tree_cherry_autumn', winter: 'tree_cherry_winter' },
+  tree_cherry: { summer: 'tree_cherry_summer', autumn: 'tree_cherry_autumn', winter: 'tree_cherry_winter' },
   tree_pine: { winter: 'tree_pine_winter' }, tree_spruce: { winter: 'tree_spruce_winter' },
   /* the ground cover too: snow on the stones and stumps, and the wildflowers
-     give way to the two that do flower in the snow */
+     go round the year -- daffodils and bluebells, the summer meadow, asters
+     and heather, then the two that do flower in the snow. The cherry is in
+     blossom in spring only, and in fruit by summer. */
   rock: { winter: 'rock_winter' }, rock_moss: { winter: 'rock_moss_winter' },
   stump: { winter: 'stump_winter' }, log_mushroom: { winter: 'log_mushroom_winter' },
-  flowers_wild: { winter: 'flowers_wild_winter' }, flowers_meadow: { winter: 'flowers_meadow_winter' } };
+  flowers_wild: { spring: 'flowers_wild_spring', autumn: 'flowers_wild_autumn', winter: 'flowers_wild_winter' },
+  flowers_meadow: { spring: 'flowers_meadow_spring', autumn: 'flowers_meadow_autumn', winter: 'flowers_meadow_winter' } };
 function drawScenery(o) {
   const p = tileToWorld(o.c, o.r), s2 = o.s;
   let kind = artFor(o.kind) || !SCENERY_FALLBACK[o.kind] ? o.kind : SCENERY_FALLBACK[o.kind];

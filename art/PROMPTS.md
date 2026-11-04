@@ -5958,3 +5958,20 @@ Capped at 360 px like their summer pictures.
 - **150.4 mushroom log:** a long ridge of snow along the top of the log, the mushrooms gone, a few icicles hanging from the side, frost on the bark, a little snow drift around it.
 - **150.5 wildflowers:** the summer flowers gone; instead a little clump of white snowdrops with nodding heads and slender green leaves poking up through a patch of snow.
 - **150.6 meadow flowers:** the summer flowers gone; instead a low clump of winter hellebores (Christmas roses) with cream and soft pink cupped flowers and dark green leaves, sitting in a patch of snow, with a few frosted grass tufts.
+
+---
+
+# 151 — The flowers round the year, and the cherry in fruit → `art/tree_cherry_summer.png`, `art/flowers_{wild,meadow}_{spring,autumn}.png`  ✅ DONE
+
+The cherry was in blossom all year round except autumn and winter (149), and
+the wildflowers were the same summer patch under a tint from March to
+November. Now the cherry blossoms in spring only and is green with ripe
+cherries by summer. The wildflower patches change by season: daffodils and
+bluebells in spring, the summer meadow (and the skeps), asters and heather in
+autumn, then 150's snowdrops and hellebores. Same chat and pattern as 148.
+
+- **151.1 cherry, summer:** the blossom gone: a full crown of glossy deep green leaves hung with clusters of ripe red cherries, a few fallen cherries in the grass at the base.
+- **151.2 wildflowers, spring:** the summer flowers gone; instead a cheerful clump of yellow daffodils with trumpet heads and a few small white narcissi, with fresh green leaves in bright spring grass.
+- **151.3 meadow flowers, spring:** the summer flowers gone; instead a drift of nodding blue bluebells with a few white wood anemones and primroses, among fresh bright green leaves and grass.
+- **151.4 wildflowers, autumn:** the summer flowers gone; instead a clump of purple and lilac Michaelmas daisies with golden centres among grass turning golden-brown, a few fallen orange leaves caught in it.
+- **151.5 meadow flowers, autumn:** the summer flowers gone; instead a low mound of pink and mauve heather in flower with a few russet bracken fronds and golden seed heads of grass.
