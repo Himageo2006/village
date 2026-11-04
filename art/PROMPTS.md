@@ -5975,3 +5975,37 @@ autumn, then 150's snowdrops and hellebores. Same chat and pattern as 148.
 - **151.3 meadow flowers, spring:** the summer flowers gone; instead a drift of nodding blue bluebells with a few white wood anemones and primroses, among fresh bright green leaves and grass.
 - **151.4 wildflowers, autumn:** the summer flowers gone; instead a clump of purple and lilac Michaelmas daisies with golden centres among grass turning golden-brown, a few fallen orange leaves caught in it.
 - **151.5 meadow flowers, autumn:** the summer flowers gone; instead a low mound of pink and mauve heather in flower with a few russet bracken fronds and golden seed heads of grass.
+
+---
+
+# 152 — Snow on the houses → `art/house{,_stone,_thatch,_fisher,_baker,_weaver,_potter,_bee,_oak}_winter.png`  ✅ DONE
+
+With the trees and the ground cover in snow, the houses were the biggest
+thing on the island still standing in summer under a pale wash. A winter
+picture for each of the nine house looks, swapped in by winterArt() in
+game.js and not washed. Same chat, summer picture attached, one prompt shared
+by all nine with only the name changed ("cottage", "stone house", "thatched
+cottage", "fisherman's house", "baker's house", "weaver's house", "potter's
+house", "beekeeper's house", "oak-framed house"):
+
+```
+Next: the WINTER version of this <house>, at exactly the same size, position,
+scale and camera angle, with the base and footprint exactly as in the
+original. Thick snow lying on the roof and along the eaves, a few icicles
+hanging from the eaves, snow on the chimney top and window sills, warm golden
+light glowing in the windows, a thin curl of chimney smoke. Keep the walls,
+door and base unchanged, with only a thin dusting of snow at the foot of the
+walls and no snow drifts spreading beyond the building. Same painterly style
+as the others. No text. Nothing beyond it: fully transparent background.
+```
+
+Small additions per house: the fisherman's nets and barrels, the baker's sign
+(and "a curl of oven smoke" -- it came out tall, hence the next note), the
+potter's kiln and pots, the beekeeper's hives with no bees flying. From the
+weaver on, "only a short wisp of chimney smoke".
+
+The smoke and icicles move the top of the trim, so the winter heights differ
+from the summer ones by up to 4% (weaver 716 -> 691). The winter picture is
+therefore hung from the summer picture's base rather than fitted on its own:
+see artRect. The "oak-framed house" is the treehouse in an oak; it came back
+with snow on the oak's leaves and on the turf roof.

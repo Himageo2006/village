@@ -4532,8 +4532,22 @@ function drawVillager(v) {
    sitting in the middle of its own full-size shadow. An upgrade keeps the
    building standing and shows the scaffold. */
 const growOf = p => established(p) ? 1 : 0.35 + 0.65 * Math.max(0, Math.min(1, p.t));
+/* Snow on the roofs. A pale wash over every roof was all winter had, and it
+   reads as a grey village rather than a snowed-on one; the houses -- the
+   commonest building by far -- have their own painting with the snow lying on
+   them. Painted to the summer one's frame, but a curl of smoke or a run of
+   icicles moves the top of the trim by a few per cent, so it stands on the
+   summer picture's base: the front corner is found from the summer picture
+   and the winter one is hung from there. Not washed, either: the snow is
+   the winter. */
+const WINTER_LOOKS = new Set(LOOKS.house);
+function winterArt(p) {
+  if (season().key !== 'winter') return null;
+  const look = lookOf(p);
+  return WINTER_LOOKS.has(look) ? artFor(look + '_winter') : null;
+}
 function artRect(p) {
-  const b = B(p.key), art = buildingArt(p);
+  const b = B(p.key), base = buildingArt(p), snow = base && winterArt(p), art = snow || base;
   /* A find is a decoration for charm and nothing else: it stands on a 2x2
      plot like a farm, so it is fitted to its plot like one. */
   if (!art || (isDecor(p.key) && !isFound(p.key))) return null;
@@ -4546,7 +4560,8 @@ function artRect(p) {
   const hgt = art.height * (wid / art.width);
   // the plot's near vertex: where the front corner of the building lands
   const ny = cy + (b.w + b.h) * TH / 4;
-  return { art, cx, cy, fw, ny, wid, hgt, left: cx - f.ax * wid, top: ny - f.ay * hgt };
+  const below = (1 - f.ay) * base.height * (wid / base.width);   // front corner to the bottom of the base
+  return { art, snow: !!snow, cx, cy, fw, ny, wid, hgt, left: cx - f.ax * wid, top: ny + below - hgt };
 }
 function drawBuilding(p, alpha, tint) {
   const b = B(p.key);
@@ -4554,11 +4569,11 @@ function drawBuilding(p, alpha, tint) {
   const cx = (a.x + d.x) / 2, cy = (a.y + d.y) / 2;
   const ar = tint ? null : artRect(p);        // tint is only used by the ghost preview
   if (ar) {
-    const { art, fw, ny, wid, hgt, left, top } = ar;
+    const { art, snow, fw, ny, wid, hgt, left, top } = ar;
     g.save(); g.globalAlpha = alpha;
     g.fillStyle = 'rgba(10,18,8,.30)';
     g.beginPath(); g.ellipse(cx, cy, fw * 0.40, fw * 0.20, 0, 0, 7); g.fill();
-    g.drawImage(seasonSkin(art, p.key), left, top, wid, hgt);
+    g.drawImage(snow ? art : seasonSkin(art, p.key), left, top, wid, hgt);
     if (p.t < 1) {                          // scaffold while it goes up
       g.strokeStyle = 'rgba(230,200,140,.85)'; g.lineWidth = 3; g.setLineDash([8, 6]);
       g.beginPath(); g.moveTo(cx - fw * 0.4, ny); g.lineTo(cx, ny - hgt * 0.5); g.lineTo(cx + fw * 0.4, ny); g.stroke();
@@ -8393,6 +8408,7 @@ for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER]) for (let i = 1; i <
 for (let i = 1; i <= BEACON_STAGES; i++) beaconArt(i);
 for (const k of ['ground', 'water', 'tree_pine', 'tree_spruce', 'tree_oak', 'tree_willow', 'tree_poplar', 'tree_cherry', 'tree_birch', 'rock', 'rock_moss', 'bush', 'bush_hydrangea', 'stump', 'log_mushroom', 'flowers_wild', 'flowers_meadow', 'sheep', 'sheep_rest', 'sheep_lambs', 'skeps', 'snowman', 'goat', 'cow', ...Object.values(SEASON_LOOK).flatMap(Object.values)]) artFor(k);
 for (const set of Object.values(LOOKS)) for (const k of set) artFor(k);
+for (const k of WINTER_LOOKS) artFor(k + '_winter');
 for (const [, k] of HALL_STAGES) artFor(k);
 for (const s of SEA_PROPS) artFor(s.key);
 
