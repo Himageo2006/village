@@ -6443,3 +6443,31 @@ same <subject>, same pose, same angle, same size, same painted style" and
 ended "Keep the <subject> the same shape and outline so it lines up with the
 original. The background must be fully transparent (alpha), with no white,
 no ground (no water, for the boats) and no shadow around it."
+
+# 164 — Snow on the sea props → `art/sea_{rocks,seals,sandbar,buoy}_winter.png`  ✅ DONE
+
+A winter picture for the still props that something can settle on. Each
+SEA_PROPS entry with one is marked `winter: true` (the three boats too, which
+replaces the boats-only rule of 163); the dolphins, whale and turtle have
+none. Same ChatGPT chat, summer picture attached; all four came back
+transparent and within a few percent of the summer aspect. The sandbar and
+the buoy came back as a pair to choose from: the sandbar's second (more
+snow, iced edges), the buoy's first.
+
+- sea_rocks: "snow on the tops and ledges of the rocks, a few small icicles
+  hanging from the overhangs, frost on the seaweed".
+- sea_seals: "snow on the top and ledges of the rock around the seals, a
+  little frost on the seals' whiskers, a few small icicles on the rock's
+  edges".
+- sea_sandbar: "a thin layer of snow over the sand and on any driftwood or
+  rocks, frost on the beach grass, the gulls with their feathers fluffed up
+  against the cold".
+- sea_buoy: "snow on top of its cage and ledges, small icicles hanging from
+  the frame and the bell, frost on the painted float".
+
+Each began "Make a winter version of this exact same picture: the same
+<prop>, same angle, same size, same painted style, with the same surf
+around <it>", asked to "keep the sea foam at the waterline as it is", and
+ended "Keep the <prop> the same shape and outline so it lines up with the
+original. The background must be fully transparent (alpha), with no white,
+no open water beyond the surf and no shadow around it."
