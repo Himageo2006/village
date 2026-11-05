@@ -6291,3 +6291,61 @@ post as in the original" came back the same, and not downloaded: the
 painting matched all along. The winter webp was padded with clear margins
 (32 left, 39 right) so its post lines up with the summer one's; re-running
 prep-art on lamp_ship_winter undoes that.
+
+# 160 — Snow on the statues and flowerbeds → `art/statue{,_knight,_fisher,_fountain,_dragon,_birdbath,_bear,_scarecrow}_winter.png`, `art/flowers{,_planter,_tulip,_barrel,_cart,_sun}_winter.png`  ✅ DONE
+
+A winter picture for each of the eight statue looks and the six flowerbed
+looks, added to WINTER_LOOKS in game.js and drawn like rounds 158 and 159, at
+the summer picture's width. Same ChatGPT chat, summer picture attached, same
+transparent-background line at the end. Only the planter came back on a
+painted checkerboard; prep-art keyed it cleanly.
+
+Statues (the figure named for each: "statue", "knight statue", "fisherman
+statue", "dragon statue", "bird bath", "bear statue", "scarecrow"):
+
+```
+Next: the WINTER version of this <statue>, at exactly the same size,
+position, scale and camera angle, with the base, footprint and outline
+exactly as in the original. Snow lying on the top of the head and shoulders,
+along any raised parts, and on the ledges of the plinth, a few small icicles
+hanging from the plinth edge, frost on the stone, any moss dull and frosted,
+any plants become bare frosted stems. Keep the statue and plinth unchanged,
+with only a thin dusting of snow at its foot and no snow drifts spreading
+beyond it. Same painterly style as the others. No text. The background must
+be fully transparent (alpha), with no white, no ground and no shadow around
+it.
+```
+
+The fountain was asked to freeze: "no running or splashing water, the water
+in the basins turned to pale blue ice, the spouts hung with long icicles
+where the water used to fall". The bird bath iced over with two robins on its
+rim; the bear kept its bees and honey pot; the scarecrow got a knitted scarf
+and a robin and kept its pumpkins.
+
+Flowerbeds (each prompt named what the summer flowers become):
+
+```
+Next: the WINTER version of this <flowerbed>, at exactly the same size,
+position, scale and camera angle, with the base, footprint and outline
+exactly as in the original. The summer flowers are gone: <what is left>,
+snow along the top of any edging, frost on everything. Keep the bed, its
+edging and base unchanged, with only a thin dusting of snow at its foot and
+no snow drifts spreading beyond it. Same painterly style as the others. No
+text. The background must be fully transparent (alpha), with no white, no
+ground and no shadow around it.
+```
+
+- flowers: "a soft layer of snow with a few bare frosted seed heads and stems
+  standing up through it, and a little clump of white snowdrops".
+- flowers_planter: a cap of snow, bare stems and "a sprig of red-berried
+  holly", icicles on the sides. The first try failed on ChatGPT's side; Try
+  again worked.
+- flowers_tulip: "neat rows of little frosted mounds where the bulbs sleep"
+  and "a couple of early green bulb shoots".
+- flowers_barrel: snow, bare stems, evergreen and red berries, icicles from
+  the rim (the wheelbarrow beside it got the same).
+- flowers_cart: "bundles of frosted evergreen boughs, pine cones and sprigs of
+  red-berried holly".
+- flowers_sun: "tall dry brown stalks still standing with drooping seed heads
+  capped with snow", with a little bird on one head, the stalks kept to the
+  summer height.
