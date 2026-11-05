@@ -6234,3 +6234,60 @@ frosted stems". The dry-stone wall first came back on an opaque white snowy
 ground, which can't be keyed from white snow; asked again with "The
 background must be fully transparent (alpha), with no white, no ground and
 no shadow around the wall", it came back clean.
+
+# 159 — Snow on the benches and lamps → `art/bench{,_stone,_rose,_tree,_swing,_picnic,_campfire}_winter.png`, `art/lamp{,_bracket,_stone,_double,_ship,_basket,_crook}_winter.png`  ✅ DONE
+
+A winter picture for each of the seven bench looks and the seven lamp looks,
+added to WINTER_LOOKS in game.js and drawn like round 158's, at the summer
+picture's width. Same ChatGPT chat, summer picture attached; every prompt now
+ends with round 158's retry line, "The background must be fully transparent
+(alpha), with no white, no ground and no shadow around it", and none came
+back on a ground.
+
+Benches ("wooden bench", "stone bench", "swing seat"):
+
+```
+Next: the WINTER version of this <bench>, at exactly the same size,
+position, scale and camera angle, with the base, footprint and outline
+exactly as in the original. A soft layer of snow lying on the seat and along
+the top of the backrest and arms, a few small icicles hanging from the seat
+edge, frost on the wood, any flowers or plants become bare frosted stems.
+Keep the bench and base unchanged, with only a thin dusting of snow at its
+foot and no snow drifts spreading beyond it. Same painterly style as the
+others. No text. The background must be fully transparent (alpha), with no
+white, no ground and no shadow around it.
+```
+
+The rose arch went to "bare and thorny with a few red rose hips"; the apple
+tree went bare ("no leaves and no apples, its branches outlined with snow,
+the same shape and size of crown in bare twigs"); the picnic table was
+"cleared for winter: no food, no cloth, no basket", so it stands a little
+lower than in summer; the campfire kept burning ("the ring of stones right
+around it is clear of snow ... Keep any smoke exactly as in the original").
+
+Lamps ("lamp post", "lantern on its bracket post", "stone lantern", "double
+lamp post", "ship's lantern on its post", "lantern on its crook"):
+
+```
+Next: the WINTER version of this <lamp>, at exactly the same size, position,
+scale and camera angle, with the base, footprint and outline exactly as in
+the original. The lamp is lit and glowing warm exactly as in the original, a
+little cap of snow on the lantern's roof and on any arms or ledges, a few
+small icicles hanging from the lantern, frost on the post, any plants become
+bare frosted stems. Keep the lamp and base unchanged, with only a thin
+dusting of snow at its foot and no snow drifts spreading beyond it. Same
+painterly style as the others. No text. The background must be fully
+transparent (alpha), with no white, no ground and no shadow around it.
+```
+
+lamp_basket was asked for as "this fire basket on its post"; it is a lamp
+hung with flower baskets, and ChatGPT followed the picture: the lamp lit, the
+baskets holding bare frosted twigs. The crook kept its fireflies.
+
+The summer ship's lantern is 184 wide on a 380 frame with clear margins
+either side (its DECOR_AX of 0.61 is measured on that frame); the winter one
+came back trimmed to 113. A retry asking for the arm "just as far from the
+post as in the original" came back the same, and not downloaded: the
+painting matched all along. The winter webp was padded with clear margins
+(32 left, 39 right) so its post lines up with the summer one's; re-running
+prep-art on lamp_ship_winter undoes that.

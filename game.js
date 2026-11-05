@@ -4537,7 +4537,8 @@ const growOf = p => established(p) ? 1 : 0.35 + 0.65 * Math.max(0, Math.min(1, p
    commonest building by far -- the hall at each of its stages, the
    storehouses, mills, market stalls, lumber camps, wells, farms and quarries
    -- every building with a look of its own -- have their own painting with
-   the snow lying on them, and so do the hedges and fences out in the cold.
+   the snow lying on them, and so do the hedges, fences, benches and lamps
+   out in the cold.
    Painted to the summer one's frame, but a curl of smoke or a run of icicles
    moves the top of the trim by a few per cent, so it stands on the
    summer picture's base: the front corner is found from the summer picture
@@ -4545,7 +4546,7 @@ const growOf = p => established(p) ? 1 : 0.35 + 0.65 * Math.max(0, Math.min(1, p
    the winter. */
 const WINTER_LOOKS = new Set([...LOOKS.house, 'hall', 'hall_2', 'hall_3', ...LOOKS.store,
   ...LOOKS.mill, ...LOOKS.market, ...LOOKS.lumber, ...LOOKS.well, ...LOOKS.farm, ...LOOKS.quarry,
-  ...LOOKS.hedge, ...LOOKS.fence]);
+  ...LOOKS.hedge, ...LOOKS.fence, ...LOOKS.bench, ...LOOKS.lamp]);
 function winterArt(p) {
   if (season().key !== 'winter') return null;
   const look = lookOf(p);
@@ -4862,8 +4863,8 @@ function drawDecor(p, alpha) {
       g.fillStyle = 'rgba(10,18,8,.28)';
       g.beginPath(); g.ellipse(o.x, o.y + 3, 24, 11, 0, 0, 7); g.fill();
       const hgt = DECOR_H[lookOf(p)] || DECOR_H[p.key] || 48, wid = art.width * (hgt / art.height);
-      /* A snowed-on hedge or fence is the summer one's width: the snow on top
-         makes it a little taller, not the hedge any narrower. */
+      /* A snowed-on hedge, fence, bench or lamp is the summer one's width: the
+         snow on top makes it a little taller, not the hedge any narrower. */
       const snow = winterArt(p), sh = snow ? wid * snow.height / snow.width : hgt;
       g.drawImage(snow || seasonSkin(art, p.key), o.x - wid * (DECOR_AX[lookOf(p)] || 0.5), o.y - sh, wid, sh);
     }
