@@ -6544,3 +6544,23 @@ reaches, and a despill alone turned those pockets dark grey. So after
 prep-art they had a second key over the whole picture -- where red and blue
 both exceed green by 110 or more the pixel goes clear, between 30 and 110 it
 fades and loses the cast -- and then the despill pass of 165.
+
+# 167 — Fallen leaves on the rock → `art/rock_autumn.png`  ✅ DONE
+
+The first autumn picture for anything but the trees and wildflowers: the
+plain rock, in SEASON_LOOK beside its winter one (and for the moss rock too,
+since on this island both rock tiles draw the moss rock). Leonardo, GPT Image 2 at Low quality, 1:1, 8 tokens -- what the last
+of the month's tokens would buy; at 360px on screen Low is plenty. Summer
+rock as the image reference, on magenta.
+
+"Edit the reference image: the AUTUMN version of this rock, at exactly the
+same size, position, scale and camera angle, with every stone the same shape
+and in the same place as in the original. A scatter of fallen autumn leaves,
+orange, red, gold and brown, lying on the top and ledges of the rock and
+around its foot, the grass tufts at its base turned golden and dry, and a
+small cluster of brown mushrooms by one side. The leaves stay on and right
+around the rock, nothing spreading beyond it. Same painterly game-art style
+and colours as the reference. No text. Isolated on a plain flat solid
+magenta (#FF00FF) background with nothing else in the picture."
+
+The same whole-picture key and despill as 166 after prep-art.
