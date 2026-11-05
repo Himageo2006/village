@@ -6161,3 +6161,29 @@ magenta from the anti-aliased edges, before prep-art.
 The Leonardo pictures stand 5 to 20% taller than the summer ones (the hop
 poles, the bare orchard trees, the vine trellis); they hang from the summer
 picture's base like the others, so the footprint is unchanged.
+
+# 157 — Snow on the quarries → `art/quarry{,_pit,_slate,_marble,_sand,_clay}_winter.png`  ✅ DONE
+
+A winter picture for each of the six quarry looks, added to WINTER_LOOKS in
+game.js; with them every building look has its winter painting. Same ChatGPT
+chat, summer picture attached, round 155's prompt adapted ("stone quarry",
+"quarry pit", "slate quarry", "marble quarry", "sandstone quarry"):
+
+```
+Next: the WINTER version of this <quarry>, at exactly the same size,
+position, scale and camera angle, with the base, footprint and outline
+exactly as in the original. Thick snow lying on any roof and along the eaves,
+a few icicles from the eaves and the crane, snow capping the cut blocks, the
+rock ledges, the cart and the tools, while the steep cut rock faces stay bare
+<grey stone / dark slate / veined marble / warm golden sandstone>. No smoke.
+Keep the quarry, blocks and base unchanged, with only a thin dusting of snow
+on the floor and no snow drifts spreading beyond it. Same painterly style as
+the others. No text. Nothing beyond it: fully transparent background.
+```
+
+The clay pit and brickworks kept its kiln alight: "a thin skin of ice on any
+water, while the dug clay banks stay bare and red-brown. Keep any kiln smoke
+exactly as in the original, no more, and the warm kiln itself free of snow."
+
+The pit's yellow stone came back pale under the snow; taken as it is.
+Proportions within 1.5% of the summer ones.
