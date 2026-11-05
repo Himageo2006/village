@@ -6187,3 +6187,50 @@ exactly as in the original, no more, and the warm kiln itself free of snow."
 
 The pit's yellow stone came back pale under the snow; taken as it is.
 Proportions within 1.5% of the summer ones.
+
+# 158 — Snow on the hedges and fences → `art/hedge{,_topiary,_lavender,_wild,_holly,_beech}_winter.png`, `art/fence{,_picket,_stone,_wattle,_rope,_iron}_winter.png`  ✅ DONE
+
+A winter picture for each of the six hedge looks and the six fence looks,
+added to WINTER_LOOKS in game.js; drawDecor draws them unwashed at the summer
+picture's width, so the snow on top makes them a little taller rather than
+the hedge narrower. Same ChatGPT chat, summer picture attached.
+
+Hedges ("garden hedge", "topiary hedge", "holly hedge"):
+
+```
+Next: the WINTER version of this <hedge>, at exactly the same size, position,
+scale and camera angle, with the base, footprint and outline exactly as in
+the original. A thick cap of snow lying along the top of the hedge and on its
+ledges, a few frosted leaves showing through on the sides, the leaves still
+dark green under the snow. Keep the hedge and base unchanged, with only a
+thin dusting of snow at its foot and no snow drifts spreading beyond it. Same
+painterly style as the others. No text. Nothing beyond it: fully transparent
+background.
+```
+
+The lavender went out of flower ("no purple spikes, only the low silver-grey
+winter bushes"); the wild hedgerow went bare ("bare twiggy branches with no
+leaves and no flowers, a few red rose hips and haws left on them"); the beech
+kept its leaves ("like a real beech hedge in winter it keeps its dry leaves,
+now a warm copper-brown"). A robin sat on the hedgerow and the holly, and a
+hedgehog in the beech, unasked; they stayed.
+
+Fences ("wooden fence", "picket fence", "dry-stone wall", "woven wattle
+fence", "rope and driftwood fence", "iron railing fence"):
+
+```
+Next: the WINTER version of this <fence>, at exactly the same size,
+position, scale and camera angle, with the base, footprint and outline
+exactly as in the original. A line of snow lying along the top of each rail,
+a little cap of snow on each post, a few small icicles hanging from the
+rails, frost on the wood. Keep the fence and base unchanged, with only a thin
+dusting of snow at its foot and no snow drifts spreading beyond it. Same
+painterly style as the others. No text. Nothing beyond it: fully transparent
+background.
+```
+
+Flowers on the picket fence, the wattle and the iron railings became "bare
+frosted stems". The dry-stone wall first came back on an opaque white snowy
+ground, which can't be keyed from white snow; asked again with "The
+background must be fully transparent (alpha), with no white, no ground and
+no shadow around the wall", it came back clean.
