@@ -6410,3 +6410,36 @@ Each prompt ended: "Keep the <find> and base unchanged, with only a thin
 dusting of snow around its foot and no snow drifts spreading beyond it. Same
 painterly style as the others. No text. The background must be fully
 transparent (alpha), with no white, no ground and no shadow around it."
+
+# 163 — Snow on the animals and the boats → `art/{sheep,sheep_rest,cow}_winter.png`, `art/boat_{fishing,row,ketch}_winter.png`  ✅ DONE
+
+A winter picture for the animals still out in winter and for the three boats
+at sea. The animals are scenery and go in SEASON_LOOK beside the trees and
+rocks, with a SCENERY_H to match their summer height (the goat is already the
+cow in winter, and the lambs are spring only, so neither needs one). The
+boats are SEA_PROPS: drawSeaProps uses `<key>_winter` in winter when it
+exists, for the boats only; the still props (rocks, seals and the rest)
+keep their one picture. Same ChatGPT chat, summer picture attached; all six
+came back transparent and within a few percent of the summer aspect.
+
+- sheep: "a thicker winter fleece with snow resting on its back and head, a
+  little frost on its wool", the grass tuft "turned to a small snowy patch",
+  "a faint puff of breath at its nose".
+- sheep_rest: the same for "the same resting sheep", "the grass it lies on
+  turned to a small snowy patch".
+- cow: "a dusting of snow along its back and between its horns, a shaggier
+  winter coat, frost on its hooves", the snowy patch and the breath.
+- boat_fishing: "snow on the deck, the cabin roof, the coiled ropes and the
+  furled sail, small icicles along the gunwale and rigging, frost on the
+  hull, and keep its lantern glowing warm".
+- boat_row: "snow on the seats, the oars and the bow, small icicles along the
+  gunwale, and frost on the hull".
+- boat_ketch: "the same sails set the same way", snow on the deck, cabin roof
+  and "along the tops of the booms and yards, frost on the sail edges, small
+  icicles along the rail and rigging".
+
+Each prompt began "Make a winter version of this exact same picture: the
+same <subject>, same pose, same angle, same size, same painted style" and
+ended "Keep the <subject> the same shape and outline so it lines up with the
+original. The background must be fully transparent (alpha), with no white,
+no ground (no water, for the boats) and no shadow around it."

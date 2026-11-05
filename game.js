@@ -4108,7 +4108,8 @@ function waterPattern() {
    water above the island's top corner and below its southern cliffs. A third,
    a ketch under sail, keeps the fishing boat company in the upper water. Nothing about them moves or can be touched; they are scenery for the
    water, as the sheep are for the grass. A boat whose picture is missing is
-   simply not there. */
+   simply not there. In winter the three boats carry snow on their decks and
+   ice along their rails, a picture of their own (a still prop has none). */
 const SEA_PROPS = [
   { key: 'boat_fishing', fx: -0.12, top: true,  dy: -230, h: 100 },
   { key: 'boat_row',     fx:  0.11, top: false, dy:  330, h: 52 },   // clear of the cliffs and sand
@@ -4124,7 +4125,7 @@ const SEA_PROPS = [
 function drawSeaProps(b) {
   const W = b.x1 - b.x0, cx = (b.x0 + b.x1) / 2;
   for (const s of SEA_PROPS) {
-    const art = artFor(s.key);
+    const art = (!s.still && season().key === 'winter' && artFor(s.key + '_winter')) || artFor(s.key);
     if (!art) continue;
     const x = cx + s.fx * W, y = (s.top ? b.y0 : b.y1) + s.dy;
     const hgt = s.h, wid = art.width * (hgt / art.height);
@@ -4197,7 +4198,7 @@ function drawGround() {
 const SCENERY_H = { goat: 30, cow: 40, tree_pine: 115, tree_spruce: 118, tree_oak: 100, tree_willow: 96, tree_poplar: 126, tree_cherry: 100, tree_birch: 122, rock: 54, rock_moss: 50, bush: 46, bush_hydrangea: 46, stump: 38, log_mushroom: 34, flowers_wild: 30, flowers_meadow: 30, sheep: 30, sheep_rest: 22, sheep_lambs: 26, skeps: 40, snowman: 50,
   tree_oak_winter: 100, tree_pine_winter: 115, tree_spruce_winter: 118, tree_birch_winter: 122,
   tree_willow_winter: 96, tree_poplar_winter: 126, tree_cherry_winter: 100, tree_oak_autumn: 100, tree_birch_autumn: 122, tree_willow_autumn: 96, tree_poplar_autumn: 126, tree_cherry_autumn: 100,
-  rock_winter: 54, rock_moss_winter: 50, stump_winter: 38, log_mushroom_winter: 34, flowers_wild_winter: 30, flowers_meadow_winter: 30,
+  rock_winter: 54, rock_moss_winter: 50, stump_winter: 38, log_mushroom_winter: 34, flowers_wild_winter: 30, flowers_meadow_winter: 30, sheep_winter: 30, sheep_rest_winter: 22, cow_winter: 40,
   tree_cherry_summer: 100, flowers_wild_spring: 30, flowers_meadow_spring: 30, flowers_wild_autumn: 30, flowers_meadow_autumn: 30 };
 /* What a newer kind is drawn as while its own picture is missing, so a lost
    file shows the kind it was split from rather than the procedural tree. */
@@ -4330,7 +4331,10 @@ const SEASON_LOOK = {
   rock: { winter: 'rock_winter' }, rock_moss: { winter: 'rock_moss_winter' },
   stump: { winter: 'stump_winter' }, log_mushroom: { winter: 'log_mushroom_winter' },
   flowers_wild: { spring: 'flowers_wild_spring', autumn: 'flowers_wild_autumn', winter: 'flowers_wild_winter' },
-  flowers_meadow: { spring: 'flowers_meadow_spring', autumn: 'flowers_meadow_autumn', winter: 'flowers_meadow_winter' } };
+  flowers_meadow: { spring: 'flowers_meadow_spring', autumn: 'flowers_meadow_autumn', winter: 'flowers_meadow_winter' },
+  /* and the animals left out in it: the flock and the cow (the goat is the cow
+     by then) in thick coats with snow on their backs */
+  sheep: { winter: 'sheep_winter' }, sheep_rest: { winter: 'sheep_rest_winter' }, cow: { winter: 'cow_winter' } };
 function drawScenery(o) {
   const p = tileToWorld(o.c, o.r), s2 = o.s;
   let kind = artFor(o.kind) || !SCENERY_FALLBACK[o.kind] ? o.kind : SCENERY_FALLBACK[o.kind];
@@ -8421,7 +8425,7 @@ for (const k of ['ground', 'water', 'tree_pine', 'tree_spruce', 'tree_oak', 'tre
 for (const set of Object.values(LOOKS)) for (const k of set) artFor(k);
 for (const k of WINTER_LOOKS) artFor(k + '_winter');
 for (const [, k] of HALL_STAGES) artFor(k);
-for (const s of SEA_PROPS) artFor(s.key);
+for (const s of SEA_PROPS) { artFor(s.key); if (!s.still) artFor(s.key + '_winter'); }
 
 /* test hooks */
 window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return placed; }, B, BUILDINGS, tileToWorld, worldToTile,
