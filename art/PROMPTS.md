@@ -6349,3 +6349,64 @@ ground and no shadow around it.
 - flowers_sun: "tall dry brown stalks still standing with drooping seed heads
   capped with snow", with a little bird on one head, the stalks kept to the
   summer height.
+
+# 161 — Snow on the banners → `art/banner{,_pennant,_maypole,_windsock,_bunting,_vane,_kite}_winter.png`  ✅ DONE
+
+A winter picture for each of the seven banner looks, added to WINTER_LOOKS
+in game.js. With these every decoration but the flat path tile has its own
+winter painting. Same ChatGPT chat, summer picture attached, same
+transparent-background line; all seven came back transparent.
+
+```
+Next: the WINTER version of this <banner>, at exactly the same size,
+position, scale and camera angle, with the pole, base, footprint and outline
+exactly as in the original, the pole in exactly the same place. The flag
+keeps its colours and still flies the same way, with a light dusting of snow
+along its top edge and frost on the cloth, a little cap of snow on the pole's
+finial and on its base stones, a few small icicles hanging from the base, any
+plants become bare frosted stems. Keep the banner, pole and base unchanged,
+with only a thin dusting of snow at its foot and no snow drifts spreading
+beyond it. Same painterly style as the others. No text. The background must
+be fully transparent (alpha), with no white, no ground and no shadow around
+it.
+```
+
+"<banner>" was "banner", "pennant on its pole", "windsock", "bunting",
+"weather vane" ("the vane points the same way") and "kite on its post". The
+maypole's ribbons were kept "frosted and stiff with cold" and its flower
+garland was "swapped for a wreath of evergreen and red holly berries". The
+bunting kept its lanterns lit; the vane's rose vine went bare.
+
+A banner hangs from its pole (DECOR_AX), and the winter picture is drawn at
+the summer one's width, so the pole has to sit at the same fraction of it.
+Five matched to within a pixel or two. The kite (185 wide against 196) and
+the maypole (192 against 199) came back trimmed tighter; their webps were
+padded with clear margins (kite 7 left and 4 right, maypole 7 right) so the
+posts line up with summer's. Re-running prep-art on either undoes that.
+
+# 162 — Snow on the finds → `art/find_{stones,orchard,ruin,wreck}_winter.png`  ✅ DONE
+
+A winter picture for each of the four landmarks found on claimed land, added
+to WINTER_LOOKS in game.js. A find is drawn the way a building is, scaled to
+its 2x2 plot and stood on the summer picture's base (FIT), so nothing else
+changed. Same ChatGPT chat, summer picture attached, same transparent-
+background line; all four came back transparent.
+
+- find_stones: "Snow lying on the tops and ledges of the stones, frost on the
+  lichen, a few small icicles on the overhangs, the grass between them under
+  a soft thin layer of snow", "every stone in exactly the same place, shape
+  and size as in the original".
+- find_orchard: "The fruit trees are bare for winter: no leaves and no fruit,
+  their gnarled branches and twigs outlined with snow, a few last frozen
+  apples on the ground", "the same shape and size of crown".
+- find_ruin: snow along the broken walls, on the chimney and fallen stones,
+  "a soft layer of snow on the floor inside the open walls and in the cold
+  hearth", icicles from the sills, the ivy bare. "No smoke."
+- find_wreck: snow along the gunwales and open ribs and in the bottom of the
+  hull, icicles from the ribs, frost on the ropes and the lobster pot, the
+  shingle dusted with snow.
+
+Each prompt ended: "Keep the <find> and base unchanged, with only a thin
+dusting of snow around its foot and no snow drifts spreading beyond it. Same
+painterly style as the others. No text. The background must be fully
+transparent (alpha), with no white, no ground and no shadow around it."

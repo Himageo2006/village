@@ -4537,8 +4537,9 @@ const growOf = p => established(p) ? 1 : 0.35 + 0.65 * Math.max(0, Math.min(1, p
    commonest building by far -- the hall at each of its stages, the
    storehouses, mills, market stalls, lumber camps, wells, farms and quarries
    -- every building with a look of its own -- have their own painting with
-   the snow lying on them, and so do the hedges, fences, benches, lamps,
-   statues and flowerbeds out in the cold.
+   the snow lying on them, and so does every decoration out in the cold:
+   hedges, fences, benches, lamps, statues, flowerbeds and banners, and
+   the old stones, orchard, cottage and wreck found on claimed land.
    Painted to the summer one's frame, but a curl of smoke or a run of icicles
    moves the top of the trim by a few per cent, so it stands on the
    summer picture's base: the front corner is found from the summer picture
@@ -4547,7 +4548,7 @@ const growOf = p => established(p) ? 1 : 0.35 + 0.65 * Math.max(0, Math.min(1, p
 const WINTER_LOOKS = new Set([...LOOKS.house, 'hall', 'hall_2', 'hall_3', ...LOOKS.store,
   ...LOOKS.mill, ...LOOKS.market, ...LOOKS.lumber, ...LOOKS.well, ...LOOKS.farm, ...LOOKS.quarry,
   ...LOOKS.hedge, ...LOOKS.fence, ...LOOKS.bench, ...LOOKS.lamp,
-  ...LOOKS.statue, ...LOOKS.flowers]);
+  ...LOOKS.statue, ...LOOKS.flowers, ...LOOKS.banner, ...FINDS.slice(1)]);
 function winterArt(p) {
   if (season().key !== 'winter') return null;
   const look = lookOf(p);
