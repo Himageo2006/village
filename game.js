@@ -4110,18 +4110,20 @@ function waterPattern() {
    water, as the sheep are for the grass. A boat whose picture is missing is
    simply not there. In winter the boats carry snow on their decks and ice
    along their rails, and the stacks, the seals' rock, the sandbar and the
-   buoy are snowed on too: each marked `winter` has a picture of its own for
-   it. The dolphins, whale and turtle are only ever wet. */
+   buoy are snowed on too, and the dolphins and the whale break through a
+   cold grey sea with ice in it: each marked `winter` has a picture of its
+   own for it. The turtle has gone south; its winter picture is an ice floe
+   in the same water, with two gulls on it. */
 const SEA_PROPS = [
   { key: 'boat_fishing', fx: -0.12, top: true,  dy: -230, h: 100, winter: true },
   { key: 'boat_row',     fx:  0.11, top: false, dy:  330, h: 52, winter: true },   // clear of the cliffs and sand
   { key: 'boat_ketch',   fx:  0.24, top: true,  dy: -100, h: 132, winter: true },  // under sail, off the north-east shore
   { key: 'sea_rocks',    fx: -0.14, top: false, dy:  390, h: 150, still: true, winter: true },  // sea stacks off the south-west cliffs
-  { key: 'sea_dolphins', fx:  0.34, top: false, dy:  230, h: 72,  still: true },  // leaping off the south-east shore
+  { key: 'sea_dolphins', fx:  0.34, top: false, dy:  230, h: 72,  still: true, winter: true },  // leaping off the south-east shore
   { key: 'sea_seals',    fx:  0.07, top: true,  dy: -150, h: 84,  still: true, winter: true },  // basking off the northern tip
-  { key: 'sea_whale',    fx: -0.30, top: false, dy:  250, h: 96,  still: true },  // diving off the south-west
+  { key: 'sea_whale',    fx: -0.30, top: false, dy:  250, h: 96,  still: true, winter: true },  // diving off the south-west
   { key: 'sea_buoy',     fx:  0.17, top: true,  dy:  -30, h: 64,  still: true, winter: true },  // a bell buoy out to the north-east
-  { key: 'sea_turtle',   fx:  0.19, top: false, dy:  110, h: 52,  still: true },  // a turtle surfacing off the south-east
+  { key: 'sea_turtle',   fx:  0.19, top: false, dy:  110, h: 52,  still: true, winter: true },  // a turtle surfacing off the south-east
   { key: 'sea_sandbar',  fx: -0.19, top: true,  dy:  -40, h: 84,  still: true, winter: true },  // a sandbar with gulls off the north-west
 ];
 function drawSeaProps(b) {

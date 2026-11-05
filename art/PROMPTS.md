@@ -6509,3 +6509,38 @@ both bodies, scale, composite onto an 800x1496 clear canvas. The three Leonardo 
 a pink cast in the lantern glass; a despill pass (where red and blue both
 exceed green, take the excess off both) made them neutral without touching
 the snow or the lit lantern.
+
+# 166 — Winter sea animals → `art/sea_{dolphins,whale,turtle}_winter.png`  ✅ DONE
+
+The last three still sea props, now marked `winter: true` like the rest.
+Leonardo, GPT Image 2.5 Flare, Medium, 1:1, 23 tokens each, summer picture
+as the image reference, on magenta.
+
+- sea_dolphins: "these two leaping dolphins ... exactly as in the
+  original. The sea is cold and dark winter water, a deeper colder
+  blue-grey, with a few small chunks of floating ice and thin plates of ice
+  in the splash around them, frost-white spray, and a light frost glinting
+  on the dolphins' backs and fins."
+- sea_whale: "this whale's tail diving into the sea", the same cold sea and
+  ice in "the ring of foam around it, the water streaming off the flukes
+  turning to frost-white spray and a few small icicles on the tips of the
+  flukes."
+- sea_turtle: a turtle has no business in a winter sea, so its winter
+  picture is something else in the same spot: "Use the reference image only
+  for its size, camera angle, painterly game-art style and the shape of its
+  ring of sea foam ... the sea turtle has gone south for the winter. In its
+  place, a small flat floe of sea ice ... with a soft layer of snow on top,
+  frosty blue-white edges and a few little broken plates of ice around it,
+  and two gulls standing on the floe with their feathers fluffed up against
+  the cold. No turtle and no fish."
+
+Each ended "Same painterly game-art style as the reference. No text.
+Isolated on a plain flat solid magenta (#FF00FF) background with nothing
+else in the picture."
+
+Magenta showed through the water: between the whale's falling streams and
+in pockets of the dolphins' splash that the flood fill from the edges never
+reaches, and a despill alone turned those pockets dark grey. So after
+prep-art they had a second key over the whole picture -- where red and blue
+both exceed green by 110 or more the pixel goes clear, between 30 and 110 it
+fades and loses the cast -- and then the despill pass of 165.
