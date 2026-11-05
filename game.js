@@ -4545,7 +4545,9 @@ const growOf = p => established(p) ? 1 : 0.35 + 0.65 * Math.max(0, Math.min(1, p
    -- every building with a look of its own -- have their own painting with
    the snow lying on them, and so does every decoration out in the cold:
    hedges, fences, benches, lamps, statues, flowerbeds and banners, and
-   the old stones, orchard, cottage and wreck found on claimed land.
+   the old stones, orchard, cottage and wreck found on claimed land. The
+   beacon too, at each of its five stages: each winter stage is fitted into
+   the summer set's shared frame (art/PROMPTS.md 165), so it rises the same.
    Painted to the summer one's frame, but a curl of smoke or a run of icicles
    moves the top of the trim by a few per cent, so it stands on the
    summer picture's base: the front corner is found from the summer picture
@@ -4557,6 +4559,8 @@ const WINTER_LOOKS = new Set([...LOOKS.house, 'hall', 'hall_2', 'hall_3', ...LOO
   ...LOOKS.statue, ...LOOKS.flowers, ...LOOKS.banner, ...FINDS.slice(1)]);
 function winterArt(p) {
   if (season().key !== 'winter') return null;
+  if (p.key === BEACON)
+    return beaconSet() ? artFor(BEACON + '_stage' + Math.min(BEACON_STAGES, Math.max(1, p.lvl | 0)) + '_winter') : null;
   const look = lookOf(p);
   return WINTER_LOOKS.has(look) ? artFor(look + '_winter') : null;
 }
@@ -8422,7 +8426,7 @@ for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER]) for (let i = 1; i <
 /* The beacon's five, asked for here for the same reason the walk frames are:
    a village with none of them drawn would otherwise send five requests the
    moment it finished, and artFor remembers a miss. */
-for (let i = 1; i <= BEACON_STAGES; i++) beaconArt(i);
+for (let i = 1; i <= BEACON_STAGES; i++) { beaconArt(i); artFor(BEACON + '_stage' + i + '_winter'); }
 for (const k of ['ground', 'water', 'tree_pine', 'tree_spruce', 'tree_oak', 'tree_willow', 'tree_poplar', 'tree_cherry', 'tree_birch', 'rock', 'rock_moss', 'bush', 'bush_hydrangea', 'stump', 'log_mushroom', 'flowers_wild', 'flowers_meadow', 'sheep', 'sheep_rest', 'sheep_lambs', 'skeps', 'snowman', 'goat', 'cow', ...Object.values(SEASON_LOOK).flatMap(Object.values)]) artFor(k);
 for (const set of Object.values(LOOKS)) for (const k of set) artFor(k);
 for (const k of WINTER_LOOKS) artFor(k + '_winter');

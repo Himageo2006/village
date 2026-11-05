@@ -6471,3 +6471,41 @@ around <it>", asked to "keep the sea foam at the waterline as it is", and
 ended "Keep the <prop> the same shape and outline so it lines up with the
 original. The background must be fully transparent (alpha), with no white,
 no open water beyond the surf and no shadow around it."
+
+# 165 — Snow on the beacon → `art/beacon_stage{1..5}_winter.png`  ✅ DONE
+
+A winter picture for each of the beacon's five stages; winterArt in game.js
+takes `beacon_stage<N>_winter` for the stage it has reached. Stages 1 and 2
+are from the ChatGPT chat (its image allowance ran out after them); 3, 4
+and 5 from Leonardo, GPT Image 2.5 Flare, Medium, summer stage as the image
+reference, on magenta: stage 3 at 1:1 (its original is near square), 4 and
+5 at 2:3 (848x1264), 23-24 tokens each. All with the summer picture
+attached.
+
+- 1: "the same stone foundation ring", snow on the tops of the stones and
+  the steps, "a soft layer of snow inside the ring".
+- 2: "the same short stone tower with its arched wooden door", snow along
+  the battlements and the steps, icicles from the battlements and the door.
+- 3: "this half-built stone lighthouse tower", snow along the battlements,
+  every ledge, the iron bands and the sills.
+- 4: "this tall stone lighthouse tower with its unlit iron lantern room",
+  snow on the lantern roof and the gallery, frost on the glass, "The
+  lantern stays unlit."
+- 5: "this finished striped stone lighthouse with its glowing lantern",
+  the same, and "The lantern still glows warm and bright."
+
+Each asked for "exactly the same size, position, scale and camera angle"
+and for "no drifts spreading beyond it".
+
+The summer stages are one set: stageSet shifts them, unscaled, onto one
+shared canvas so the tower rises in place, and writes them 800x1496. The
+winter ones are not a set to prep-art -- it trims each like any picture
+(CAP 1600 so nothing is shrunk first) -- and are then fitted by hand into
+the summer frame: each is scaled to the width of its summer stage's body
+(rows and columns with 8+ solid pixels, so stray specks are not counted;
+never taller than the frame) and stood on the same bottom centre. Re-running
+prep-art on them undoes that, and the fit is a few lines to redo: measure
+both bodies, scale, composite onto an 800x1496 clear canvas. The three Leonardo stages kept a magenta fringe and
+a pink cast in the lantern glass; a despill pass (where red and blue both
+exceed green, take the excess off both) made them neutral without touching
+the snow or the lit lantern.
