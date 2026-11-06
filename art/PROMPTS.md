@@ -6799,3 +6799,33 @@ pump and the wishing well "a few leaves floating in the water": "well",
 "iron-framed well", "thatched well", "water pump", "wishing well", "wheel
 well". Caps 800 and 400 as their summer pictures; the whole-picture key of
 166 after prep-art.
+
+# 176 — Autumn on the farms and the quarries → `art/{farm,farm_veg,farm_barley,farm_pumpkin,farm_vine,farm_orchard,farm_hops,quarry,quarry_pit,quarry_slate,quarry_marble,quarry_sand,quarry_clay}_autumn.png`  ✅ DONE
+Added to AUTUMN_LOOKS like 173. ChatGPT, summer picture attached; the farms
+at harvest:
+
+```
+Make an autumn version of this <farm>: the AUTUMN version at exactly the
+same size, position, scale and camera angle, with the base and footprint
+exactly as in the original and the fences, <field> and everything on it the
+same shape and in the same place. Harvest time: <the crop>, fallen orange,
+red and gold leaves gathered along the fences, <the harvest>. No leaves
+spreading beyond the base. Same painterly game-art style. No text.
+Isolated on a plain flat solid magenta (#FF00FF) background with nothing
+else in the picture.
+```
+
+Crops: wheat ripe and part cut into sheaves on stubble; the vegetable
+garden's beds of pumpkins, squash, cabbages and leeks; barley pale gold in
+stooks; big pumpkins among withering vines; the vineyard's leaves red and
+gold with ripe purple grapes and a tub of them; the orchard's trees
+orange and red, laden with apples and pears, windfalls on the grass; the
+hop bines yellowing with ripe cones in sacks. The quarries with "the rock
+faces, stone blocks, crane, tools and everything on it", "leaves blown
+into the corners, on the ledges and gathered around the foot, any grass
+gone golden", and a pumpkin and mushrooms by the stones: "quarry",
+"quarry pit", "slate quarry", "marble quarry", "sand pit", "clay pit".
+
+The whole-picture key of 166 after prep-art, except the vineyard: its
+purple grapes sit inside the key's fade band (min(r,b)-g) and came out
+grey, so it has prep-art's flat-background key only.
