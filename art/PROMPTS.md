@@ -6773,3 +6773,29 @@ stall kept its fish with a lantern lit; the cheese stall with honey jars;
 the fruit stall's fruit now apples, pears, plums, grapes and quinces; the
 flower stall's now sunflowers, chrysanthemums, asters and seed heads. The
 whole-picture key of 166 after prep-art.
+
+# 175 — Autumn on the lumber camps and the wells → `art/{lumber,lumber_pit,lumber_cabin,lumber_saw,lumber_charcoal,lumber_cart,well,well_iron,well_thatch,well_pump,well_wish,well_wheel}_autumn.png`  ✅ DONE
+Added to AUTUMN_LOOKS like 173. ChatGPT, summer picture attached:
+
+```
+Make an autumn version of this <lumber camp>: the AUTUMN version at
+exactly the same size, position, scale and camera angle, with the base and
+footprint exactly as in the original and the buildings, log piles and
+everything around them the same shape and in the same place. Fallen
+orange, red and gold leaves scattered on the roof and the log piles and
+gathered around the foot, any trees or bushes on it turned russet, orange
+and gold, and a few small pumpkins and mushrooms by the logs. No smoke. No
+leaves spreading beyond the base. Same painterly game-art style. No text.
+Isolated on a plain flat solid magenta (#FF00FF) background with nothing
+else in the picture.
+```
+
+Names: "lumber camp", "saw pit", "woodcutter's cabin" ("No chimney
+smoke"), "sawmill", "charcoal burner's camp" (no "No smoke" -- the mound
+keeps its smoke, as in summer), "timber yard". The wells the same way with
+"the well, its roof, bucket and everything around it", leaves on the roof
+and the rim, "a small pumpkin and a few mushrooms by the base", and for the
+pump and the wishing well "a few leaves floating in the water": "well",
+"iron-framed well", "thatched well", "water pump", "wishing well", "wheel
+well". Caps 800 and 400 as their summer pictures; the whole-picture key of
+166 after prep-art.
