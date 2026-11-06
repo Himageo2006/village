@@ -6564,3 +6564,34 @@ and colours as the reference. No text. Isolated on a plain flat solid
 magenta (#FF00FF) background with nothing else in the picture."
 
 The same whole-picture key and despill as 166 after prep-art.
+
+# 168 — Autumn on the moss rock, the stump and the log → `art/rock_moss_autumn.png`, `art/stump_autumn.png`, `art/log_mushroom_autumn.png`  ✅ DONE
+
+ChatGPT, each with its summer picture attached as the reference. The moss
+rock gets its own autumn picture now, so it keeps its shape (167 had lent
+it the plain rock's). The log is also what the bushes turn into in autumn
+(SEASON_ALT), so it shows up all over the island at that time of year.
+
+"Make an autumn version of this mossy rock: the AUTUMN version at exactly
+the same size, position, scale and camera angle, every stone the same shape
+and in the same place. The moss turned golden-olive, the ferns turned rusty
+orange and brown, the heather faded to dusky mauve, a scatter of fallen
+autumn leaves (orange, red, gold, brown) on the tops and ledges of the
+stones and around their foot, and a small cluster of brown mushrooms by one
+side. Nothing spreading beyond the rocks. Same painterly game-art style. No
+text. Isolated on a plain flat solid magenta (#FF00FF) background with
+nothing else in the picture."
+
+The stump: "...the stump and its roots the same shape and in the same
+place. Fallen autumn leaves (orange, red, gold, brown) lying on the cut top
+and gathered around the roots, any grass or plants at its base turned golden
+and dry, a few brown bracket fungi or small mushrooms on the bark. Nothing
+spreading beyond the stump..." and the log: "...the log and its mushrooms
+the same shape and in the same place. Fallen autumn leaves lying along the
+top of the log and drifted against its sides, any moss turned golden-olive,
+any grass or plants around it turned golden and dry. Nothing spreading
+beyond the log..." -- the rest as the rock.
+
+After prep-art the log had a magenta pocket between the toadstools that the
+edge flood never reached; the whole-picture key of 166 cleared it (no
+despill, which would have greyed the rock's heather).
