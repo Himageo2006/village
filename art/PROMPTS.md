@@ -6956,3 +6956,29 @@ base, so fitting to the summer body's WIDTH shrank the towers to about 82%
 of their summer height. These are fitted to its HEIGHT instead (never wider
 than the frame, and shifted in where the centred skirt would cross its
 edge), so the tower is the same height in every season.
+
+# 181 — Spring on the buildings → `art/<look>_spring.png` for every house, hall, store, mill, market, lumber camp, well, farm and quarry look  ✅ DONE
+
+All 55 building looks in spring, in a new SPRING_LOOKS set that winterArt
+reads in spring the way it reads AUTUMN_LOOKS in autumn (hung from the
+summer picture's base, drawn at the summer width). Made as 178, free: the
+last frame of a MiniMax H3 480p clip started on the summer picture on flat
+magenta (16:9, or 9:16 for the tall halls, mills and wells), with the usual
+"static camera ... stays perfectly still in exactly the same place, shape
+and size" and "Nothing spreads beyond its base."
+
+- Houses, halls: "the window boxes fill with red and yellow tulips and
+  daffodils, fresh bright green grass and a few clumps of daffodils and
+  primroses appear right at its base, and a few pink and white blossom
+  petals drift down and rest on the roof."
+- Stores, mills, markets, lumber camps, wells: the same, with tubs of
+  daffodils and tulips by the doors and bluebells at the foot; the stores
+  get "a few sacks of seed ... stacked ready for sowing".
+- Farms: "the field is freshly ploughed and sown with neat rows of tiny
+  bright green seedlings", with each crop's own young growth (green barley,
+  vines in new leaf, the orchard in blossom, hop bines climbing).
+- Quarries: fresh grass tufts and little white and yellow wildflowers on
+  the ledges.
+
+The camps came out mossier than asked (moss on the log piles and roofs);
+kept, as it reads as spring.

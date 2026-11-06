@@ -4576,7 +4576,15 @@ const WINTER_LOOKS = new Set([...LOOKS.house, 'hall', 'hall_2', 'hall_3', ...LOO
 const AUTUMN_LOOKS = new Set([...LOOKS.house, 'hall', 'hall_2', 'hall_3', ...LOOKS.store, ...LOOKS.mill, ...LOOKS.market, ...LOOKS.lumber, ...LOOKS.well, ...LOOKS.farm, ...LOOKS.quarry,
   ...LOOKS.hedge, ...LOOKS.fence, ...LOOKS.bench, ...LOOKS.lamp,
   ...LOOKS.statue, ...LOOKS.flowers, ...LOOKS.banner, ...FINDS.slice(1)]);
+/* And spring on the buildings: tulips and daffodils in the window boxes and
+   by the doors, primroses and bluebells at the foot, blossom petals on the
+   roofs, the fields ploughed and sown (art/PROMPTS.md 181). */
+const SPRING_LOOKS = new Set([...LOOKS.house, 'hall', 'hall_2', 'hall_3', ...LOOKS.store, ...LOOKS.mill, ...LOOKS.market, ...LOOKS.lumber, ...LOOKS.well, ...LOOKS.farm, ...LOOKS.quarry]);
 function winterArt(p) {
+  if (season().key === 'spring') {
+    const look = lookOf(p);
+    return SPRING_LOOKS.has(look) ? artFor(look + '_spring') : null;
+  }
   if (season().key === 'autumn') {
     if (p.key === BEACON)
       return beaconSet() ? artFor(BEACON + '_stage' + Math.min(BEACON_STAGES, Math.max(1, p.lvl | 0)) + '_autumn') : null;
