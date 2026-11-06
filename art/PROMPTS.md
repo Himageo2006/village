@@ -6650,3 +6650,39 @@ under her turned golden and dry. Nothing spreading beyond the cow..."
 
 The whole-picture key of 166 after prep-art, for the magenta between the
 cow's legs.
+
+# 171 — Spring on the trees and the moss rock → `art/tree_{oak,birch,willow,poplar,pine,spruce}_spring.png`, `art/rock_moss_spring.png`  ✅ DONE
+
+ChatGPT, each with its summer picture attached. Until now spring had its own
+pictures only for the wildflowers and the cherry (whose base picture is the
+blossom); every other tree wore the summer picture under the seasonal wash.
+
+"Make a spring version of this oak tree: the SPRING version at exactly the
+same size, position, scale and camera angle, the trunk and the branches the
+same shape and in the same place. The canopy in fresh new spring leaves, a
+lighter, brighter, yellow-green than summer and a little less dense so a
+few branches show through, with small pale catkins hanging here and there,
+and a few small white and yellow spring flowers (daisies, primroses) in
+fresh green grass at its foot. Nothing spreading beyond the tree's base.
+Same painterly game-art style. No text. Isolated on a plain flat solid
+magenta (#FF00FF) background with nothing else in the picture."
+
+The birch the same with "the white trunk" and "slender pale catkins"; the
+willow with "the trunk and the drooping branches" and "soft pale yellow
+catkins along them" (ChatGPT offered two; the one closer to the summer
+shape was picked); the poplar with "the tall narrow crown" and "a few
+reddish catkins".
+
+The evergreens: "...It stays an evergreen, but every branch tip has bright
+fresh light-green new growth (soft new shoots and candles) against the
+darker older needles, and a few small white and yellow spring flowers
+(daisies, primroses) in fresh green grass at its foot. NO leaves or flowers
+in the branches..." (the lesson of the autumn pine in 169).
+
+The moss rock: "...The moss a fresh bright green, the ferns as young curled
+fiddleheads just unrolling in pale green, and in place of the heather small
+spring flowers growing between the stones: primroses, a few bluebells and
+white wood anemones..."
+
+All seven had the whole-picture key of 166 after prep-art, for the magenta
+seen through the canopies.
