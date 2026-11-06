@@ -12176,7 +12176,8 @@
         const same = (im, art) => !!art && (im === art || (im.width === (art.naturalWidth || art.width)
           && im.height === (art.naturalHeight || art.height)));
         ctx.drawImage = function (im, ...a) {
-          for (const p of all) if (a.length >= 4 && same(im, V.artFor(p.key))) sized.set(p.key, a[2]);
+          /* in autumn and winter a find is drawn with its season's picture */
+          for (const p of all) if (a.length >= 4 && same(im, (V.winterArt && V.winterArt(p)) || V.artFor(p.key))) sized.set(p.key, a[2]);
           return oD.call(this, im, ...a);
         };
         try { V.away = null; V.finished = null; V.goalDone = null; V.panel = null; V.camFit(true); V.step(0.001);

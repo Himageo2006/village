@@ -6829,3 +6829,107 @@ gone golden", and a pumpkin and mushrooms by the stones: "quarry",
 The whole-picture key of 166 after prep-art, except the vineyard: its
 purple grapes sit inside the key's fade band (min(r,b)-g) and came out
 grey, so it has prep-art's flat-background key only.
+
+# 177 — Autumn on the hedges, fences and benches → `art/hedge{,_topiary,_lavender,_wild,_holly,_beech}_autumn.png`, `art/fence{,_picket,_stone,_wattle,_rope,_iron}_autumn.png`, `art/bench{,_stone,_rose,_tree,_swing}_autumn.png`  ✅ DONE
+
+The six hedges, the six fences and five of the seven benches, added to
+AUTUMN_LOOKS in game.js; drawDecor hangs them at the summer picture's width
+as it does the snow. The picnic table and the campfire bench have none yet
+and stay as in summer. Leonardo, GPT Image 2 at Low quality, 1:1, 8 tokens
+each -- the 136 tokens left this month (ChatGPT's image allowance was spent
+on 173-176). Summer picture flattened onto magenta with a 40px margin as the
+image reference. A Lucid Origin try first (unlimited on the plan, content
+reference) came back a leafy cube on a pink wash, nothing like the hedge.
+
+All one template:
+
+```
+Edit the reference image: the AUTUMN version of this <thing>, at exactly the
+same size, position, scale and camera angle, with the base, footprint and
+outline exactly as in the original. <autumn>. Keep it unchanged otherwise,
+with nothing spreading beyond it. Same painterly game-art style as the
+reference. No text. Isolated on a plain flat solid magenta (#FF00FF)
+background with nothing else in the picture.
+```
+
+- Hedges: garden, topiary and beech "turning warm autumn colours" with
+  fallen leaves on top and at the foot; the lavender "finished flowering ...
+  dry grey-brown seed heads"; the wild hedgerow hung with "red rose hips,
+  dark red haws and a few purple-black blackberries"; the holly "dark glossy
+  evergreen, now heavy with bright clusters of red holly berries".
+- Fences: "fallen autumn leaves ... lying along the top of the rails, caught
+  at the foot of each post", the grass at the foot "golden and dry"; flowers
+  on the picket and wattle turned to autumn blooms and seed heads, the
+  roses on the iron railings to red creeper; the dry-stone wall asked for
+  "no ground and no shadow", after its winter one came back on a ground.
+- Benches: leaves on the seat and around the feet; the rose arbour "hung
+  with plump red rose hips"; the tree in the round bench "its leaves turned
+  autumn gold, orange and russet red".
+
+prep-art, then the magenta key of 166 over the whole picture; the purple
+lavender stalks and the hips came through it unharmed.
+
+# 178 — Autumn on the rest of the decorations, from video → `art/bench_{picnic,campfire}_autumn.png`, `art/lamp{,_bracket,_stone,_double,_ship,_basket,_crook}_autumn.png`, `art/statue{,_knight,_fisher,_fountain,_dragon,_birdbath,_bear,_scarecrow}_autumn.png`, `art/flowers{,_planter,_tulip,_barrel,_cart,_sun}_autumn.png`, `art/banner{,_pennant,_maypole,_windsock,_bunting,_vane,_kite}_autumn.png`  ✅ DONE
+
+The last 30 decoration looks, so every bench, lamp, statue, flowerbed and
+banner is now in AUTUMN_LOOKS with the hedges and fences. Made with no tokens
+at all: the plan's unlimited generations cover MiniMax H3 video at 480p, and
+none of the image models that can edit a picture (the unlimited ones -- Lucid,
+FLUX Dev, Phoenix -- only take a "content reference", and FLUX Dev at HIGH
+strength gave a flat cartoon picnic table on a salmon wash). So each autumn
+picture is the LAST FRAME of a 6 s MiniMax H3 clip (Turbo, 480p, 9:16 for the
+tall ones, 16:9 for flowerbeds and benches) whose start frame is the summer
+picture: the keyed .webp upscaled (lanczos) to fill 1400x820 or 860x1450 on a
+flat #FF00FF 1920x1080 / 1080x1920 canvas. The clip keeps the object, the
+painting and the camera; the prompt only says what autumn does to it.
+
+```
+Static camera, no zoom, no pan, no camera movement at all. The <thing> stays
+perfectly still in exactly the same place and size. Autumn arrives: <what
+changes>. No leaves land on the ground beyond it. By the end nothing is
+moving. The background stays a perfectly flat solid magenta colour the whole
+time, with no ground, no shadow, no light changes. Painterly game-art style
+kept exactly, no text.
+```
+
+- Lamps: leaves "settle on the lamp head and on its stone base", creepers
+  turn red, hanging baskets turn to "orange, gold and rust autumn flowers",
+  "the lamp keeps its warm glow".
+- Statues: leaves on shoulders and plinth steps, moss turned golden; a
+  pumpkin by the harvest woman, leaves floating in the fountain and the
+  birdbath, more pumpkins round the scarecrow and its sunflower gone to seed.
+- Flowerbeds: chrysanthemums, asters and dahlias in place of the summer
+  flowers; the sunflowers "heavy and droop with big dark seed heads"; small
+  pumpkins in the barrow and the cart.
+- Banners: garlands of autumn leaves and wheat tied round the poles, the
+  maypole's crown a wreath of leaves and apples, the bunting's paper lanterns
+  "small carved glowing pumpkin lanterns".
+- Picnic table: apples for strawberries, cider for lemonade, two pumpkins,
+  "the cat stays asleep" (the first try, without "No leaves land on the
+  ground", laid a carpet of leaves twice the table's width; the second is
+  used). Campfire: leaves on the log seats, pumpkins and roasting apples.
+
+The last frame (ffmpeg -sseof -0.15) then prep-art (480p frames are small,
+so the caps of the winter ones never shrink much), the magenta key of 166 --
+the lamp glow came through it gold, not pink -- and one new step: a few
+leaves still blew clear of the object despite the prompt, and drawDecor fits
+the picture to the summer one's width, so stray leaves would shrink the
+object. Every alpha island under 2% of the largest is dropped and the picture
+re-trimmed; leaves touching the base stay.
+
+# 179 — Autumn on the finds → `art/find_{stones,orchard,ruin,wreck}_autumn.png`  ✅ DONE
+
+The old stones, the orchard, the ruined cottage and the wreck found on
+claimed land, added to AUTUMN_LOOKS like their winter ones. Made as 178: the
+last frame of a free MiniMax H3 480p 16:9 clip started on the summer
+picture. The orchard's trees "keep their trunk and crown shape" with gold,
+orange and russet leaves and "heavy with ripe red and yellow apples"; the
+ruin's ivy "turns deep red and orange" with two wild pumpkins by the wall;
+the wreck gets leaves in the hull and dry beach grass among the stones.
+
+The standing stones took three goes. "Ring of ancient standing stones on its
+grassy mound" (there is no mound) grew a golden mound under them and shrank
+the stones; describing them as "five grey standing stones ... each on its
+own small tuft of grass" kept them but coated them bright orange ("the moss
+turns rusty orange"); the third asked for the stones to "stay grey with
+their green-grey moss, nothing covers them" and only a few leaves on top.
