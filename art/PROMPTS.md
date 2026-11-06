@@ -6686,3 +6686,30 @@ white wood anemones..."
 
 All seven had the whole-picture key of 166 after prep-art, for the magenta
 seen through the canopies.
+
+# 172 — Spring on the stump, the log and the bush → `art/stump_spring.png`, `art/log_mushroom_spring.png`, `art/bush_spring.png`  ✅ DONE
+
+ChatGPT, summer pictures attached. The bush in its summer picture is in red
+berry, which read wrong in spring; in spring it is now a hawthorn in
+blossom (SEASON_ALT, as the bush already turns into the hydrangea, the log
+and the snowman through the year).
+
+"Make a spring version of this tree stump: the SPRING version at exactly the
+same size, position, scale and camera angle, the stump and its roots the
+same shape and in the same place. A few fresh green shoots with small new
+leaves sprouting from the side of the stump, the moss on it a fresh bright
+green, and small spring flowers (primroses, white wood anemones, a few
+violets) in fresh green grass around the roots. Nothing spreading beyond the
+stump. Same painterly game-art style. No text. Isolated on a plain flat
+solid magenta (#FF00FF) background with nothing else in the picture."
+
+The log: "...The moss on it a fresh bright green, the fern beside it as
+young curled fiddleheads just unrolling in pale green, only a couple of the
+small brown mushrooms left (no red toadstools), and small spring flowers
+(primroses, bluebells, white wood anemones) growing along and beside the
+log..." The bush: "...It is a hawthorn in full spring blossom: fresh bright
+green leaves covered in clusters of small creamy-white flowers, with a few
+white petals fallen on the grass at its foot, and a couple of primroses
+there..."
+
+The whole-picture key of 166 after prep-art.

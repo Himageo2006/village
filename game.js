@@ -4202,7 +4202,7 @@ function drawGround() {
 const SCENERY_H = { goat: 30, cow: 40, tree_pine: 115, tree_spruce: 118, tree_oak: 100, tree_willow: 96, tree_poplar: 126, tree_cherry: 100, tree_birch: 122, rock: 54, rock_moss: 50, bush: 46, bush_hydrangea: 46, stump: 38, log_mushroom: 34, flowers_wild: 30, flowers_meadow: 30, sheep: 30, sheep_rest: 22, sheep_lambs: 26, skeps: 40, snowman: 50,
   tree_oak_winter: 100, tree_pine_winter: 115, tree_spruce_winter: 118, tree_birch_winter: 122,
   tree_willow_winter: 96, tree_poplar_winter: 126, tree_cherry_winter: 100, tree_oak_autumn: 100, tree_birch_autumn: 122, tree_willow_autumn: 96, tree_poplar_autumn: 126, tree_cherry_autumn: 100,
-  tree_oak_spring: 100, tree_birch_spring: 122, tree_willow_spring: 96, tree_poplar_spring: 126, tree_pine_spring: 115, tree_spruce_spring: 118, rock_moss_spring: 50,
+  tree_oak_spring: 100, tree_birch_spring: 122, tree_willow_spring: 96, tree_poplar_spring: 126, tree_pine_spring: 115, tree_spruce_spring: 118, rock_moss_spring: 50, stump_spring: 38, log_mushroom_spring: 34, bush_spring: 46,
   rock_winter: 54, rock_autumn: 54, rock_moss_autumn: 50, stump_autumn: 38, log_mushroom_autumn: 34, tree_pine_autumn: 115, tree_spruce_autumn: 118, sheep_autumn: 30, sheep_rest_autumn: 22, cow_autumn: 40, rock_moss_winter: 50, stump_winter: 38, log_mushroom_winter: 34, flowers_wild_winter: 30, flowers_meadow_winter: 30, sheep_winter: 30, sheep_rest_winter: 22, cow_winter: 40,
   tree_cherry_summer: 100, flowers_wild_spring: 30, flowers_meadow_spring: 30, flowers_wild_autumn: 30, flowers_meadow_autumn: 30 };
 /* What a newer kind is drawn as while its own picture is missing, so a lost
@@ -4315,9 +4315,10 @@ const SCENERY_ALT = { tree_pine: ['tree_spruce', 0.5], rock: ['rock_moss', 0.5],
 /* The small scenery is one tile of each kind -- the island is fixed, see the
    bands in the generator -- so a share is all or nothing: the goat's tile hashes
    to .98 and the cow never came. Those tiles change with the calendar instead,
-   which is what lambs and hives and mushrooms (and snowmen) do anyway. */
+   which is what lambs and hives and mushrooms (and snowmen) do anyway; the
+   bush is a hawthorn in blossom in spring rather than in berry. */
 const SEASON_ALT = { sheep_rest: { spring: 'sheep_lambs' }, flowers_wild: { summer: 'skeps' },
-  bush: { summer: 'bush_hydrangea', autumn: 'log_mushroom', winter: 'snowman' }, goat: { autumn: 'cow', winter: 'cow' } };
+  bush: { spring: 'bush_spring', summer: 'bush_hydrangea', autumn: 'log_mushroom', winter: 'snowman' }, goat: { autumn: 'cow', winter: 'cow' } };
 /* And the trees, which the wash alone left green under a pale tint all winter
    and only a little orange in October. Keyed by the picture already chosen
    rather than by the tile, so a spruce stays a spruce in the snow; a picture
@@ -4338,7 +4339,7 @@ const SEASON_LOOK = {
      and heather, then the two that do flower in the snow. The cherry is in
      blossom in spring only, and in fruit by summer. */
   rock: { autumn: 'rock_autumn', winter: 'rock_winter' }, rock_moss: { spring: 'rock_moss_spring', autumn: 'rock_moss_autumn', winter: 'rock_moss_winter' },
-  stump: { autumn: 'stump_autumn', winter: 'stump_winter' }, log_mushroom: { autumn: 'log_mushroom_autumn', winter: 'log_mushroom_winter' },
+  stump: { spring: 'stump_spring', autumn: 'stump_autumn', winter: 'stump_winter' }, log_mushroom: { spring: 'log_mushroom_spring', autumn: 'log_mushroom_autumn', winter: 'log_mushroom_winter' },
   flowers_wild: { spring: 'flowers_wild_spring', autumn: 'flowers_wild_autumn', winter: 'flowers_wild_winter' },
   flowers_meadow: { spring: 'flowers_meadow_spring', autumn: 'flowers_meadow_autumn', winter: 'flowers_meadow_winter' },
   /* and the animals left out in it: the flock and the cow (the goat is the cow
