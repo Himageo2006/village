@@ -6626,3 +6626,27 @@ turned golden and dry. Nothing spreading beyond the flock..."
 
 Magenta pockets between the spruce's branches and the sheep's legs, so all
 three had the whole-picture key of 166 after prep-art.
+
+# 170 — Autumn on the resting sheep and the cow → `art/sheep_rest_autumn.png`, `art/cow_autumn.png`  ✅ DONE
+
+ChatGPT, summer pictures attached, worded as the grazing sheep of 169. In
+autumn the goat tiles are the cow (SEASON_ALT), so this is every animal on
+the island in its autumn coat.
+
+"Make an autumn version of these resting sheep: the AUTUMN version at
+exactly the same size, position, scale and camera angle, every sheep the
+same pose and in the same place. Their fleece grown a little thicker and
+fluffier for the cold months, a few fallen orange, red and gold leaves
+caught in the wool and lying on the ground around them, and the grass under
+them turned golden and dry. Nothing spreading beyond the sheep. Same
+painterly game-art style. No text. Isolated on a plain flat solid magenta
+(#FF00FF) background with nothing else in the picture."
+
+"Make an autumn version of this cow: ... the cow the same pose and in the
+same place with the same markings. Her coat a little thicker for the cold
+months, a couple of fallen orange and gold leaves on her back, fallen
+orange, red and gold leaves lying on the ground at her feet, and the grass
+under her turned golden and dry. Nothing spreading beyond the cow..."
+
+The whole-picture key of 166 after prep-art, for the magenta between the
+cow's legs.
