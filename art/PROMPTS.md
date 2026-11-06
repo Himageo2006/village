@@ -6748,3 +6748,28 @@ stays where the summer picture has it.
 
 The whole-picture key of 166 after prep-art, for the magenta in the gaps
 between eaves, stacks and barrels.
+
+# 174 — Autumn on the mills and the market stalls → `art/{mill,mill_post,mill_smock,mill_water,mill_tower,mill_cider,market,market_hall,market_fish,market_cheese,market_fruit,market_flower}_autumn.png`  ✅ DONE
+Added to winterArt()'s AUTUMN_LOOKS like 173. The same prompt as 173 with
+the name changed for the mills ("windmill", "post mill", "smock mill",
+"watermill", "tower mill", "cider mill" -- apples and barrels; ChatGPT
+offered two and the second was picked), and for the stalls:
+
+```
+Make an autumn version of this <market stall>: the AUTUMN version at
+exactly the same size, position, scale and camera angle, with the base and
+footprint exactly as in the original and the stall, its awning and
+everything around it the same shape and in the same place. Fallen orange,
+red and gold leaves scattered on the awning and gathered around its foot,
+<the goods>, and a few small pumpkins and baskets of apples stacked beside
+it. No leaves spreading beyond the base. Same painterly game-art style. No
+text. Isolated on a plain flat solid magenta (#FF00FF) background with
+nothing else in the picture.
+```
+
+Goods: the market's turned to autumn produce (pumpkins, apples, pears,
+nuts, honey); the market hall with the harvest piled under it; the fish
+stall kept its fish with a lantern lit; the cheese stall with honey jars;
+the fruit stall's fruit now apples, pears, plums, grapes and quinces; the
+flower stall's now sunflowers, chrysanthemums, asters and seed heads. The
+whole-picture key of 166 after prep-art.

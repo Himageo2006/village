@@ -4570,7 +4570,7 @@ const WINTER_LOOKS = new Set([...LOOKS.house, 'hall', 'hall_2', 'hall_3', ...LOO
    along the walls, the creeper turned red, and the harvest -- pumpkins,
    sacks, sheaves -- stacked by the doors (art/PROMPTS.md 173). Hung from the
    summer picture's base like the snow. */
-const AUTUMN_LOOKS = new Set([...LOOKS.house, 'hall', 'hall_2', 'hall_3', ...LOOKS.store]);
+const AUTUMN_LOOKS = new Set([...LOOKS.house, 'hall', 'hall_2', 'hall_3', ...LOOKS.store, ...LOOKS.mill, ...LOOKS.market]);
 function winterArt(p) {
   if (season().key === 'autumn') {
     const look = lookOf(p);
