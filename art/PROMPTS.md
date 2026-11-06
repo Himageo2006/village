@@ -6982,3 +6982,37 @@ and size" and "Nothing spreads beyond its base."
 
 The camps came out mossier than asked (moss on the log piles and roofs);
 kept, as it reads as spring.
+
+# 182 — Spring on the decorations, the finds and the beacon → `art/<look>_spring.png`, `art/beacon_stage{1..5}_spring.png`  ✅ DONE (not the orchard)
+
+Every hedge, fence, bench, lamp, statue, flowerbed and banner look, three of
+the four finds and the five beacon stages in spring, all added to
+SPRING_LOOKS (the beacon by stage, as in autumn and winter). Made as 181,
+free, from the summer pictures. The hedge, fence and bench start frames were
+made fresh: the keyed summer picture upscaled (lanczos) to fit 1400x820 on a
+flat magenta 1920x1080, or 860x1450 on 1080x1920 when it is tall.
+
+- Hedges: "fresh bright green new leaves dotted with small white and pink
+  blossom", daffodils, primroses and bluebells at the foot.
+- Fences, lamps: the same flowers along the foot, and "a little fresh green
+  ivy with tiny white flowers" up a post; the lamps "stay unlit" (the
+  bracket lamp lit itself anyway; kept).
+- Benches: flowers round the feet, blossom petals on the seat; the rose
+  arch in fresh leaf with rosebuds, the bench tree in blossom.
+- Statues: flowers round the plinth, petals on top, "The stone stays grey
+  and clean."
+- Flowerbeds: "every plant is in fresh spring bloom", with extra daffodils,
+  primroses and bluebells; the sunflowers are young plants just budding.
+- Banners: flowers at the foot of the pole and "a small garland of white and
+  pink blossom" round it.
+- Finds: the stones keep their grey; the ruin's ivy turns fresh green; the
+  wreck gets fresh beach grass.
+- Beacon: flowers at the foot and fresh ivy up the lower stones; stage 4's
+  lantern "EMPTY and DARK", stage 5's still glowing. Fitted by height as in
+  180, but the spring skirt is wider still, so stages 1-5 hit the 800px frame
+  width and stage 5 stands at about 90% of its summer height.
+
+The orchard came back as a carpet of blossoming bushes with no trunks and
+is left out (summer picture in spring). A retry that insisted every
+tree "keeps exactly its own brown trunk, branches and round crown shape"
+got trunks back but still merged the rows into one clump of four trees.
