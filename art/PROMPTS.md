@@ -6595,3 +6595,34 @@ beyond the log..." -- the rest as the rock.
 After prep-art the log had a magenta pocket between the toadstools that the
 edge flood never reached; the whole-picture key of 166 cleared it (no
 despill, which would have greyed the rock's heather).
+
+# 169 — Autumn on the pine, the spruce and the sheep → `art/tree_pine_autumn.png`, `art/tree_spruce_autumn.png`, `art/sheep_autumn.png`  ✅ DONE
+
+ChatGPT, each with its summer picture attached. The evergreens had only the
+seasonal wash in autumn until now; with a picture of their own they lose it.
+
+"Make an autumn version of this spruce tree: the AUTUMN version at exactly
+the same size, position, scale and camera angle, the tree the same shape and
+in the same place. It stays an evergreen: the branches are only green
+needles (a slightly deeper, cooler green) and a few brown cones, with NO
+leaves in the branches. Fallen orange, red and gold leaves and brown needles
+lie only on the ground around its foot, and any grass at its base is turned
+golden and dry. Nothing spreading beyond the tree's base. Same painterly
+game-art style. No text. Isolated on a plain flat solid magenta (#FF00FF)
+background with nothing else in the picture."
+
+The pine was asked the same way at first but without the "NO leaves in the
+branches", and came back hung with leaves like baubles on a Christmas tree;
+a follow-up -- "The same autumn pine again, but with NO leaves in the
+branches at all -- the branches are only green needles and a few brown pine
+cones. The fallen orange, red and gold leaves lie only on the ground around
+its foot..." -- gave the one used.
+
+The sheep: "Make an autumn version of these sheep: ... every sheep the same
+pose and in the same place. Their fleece grown a little thicker and fluffier
+for the cold months, a few fallen orange, red and gold leaves caught in the
+wool and lying on the ground at their feet, and the grass tufts under them
+turned golden and dry. Nothing spreading beyond the flock..."
+
+Magenta pockets between the spruce's branches and the sheep's legs, so all
+three had the whole-picture key of 166 after prep-art.
