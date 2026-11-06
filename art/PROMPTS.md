@@ -6933,3 +6933,26 @@ the stones; describing them as "five grey standing stones ... each on its
 own small tuft of grass" kept them but coated them bright orange ("the moss
 turns rusty orange"); the third asked for the stones to "stay grey with
 their green-grey moss, nothing covers them" and only a few leaves on top.
+
+# 180 — Autumn on the beacon → `art/beacon_stage{1..5}_autumn.png`  ✅ DONE
+
+Each of the beacon's five stages in autumn; winterArt takes
+`beacon_stage<N>_autumn` for the stage reached, as it does the winter ones
+(165). Made as 178: the last frame of a free MiniMax H3 480p clip started on
+the summer stage (stages 1-2 at 16:9, 3-5 at 9:16). Every stage: leaves
+settle "on the tops of the stones, the steps and the ledges", the grass at
+its foot turns golden, and "a little red creeper climbs the lower stones";
+stage 2 adds two small pumpkins by the door; stages 4 and 5 put the leaves on
+the gallery and the window ledges instead.
+
+Stage 4 took two goes: the first lit the lantern, as if autumn had finished
+the tower. The second called the lantern room "EMPTY and DARK", and that
+one is kept.
+
+Processed as 165: prep-art (CAP 1600), magenta keyed, specks dropped,
+despilled, then fitted into the 800x1496 summer stage frame on the summer
+body's bottom centre. Unlike the snow, the leaf skirt at the foot widens the
+base, so fitting to the summer body's WIDTH shrank the towers to about 82%
+of their summer height. These are fitted to its HEIGHT instead (never wider
+than the frame, and shifted in where the centred skirt would cross its
+edge), so the tower is the same height in every season.
