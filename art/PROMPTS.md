@@ -6713,3 +6713,38 @@ white petals fallen on the grass at its foot, and a couple of primroses
 there..."
 
 The whole-picture key of 166 after prep-art.
+
+# 173 — Autumn on the houses, the hall and the storehouses → `art/{house,house_stone,house_thatch,house_fisher,house_baker,house_weaver,house_potter,house_bee,house_oak,hall,hall_2,hall_3,store,store_granary,store_barn,store_tithe,store_staddle,store_cellar}_autumn.png`  ✅ DONE
+
+The buildings had only the seasonal wash in autumn. As the snow did for
+winter (152, 153), an autumn picture per look, in AUTUMN_LOOKS in game.js,
+returned by winterArt() in autumn and hung from the summer picture's base,
+not washed. ChatGPT, summer picture attached, one prompt with the name and
+the harvest by the door changed:
+
+```
+Make an autumn version of this <cottage>: the AUTUMN version at exactly the
+same size, position, scale and camera angle, with the base and footprint
+exactly as in the original and the walls, door, windows and roof the same
+shape. Fallen orange, red and gold leaves scattered on the roof and gathered
+along the foot of the walls, any creeper or climbing plant on the walls
+turned red and orange, any garden plants around it turned golden and
+russet, and a few small pumpkins and a basket of apples by the door. No
+chimney smoke. No leaves spreading beyond the building's base. Same
+painterly game-art style. No text. Isolated on a plain flat solid magenta
+(#FF00FF) background with nothing else in the picture.
+```
+
+Names: "cottage", "stone house", "thatched cottage", "fisherman's house"
+(nets and barrels kept), "baker's house" (sign kept, "No chimney or oven
+smoke"), "weaver's house", "potter's house" (kiln and pots), "beekeeper's
+house" (hives, "No bees flying"; ChatGPT offered two and the one showing
+the whole building was picked), "oak-framed house built into an oak tree"
+(the oak's leaves russet and gold); "town hall", "larger town hall", "grand
+town hall" (sheaves of wheat with the pumpkins); "storehouse", "granary",
+"barn" (hay bales), "tithe barn", "granary on staddle stones", "root
+cellar" (sacks of potatoes). "No smoke" throughout, so the top of the trim
+stays where the summer picture has it.
+
+The whole-picture key of 166 after prep-art, for the magenta in the gaps
+between eaves, stacks and barrels.

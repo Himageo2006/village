@@ -4566,7 +4566,16 @@ const WINTER_LOOKS = new Set([...LOOKS.house, 'hall', 'hall_2', 'hall_3', ...LOO
   ...LOOKS.mill, ...LOOKS.market, ...LOOKS.lumber, ...LOOKS.well, ...LOOKS.farm, ...LOOKS.quarry,
   ...LOOKS.hedge, ...LOOKS.fence, ...LOOKS.bench, ...LOOKS.lamp,
   ...LOOKS.statue, ...LOOKS.flowers, ...LOOKS.banner, ...FINDS.slice(1)]);
+/* Autumn the same way, for the looks painted so far: leaves on the roofs and
+   along the walls, the creeper turned red, and the harvest -- pumpkins,
+   sacks, sheaves -- stacked by the doors (art/PROMPTS.md 173). Hung from the
+   summer picture's base like the snow. */
+const AUTUMN_LOOKS = new Set([...LOOKS.house, 'hall', 'hall_2', 'hall_3', ...LOOKS.store]);
 function winterArt(p) {
+  if (season().key === 'autumn') {
+    const look = lookOf(p);
+    return AUTUMN_LOOKS.has(look) ? artFor(look + '_autumn') : null;
+  }
   if (season().key !== 'winter') return null;
   if (p.key === BEACON)
     return beaconSet() ? artFor(BEACON + '_stage' + Math.min(BEACON_STAGES, Math.max(1, p.lvl | 0)) + '_winter') : null;
@@ -8439,6 +8448,7 @@ for (let i = 1; i <= BEACON_STAGES; i++) { beaconArt(i); artFor(BEACON + '_stage
 for (const k of ['ground', 'water', 'tree_pine', 'tree_spruce', 'tree_oak', 'tree_willow', 'tree_poplar', 'tree_cherry', 'tree_birch', 'rock', 'rock_moss', 'bush', 'bush_hydrangea', 'stump', 'log_mushroom', 'flowers_wild', 'flowers_meadow', 'sheep', 'sheep_rest', 'sheep_lambs', 'skeps', 'snowman', 'goat', 'cow', ...Object.values(SEASON_LOOK).flatMap(Object.values)]) artFor(k);
 for (const set of Object.values(LOOKS)) for (const k of set) artFor(k);
 for (const k of WINTER_LOOKS) artFor(k + '_winter');
+for (const k of AUTUMN_LOOKS) artFor(k + '_autumn');
 for (const [, k] of HALL_STAGES) artFor(k);
 for (const s of SEA_PROPS) { artFor(s.key); if (s.winter) artFor(s.key + '_winter'); }
 
