@@ -7090,3 +7090,6 @@ No art. Under the tones there are now two quiet beds and an insect: the sea murm
 
 # 190 — Sun on the water
 No art. By day small glints wink on and off across the open sea: a short flash each, then gone and lit again somewhere else, brightest at noon, fading to nothing at dusk and under rain. They are scattered over the part of the sea in view at a fixed size on screen, placed from their number and the clock so nothing is stored, and drawn before the island so the land covers any that fall on it. Off with reduced motion.
+
+# 191 — Moonlight on the water, and morning mist
+No art. After dark the glints come back silver and half as many, as moonlight -- and the moon waxes and wanes over sixteen game days, so some nights the sea is bright with it and on a new moon it is dark. Around sunrise a soft white mist lies in drifting banks over island and sea and lifts as the sun climbs: thickest in autumn, then spring and winter, thin in summer. Both are worked out from the clock, store nothing, and are off with reduced motion.

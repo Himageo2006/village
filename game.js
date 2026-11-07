@@ -676,6 +676,26 @@ function drawRain(t, top, hh, rain) {
   }
   g.stroke();
 }
+/* Mornings begin in mist: a soft white haze lies over island and sea around
+   sunrise and lifts as the sun climbs -- thickest in autumn, thin in summer. */
+const MIST = { autumn: 1, spring: 0.8, winter: 0.7, summer: 0.4 };
+function mistNow() {
+  const ph = dayPhase(), d = ph > 0.5 ? ph - 1 : ph;        // sunrise is phase 0
+  if (d < -0.06 || d > 0.1) return 0;
+  return (MIST[season().key] || 0) * (d < 0 ? (d + 0.06) / 0.06 : 1 - d / 0.1);
+}
+function drawMist(t, top, hh, mist) {
+  for (let i = 0; i < 7; i++) {
+    const span = W + 1200, x = frac(rnd(i, 26) + t * (4 + rnd(i, 27) * 4) / span) * span - 600;
+    const y = top + hh * (0.08 + 0.84 * rnd(i, 28)), rw = 420 + rnd(i, 29) * 260;
+    g.save(); g.translate(x, y); g.scale(1, 0.4);
+    const gr = g.createRadialGradient(0, 0, 0, 0, 0, rw);
+    gr.addColorStop(0, 'rgba(236,240,244,' + (0.55 * mist).toFixed(3) + ')');
+    gr.addColorStop(1, 'rgba(236,240,244,0)');
+    g.fillStyle = gr; g.beginPath(); g.arc(0, 0, rw, 0, 7); g.fill();
+    g.restore();
+  }
+}
 function drawDaySky(t, top, hh, day) {
   for (let i = 0; i < CLOUDS; i++) {
     const span = W + 900, sp = 9 + rnd(i, 8) * 6;
@@ -714,6 +734,8 @@ function drawAmbient() {
   const day = 1 - sky().night, rain = rainNow();
   if (day > 0.05) drawDaySky(t, top, hh, day * (1 - 0.6 * rain));
   if (rain > 0) drawRain(t, top, hh, rain);
+  const mist = mistNow();
+  if (mist > 0.01) drawMist(t, top, hh, mist);
   const a = AMBIENT[key];
   if (a) {
     for (let i = 0; i < a.n; i++) {
@@ -4354,25 +4376,31 @@ function seaGlow(s, x, top, hgt) {
    They are scattered over the part of the sea in view, at a size that stays
    the same on screen whatever the zoom. */
 const GLINTS = 90;
+/* The moon waxes and wanes over sixteen days of the game: 0 at new, 1 at full. */
+const MOON_DAYS = 16;
+const moonFull = () => 0.5 - 0.5 * Math.cos(Math.floor(Date.now() / DAY_MS) / MOON_DAYS * Math.PI * 2);
 let glintsDrawn = 0;
 function drawGlints() {
   glintsDrawn = 0;
   if (reduceMotion) return;
-  const lit = Math.max(0, sky().sun) * (1 - rainNow());
-  if (lit < 0.05) return;
+  const { sun, night } = sky(), dry = 1 - rainNow();
+  // after dark the moon lays a fainter, silver light on the water, fuller some nights than others
+  const moon = night > 0.05 ? night * moonFull() * dry : 0, lit = Math.max(0, sun) * dry;
+  const by = Math.max(lit, moon), col = moon > lit ? '214,228,255' : '255,252,226';
+  if (by < 0.05) return;
   const t = Date.now() / 1000, a = camUnproject(0, screenTop()), c = camUnproject(W, screenBot());
   const x0 = a.x, y0 = a.y, w = c.x - a.x, h = c.y - a.y, u = 1 / camScale();
   g.save(); g.globalCompositeOperation = 'lighter'; g.lineCap = 'round';
   for (let i = 0; i < GLINTS; i++) {
     // each glint flashes briefly once in its cycle, then moves to a new spot
     const cyc = 2.2 + rnd(i, 21) * 2.6, k = t / cyc + rnd(i, 22), ph = frac(k);
-    if (ph > 0.3) continue;
-    const n = Math.floor(k), al = Math.sin(ph / 0.3 * Math.PI) * lit;
+    if (ph > 0.3 || (moon > lit && i % 2)) continue;
+    const n = Math.floor(k), al = Math.sin(ph / 0.3 * Math.PI) * by;
     if (al < 0.04) continue;
     const x = x0 + rnd(i + n * 7.3, 23) * w, y = y0 + rnd(i + n * 7.3, 24) * h, r = (12 + rnd(i, 25) * 12) * u;
-    g.strokeStyle = 'rgba(255,252,226,' + (0.9 * al).toFixed(3) + ')'; g.lineWidth = 5 * u;
+    g.strokeStyle = 'rgba(' + col + ',' + (0.9 * al).toFixed(3) + ')'; g.lineWidth = 5 * u;
     g.beginPath(); g.moveTo(x - r * 1.6, y); g.lineTo(x + r * 1.6, y); g.moveTo(x, y - r * 0.8); g.lineTo(x, y + r * 0.8); g.stroke();
-    g.fillStyle = 'rgba(255,255,240,' + al.toFixed(3) + ')';
+    g.fillStyle = 'rgba(' + col + ',' + al.toFixed(3) + ')';
     g.beginPath(); g.arc(x, y, r * 0.32, 0, 7); g.fill();
     glintsDrawn++;
   }
@@ -8837,7 +8865,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   get ordersDone() { return ordersDone; }, set ordersDone(v) { ordersDone = v; },
   get orderT() { return orderT; }, set orderT(v) { orderT = v; },
   get goalDone() { return goalDone; }, set goalDone(v) { goalDone = v; },
-  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; },
+  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, moonFull, mistNow,
   /* Read through getters. Captured by value these went stale the moment the
      harness moved them, and a sweep would have cleaned up the key the game
      was no longer using. */
