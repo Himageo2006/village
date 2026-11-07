@@ -646,6 +646,36 @@ const rnd = (i, k) => frac(Math.sin(i * 127.1 + k * 311.7) * 43758.5453);
    shadows of a few clouds sliding over island and sea, and now and then a
    gull crossing. Both fade out as the light goes. */
 const CLOUDS = 3, GULLS = 3;
+/* Some days are wet: a quarter of them in spring and autumn, one in ten in
+   summer, none in winter (it snows instead). Which ones is worked out from the
+   day's number, so it needs no state and is the same for everyone. The shower
+   comes in and goes out over the first and last tenth of the day rather than
+   switching on. */
+const RAIN_SHARE = { spring: 0.25, summer: 0.1, autumn: 0.25 };
+function rainNow() {
+  const share = RAIN_SHARE[season().key];
+  if (!share) return 0;
+  const day = Math.floor(Date.now() / DAY_MS), ph = dayPhase();
+  if (rnd(day, 16) >= share) return 0;
+  return Math.min(1, ph / 0.1, (1 - ph) / 0.1);
+}
+function drawRain(t, top, hh, rain) {
+  // the light goes grey under it
+  g.fillStyle = 'rgba(70,84,100,' + (0.2 * rain).toFixed(3) + ')';
+  g.fillRect(0, top, W, hh);
+  if (reduceMotion) return;
+  g.strokeStyle = 'rgba(222,232,244,' + (0.6 * rain).toFixed(3) + ')';
+  g.lineWidth = 1.7; g.lineCap = 'round';
+  g.beginPath();
+  const n = Math.round(150 * rain);
+  for (let i = 0; i < n; i++) {
+    const sp = 0.8 + rnd(i, 17) * 0.4, len = 18 + rnd(i, 18) * 14;
+    const y = top + frac(rnd(i, 19) + t * 1.6 * sp) * (hh + 40) - 20;
+    const x = frac(rnd(i, 20) - t * 0.05 * sp) * (W + 60) - 30;
+    g.moveTo(x, y); g.lineTo(x - len * 0.28, y + len);
+  }
+  g.stroke();
+}
 function drawDaySky(t, top, hh, day) {
   for (let i = 0; i < CLOUDS; i++) {
     const span = W + 900, sp = 9 + rnd(i, 8) * 6;
@@ -681,8 +711,9 @@ function drawAmbient() {
   const key = season().key, t = Date.now() / 1000;
   const top = screenTop(), hh = screenBot() - top;
   g.save();
-  const day = 1 - sky().night;
-  if (day > 0.05) drawDaySky(t, top, hh, day);
+  const day = 1 - sky().night, rain = rainNow();
+  if (day > 0.05) drawDaySky(t, top, hh, day * (1 - 0.6 * rain));
+  if (rain > 0) drawRain(t, top, hh, rain);
   const a = AMBIENT[key];
   if (a) {
     for (let i = 0; i < a.n; i++) {
@@ -4785,7 +4816,8 @@ function artRect(p) {
 const GLOW_LOOKS = new Set([...LOOKS.house, 'hall', 'hall_2', 'hall_3',
   'store', 'store_granary', 'store_barn', 'store_tithe', 'store_cellar',
   'mill', 'mill_post', 'mill_smock', 'mill_water', 'mill_tower', 'mill_cider',
-  'market', 'market_hall', 'lumber_cabin', 'lumber_saw']);
+  'market', 'market_hall', 'lumber_cabin', 'lumber_saw',
+  'find_ruin']);   // somebody keeps a fire in the ruin's old hearth (PROMPTS 188)
 for (const look of GLOW_LOOKS) artFor(look + '_glow');
 /* The beacon by stage: only the two tall ones, 4 and 5, have windows to light
    (5 its lamp too). The stumps of 2 and 3 came out of the clip misplaced and

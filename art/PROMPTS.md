@@ -7077,3 +7077,10 @@ Weather, drawn rather than made: drawAmbient scatters snow in winter, tumbling l
 Made as 184, free: "... Evening comes: the campfire is lit and small warm golden flames and glowing embers burn in the fire ring, casting a soft warm glow on the stones beside it. Only the fire changes; the bench, stones and everything else stay exactly the same colours and brightness." The summer picture already has a small fire, so the glow is the fire burning up and the light on the ring. decorGlow lays it on the bench_campfire look, on the summer frame, the one decoration with a light of its own.
 
 Drawn, not made: everyone walking after dark carries a lantern -- a small warm pool at the hand on the side they face, flickering on its own beat -- in the lamp pass with the lamps; and by day the shadows of three clouds slide across island and sea and a gull crosses now and then, both fading as the light goes and off with reduced motion.
+
+# 188 — A fire in the ruin's hearth, and rainy days
+→ `art/find_ruin_glow.webp` ✅ DONE
+
+Made as 184, free: "... Evening comes: a small warm fire is lit in the old stone hearth, with golden flames and glowing embers, and its warm light falls softly on the stones just around it. Only the hearth changes; the walls, ivy, stones and everything else stay exactly the same colours and brightness." find_ruin joins GLOW_LOOKS; the finds are drawn as buildings, so it lights like a window does. The wreck was left dark -- a lantern on an abandoned hull reads as somebody living there.
+
+Drawn: some days are wet -- a quarter in spring and autumn, one in ten in summer, none in winter -- picked from the day's number so there is nothing to store, coming in and going out over the first and last tenth of the day. Slanted streaks, the light a little grey, and the cloud shadows and gulls thin out under it.
