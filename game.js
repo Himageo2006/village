@@ -4113,23 +4113,27 @@ function waterPattern() {
    buoy are snowed on too, and the dolphins and the whale break through a
    cold grey sea with ice in it: each marked `winter` has a picture of its
    own for it. The turtle has gone south; its winter picture is an ice floe
-   in the same water, with two gulls on it. */
+   in the same water, with two gulls on it. The boats, the stacks, the seals
+   and the sandbar have an autumn and a spring too -- leaves and the harvest
+   on the decks, rusty lichen and kelp; blossom garlands and bunting, sea
+   thrift, a seal pup (art/PROMPTS.md 183). The animals out at sea and the
+   buoy are the same all year. */
 const SEA_PROPS = [
-  { key: 'boat_fishing', fx: -0.12, top: true,  dy: -230, h: 100, winter: true },
-  { key: 'boat_row',     fx:  0.11, top: false, dy:  330, h: 52, winter: true },   // clear of the cliffs and sand
-  { key: 'boat_ketch',   fx:  0.24, top: true,  dy: -100, h: 132, winter: true },  // under sail, off the north-east shore
-  { key: 'sea_rocks',    fx: -0.14, top: false, dy:  390, h: 150, still: true, winter: true },  // sea stacks off the south-west cliffs
+  { key: 'boat_fishing', fx: -0.12, top: true,  dy: -230, h: 100, winter: true, autumn: true, spring: true },
+  { key: 'boat_row',     fx:  0.11, top: false, dy:  330, h: 52, winter: true, autumn: true, spring: true },   // clear of the cliffs and sand
+  { key: 'boat_ketch',   fx:  0.24, top: true,  dy: -100, h: 132, winter: true, autumn: true, spring: true },  // under sail, off the north-east shore
+  { key: 'sea_rocks',    fx: -0.14, top: false, dy:  390, h: 150, still: true, winter: true, autumn: true, spring: true },  // sea stacks off the south-west cliffs
   { key: 'sea_dolphins', fx:  0.34, top: false, dy:  230, h: 72,  still: true, winter: true },  // leaping off the south-east shore
-  { key: 'sea_seals',    fx:  0.07, top: true,  dy: -150, h: 84,  still: true, winter: true },  // basking off the northern tip
+  { key: 'sea_seals',    fx:  0.07, top: true,  dy: -150, h: 84,  still: true, winter: true, autumn: true, spring: true },  // basking off the northern tip
   { key: 'sea_whale',    fx: -0.30, top: false, dy:  250, h: 96,  still: true, winter: true },  // diving off the south-west
   { key: 'sea_buoy',     fx:  0.17, top: true,  dy:  -30, h: 64,  still: true, winter: true },  // a bell buoy out to the north-east
   { key: 'sea_turtle',   fx:  0.19, top: false, dy:  110, h: 52,  still: true, winter: true },  // a turtle surfacing off the south-east
-  { key: 'sea_sandbar',  fx: -0.19, top: true,  dy:  -40, h: 84,  still: true, winter: true },  // a sandbar with gulls off the north-west
+  { key: 'sea_sandbar',  fx: -0.19, top: true,  dy:  -40, h: 84,  still: true, winter: true, autumn: true, spring: true },  // a sandbar with gulls off the north-west
 ];
 function drawSeaProps(b) {
   const W = b.x1 - b.x0, cx = (b.x0 + b.x1) / 2;
   for (const s of SEA_PROPS) {
-    const art = (s.winter && season().key === 'winter' && artFor(s.key + '_winter')) || artFor(s.key);
+    const sk = season().key, art = (s[sk] === true && artFor(s.key + '_' + sk)) || artFor(s.key);
     if (!art) continue;
     const x = cx + s.fx * W, y = (s.top ? b.y0 : b.y1) + s.dy;
     const hgt = s.h, wid = art.width * (hgt / art.height);
@@ -4204,7 +4208,8 @@ const SCENERY_H = { goat: 30, cow: 40, tree_pine: 115, tree_spruce: 118, tree_oa
   tree_willow_winter: 96, tree_poplar_winter: 126, tree_cherry_winter: 100, tree_oak_autumn: 100, tree_birch_autumn: 122, tree_willow_autumn: 96, tree_poplar_autumn: 126, tree_cherry_autumn: 100,
   tree_oak_spring: 100, tree_birch_spring: 122, tree_willow_spring: 96, tree_poplar_spring: 126, tree_pine_spring: 115, tree_spruce_spring: 118, rock_moss_spring: 50, stump_spring: 38, log_mushroom_spring: 34, bush_spring: 46,
   rock_winter: 54, rock_autumn: 54, rock_moss_autumn: 50, stump_autumn: 38, log_mushroom_autumn: 34, tree_pine_autumn: 115, tree_spruce_autumn: 118, sheep_autumn: 30, sheep_rest_autumn: 22, cow_autumn: 40, rock_moss_winter: 50, stump_winter: 38, log_mushroom_winter: 34, flowers_wild_winter: 30, flowers_meadow_winter: 30, sheep_winter: 30, sheep_rest_winter: 22, cow_winter: 40,
-  tree_cherry_summer: 100, flowers_wild_spring: 30, flowers_meadow_spring: 30, flowers_wild_autumn: 30, flowers_meadow_autumn: 30 };
+  tree_cherry_summer: 100, flowers_wild_spring: 30, flowers_meadow_spring: 30, flowers_wild_autumn: 30, flowers_meadow_autumn: 30,
+  sheep_spring: 30, cow_spring: 40, goat_spring: 30, rock_spring: 54 };
 /* What a newer kind is drawn as while its own picture is missing, so a lost
    file shows the kind it was split from rather than the procedural tree. */
 const SCENERY_FALLBACK = { goat: 'stump', cow: 'stump', tree_birch: 'tree_oak', tree_cherry: 'tree_oak', stump: 'bush', flowers_wild: 'bush', sheep: 'bush', sheep_rest: 'bush', sheep_lambs: 'sheep_rest' };
@@ -4338,14 +4343,16 @@ const SEASON_LOOK = {
      go round the year -- daffodils and bluebells, the summer meadow, asters
      and heather, then the two that do flower in the snow. The cherry is in
      blossom in spring only, and in fruit by summer. */
-  rock: { autumn: 'rock_autumn', winter: 'rock_winter' }, rock_moss: { spring: 'rock_moss_spring', autumn: 'rock_moss_autumn', winter: 'rock_moss_winter' },
+  rock: { spring: 'rock_spring', autumn: 'rock_autumn', winter: 'rock_winter' }, rock_moss: { spring: 'rock_moss_spring', autumn: 'rock_moss_autumn', winter: 'rock_moss_winter' },
   stump: { spring: 'stump_spring', autumn: 'stump_autumn', winter: 'stump_winter' }, log_mushroom: { spring: 'log_mushroom_spring', autumn: 'log_mushroom_autumn', winter: 'log_mushroom_winter' },
   flowers_wild: { spring: 'flowers_wild_spring', autumn: 'flowers_wild_autumn', winter: 'flowers_wild_winter' },
   flowers_meadow: { spring: 'flowers_meadow_spring', autumn: 'flowers_meadow_autumn', winter: 'flowers_meadow_winter' },
   /* and the animals left out in it: the flock and the cow (the goat is the cow
      by then) in thick coats with snow on their backs, and the whole flock
-     and the cow with fallen leaves in their coats in autumn */
-  sheep: { autumn: 'sheep_autumn', winter: 'sheep_winter' }, sheep_rest: { autumn: 'sheep_rest_autumn', winter: 'sheep_rest_winter' }, cow: { autumn: 'cow_autumn', winter: 'cow_winter' } };
+     and the cow with fallen leaves in their coats in autumn, and the sheep,
+     the cow and the goat in daisy-and-primrose garlands in spring */
+  sheep: { spring: 'sheep_spring', autumn: 'sheep_autumn', winter: 'sheep_winter' }, sheep_rest: { autumn: 'sheep_rest_autumn', winter: 'sheep_rest_winter' },
+  cow: { spring: 'cow_spring', autumn: 'cow_autumn', winter: 'cow_winter' }, goat: { spring: 'goat_spring' } };
 function drawScenery(o) {
   const p = tileToWorld(o.c, o.r), s2 = o.s;
   let kind = artFor(o.kind) || !SCENERY_FALLBACK[o.kind] ? o.kind : SCENERY_FALLBACK[o.kind];
@@ -4581,10 +4588,10 @@ const AUTUMN_LOOKS = new Set([...LOOKS.house, 'hall', 'hall_2', 'hall_3', ...LOO
    roofs, the fields ploughed and sown (art/PROMPTS.md 181). The decorations,
    the finds and the beacon too: new leaves and blossom, daffodils, primroses
    and bluebells at the foot, fresh ivy up the posts and the stones (182).
-   Not the orchard find yet -- its spring picture lost its trees. */
+   The orchard took three goes (183). */
 const SPRING_LOOKS = new Set([...LOOKS.house, 'hall', 'hall_2', 'hall_3', ...LOOKS.store, ...LOOKS.mill, ...LOOKS.market, ...LOOKS.lumber, ...LOOKS.well, ...LOOKS.farm, ...LOOKS.quarry,
   ...LOOKS.hedge, ...LOOKS.fence, ...LOOKS.bench, ...LOOKS.lamp,
-  ...LOOKS.statue, ...LOOKS.flowers, ...LOOKS.banner, ...FINDS.slice(1).filter(f => f !== 'find_orchard')]);
+  ...LOOKS.statue, ...LOOKS.flowers, ...LOOKS.banner, ...FINDS.slice(1)]);
 function winterArt(p) {
   if (season().key === 'spring') {
     if (p.key === BEACON)
@@ -8472,7 +8479,7 @@ for (const set of Object.values(LOOKS)) for (const k of set) artFor(k);
 for (const k of WINTER_LOOKS) artFor(k + '_winter');
 for (const k of AUTUMN_LOOKS) artFor(k + '_autumn');
 for (const [, k] of HALL_STAGES) artFor(k);
-for (const s of SEA_PROPS) { artFor(s.key); if (s.winter) artFor(s.key + '_winter'); }
+for (const s of SEA_PROPS) { artFor(s.key); for (const sk of ['spring', 'autumn', 'winter']) if (s[sk]) artFor(s.key + '_' + sk); }
 
 /* test hooks */
 window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return placed; }, B, BUILDINGS, tileToWorld, worldToTile,

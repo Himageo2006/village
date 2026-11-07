@@ -7016,3 +7016,32 @@ The orchard came back as a carpet of blossoming bushes with no trunks and
 is left out (summer picture in spring). A retry that insisted every
 tree "keeps exactly its own brown trunk, branches and round crown shape"
 got trunks back but still merged the rows into one clump of four trees.
+
+# 183 — Autumn and spring at sea, spring in the fields, and the orchard → `art/{boat_fishing,boat_row,boat_ketch,sea_rocks,sea_seals,sea_sandbar}_{autumn,spring}.png`, `art/{sheep,cow,goat,rock,find_orchard}_spring.png`  ✅ DONE
+
+Made as 181, free. The three boats, the sea stacks, the seals and the
+sandbar get `autumn` and `spring` flags in SEA_PROPS, and drawSeaProps takes
+`<key>_<season>` for whichever season is flagged (it took only winter
+before). The whale, dolphins, turtle and buoy stay the same all year. The
+sheep, cow, goat and plain rock gain spring looks in SEASON_LOOK, with
+SCENERY_H heights matching their summer ones. The sea pictures carry their own
+surf, so those prompts end "The water and white foam around it stay exactly
+the same."
+
+- Autumn boats: leaves on the deck, with pumpkins and a basket of red
+  apples stowed among the gear (the leaves it also blew across the water were
+  dropped as specks).
+- Autumn stacks, seals and sandbar: the moss "turns rusty orange and gold",
+  brown seaweed and kelp. The stacks came out mostly orange; kept.
+- Spring boats: a blossom garland on the fishing boat's rail and daffodils
+  in a jar, a basket of daffodils in the rowing boat, bunting and a blossom
+  garland on the ketch.
+- Spring stacks and sandbar: "pink sea thrift" and fresh moss and beach
+  grass. The seals asked for "a small fluffy white seal pup" and got two.
+- Sheep, cow, goat: "a small garland of white daisies and yellow primroses
+  ... round its neck"; the sheep lifted its head.
+- Rock: moss and primroses in its cracks.
+
+The orchard (182 left it out): the third try asked that "almost nothing
+changes. Every tree, trunk, branch and leaf stays exactly where it is. Only
+tiny pale pink blossom dots appear" -- and kept the trees.
