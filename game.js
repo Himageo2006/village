@@ -870,6 +870,49 @@ function tone({ f = 440, to = 0, type = 'sine', dur = 0.14, vol = 0.5, delay = 0
   o.start(t0); o.stop(t0 + dur + 0.02);
 }
 
+/* The air has a sound too, under the tones: the sea murmuring at the cliffs,
+   rain hissing on a wet day, and crickets on a summer night. The two beds are
+   one looped buffer of noise each, filtered -- the surf low, the rain high --
+   so they cost no oscillators and nothing per frame but two gain targets. They
+   go to nothing when the game is muted or out of sight; the crickets are
+   ordinary tones and so stand down by tone()'s own rule. */
+let beds = null;
+function bedsOn() {
+  if (beds || !actx) return;
+  try {
+    const len = actx.sampleRate * 2, buf = actx.createBuffer(1, len, actx.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    const bed = (type, f, q) => {
+      const src = actx.createBufferSource(); src.buffer = buf; src.loop = true;
+      const fl = actx.createBiquadFilter(); fl.type = type; fl.frequency.value = f; fl.Q.value = q;
+      const gn = actx.createGain(); gn.gain.value = 0;
+      src.connect(fl); fl.connect(gn); gn.connect(master); src.start();
+      return gn;
+    };
+    beds = { rain: bed('bandpass', 2400, 0.6), surf: bed('lowpass', 420, 0.7), cricketAt: 0 };
+  } catch (e) { beds = null; }
+}
+function hushBeds() {
+  if (!beds || !actx) return;
+  const t = actx.currentTime;
+  beds.rain.gain.cancelScheduledValues(t); beds.rain.gain.setValueAtTime(0, t);
+  beds.surf.gain.cancelScheduledValues(t); beds.surf.gain.setValueAtTime(0, t);
+}
+// frames stop while the page is hidden, so the beds are hushed here rather than left at their last level
+document.addEventListener('visibilitychange', () => { if (document.hidden) hushBeds(); });
+function stepAmbience() {
+  if (!actx || actx.state !== 'running') return;
+  bedsOn();
+  if (!beds) return;
+  const quiet = muted || document.hidden, t = actx.currentTime, now = Date.now() / 1000;
+  beds.rain.gain.setTargetAtTime(quiet ? 0 : 0.10 * rainNow(), t, 0.5);
+  beds.surf.gain.setTargetAtTime(quiet ? 0 : 0.035 * (0.65 + 0.35 * Math.sin(now * 0.45)), t, 0.8);
+  if (!quiet && season().key === 'summer' && sky().night > 0.4 && now > beds.cricketAt) {
+    beds.cricketAt = now + 0.6 + Math.random() * 2.2;
+    for (let i = 0; i < 3; i++) tone({ f: 4300, type: 'sine', dur: 0.035, vol: 0.025, delay: i * 0.07 });
+  }
+}
+
 const SFX = {
   tap:     () => tone({ f: 620, to: 520, type: 'triangle', dur: 0.06, vol: 0.22 }),
   place:   () => { tone({ f: 180, to: 90, type: 'sine', dur: 0.22, vol: 0.55 });
@@ -8116,6 +8159,7 @@ function drawPanel() {
 
 function draw() {
   glowsDrawn = 0;
+  stepAmbience();
   fitCanvas();
   g.setTransform(1, 0, 0, 1, 0, 0);
   g.fillStyle = '#0e1410'; g.fillRect(0, 0, W, VH);
@@ -8761,7 +8805,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   get ordersDone() { return ordersDone; }, set ordersDone(v) { ordersDone = v; },
   get orderT() { return orderT; }, set orderT(v) { orderT = v; },
   get goalDone() { return goalDone; }, set goalDone(v) { goalDone = v; },
-  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; },
+  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; },
   /* Read through getters. Captured by value these went stale the moment the
      harness moved them, and a sweep would have cleaned up the key the game
      was no longer using. */
