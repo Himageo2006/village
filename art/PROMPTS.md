@@ -7045,3 +7045,12 @@ the same."
 The orchard (182 left it out): the third try asked that "almost nothing
 changes. Every tree, trunk, branch and leaf stays exactly where it is. Only
 tiny pale pink blossom dots appear" -- and kept the trees.
+
+# 184 — Lit windows after dark
+→ `art/<look>_glow.webp` for every house, the three halls, five stores, six mills, two markets, the woodcutter's cabin and the sawmill (27 looks) ✅ DONE
+
+Free, made like 181 but with a night clip: the summer picture as the start frame and "Static camera, no zoom, no pan, no camera movement at all. The <subject> stays perfectly still in exactly the same place, shape, size, colours and daylight lighting. Evening comes inside: a warm golden lamplight glows from inside every window, as if candles and lanterns have been lit indoors. Only the window panes change; the walls, roof, ground and everything else stay exactly the same colours and brightness. By the end nothing is moving. The background stays a perfectly flat solid magenta colour the whole time, with no ground, no shadow, no light changes. Painterly game-art style kept exactly, no text." (MiniMax H3, 480p).
+
+The glow is not a picture of the building. It is the light alone: the clip's last frame minus its first, where it got brighter, warmer and redder, mapped back onto the summer picture's own pixels and softened a little. So it lines up with the summer art exactly and carries no wall or roof of its own. Looks whose light is small came out fine too; the market stalls and the woodcutters' sheds light their lanterns under the roof instead of windows. The plain house picked up a couple of extra lit panes on a side wall, which were kept.
+
+drawWindowGlow lays it on in drawBuilding, right after the building, so a house in front still hides the windows behind it, at the night's strength, once over and once more added on so the panes shine. Seasonal pictures hang from the summer frame's base at its width, so the glow uses that frame whatever season is drawn. Building sites (t < 1) stay dark.

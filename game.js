@@ -4626,7 +4626,35 @@ function artRect(p) {
   // the plot's near vertex: where the front corner of the building lands
   const ny = cy + (b.w + b.h) * TH / 4;
   const below = (1 - f.ay) * base.height * (wid / base.width);   // front corner to the bottom of the base
-  return { art, snow: !!snow, cx, cy, fw, ny, wid, hgt, left: cx - f.ax * wid, top: ny + below - hgt };
+  return { art, snow: !!snow, cx, cy, fw, ny, wid, hgt, left: cx - f.ax * wid, top: ny + below - hgt,
+    baseTop: ny + below - base.height * (wid / base.width), baseH: base.height * (wid / base.width) };
+}
+/* Lit windows after dark (art/PROMPTS.md 184). Each <look>_glow is only the
+   light: the last frame of a clip of the summer picture in which the lamps
+   come on inside, minus its first frame, so it is the summer picture's own
+   size and lines up with it pixel for pixel. Painted in the building pass, in
+   depth order, so a house in front still hides the windows behind it; the
+   night wash then dims it a little, as it does the lamps' posts. The seasonal
+   pictures hang from the summer one's base at its width, so the glow is laid
+   on the summer frame whatever is drawn. */
+const GLOW_LOOKS = new Set([...LOOKS.house, 'hall', 'hall_2', 'hall_3',
+  'store', 'store_granary', 'store_barn', 'store_tithe', 'store_cellar',
+  'mill', 'mill_post', 'mill_smock', 'mill_water', 'mill_tower', 'mill_cider',
+  'market', 'market_hall', 'lumber_cabin', 'lumber_saw']);
+for (const look of GLOW_LOOKS) artFor(look + '_glow');
+function drawWindowGlow(p, ar) {
+  if (p.t < 1 || !GLOW_LOOKS.has(lookOf(p))) return;
+  const n = sky().night;
+  if (n < 0.04) return;
+  const glow = artFor(lookOf(p) + '_glow');
+  if (!glow) return;
+  const a = g.globalAlpha * Math.min(1, n * 1.4);
+  g.save(); g.globalAlpha = a;
+  g.drawImage(glow, ar.left, ar.baseTop, ar.wid, ar.baseH);
+  // and once more added on, so the panes shine rather than just turn yellow
+  g.globalCompositeOperation = 'lighter'; g.globalAlpha = a * 0.5;
+  g.drawImage(glow, ar.left, ar.baseTop, ar.wid, ar.baseH);
+  g.restore();
 }
 function drawBuilding(p, alpha, tint) {
   const b = B(p.key);
@@ -4639,6 +4667,7 @@ function drawBuilding(p, alpha, tint) {
     g.fillStyle = 'rgba(10,18,8,.30)';
     g.beginPath(); g.ellipse(cx, cy, fw * 0.40, fw * 0.20, 0, 0, 7); g.fill();
     g.drawImage(snow ? art : seasonSkin(art, p.key), left, top, wid, hgt);
+    drawWindowGlow(p, ar);
     if (p.t < 1) {                          // scaffold while it goes up
       g.strokeStyle = 'rgba(230,200,140,.85)'; g.lineWidth = 3; g.setLineDash([8, 6]);
       g.beginPath(); g.moveTo(cx - fw * 0.4, ny); g.lineTo(cx, ny - hgt * 0.5); g.lineTo(cx + fw * 0.4, ny); g.stroke();
