@@ -7087,3 +7087,6 @@ Drawn: some days are wet -- a quarter in spring and autumn, one in ten in summer
 
 # 189 — The sound of the air
 No art. Under the tones there are now two quiet beds and an insect: the sea murmuring at the cliffs (low-passed noise, rising and falling slowly), rain hissing on a wet day (band-passed noise, following the shower in and out), and a cricket's three-note chirp now and then on a summer night. The beds are one looped buffer of noise each, so they make no oscillators; both go to nothing when muted or hidden, and the crickets are ordinary tones that stand down by tone()'s own rule.
+
+# 190 — Sun on the water
+No art. By day small glints wink on and off across the open sea: a short flash each, then gone and lit again somewhere else, brightest at noon, fading to nothing at dusk and under rain. They are scattered over the part of the sea in view at a fixed size on screen, placed from their number and the clock so nothing is stored, and drawn before the island so the land covers any that fall on it. Off with reduced motion.

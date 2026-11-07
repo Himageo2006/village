@@ -4347,6 +4347,37 @@ function seaGlow(s, x, top, hgt) {
   const wid = base.width * (hgt / base.height);
   paintGlow(glow, x - wid / 2, top, wid, hgt, n);
 }
+/* Sun on the water: by day small glints wink on and off across the sea around
+   the island, brightest at noon, gone at dusk and under rain. Each is placed
+   from its number and lit from the clock, so there is nothing to keep; the
+   island is drawn over them afterwards, so they only show on open water.
+   They are scattered over the part of the sea in view, at a size that stays
+   the same on screen whatever the zoom. */
+const GLINTS = 90;
+let glintsDrawn = 0;
+function drawGlints() {
+  glintsDrawn = 0;
+  if (reduceMotion) return;
+  const lit = Math.max(0, sky().sun) * (1 - rainNow());
+  if (lit < 0.05) return;
+  const t = Date.now() / 1000, a = camUnproject(0, screenTop()), c = camUnproject(W, screenBot());
+  const x0 = a.x, y0 = a.y, w = c.x - a.x, h = c.y - a.y, u = 1 / camScale();
+  g.save(); g.globalCompositeOperation = 'lighter'; g.lineCap = 'round';
+  for (let i = 0; i < GLINTS; i++) {
+    // each glint flashes briefly once in its cycle, then moves to a new spot
+    const cyc = 2.2 + rnd(i, 21) * 2.6, k = t / cyc + rnd(i, 22), ph = frac(k);
+    if (ph > 0.3) continue;
+    const n = Math.floor(k), al = Math.sin(ph / 0.3 * Math.PI) * lit;
+    if (al < 0.04) continue;
+    const x = x0 + rnd(i + n * 7.3, 23) * w, y = y0 + rnd(i + n * 7.3, 24) * h, r = (12 + rnd(i, 25) * 12) * u;
+    g.strokeStyle = 'rgba(255,252,226,' + (0.9 * al).toFixed(3) + ')'; g.lineWidth = 5 * u;
+    g.beginPath(); g.moveTo(x - r * 1.6, y); g.lineTo(x + r * 1.6, y); g.moveTo(x, y - r * 0.8); g.lineTo(x, y + r * 0.8); g.stroke();
+    g.fillStyle = 'rgba(255,255,240,' + al.toFixed(3) + ')';
+    g.beginPath(); g.arc(x, y, r * 0.32, 0, 7); g.fill();
+    glintsDrawn++;
+  }
+  g.restore();
+}
 function drawSeaProps(b) {
   const W = b.x1 - b.x0, cx = (b.x0 + b.x1) / 2;
   for (const s of SEA_PROPS) {
@@ -4385,6 +4416,7 @@ function drawGround() {
     g.fillRect(b.x0 - pad, b.y0 - pad, (b.x1 - b.x0) + pad * 2, (b.y1 - b.y0) + pad * 2);
     g.restore();
   }
+  drawGlints();
   drawSeaProps(b);
 
   // soft ground shadow so the plot sits ON something instead of floating
@@ -8805,7 +8837,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   get ordersDone() { return ordersDone; }, set ordersDone(v) { ordersDone = v; },
   get orderT() { return orderT; }, set orderT(v) { orderT = v; },
   get goalDone() { return goalDone; }, set goalDone(v) { goalDone = v; },
-  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; },
+  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; },
   /* Read through getters. Captured by value these went stale the moment the
      harness moved them, and a sweep would have cleaned up the key the game
      was no longer using. */
