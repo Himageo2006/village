@@ -642,11 +642,47 @@ const AMBIENT = {
 };
 const frac = x => x - Math.floor(x);
 const rnd = (i, k) => frac(Math.sin(i * 127.1 + k * 311.7) * 43758.5453);
+/* By day the sky is there too, though the camera never looks at it: the
+   shadows of a few clouds sliding over island and sea, and now and then a
+   gull crossing. Both fade out as the light goes. */
+const CLOUDS = 3, GULLS = 3;
+function drawDaySky(t, top, hh, day) {
+  for (let i = 0; i < CLOUDS; i++) {
+    const span = W + 900, sp = 9 + rnd(i, 8) * 6;
+    const x = frac(rnd(i, 9) + t * sp / span) * span - 450;
+    const y = top + hh * (0.15 + 0.7 * rnd(i, 10)) + (x - W / 2) * 0.18;
+    const rw = 240 + rnd(i, 11) * 160;
+    g.save(); g.translate(x, y); g.scale(1, 0.55);
+    const gr = g.createRadialGradient(0, 0, 0, 0, 0, rw);
+    gr.addColorStop(0, 'rgba(14,30,44,' + (0.10 * day).toFixed(3) + ')');
+    gr.addColorStop(0.6, 'rgba(14,30,44,' + (0.06 * day).toFixed(3) + ')');
+    gr.addColorStop(1, 'rgba(14,30,44,0)');
+    g.fillStyle = gr; g.beginPath(); g.arc(0, 0, rw, 0, 7); g.fill();
+    g.restore();
+  }
+  g.lineCap = 'round'; g.lineJoin = 'round';
+  for (let i = 0; i < GULLS; i++) {
+    // each gull crosses once in a while and is gone the rest of its cycle
+    const cyc = 38 + rnd(i, 12) * 30, ph = frac(t / cyc + rnd(i, 13));
+    if (ph > 0.55) continue;
+    const dir = rnd(i, 14) < 0.5 ? 1 : -1, q = ph / 0.55;
+    const x = dir > 0 ? -40 + q * (W + 80) : W + 40 - q * (W + 80);
+    const y = top + hh * (0.1 + 0.5 * rnd(i, 15)) + Math.sin(t * 0.7 + i) * 14;
+    const flap = Math.sin(t * 7 + i * 2), w = 9, lift = 3 + flap * 4;
+    g.strokeStyle = 'rgba(40,52,60,' + (0.55 * day).toFixed(3) + ')'; g.lineWidth = 3.2;
+    g.beginPath(); g.moveTo(x - w, y - lift); g.quadraticCurveTo(x - w * 0.45, y - lift - 2, x, y);
+    g.quadraticCurveTo(x + w * 0.45, y - lift - 2, x + w, y - lift); g.stroke();
+    g.strokeStyle = 'rgba(250,252,255,' + (0.95 * day).toFixed(3) + ')'; g.lineWidth = 1.8;
+    g.stroke();
+  }
+}
 function drawAmbient() {
   if (reduceMotion) return;
   const key = season().key, t = Date.now() / 1000;
   const top = screenTop(), hh = screenBot() - top;
   g.save();
+  const day = 1 - sky().night;
+  if (day > 0.05) drawDaySky(t, top, hh, day);
   const a = AMBIENT[key];
   if (a) {
     for (let i = 0; i < a.n; i++) {
@@ -708,12 +744,30 @@ function drawBeam(night) {
   g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, BEAM_LEN, th - BEAM_HALF, th + BEAM_HALF); g.closePath(); g.fill();
   g.restore();
 }
+/* And everyone out after dark carries a light: a small warm pool at the hand,
+   so the paths show who is walking them. No art -- a lantern at this size is
+   a point of light -- and it flickers a little, each on its own beat, except
+   for reduced motion. In the lamp pass, after the wash, like the lamps. */
+function drawLanterns(night) {
+  const t = Date.now() / 1000, r = VILLAGER_H * 0.42;
+  for (const v of villagers) {
+    const x = v.x + (v.face || 1) * VILLAGER_H * 0.12, y = v.y - VILLAGER_H * 0.42;
+    const flick = reduceMotion ? 1 : 0.88 + 0.12 * Math.sin(t * 9 + v.seed * 1.7) * Math.sin(t * 5.3 + v.seed);
+    const a = 0.5 * night * flick;
+    const gr = g.createRadialGradient(x, y, 0, x, y, r);
+    gr.addColorStop(0, 'rgba(255,214,128,' + a.toFixed(3) + ')');
+    gr.addColorStop(0.35, 'rgba(255,180,80,' + (a * 0.4).toFixed(3) + ')');
+    gr.addColorStop(1, 'rgba(255,170,70,0)');
+    g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+  }
+}
 function drawLamps() {
   const { night } = sky();
   if (night < 0.04) return;
   g.save();
   g.globalCompositeOperation = 'lighter';
   drawBeam(night);
+  drawLanterns(night);
   for (const p of placed) {
     if (p.key !== 'lamp') continue;
     const at = LAMP_GLOW[lookOf(p)] || LAMP_GLOW.lamp;
@@ -5043,6 +5097,17 @@ const DECOR_H = { fence: 42, flowers: 34, hedge: 48, bench: 40, lamp: 80, banner
    off its own square. Everything else stands on its middle. */
 const DECOR_AX = { banner: 0.33, banner_pennant: 0.25, banner_windsock: 0.21, banner_bunting: 0.28, banner_kite: 0.28, lamp_ship: 0.61 };
 
+/* The campfire bench's fire burns up after dark (art/PROMPTS.md 187): the same
+   light-only overlay as the windows, on the summer picture's frame. */
+const DECOR_GLOW = new Set(['bench_campfire']);
+artFor('bench_campfire_glow');
+function decorGlow(p, x, y, w, h) {
+  if (!DECOR_GLOW.has(lookOf(p))) return;
+  const n = sky().night;
+  if (n < 0.04) return;
+  const glow = artFor(lookOf(p) + '_glow');
+  if (glow) paintGlow(glow, x, y, w, h, n);
+}
 function drawDecor(p, alpha) {
   const b = B(p.key), o = tileToWorld(p.c, p.r), n = hash(p.c * 13 + 7, p.r * 17 + 3);
   g.save();
@@ -5068,6 +5133,7 @@ function drawDecor(p, alpha) {
          snow on top makes it a little taller, not the hedge any narrower. */
       const snow = winterArt(p), sh = snow ? wid * snow.height / snow.width : hgt;
       g.drawImage(snow || seasonSkin(art, p.key), o.x - wid * (DECOR_AX[lookOf(p)] || 0.5), o.y - sh, wid, sh);
+      decorGlow(p, o.x - wid * (DECOR_AX[lookOf(p)] || 0.5), o.y - hgt, wid, hgt);
     }
     g.restore(); return;
   }

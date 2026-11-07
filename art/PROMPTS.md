@@ -7070,3 +7070,10 @@ Made as 184, free. The boats: "... stays perfectly still in exactly the same pla
 The beacon's glows are `beacon_glow<n>`, not `beacon_stage<n>_glow`: the art checks read any `_stage` key as a frame of the beacon's set, and the glows do not stand on its ground line. Every glow is now one image, added on, and the game counts them (glowsDrawn) so the frame-cost check allows exactly those and nothing more.
 
 Weather, drawn rather than made: drawAmbient scatters snow in winter, tumbling leaves in autumn and blossom petals in spring across the screen, and fireflies blink on summer nights. Each mote is worked out from the clock and its number, so nothing is stored; off with reduced motion.
+
+# 187 — The campfire after dark, lanterns in hand, and the day sky
+→ `art/bench_campfire_glow.webp` ✅ DONE
+
+Made as 184, free: "... Evening comes: the campfire is lit and small warm golden flames and glowing embers burn in the fire ring, casting a soft warm glow on the stones beside it. Only the fire changes; the bench, stones and everything else stay exactly the same colours and brightness." The summer picture already has a small fire, so the glow is the fire burning up and the light on the ring. decorGlow lays it on the bench_campfire look, on the summer frame, the one decoration with a light of its own.
+
+Drawn, not made: everyone walking after dark carries a lantern -- a small warm pool at the hand on the side they face, flickering on its own beat -- in the lamp pass with the lamps; and by day the shadows of three clouds slide across island and sea and a gull crosses now and then, both fading as the light goes and off with reduced motion.
