@@ -7054,3 +7054,19 @@ Free, made like 181 but with a night clip: the summer picture as the start frame
 The glow is not a picture of the building. It is the light alone: the clip's last frame minus its first, where it got brighter, warmer and redder, mapped back onto the summer picture's own pixels and softened a little. So it lines up with the summer art exactly and carries no wall or roof of its own. Looks whose light is small came out fine too; the market stalls and the woodcutters' sheds light their lanterns under the roof instead of windows. The plain house picked up a couple of extra lit panes on a side wall, which were kept.
 
 drawWindowGlow lays it on in drawBuilding, right after the building, so a house in front still hides the windows behind it, at the night's strength, once over and once more added on so the panes shine. Seasonal pictures hang from the summer frame's base at its width, so the glow uses that frame whatever season is drawn. Building sites (t < 1) stay dark.
+
+# 185 — The lighthouse lit at night
+→ `art/beacon_stage4_glow.webp`, `art/beacon_stage5_glow.webp` ✅ DONE
+
+Made as 184 from the beacon's summer stages; stage 5's prompt adds "and the great lamp in the lantern room at the top blazes with a bright warm golden light" and lets the lantern glass change as well as the panes. Stages 2 and 3 were made too and dropped: the light came out off the tower, and the stump of 2 swung its door open. glowKey picks the beacon's glow by stage, from 4 up.
+
+Once the beacon is finished, drawBeam turns a soft beam from the lamp after dark, once every 14 s, laid flat on the ground at the island's 2:1 so it sweeps across the sea, with a halo round the lantern. It goes in the lamp pass, after the night wash, so it is not dimmed. With reduced motion the beam holds still.
+
+# 186 — Lights at sea, the resting sheep in spring, and the season in the air
+→ `art/{boat_fishing,boat_ketch,sea_buoy}_glow.webp`, `art/sheep_rest_spring.png` ✅ DONE
+
+Made as 184, free. The boats: "... stays perfectly still in exactly the same place, shape, size, colours and daylight lighting. Night falls at sea: a small ship's lantern hanging on the boat is lit and glows a warm golden light, and a soft warm lamplight shows from any cabin window. Only the lantern and windows change; the hull, sails, deck and everything else stay exactly the same colours and brightness." Both clips darkened the whole scene as well; the glow keeps only what got brighter and warmer, so that went. The buoy: "a warm golden signal lamp inside the iron cage around the bell is lit and glows brightly". The rowboat has nothing aboard to light and was left dark. SEA_PROPS marks the three with `glow`, and seaGlow lays each on the summer frame at the prop's height. The resting sheep took the standing flock's daisy-and-primrose garland (as 183).
+
+The beacon's glows are `beacon_glow<n>`, not `beacon_stage<n>_glow`: the art checks read any `_stage` key as a frame of the beacon's set, and the glows do not stand on its ground line. Every glow is now one image, added on, and the game counts them (glowsDrawn) so the frame-cost check allows exactly those and nothing more.
+
+Weather, drawn rather than made: drawAmbient scatters snow in winter, tumbling leaves in autumn and blossom petals in spring across the screen, and fireflies blink on summer nights. Each mote is worked out from the clock and its number, so nothing is stored; off with reduced motion.

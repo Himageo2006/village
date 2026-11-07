@@ -629,15 +629,91 @@ function drawSky() {
   }
   g.restore();
 }
+/* Weather in the air, by season: snow drifting down in winter, leaves in
+   autumn, blossom petals in spring, and on summer nights fireflies. Painted
+   on the screen, not the world, so it costs the same at any zoom, and kept
+   no state: each mote's place is worked out from the clock and its number, so
+   nothing is spawned, stored or saved. Thin on purpose -- it is the air
+   between you and the village, not a storm -- and off for reduced motion. */
+const AMBIENT = {
+  winter: { n: 60, fall: 34, sway: 18, size: [2, 4], col: () => 'rgba(255,255,255,0.85)' },
+  autumn: { n: 18, fall: 26, sway: 46, size: [5, 8], col: i => ['#c8541e', '#e0892a', '#b8321c', '#d9a52c'][i % 4] },
+  spring: { n: 18, fall: 20, sway: 40, size: [2.6, 4], col: i => (i % 3 ? '#f7c6d6' : '#fde6ee') },
+};
+const frac = x => x - Math.floor(x);
+const rnd = (i, k) => frac(Math.sin(i * 127.1 + k * 311.7) * 43758.5453);
+function drawAmbient() {
+  if (reduceMotion) return;
+  const key = season().key, t = Date.now() / 1000;
+  const top = screenTop(), hh = screenBot() - top;
+  g.save();
+  const a = AMBIENT[key];
+  if (a) {
+    for (let i = 0; i < a.n; i++) {
+      const sp = 0.7 + rnd(i, 1) * 0.6, size = a.size[0] + rnd(i, 2) * (a.size[1] - a.size[0]);
+      const y = top + frac(rnd(i, 3) + t * a.fall * sp / hh) * hh;
+      const x = frac(rnd(i, 4) + t * 0.006 * sp) * W + Math.sin(t * 0.9 * sp + i) * a.sway;
+      g.fillStyle = a.col(i);
+      if (key === 'winter') { g.beginPath(); g.arc(x, y, size, 0, 7); g.fill(); continue; }
+      g.save(); g.translate(x, y); g.rotate(t * 1.3 * sp + i);
+      g.scale(1, 0.45 + 0.4 * Math.abs(Math.sin(t * 2 * sp + i)));   // tumbling
+      g.beginPath(); g.ellipse(0, 0, size, size * 0.6, 0, 0, 7); g.fill();
+      g.restore();
+    }
+  }
+  const night = sky().night;
+  if (key === 'summer' && night > 0.05) {
+    g.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 22; i++) {
+      const x = frac(rnd(i, 5) + Math.sin(t * 0.13 + i) * 0.03) * W;
+      const y = top + hh * (0.25 + 0.6 * frac(rnd(i, 6) + Math.cos(t * 0.11 + i * 2) * 0.03));
+      const blink = Math.max(0, Math.sin(t * (0.8 + rnd(i, 7)) + i * 3));
+      const al = night * blink * 0.9;
+      if (al < 0.02) continue;
+      const gr = g.createRadialGradient(x, y, 0, x, y, 9);
+      gr.addColorStop(0, 'rgba(236,255,140,' + al.toFixed(3) + ')');
+      gr.addColorStop(1, 'rgba(200,255,90,0)');
+      g.fillStyle = gr; g.beginPath(); g.arc(x, y, 9, 0, 7); g.fill();
+    }
+  }
+  g.restore();
+}
 /* Lamps are drawn AFTER the night wash so their light sits on top of it rather
    than being dimmed along with everything else. The light goes where each
    look's lantern is: on top of the post, or hanging off its bracket. */
 const LAMP_GLOW = { lamp: { dx: 0, dy: -52 }, lamp_bracket: { dx: 8, dy: -42 }, lamp_stone: { dx: 0, dy: -56 }, lamp_double: { dx: 0, dy: -55 }, lamp_ship: { dx: -10, dy: -52 }, lamp_basket: { dx: 6, dy: -60 }, lamp_crook: { dx: -5, dy: -56 } };
+/* The finished lighthouse's lamp, where it sits in the stage-5 picture, and the
+   beam it turns over the sea. The beam lies on the ground plane -- squashed to
+   the island's 2:1 -- so it sweeps across the water rather than up the sky. */
+const LANTERN = { fx: 0.512, fy: 0.201 };
+const BEAM_TURN_MS = 14000, BEAM_LEN = 1100, BEAM_HALF = 0.11;
+function drawBeam(night) {
+  const p = placed.find(q => q.key === BEACON);
+  if (!p || p.t < 1 || (p.lvl | 0) < BEACON_STAGES) return;
+  const ar = artRect(p);
+  if (!ar) return;
+  const x = ar.left + LANTERN.fx * ar.wid, y = ar.baseTop + LANTERN.fy * ar.baseH;
+  const halo = g.createRadialGradient(x, y, 0, x, y, 70);
+  halo.addColorStop(0, 'rgba(255,214,130,' + (0.55 * night).toFixed(3) + ')');
+  halo.addColorStop(1, 'rgba(255,190,90,0)');
+  g.fillStyle = halo; g.beginPath(); g.arc(x, y, 70, 0, 7); g.fill();
+  const turn = reduceMotion ? 0.35 : (Date.now() % BEAM_TURN_MS) / BEAM_TURN_MS;
+  const th = turn * Math.PI * 2;
+  g.save(); g.translate(x, y); g.scale(1, 0.5);
+  const gr = g.createRadialGradient(0, 0, 0, 0, 0, BEAM_LEN);
+  gr.addColorStop(0, 'rgba(255,226,160,' + (0.34 * night).toFixed(3) + ')');
+  gr.addColorStop(0.5, 'rgba(255,214,140,' + (0.12 * night).toFixed(3) + ')');
+  gr.addColorStop(1, 'rgba(255,210,130,0)');
+  g.fillStyle = gr;
+  g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, BEAM_LEN, th - BEAM_HALF, th + BEAM_HALF); g.closePath(); g.fill();
+  g.restore();
+}
 function drawLamps() {
   const { night } = sky();
   if (night < 0.04) return;
   g.save();
   g.globalCompositeOperation = 'lighter';
+  drawBeam(night);
   for (const p of placed) {
     if (p.key !== 'lamp') continue;
     const at = LAMP_GLOW[lookOf(p)] || LAMP_GLOW.lamp;
@@ -4119,17 +4195,30 @@ function waterPattern() {
    thrift, a seal pup (art/PROMPTS.md 183). The animals out at sea and the
    buoy are the same all year. */
 const SEA_PROPS = [
-  { key: 'boat_fishing', fx: -0.12, top: true,  dy: -230, h: 100, winter: true, autumn: true, spring: true },
+  { key: 'boat_fishing', fx: -0.12, top: true,  dy: -230, h: 100, winter: true, autumn: true, spring: true, glow: true },
   { key: 'boat_row',     fx:  0.11, top: false, dy:  330, h: 52, winter: true, autumn: true, spring: true },   // clear of the cliffs and sand
-  { key: 'boat_ketch',   fx:  0.24, top: true,  dy: -100, h: 132, winter: true, autumn: true, spring: true },  // under sail, off the north-east shore
+  { key: 'boat_ketch',   fx:  0.24, top: true,  dy: -100, h: 132, winter: true, autumn: true, spring: true, glow: true },  // under sail, off the north-east shore
   { key: 'sea_rocks',    fx: -0.14, top: false, dy:  390, h: 150, still: true, winter: true, autumn: true, spring: true },  // sea stacks off the south-west cliffs
   { key: 'sea_dolphins', fx:  0.34, top: false, dy:  230, h: 72,  still: true, winter: true },  // leaping off the south-east shore
   { key: 'sea_seals',    fx:  0.07, top: true,  dy: -150, h: 84,  still: true, winter: true, autumn: true, spring: true },  // basking off the northern tip
   { key: 'sea_whale',    fx: -0.30, top: false, dy:  250, h: 96,  still: true, winter: true },  // diving off the south-west
-  { key: 'sea_buoy',     fx:  0.17, top: true,  dy:  -30, h: 64,  still: true, winter: true },  // a bell buoy out to the north-east
+  { key: 'sea_buoy',     fx:  0.17, top: true,  dy:  -30, h: 64,  still: true, winter: true, glow: true },  // a bell buoy out to the north-east
   { key: 'sea_turtle',   fx:  0.19, top: false, dy:  110, h: 52,  still: true, winter: true },  // a turtle surfacing off the south-east
   { key: 'sea_sandbar',  fx: -0.19, top: true,  dy:  -40, h: 84,  still: true, winter: true, autumn: true, spring: true },  // a sandbar with gulls off the north-west
 ];
+/* The lights at sea after dark (art/PROMPTS.md 186): a lantern on the fishing
+   boat and the ketch, and the lamp in the buoy's cage. Each glow was made
+   against the summer picture, so it is laid on that picture's frame at the
+   prop's height -- the seasonal pictures are the same boat at the same size. */
+function seaGlow(s, x, top, hgt) {
+  if (!s.glow) return;
+  const n = sky().night;
+  if (n < 0.04) return;
+  const base = artFor(s.key), glow = artFor(s.key + '_glow');
+  if (!base || !glow) return;
+  const wid = base.width * (hgt / base.height);
+  paintGlow(glow, x - wid / 2, top, wid, hgt, n);
+}
 function drawSeaProps(b) {
   const W = b.x1 - b.x0, cx = (b.x0 + b.x1) / 2;
   for (const s of SEA_PROPS) {
@@ -4138,7 +4227,7 @@ function drawSeaProps(b) {
     const x = cx + s.fx * W, y = (s.top ? b.y0 : b.y1) + s.dy;
     const hgt = s.h, wid = art.width * (hgt / art.height);
     // rocks are painted with their own surf at the waterline: drawn as they are
-    if (s.still) { g.drawImage(art, x - wid / 2, y - hgt, wid, hgt); continue; }
+    if (s.still) { g.drawImage(art, x - wid / 2, y - hgt, wid, hgt); seaGlow(s, x, y - hgt, hgt); continue; }
     g.save();
     // the hull sits IN the water: a darker patch under it ...
     g.fillStyle = 'rgba(8,40,58,.28)';
@@ -4149,6 +4238,7 @@ function drawSeaProps(b) {
     g.save();
     g.beginPath(); g.rect(x - wid, y - hgt * 1.2, wid * 2, hgt * 1.2); g.clip();
     g.drawImage(art, x - wid / 2, y - hgt * 0.88, wid, hgt);
+    seaGlow(s, x, y - hgt * 0.88, hgt);
     g.restore();
     // the ripple where hull meets water, over the hull's foot
     g.strokeStyle = 'rgba(235,250,255,.34)'; g.lineWidth = 2.5;
@@ -4207,7 +4297,7 @@ const SCENERY_H = { goat: 30, cow: 40, tree_pine: 115, tree_spruce: 118, tree_oa
   tree_oak_winter: 100, tree_pine_winter: 115, tree_spruce_winter: 118, tree_birch_winter: 122,
   tree_willow_winter: 96, tree_poplar_winter: 126, tree_cherry_winter: 100, tree_oak_autumn: 100, tree_birch_autumn: 122, tree_willow_autumn: 96, tree_poplar_autumn: 126, tree_cherry_autumn: 100,
   tree_oak_spring: 100, tree_birch_spring: 122, tree_willow_spring: 96, tree_poplar_spring: 126, tree_pine_spring: 115, tree_spruce_spring: 118, rock_moss_spring: 50, stump_spring: 38, log_mushroom_spring: 34, bush_spring: 46,
-  rock_winter: 54, rock_autumn: 54, rock_moss_autumn: 50, stump_autumn: 38, log_mushroom_autumn: 34, tree_pine_autumn: 115, tree_spruce_autumn: 118, sheep_autumn: 30, sheep_rest_autumn: 22, cow_autumn: 40, rock_moss_winter: 50, stump_winter: 38, log_mushroom_winter: 34, flowers_wild_winter: 30, flowers_meadow_winter: 30, sheep_winter: 30, sheep_rest_winter: 22, cow_winter: 40,
+  rock_winter: 54, rock_autumn: 54, rock_moss_autumn: 50, stump_autumn: 38, log_mushroom_autumn: 34, tree_pine_autumn: 115, tree_spruce_autumn: 118, sheep_autumn: 30, sheep_rest_spring: 22, sheep_rest_autumn: 22, cow_autumn: 40, rock_moss_winter: 50, stump_winter: 38, log_mushroom_winter: 34, flowers_wild_winter: 30, flowers_meadow_winter: 30, sheep_winter: 30, sheep_rest_winter: 22, cow_winter: 40,
   tree_cherry_summer: 100, flowers_wild_spring: 30, flowers_meadow_spring: 30, flowers_wild_autumn: 30, flowers_meadow_autumn: 30,
   sheep_spring: 30, cow_spring: 40, goat_spring: 30, rock_spring: 54 };
 /* What a newer kind is drawn as while its own picture is missing, so a lost
@@ -4349,9 +4439,10 @@ const SEASON_LOOK = {
   flowers_meadow: { spring: 'flowers_meadow_spring', autumn: 'flowers_meadow_autumn', winter: 'flowers_meadow_winter' },
   /* and the animals left out in it: the flock and the cow (the goat is the cow
      by then) in thick coats with snow on their backs, and the whole flock
-     and the cow with fallen leaves in their coats in autumn, and the sheep,
-     the cow and the goat in daisy-and-primrose garlands in spring */
-  sheep: { spring: 'sheep_spring', autumn: 'sheep_autumn', winter: 'sheep_winter' }, sheep_rest: { autumn: 'sheep_rest_autumn', winter: 'sheep_rest_winter' },
+     and the cow with fallen leaves in their coats in autumn, and the sheep
+     (standing and lying down), the cow and the goat in daisy-and-primrose
+     garlands in spring */
+  sheep: { spring: 'sheep_spring', autumn: 'sheep_autumn', winter: 'sheep_winter' }, sheep_rest: { spring: 'sheep_rest_spring', autumn: 'sheep_rest_autumn', winter: 'sheep_rest_winter' },
   cow: { spring: 'cow_spring', autumn: 'cow_autumn', winter: 'cow_winter' }, goat: { spring: 'goat_spring' } };
 function drawScenery(o) {
   const p = tileToWorld(o.c, o.r), s2 = o.s;
@@ -4642,19 +4733,41 @@ const GLOW_LOOKS = new Set([...LOOKS.house, 'hall', 'hall_2', 'hall_3',
   'mill', 'mill_post', 'mill_smock', 'mill_water', 'mill_tower', 'mill_cider',
   'market', 'market_hall', 'lumber_cabin', 'lumber_saw']);
 for (const look of GLOW_LOOKS) artFor(look + '_glow');
+/* The beacon by stage: only the two tall ones, 4 and 5, have windows to light
+   (5 its lamp too). The stumps of 2 and 3 came out of the clip misplaced and
+   with a door flung open, and at that height nobody misses them. */
+const BEACON_GLOW_FROM = 4;
+function glowKey(p) {
+  if (p.key === BEACON) {
+    const st = Math.min(BEACON_STAGES, Math.max(1, p.lvl | 0));
+    // not "_stage<n>_glow": a _stage key is a frame of the beacon's set to the art checks
+    return st >= BEACON_GLOW_FROM ? BEACON + '_glow' + st : null;
+  }
+  const look = lookOf(p);
+  return GLOW_LOOKS.has(look) ? look + '_glow' : null;
+}
+for (let i = BEACON_GLOW_FROM; i <= BEACON_STAGES; i++) artFor(BEACON + '_glow' + i);
 function drawWindowGlow(p, ar) {
-  if (p.t < 1 || !GLOW_LOOKS.has(lookOf(p))) return;
+  if (p.t < 1) return;
   const n = sky().night;
   if (n < 0.04) return;
-  const glow = artFor(lookOf(p) + '_glow');
+  const key = glowKey(p);
+  if (!key) return;
+  const glow = artFor(key);
   if (!glow) return;
-  const a = g.globalAlpha * Math.min(1, n * 1.4);
-  g.save(); g.globalAlpha = a;
-  g.drawImage(glow, ar.left, ar.baseTop, ar.wid, ar.baseH);
-  // and once more added on, so the panes shine rather than just turn yellow
-  g.globalCompositeOperation = 'lighter'; g.globalAlpha = a * 0.5;
-  g.drawImage(glow, ar.left, ar.baseTop, ar.wid, ar.baseH);
+  /* Added on rather than laid over, so the panes shine rather than just turn
+     yellow -- and in one pass: it is the one extra image a lit building
+     costs, and the frame-cost check allows exactly that. */
+  paintGlow(glow, ar.left, ar.baseTop, ar.wid, ar.baseH, n);
+}
+/* How many lit windows and lanterns this frame drew: each is one image over
+   the thing it lights, and the frame-cost check allows exactly these. */
+let glowsDrawn = 0;
+function paintGlow(glow, x, y, w, h, n) {
+  g.save(); g.globalCompositeOperation = 'lighter'; g.globalAlpha *= Math.min(1, n * 1.4);
+  g.drawImage(glow, x, y, w, h);
   g.restore();
+  glowsDrawn++;
 }
 function drawBuilding(p, alpha, tint) {
   const b = B(p.key);
@@ -7904,6 +8017,7 @@ function drawPanel() {
 }
 
 function draw() {
+  glowsDrawn = 0;
   fitCanvas();
   g.setTransform(1, 0, 0, 1, 0, 0);
   g.fillStyle = '#0e1410'; g.fillRect(0, 0, W, VH);
@@ -7926,6 +8040,7 @@ function draw() {
      the thing the source already calls a bug however pretty it looks. The
      delivery pops stay under the wash -- they carry their own near-black
      outline and measure 8.4 at midnight, so they do not need it. */
+  drawAmbient();                                // the season in the air, in front of the world
   g.save(); camApply(); drawLamps(); flushBadges(); g.restore();
   drawHUD();
   g.restore();
@@ -8508,7 +8623,7 @@ for (const set of Object.values(LOOKS)) for (const k of set) artFor(k);
 for (const k of WINTER_LOOKS) artFor(k + '_winter');
 for (const k of AUTUMN_LOOKS) artFor(k + '_autumn');
 for (const [, k] of HALL_STAGES) artFor(k);
-for (const s of SEA_PROPS) { artFor(s.key); for (const sk of ['spring', 'autumn', 'winter']) if (s[sk]) artFor(s.key + '_' + sk); }
+for (const s of SEA_PROPS) { artFor(s.key); if (s.glow) artFor(s.key + '_glow'); for (const sk of ['spring', 'autumn', 'winter']) if (s[sk]) artFor(s.key + '_' + sk); }
 
 /* test hooks */
 window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return placed; }, B, BUILDINGS, tileToWorld, worldToTile,
@@ -8562,7 +8677,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   SEASONS, SEASON_OF, SEASON_LEAF, seasonIdx, season, seasonSkin, drawGround, drawScenery, SCENERY,
   GW, GH, tileToWorld, deliveredOf,
   get seasonForced() { return seasonForced; }, set seasonForced(v) { seasonForced = v; },
-  get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, winterArt, ART, villagerArt,
+  get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, winterArt, ART, villagerArt, glowKey, get glowsDrawn() { return glowsDrawn; },
   hudTop, hudBot, screenTop, screenBot, readSafeArea, get SAFE() { return SAFE; }, set SAFE(v) { SAFE = v; },
   get safeKnown() { return safeKnown; }, set safeKnown(v) { safeKnown = !!v; },
   fitLines, fitLinesNow, TUT, GOALS, get finished() { return finished; }, set finished(v) { finished = v; },

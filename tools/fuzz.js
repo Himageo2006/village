@@ -6813,11 +6813,16 @@
 
       const things = V.placed.length + V.villagers.length;
       const ops = count();
-      rows.push({ what, things, drawImage: ops.drawImage, total: ops.total });
-      if (ops.drawImage > things + spareHere)
+      /* After dark a lit building, boat or buoy is drawn twice, the second
+         time as the light in its windows -- one more image each, by design,
+         so the game's own tally of them is allowed rather than left to the
+         spare. Read after the frame count() just drew. */
+      const lit = V.glowsDrawn | 0;
+      rows.push({ what, things, lit, drawImage: ops.drawImage, total: ops.total });
+      if (ops.drawImage > things + lit + spareHere)
         fails.push(what + ' reaches for an image ' + ops.drawImage + ' times with '
-          + things + ' things standing on it, which is more than one each and '
-          + spareHere + ' for the scenery');
+          + things + ' things standing on it' + (lit ? ' and ' + lit + ' lit at night' : '')
+          + ', which is more than one each and ' + spareHere + ' for the scenery');
       if (ops.drawImage < things * 0.9)
         fails.push(what + ' has ' + things + ' things standing on it and draws only '
           + ops.drawImage + ' images, so something is not being drawn at all');
