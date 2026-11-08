@@ -7122,3 +7122,6 @@ No art. Far off and now and then: a few quick notes of birdsong around sunrise (
 
 # 200 — Rain on the sea, and shafts of low sun
 No art. On wet days rings open on the open water where the drops land, thicker as the shower thickens. In dry weather at sunrise and sunset five slanting bars of gold come down the view, from the left in the morning and the right in the evening, breathing slowly. Worked out from the clock, nothing stored, off with reduced motion.
+
+# 201 — Fireworks at the full moon
+No art. The night of the full moon, one night in sixteen, is the village's festival: three fireworks going at a time over the island, each a shell climbing and a burst of coloured sparks falling away, with a soft thud as it opens. Dry nights only. Worked out from the clock, nothing stored; off with reduced motion, and the thuds stand down when muted or hidden.

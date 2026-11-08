@@ -836,6 +836,44 @@ function drawShafts(t, top, hh, warm) {
   }
   g.globalCompositeOperation = 'source-over';
 }
+/* The night of the full moon is the village's festival: fireworks over the
+   island, three going at a time, each a shell climbing and a burst falling
+   away. A dry night only. */
+const FIREWORKS = 3, FW_BANG = 0.25;
+const FW_COLOURS = ['255,120,90', '255,214,100', '130,220,255', '190,140,255', '140,255,170'];
+function festivalNow() {
+  const day = Math.floor(Date.now() / DAY_MS);
+  return ((day % MOON_DAYS) + MOON_DAYS) % MOON_DAYS === MOON_DAYS / 2 && sky().night > 0.5 && rainNow() === 0;
+}
+function fireworkAt(t, i) {
+  const k = t / (3.4 + i * 0.9) + i * 0.31, n = Math.floor(k);
+  return { n, ph: k - n };
+}
+function drawFireworks(t, top, hh) {
+  g.globalCompositeOperation = 'lighter'; g.lineCap = 'round';
+  for (let i = 0; i < FIREWORKS; i++) {
+    const { n, ph } = fireworkAt(t, i), id = n * 3 + i;
+    const x = W * (0.14 + 0.72 * rnd(id, 80)), y = top + hh * (0.1 + 0.28 * rnd(id, 81));
+    const col = FW_COLOURS[Math.floor(rnd(id, 82) * FW_COLOURS.length)];
+    if (ph < FW_BANG) {                    // the shell going up
+      const q = ph / FW_BANG, sy = top + hh + (y - top - hh) * (1 - (1 - q) * (1 - q));
+      g.strokeStyle = 'rgba(255,236,190,0.8)'; g.lineWidth = 4;
+      g.beginPath(); g.moveTo(x, sy); g.lineTo(x, sy + 34); g.stroke();
+      continue;
+    }
+    if (ph > 0.8) continue;                // and a dark moment before the next
+    const q = (ph - FW_BANG) / (0.8 - FW_BANG), r = 190 * (1 - (1 - q) * (1 - q)), drop = q * q * 70;
+    g.fillStyle = 'rgba(' + col + ',' + (1 - q).toFixed(3) + ')';
+    g.beginPath();
+    for (let j = 0; j < 30; j++) {
+      const a = j / 30 * Math.PI * 2 + id, rr = r * (0.35 + 0.65 * rnd(id + j, 83));
+      const px = x + Math.cos(a) * rr, py = y + Math.sin(a) * rr + drop;
+      g.moveTo(px + 5, py); g.arc(px, py, 5, 0, 7);
+    }
+    g.fill();
+  }
+  g.globalCompositeOperation = 'source-over';
+}
 function drawRain(t, top, hh, rain) {
   // the light goes grey under it
   g.fillStyle = 'rgba(70,84,100,' + (0.2 * rain).toFixed(3) + ')';
@@ -912,6 +950,7 @@ function drawAmbient() {
   if (day > 0.05) drawDaySky(t, top, hh, day * (1 - 0.6 * rain));
   if (rain > 0) drawRain(t, top, hh, rain);
   if (stormNow()) drawLightning(t, top, hh);
+  if (festivalNow()) drawFireworks(t, top, hh);
   const warmth = sky().warm;
   if (warmth > 0.15 && rain === 0) drawShafts(t, top, hh, warmth);
   const aurora = auroraNow();
@@ -1100,7 +1139,7 @@ function bedsOn() {
       src.connect(fl); fl.connect(gn); gn.connect(master); src.start();
       return gn;
     };
-    beds = { rain: bed('bandpass', 2400, 0.6), surf: bed('lowpass', 420, 0.7), cricketAt: 0, callAt: 0, buf, thunderN: -1 };
+    beds = { rain: bed('bandpass', 2400, 0.6), surf: bed('lowpass', 420, 0.7), cricketAt: 0, callAt: 0, buf, thunderN: -1, bangN: [] };
   } catch (e) { beds = null; }
 }
 // one roll of thunder: the beds' noise, low-passed hard, swelling and dying away
@@ -1161,6 +1200,16 @@ function stepAmbience() {
     }
   }
   if (!quiet) stepCalls(now);
+  if (!quiet && !reduceMotion && festivalNow()) {
+    // a soft thud as each one bursts
+    for (let i = 0; i < FIREWORKS; i++) {
+      const f = fireworkAt(now, i);
+      if (f.ph >= FW_BANG && f.ph < FW_BANG + 0.1 && beds.bangN[i] !== f.n) {
+        beds.bangN[i] = f.n;
+        tone({ f: 170, to: 55, type: 'triangle', dur: 0.22, vol: 0.09 });
+      }
+    }
+  }
   if (!quiet && season().key === 'summer' && sky().night > 0.4 && now > beds.cricketAt) {
     beds.cricketAt = now + 0.6 + Math.random() * 2.2;
     for (let i = 0; i < 3; i++) tone({ f: 4300, type: 'sine', dur: 0.035, vol: 0.025, delay: i * 0.07 });
@@ -9211,7 +9260,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   get ordersDone() { return ordersDone; }, set ordersDone(v) { ordersDone = v; },
   get orderT() { return orderT; }, set orderT(v) { orderT = v; },
   get goalDone() { return goalDone; }, set goalDone(v) { goalDone = v; },
-  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, get smokeDrawn() { return smokeDrawn; }, get ringsDrawn() { return ringsDrawn; }, moonFull, mistNow, rainbowNow, batsNow, auroraNow, stormNow, flashAt, get leapsDrawn() { return leapsDrawn; },
+  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, get smokeDrawn() { return smokeDrawn; }, get ringsDrawn() { return ringsDrawn; }, moonFull, mistNow, rainbowNow, batsNow, festivalNow, auroraNow, stormNow, flashAt, get leapsDrawn() { return leapsDrawn; },
   /* Read through getters. Captured by value these went stale the moment the
      harness moved them, and a sweep would have cleaned up the key the game
      was no longer using. */
