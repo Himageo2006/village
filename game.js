@@ -5471,7 +5471,26 @@ function decorGlow(p, x, y, w, h) {
   const n = sky().night;
   if (n < 0.04) return;
   const glow = artFor(lookOf(p) + '_glow');
-  if (glow) paintGlow(glow, x, y, w, h, n);
+  if (!glow) return;
+  paintGlow(glow, x, y, w, h, n);
+  if (lookOf(p) === 'bench_campfire') drawSparks(x + w * FIRE_AT[0], y + h * FIRE_AT[1], w / 90, n, p.id);
+}
+/* Sparks going up from the campfire after dark, where its light is brightest
+   in the glow picture. Each climbs, wavers and winks out. */
+const FIRE_AT = [0.43, 0.6], SPARKS = 8;
+function drawSparks(x, y, u, n, id) {
+  if (reduceMotion) return;
+  const t = Date.now() / 1000;
+  g.save(); g.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < SPARKS; i++) {
+    const cyc = 1.4 + rnd(i, 60) * 1.2, ph = frac(t / cyc + rnd(i, 61) + id * 0.13);
+    const al = n * (1 - ph) * (0.7 + 0.3 * Math.sin(t * 17 + i * 3));
+    g.fillStyle = 'rgba(255,' + Math.round(190 - ph * 110) + ',70,' + al.toFixed(3) + ')';
+    g.beginPath();
+    g.arc(x + (rnd(i, 62) - 0.5) * 22 * u + Math.sin(ph * 6 + i) * 9 * u, y - ph * 72 * u, (3.6 - 2 * ph) * u, 0, 7);
+    g.fill();
+  }
+  g.restore();
 }
 function drawDecor(p, alpha) {
   const b = B(p.key), o = tileToWorld(p.c, p.r), n = hash(p.c * 13 + 7, p.r * 17 + 3);

@@ -7110,3 +7110,6 @@ No art. Two in five wet days turn to storms: at most one flash every twenty-thre
 
 # 196 — Smoke from the chimneys
 No art. A thread of soft puffs rises from each chimney and bends away as it climbs: thickest in winter, then autumn and spring, a wisp in summer. CHIMNEY holds where the stack is on six of the house looks and all three halls, as a share of the summer picture. The baker and the potter have smoke painted in already, and the oak has no chimney. Drawn in the world before the night wash, so it dims with everything else; worked out from the clock, nothing stored, off with reduced motion.
+
+# 197 — Sparks from the campfire
+No art. After dark eight sparks climb from the campfire, waver and wink out, starting where the light is brightest in its glow picture (187). Added on, in the decoration's own pass, so a building in front still hides them. Worked out from the clock, nothing stored, off with reduced motion.
