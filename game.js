@@ -659,6 +659,42 @@ function rainNow() {
   if (rnd(day, 16) >= share) return 0;
   return Math.min(1, ph / 0.1, (1 - ph) / 0.1);
 }
+/* The morning after a wet day, as the mist lifts, a rainbow stands over the
+   island for a while and fades. */
+function rainbowNow() {
+  const share = RAIN_SHARE[season().key], ph = dayPhase();
+  if (!share || ph < 0.03 || ph > 0.2) return 0;
+  if (rnd(Math.floor(Date.now() / DAY_MS) - 1, 16) >= share || rainNow() > 0) return 0;
+  return Math.min(1, (ph - 0.03) / 0.04, (0.2 - ph) / 0.06);
+}
+const RAINBOW = ['255,70,60', '255,150,40', '255,228,70', '90,210,90', '70,150,255', '130,90,230'];
+function drawRainbow(top, hh, k) {
+  const cx = W * 0.55, cy = top + hh * 0.72, r0 = W * 0.8, band = W * 0.024;
+  g.lineWidth = band;
+  RAINBOW.forEach((c, i) => {
+    g.strokeStyle = 'rgba(' + c + ',' + (0.26 * k).toFixed(3) + ')';
+    g.beginPath(); g.arc(cx, cy, r0 - i * band, Math.PI * 1.05, Math.PI * 1.95); g.stroke();
+  });
+}
+/* On a clear night now and then a star falls: a short bright streak across
+   the dark, one every several seconds at most. */
+function drawShootingStars(t, top, hh, night) {
+  g.globalCompositeOperation = 'lighter'; g.lineCap = 'round';
+  for (let i = 0; i < 2; i++) {
+    const cyc = 7 + i * 4, k = t / cyc + i * 0.37, n = Math.floor(k), ph = frac(k);
+    if (ph > 0.09 || rnd(n, 30 + i) > 0.35) continue;
+    const q = ph / 0.09, dir = rnd(n, 32 + i) < 0.5 ? 1 : -1, len = W * 0.18;
+    const sx = W * (0.15 + 0.7 * rnd(n, 34 + i)), sy = top + hh * (0.05 + 0.4 * rnd(n, 36 + i));
+    const x = sx + dir * q * W * 0.3, y = sy + q * hh * 0.12;
+    const al = night * Math.sin(q * Math.PI);
+    const gr = g.createLinearGradient(x, y, x - dir * len, y - len * 0.4);
+    gr.addColorStop(0, 'rgba(255,255,236,' + (0.95 * al).toFixed(3) + ')');
+    gr.addColorStop(1, 'rgba(200,220,255,0)');
+    g.strokeStyle = gr; g.lineWidth = 4;
+    g.beginPath(); g.moveTo(x, y); g.lineTo(x - dir * len, y - len * 0.4); g.stroke();
+  }
+  g.globalCompositeOperation = 'source-over';
+}
 function drawRain(t, top, hh, rain) {
   // the light goes grey under it
   g.fillStyle = 'rgba(70,84,100,' + (0.2 * rain).toFixed(3) + ')';
@@ -736,6 +772,9 @@ function drawAmbient() {
   if (rain > 0) drawRain(t, top, hh, rain);
   const mist = mistNow();
   if (mist > 0.01) drawMist(t, top, hh, mist);
+  const bow = rainbowNow();
+  if (bow > 0.01) drawRainbow(top, hh, bow);
+  if (sky().night > 0.6 && rain === 0) drawShootingStars(t, top, hh, sky().night);
   const a = AMBIENT[key];
   if (a) {
     for (let i = 0; i < a.n; i++) {
@@ -8865,7 +8904,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   get ordersDone() { return ordersDone; }, set ordersDone(v) { ordersDone = v; },
   get orderT() { return orderT; }, set orderT(v) { orderT = v; },
   get goalDone() { return goalDone; }, set goalDone(v) { goalDone = v; },
-  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, moonFull, mistNow,
+  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, moonFull, mistNow, rainbowNow,
   /* Read through getters. Captured by value these went stale the moment the
      harness moved them, and a sweep would have cleaned up the key the game
      was no longer using. */

@@ -7093,3 +7093,6 @@ No art. By day small glints wink on and off across the open sea: a short flash e
 
 # 191 — Moonlight on the water, and morning mist
 No art. After dark the glints come back silver and half as many, as moonlight -- and the moon waxes and wanes over sixteen game days, so some nights the sea is bright with it and on a new moon it is dark. Around sunrise a soft white mist lies in drifting banks over island and sea and lifts as the sun climbs: thickest in autumn, then spring and winter, thin in summer. Both are worked out from the clock, store nothing, and are off with reduced motion.
+
+# 192 — A rainbow after rain, and falling stars
+No art. The morning after a wet day, once the mist has gone, a rainbow stands over the island for a while and fades -- which mornings follows from the same day's-number draw that makes the rain, so it stores nothing. On clear nights a star falls now and then: a short bright streak across the dark, a few a night. Both off with reduced motion.
