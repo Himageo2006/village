@@ -1079,7 +1079,7 @@ function bedsOn() {
       src.connect(fl); fl.connect(gn); gn.connect(master); src.start();
       return gn;
     };
-    beds = { rain: bed('bandpass', 2400, 0.6), surf: bed('lowpass', 420, 0.7), cricketAt: 0, buf, thunderN: -1 };
+    beds = { rain: bed('bandpass', 2400, 0.6), surf: bed('lowpass', 420, 0.7), cricketAt: 0, callAt: 0, buf, thunderN: -1 };
   } catch (e) { beds = null; }
 }
 // one roll of thunder: the beds' noise, low-passed hard, swelling and dying away
@@ -1091,6 +1091,30 @@ function thunder() {
   gn.gain.linearRampToValueAtTime(0.5, t + 0.25);
   gn.gain.exponentialRampToValueAtTime(0.001, t + 3);
   src.connect(fl); fl.connect(gn); gn.connect(master); src.start(t); src.stop(t + 3.1);
+}
+/* The creatures of the hour, far off and now and then: birdsong around sunrise
+   (not in winter), gulls through the day, an owl in the dead of night. Dry
+   weather only -- nothing sings in the rain. Ordinary tones, so they stand
+   down by tone()'s own rule. */
+function stepCalls(now) {
+  if (now < beds.callAt || rainNow() > 0) return;
+  const ph = dayPhase(), { sun, night } = sky();
+  if ((ph < 0.14 || ph > 0.97) && season().key !== 'winter') {
+    beds.callAt = now + 2.5 + Math.random() * 4;
+    const notes = 3 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < notes; i++) {
+      const f = 2600 + Math.random() * 1500;
+      tone({ f, to: f * (0.85 + Math.random() * 0.35), type: 'sine', dur: 0.09, vol: 0.022, delay: i * 0.12 });
+    }
+  } else if (sun > 0.1) {
+    beds.callAt = now + 12 + Math.random() * 14;
+    const cries = 1 + Math.floor(Math.random() * 2);
+    for (let i = 0; i < cries; i++) tone({ f: 1400, to: 820, type: 'triangle', dur: 0.24, vol: 0.018, delay: i * 0.3 });
+  } else if (night > 0.6) {
+    beds.callAt = now + 18 + Math.random() * 18;
+    tone({ f: 390, to: 350, type: 'sine', dur: 0.32, vol: 0.05 });
+    tone({ f: 370, to: 330, type: 'sine', dur: 0.5, vol: 0.05, delay: 0.5 });
+  }
 }
 function hushBeds() {
   if (!beds || !actx) return;
@@ -1115,6 +1139,7 @@ function stepAmbience() {
       if (f.age >= wait && f.age < wait + 0.5) { beds.thunderN = f.n; thunder(); }
     }
   }
+  if (!quiet) stepCalls(now);
   if (!quiet && season().key === 'summer' && sky().night > 0.4 && now > beds.cricketAt) {
     beds.cricketAt = now + 0.6 + Math.random() * 2.2;
     for (let i = 0; i < 3; i++) tone({ f: 4300, type: 'sine', dur: 0.035, vol: 0.025, delay: i * 0.07 });

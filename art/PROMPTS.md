@@ -7116,3 +7116,6 @@ No art. After dark eight sparks climb from the campfire, waver and wink out, sta
 
 # 198 — The northern lights
 No art. One winter night in three, by the day's number, curtains of green going to violet hang across the top of the view, three layers of thin columns that brighten and fade as the folds drift. They come up as the night deepens. Added on after the night wash; worked out from the clock, nothing stored, off with reduced motion.
+
+# 199 — Birdsong, gulls and an owl
+No art. Far off and now and then: a few quick notes of birdsong around sunrise (not in winter), the falling cry of gulls through the day, and an owl's two hoots in the dead of night. Nothing calls in the rain. They are ordinary tones, so they stand down when muted or hidden by tone()'s own rule.
