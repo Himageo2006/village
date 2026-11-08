@@ -7113,3 +7113,6 @@ No art. A thread of soft puffs rises from each chimney and bends away as it clim
 
 # 197 — Sparks from the campfire
 No art. After dark eight sparks climb from the campfire, waver and wink out, starting where the light is brightest in its glow picture (187). Added on, in the decoration's own pass, so a building in front still hides them. Worked out from the clock, nothing stored, off with reduced motion.
+
+# 198 — The northern lights
+No art. One winter night in three, by the day's number, curtains of green going to violet hang across the top of the view, three layers of thin columns that brighten and fade as the folds drift. They come up as the night deepens. Added on after the night wash; worked out from the clock, nothing stored, off with reduced motion.

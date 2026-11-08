@@ -792,6 +792,31 @@ function drawLightning(t, top, hh) {
   }
   g.stroke();
 }
+/* One winter night in three the northern lights hang over the top of the view:
+   curtains of green going to violet, built from thin columns that brighten and
+   fade along their length as the folds drift. */
+const AURORA_SHARE = 0.35, AURORA_STEP = 26;
+const AURORA = [['90,255,170', '150,90,255', 0], ['70,230,200', '90,120,255', 1], ['140,255,130', '190,90,230', 2]];
+function auroraNow() {
+  if (season().key !== 'winter' || rnd(Math.floor(Date.now() / DAY_MS), 70) >= AURORA_SHARE) return 0;
+  return Math.max(0, (sky().night - 0.3) / 0.7);
+}
+function drawAurora(t, top, hh, k) {
+  g.globalCompositeOperation = 'lighter';
+  for (const [c1, c2, b] of AURORA) {
+    const y0 = top + hh * (0.03 + b * 0.05), len = hh * (0.24 - b * 0.03);
+    for (let x = -AURORA_STEP; x < W + AURORA_STEP; x += AURORA_STEP) {
+      const y = y0 + Math.sin(x * 0.006 + t * 0.12 + b * 2) * hh * 0.035 + Math.sin(x * 0.017 - t * 0.2 + b) * hh * 0.012;
+      const fold = Math.pow(0.5 + 0.5 * Math.sin(x * 0.011 + t * (0.17 + b * 0.05) + b * 1.7), 2);
+      const gr = g.createLinearGradient(0, y, 0, y + len);
+      gr.addColorStop(0, 'rgba(' + c2 + ',0)');
+      gr.addColorStop(0.25, 'rgba(' + c1 + ',' + (0.3 * k * fold).toFixed(3) + ')');
+      gr.addColorStop(1, 'rgba(' + c1 + ',0)');
+      g.fillStyle = gr; g.fillRect(x, y, AURORA_STEP, len);
+    }
+  }
+  g.globalCompositeOperation = 'source-over';
+}
 function drawRain(t, top, hh, rain) {
   // the light goes grey under it
   g.fillStyle = 'rgba(70,84,100,' + (0.2 * rain).toFixed(3) + ')';
@@ -868,6 +893,8 @@ function drawAmbient() {
   if (day > 0.05) drawDaySky(t, top, hh, day * (1 - 0.6 * rain));
   if (rain > 0) drawRain(t, top, hh, rain);
   if (stormNow()) drawLightning(t, top, hh);
+  const aurora = auroraNow();
+  if (aurora > 0.01) drawAurora(t, top, hh, aurora);
   const mist = mistNow();
   if (mist > 0.01) drawMist(t, top, hh, mist);
   const bow = rainbowNow();
@@ -9118,7 +9145,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   get ordersDone() { return ordersDone; }, set ordersDone(v) { ordersDone = v; },
   get orderT() { return orderT; }, set orderT(v) { orderT = v; },
   get goalDone() { return goalDone; }, set goalDone(v) { goalDone = v; },
-  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, get smokeDrawn() { return smokeDrawn; }, moonFull, mistNow, rainbowNow, batsNow, stormNow, flashAt, get leapsDrawn() { return leapsDrawn; },
+  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, get smokeDrawn() { return smokeDrawn; }, moonFull, mistNow, rainbowNow, batsNow, auroraNow, stormNow, flashAt, get leapsDrawn() { return leapsDrawn; },
   /* Read through getters. Captured by value these went stale the moment the
      harness moved them, and a sweep would have cleaned up the key the game
      was no longer using. */
