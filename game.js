@@ -817,6 +817,25 @@ function drawAurora(t, top, hh, k) {
   }
   g.globalCompositeOperation = 'source-over';
 }
+/* Low sun comes through in shafts: a few slanting bars of gold, from the left
+   at sunrise and the right at sunset, breathing slowly. */
+const SHAFTS = 5;
+function drawShafts(t, top, hh, warm) {
+  const dir = dayPhase() < 0.25 || dayPhase() > 0.75 ? 1 : -1, slant = hh * 0.42;
+  g.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < SHAFTS; i++) {
+    const wid = 70 + rnd(i, 71) * 130, x = W * (0.02 + 0.2 * i + 0.1 * rnd(i, 72)) + Math.sin(t * 0.08 + i * 2) * 26 - dir * slant * 0.5;
+    const al = 0.2 * warm * (0.55 + 0.45 * Math.sin(t * 0.3 + i * 1.9));
+    const gr = g.createLinearGradient(0, top, 0, top + hh * 0.9);
+    gr.addColorStop(0, 'rgba(255,212,140,' + al.toFixed(3) + ')');
+    gr.addColorStop(1, 'rgba(255,212,140,0)');
+    g.fillStyle = gr;
+    g.beginPath(); g.moveTo(x, top); g.lineTo(x + wid, top);
+    g.lineTo(x + wid + dir * slant, top + hh * 0.9); g.lineTo(x + dir * slant, top + hh * 0.9);
+    g.fill();
+  }
+  g.globalCompositeOperation = 'source-over';
+}
 function drawRain(t, top, hh, rain) {
   // the light goes grey under it
   g.fillStyle = 'rgba(70,84,100,' + (0.2 * rain).toFixed(3) + ')';
@@ -893,6 +912,8 @@ function drawAmbient() {
   if (day > 0.05) drawDaySky(t, top, hh, day * (1 - 0.6 * rain));
   if (rain > 0) drawRain(t, top, hh, rain);
   if (stormNow()) drawLightning(t, top, hh);
+  const warmth = sky().warm;
+  if (warmth > 0.15 && rain === 0) drawShafts(t, top, hh, warmth);
   const aurora = auroraNow();
   if (aurora > 0.01) drawAurora(t, top, hh, aurora);
   const mist = mistNow();
@@ -4617,6 +4638,25 @@ function drawGlints() {
   }
   g.restore();
 }
+/* Rain on the sea: rings opening where the drops land. Before the island, so
+   they show only on open water. */
+const RAIN_RINGS = 70;
+let ringsDrawn = 0;
+function drawRainRings() {
+  ringsDrawn = 0;
+  const rain = rainNow();
+  if (reduceMotion || rain < 0.05) return;
+  const t = Date.now() / 1000, a = camUnproject(0, screenTop()), c = camUnproject(W, screenBot()), u = 2.2 / camScale();
+  g.save(); g.lineWidth = 2.2 * u;
+  for (let i = 0; i < RAIN_RINGS * rain; i++) {
+    const cyc = 0.8 + rnd(i, 73) * 0.6, k = t / cyc + rnd(i, 74), ph = frac(k), n = Math.floor(k);
+    const x = a.x + rnd(i + n * 5.3, 75) * (c.x - a.x), y = a.y + rnd(i + n * 5.3, 76) * (c.y - a.y);
+    g.strokeStyle = 'rgba(232,246,255,' + (0.6 * (1 - ph)).toFixed(3) + ')';
+    g.beginPath(); g.ellipse(x, y, (2 + ph * 14) * u, (1 + ph * 7) * u, 0, 0, 7); g.stroke();
+    ringsDrawn++;
+  }
+  g.restore();
+}
 /* Now and then a fish leaps clear of the water and drops back: a small dark
    arc over the sea, then rings spreading where it went in. Placed like the
    glints, in the sea in view, and drawn before the island so none land on it. */
@@ -4692,6 +4732,7 @@ function drawGround() {
   }
   drawGlints();
   drawLeaps();
+  drawRainRings();
   drawSeaProps(b);
 
   // soft ground shadow so the plot sits ON something instead of floating
@@ -9170,7 +9211,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   get ordersDone() { return ordersDone; }, set ordersDone(v) { ordersDone = v; },
   get orderT() { return orderT; }, set orderT(v) { orderT = v; },
   get goalDone() { return goalDone; }, set goalDone(v) { goalDone = v; },
-  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, get smokeDrawn() { return smokeDrawn; }, moonFull, mistNow, rainbowNow, batsNow, auroraNow, stormNow, flashAt, get leapsDrawn() { return leapsDrawn; },
+  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, get smokeDrawn() { return smokeDrawn; }, get ringsDrawn() { return ringsDrawn; }, moonFull, mistNow, rainbowNow, batsNow, auroraNow, stormNow, flashAt, get leapsDrawn() { return leapsDrawn; },
   /* Read through getters. Captured by value these went stale the moment the
      harness moved them, and a sweep would have cleaned up the key the game
      was no longer using. */

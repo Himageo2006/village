@@ -7119,3 +7119,6 @@ No art. One winter night in three, by the day's number, curtains of green going 
 
 # 199 — Birdsong, gulls and an owl
 No art. Far off and now and then: a few quick notes of birdsong around sunrise (not in winter), the falling cry of gulls through the day, and an owl's two hoots in the dead of night. Nothing calls in the rain. They are ordinary tones, so they stand down when muted or hidden by tone()'s own rule.
+
+# 200 — Rain on the sea, and shafts of low sun
+No art. On wet days rings open on the open water where the drops land, thicker as the shower thickens. In dry weather at sunrise and sunset five slanting bars of gold come down the view, from the left in the morning and the right in the evening, breathing slowly. Worked out from the clock, nothing stored, off with reduced motion.
