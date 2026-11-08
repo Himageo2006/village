@@ -7104,3 +7104,6 @@ Fixed alongside: the delivery pops ("+25 🪵") are now drawn over the lamps ins
 
 # 194 — Geese going over, and bats at dusk
 No art. In spring and autumn a long V of geese crosses the screen every minute and a half or so, one way in spring and back the other in autumn. For a little while after sunset in summer and autumn, six bats flicker on quick, jinking paths and are gone once it is properly night. Worked out from the clock, nothing stored, none in the rain, off with reduced motion.
+
+# 195 — Thunderstorms
+No art. Two in five wet days turn to storms: at most one flash every twenty-three seconds, a jagged bolt from the top of the view and a soft pale flash over everything, and one to three seconds later a low roll of thunder (the beds' noise, low-passed hard). The flash is held to a fifth of full white for comfort; the light and the sound are both off with reduced motion, and the thunder stands down when muted or hidden. Which days and when are worked out from the clock, so nothing is stored.

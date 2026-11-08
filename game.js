@@ -758,6 +758,40 @@ function drawBats(t, top, hh, k) {
     g.fill();
   }
 }
+/* Some wet days turn to storms: every so often a far-off bolt and a soft flash
+   over everything, and a moment later the thunder. Kept gentle and well apart
+   -- a flash is a fifth of full white at most, never faster than one every
+   twenty-odd seconds -- and, like all the weather, off for reduced motion. */
+const STORM_SHARE = 0.4, STORM_CYC = 23;
+function stormNow() {
+  return rainNow() > 0.6 && rnd(Math.floor(Date.now() / DAY_MS), 52) < STORM_SHARE;
+}
+// the flash of this cycle, if there is one and it has happened yet
+function flashAt(t) {
+  const k = t / STORM_CYC, n = Math.floor(k);
+  if (rnd(n, 53) > 0.6) return null;
+  const age = (frac(k) - rnd(n, 54) * 0.85) * STORM_CYC;
+  return age < 0 ? null : { n, age };
+}
+function drawLightning(t, top, hh) {
+  const f = flashAt(t);
+  if (!f || f.age > 0.7) return;
+  const a = f.age, i = a < 0.1 ? 1 : a < 0.18 ? 0.25 : a < 0.28 ? 0.7 : 0.7 * (0.7 - a) / 0.42;
+  g.fillStyle = 'rgba(214,226,255,' + (0.2 * i).toFixed(3) + ')';
+  g.fillRect(0, top, W, hh);
+  if (a > 0.28) return;
+  // the bolt, coming down from the top of the view
+  let x = W * (0.12 + 0.76 * rnd(f.n, 55)), y = top;
+  const end = top + hh * (0.16 + 0.14 * rnd(f.n, 56)), steps = 9;
+  g.strokeStyle = 'rgba(240,244,255,' + (0.9 * i).toFixed(3) + ')';
+  g.lineWidth = 5; g.lineCap = 'round'; g.lineJoin = 'round';
+  g.beginPath(); g.moveTo(x, y);
+  for (let j = 1; j <= steps; j++) {
+    x += (rnd(f.n + j, 57) - 0.5) * 70; y = top + (end - top) * j / steps;
+    g.lineTo(x, y);
+  }
+  g.stroke();
+}
 function drawRain(t, top, hh, rain) {
   // the light goes grey under it
   g.fillStyle = 'rgba(70,84,100,' + (0.2 * rain).toFixed(3) + ')';
@@ -833,6 +867,7 @@ function drawAmbient() {
   const day = 1 - sky().night, rain = rainNow();
   if (day > 0.05) drawDaySky(t, top, hh, day * (1 - 0.6 * rain));
   if (rain > 0) drawRain(t, top, hh, rain);
+  if (stormNow()) drawLightning(t, top, hh);
   const mist = mistNow();
   if (mist > 0.01) drawMist(t, top, hh, mist);
   const bow = rainbowNow();
@@ -1017,8 +1052,18 @@ function bedsOn() {
       src.connect(fl); fl.connect(gn); gn.connect(master); src.start();
       return gn;
     };
-    beds = { rain: bed('bandpass', 2400, 0.6), surf: bed('lowpass', 420, 0.7), cricketAt: 0 };
+    beds = { rain: bed('bandpass', 2400, 0.6), surf: bed('lowpass', 420, 0.7), cricketAt: 0, buf, thunderN: -1 };
   } catch (e) { beds = null; }
+}
+// one roll of thunder: the beds' noise, low-passed hard, swelling and dying away
+function thunder() {
+  const src = actx.createBufferSource(); src.buffer = beds.buf; src.loop = true;
+  const fl = actx.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.value = 130;
+  const gn = actx.createGain(), t = actx.currentTime;
+  gn.gain.setValueAtTime(0, t);
+  gn.gain.linearRampToValueAtTime(0.5, t + 0.25);
+  gn.gain.exponentialRampToValueAtTime(0.001, t + 3);
+  src.connect(fl); fl.connect(gn); gn.connect(master); src.start(t); src.stop(t + 3.1);
 }
 function hushBeds() {
   if (!beds || !actx) return;
@@ -1035,6 +1080,14 @@ function stepAmbience() {
   const quiet = muted || document.hidden, t = actx.currentTime, now = Date.now() / 1000;
   beds.rain.gain.setTargetAtTime(quiet ? 0 : 0.10 * rainNow(), t, 0.5);
   beds.surf.gain.setTargetAtTime(quiet ? 0 : 0.035 * (0.65 + 0.35 * Math.sin(now * 0.45)), t, 0.8);
+  if (!quiet && !reduceMotion && stormNow()) {
+    // the sound comes after the light, later the further off the bolt was
+    const f = flashAt(now);
+    if (f && f.n !== beds.thunderN) {
+      const wait = 1.2 + rnd(f.n, 58) * 2.2;
+      if (f.age >= wait && f.age < wait + 0.5) { beds.thunderN = f.n; thunder(); }
+    }
+  }
   if (!quiet && season().key === 'summer' && sky().night > 0.4 && now > beds.cricketAt) {
     beds.cricketAt = now + 0.6 + Math.random() * 2.2;
     for (let i = 0; i < 3; i++) tone({ f: 4300, type: 'sine', dur: 0.035, vol: 0.025, delay: i * 0.07 });
@@ -9010,7 +9063,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   get ordersDone() { return ordersDone; }, set ordersDone(v) { ordersDone = v; },
   get orderT() { return orderT; }, set orderT(v) { orderT = v; },
   get goalDone() { return goalDone; }, set goalDone(v) { goalDone = v; },
-  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, moonFull, mistNow, rainbowNow, batsNow, get leapsDrawn() { return leapsDrawn; },
+  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, moonFull, mistNow, rainbowNow, batsNow, stormNow, flashAt, get leapsDrawn() { return leapsDrawn; },
   /* Read through getters. Captured by value these went stale the moment the
      harness moved them, and a sweep would have cleaned up the key the game
      was no longer using. */
