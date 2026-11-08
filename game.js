@@ -717,6 +717,47 @@ function drawButterflies(t, k) {
     g.restore();
   }
 }
+/* Spring and autumn bring the geese over: one long V crossing every minute and
+   a half or so, north in spring and south in autumn, which here is up and down
+   the screen's slant. */
+const GEESE_MS = 90, GEESE = 4;
+function drawGeese(t, top, hh, day, key) {
+  const k = t / GEESE_MS, ph = frac(k), n = Math.floor(k);
+  if (ph > 0.45) return;
+  const q = ph / 0.45, dir = key === 'spring' ? 1 : -1, span = W + 700;
+  const hx = dir > 0 ? -350 + q * span : W + 350 - q * span;
+  const hy = top + hh * (0.12 + 0.4 * rnd(n, 50)) - dir * (q - 0.5) * hh * 0.12;
+  g.strokeStyle = 'rgba(30,34,38,' + (0.8 * day).toFixed(3) + ')'; g.lineWidth = 5; g.lineCap = 'round';
+  g.beginPath();
+  for (let j = -GEESE; j <= GEESE; j++) {
+    const x = hx - dir * Math.abs(j) * 62, y = hy + j * 40;
+    const lift = 5 + Math.sin(t * 6 + j * 1.4) * 7, w = 20;
+    g.moveTo(x - w, y - lift); g.quadraticCurveTo(x - w * 0.4, y - lift - 3, x, y);
+    g.quadraticCurveTo(x + w * 0.4, y - lift - 3, x + w, y - lift);
+  }
+  g.stroke();
+}
+/* And for a little while after sunset in summer and autumn, bats: a few dark
+   flickers on quick, jinking paths, gone once it is properly night. */
+function batsNow() {
+  const key = season().key, ph = dayPhase();
+  if ((key !== 'summer' && key !== 'autumn') || ph < 0.47 || ph > 0.62 || rainNow() > 0) return 0;
+  return Math.min(1, (ph - 0.47) / 0.03, (0.62 - ph) / 0.04);
+}
+function drawBats(t, top, hh, k) {
+  g.fillStyle = 'rgba(18,14,24,' + (0.92 * k).toFixed(3) + ')';
+  for (let i = 0; i < 6; i++) {
+    const x = W * (0.5 + 0.44 * Math.sin(t * 0.31 + i * 2.1) + 0.05 * Math.sin(t * 3.1 + i));
+    const y = top + hh * (0.34 + 0.26 * Math.sin(t * 0.37 + i * 1.3) + 0.04 * Math.sin(t * 4.3 + i * 2));
+    const f = Math.sin(t * 19 + i * 3), w = 24, up = f * 11;
+    g.beginPath(); g.moveTo(x, y + 5);
+    g.quadraticCurveTo(x - w * 0.5, y - 5 + up * 0.4, x - w, y + up);
+    g.lineTo(x - w * 0.55, y + 3 + up * 0.5); g.lineTo(x, y + 9);
+    g.lineTo(x + w * 0.55, y + 3 + up * 0.5); g.lineTo(x + w, y + up);
+    g.quadraticCurveTo(x + w * 0.5, y - 5 + up * 0.4, x, y + 5);
+    g.fill();
+  }
+}
 function drawRain(t, top, hh, rain) {
   // the light goes grey under it
   g.fillStyle = 'rgba(70,84,100,' + (0.2 * rain).toFixed(3) + ')';
@@ -797,6 +838,9 @@ function drawAmbient() {
   const bow = rainbowNow();
   if (bow > 0.01) drawRainbow(top, hh, bow);
   if (sky().night > 0.6 && rain === 0) drawShootingStars(t, top, hh, sky().night);
+  if ((key === 'spring' || key === 'autumn') && rain === 0 && day > 0.5) drawGeese(t, top, hh, day, key);
+  const bats = batsNow();
+  if (bats > 0.01) drawBats(t, top, hh, bats);
   if ((key === 'spring' || key === 'summer') && rain === 0 && sky().sun > 0.15) drawButterflies(t, Math.min(1, (sky().sun - 0.15) / 0.2));
   const a = AMBIENT[key];
   if (a) {
@@ -8339,11 +8383,10 @@ function draw() {
      the thing the source already calls a bug however pretty it looks.
 
      The delivery pops used to stay under the wash, on their own near-black
-     outline. But a villager carrying a lantern home is exactly where a pop
-     comes up, and the lantern's light, added over the pop, lifted text and
-     ground together: 3.2 to 3.7 at midnight, about one night in three. They
-     now go over the lamps too, on an outline wide enough to back each
-     letter right through. */
+     outline. The ink check caught them at 3.2 to 3.7 at midnight in some runs,
+     over a warm lit patch -- probably a carried lantern, though that was never
+     pinned down. They now go over the lamps too, on an outline wide enough to
+     back each letter right through, and measure 13. */
   drawAmbient();                                // the season in the air, in front of the world
   g.save(); camApply(); drawLamps(); drawPops(); flushBadges(); g.restore();
   drawHUD();
@@ -8967,7 +9010,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   get ordersDone() { return ordersDone; }, set ordersDone(v) { ordersDone = v; },
   get orderT() { return orderT; }, set orderT(v) { orderT = v; },
   get goalDone() { return goalDone; }, set goalDone(v) { goalDone = v; },
-  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, moonFull, mistNow, rainbowNow, get leapsDrawn() { return leapsDrawn; },
+  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, moonFull, mistNow, rainbowNow, batsNow, get leapsDrawn() { return leapsDrawn; },
   /* Read through getters. Captured by value these went stale the moment the
      harness moved them, and a sweep would have cleaned up the key the game
      was no longer using. */

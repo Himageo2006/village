@@ -7100,4 +7100,7 @@ No art. The morning after a wet day, once the mist has gone, a rainbow stands ov
 # 193 — Butterflies, and fish leaping
 No art. On fine spring and summer days a few butterflies wander loose loops over the island, wings opening and closing; their loops are laid on the island's diamond and their size follows the zoom, so they stay over the grass. By day and dusk a fish now and then leaps from the sea and drops back, leaving rings spreading on the water -- placed like the glints, in the sea in view, and drawn before the island so none come up through the land. Worked out from the clock, nothing stored, off with reduced motion.
 
-Fixed alongside: the delivery pops ("+25 🪵") are now drawn over the lamps instead of under the night wash, on an outline twice as wide. A villager walking a load home carries a lantern after dark (187), and its light, added over the pop, lifted the letters and the ground behind them together -- the ink check measured 3.2 to 3.7 at midnight about one run in three. Now 13.
+Fixed alongside: the delivery pops ("+25 🪵") are now drawn over the lamps instead of under the night wash, on an outline twice as wide. The ink check measured 3.2 to 3.7 at midnight in some runs, over a warm lit patch -- probably a carried lantern (187), though the cause was never pinned down and the commit before passed every run. Now 13.
+
+# 194 — Geese going over, and bats at dusk
+No art. In spring and autumn a long V of geese crosses the screen every minute and a half or so, one way in spring and back the other in autumn. For a little while after sunset in summer and autumn, six bats flicker on quick, jinking paths and are gone once it is properly night. Worked out from the clock, nothing stored, none in the rain, off with reduced motion.
