@@ -7096,3 +7096,8 @@ No art. After dark the glints come back silver and half as many, as moonlight --
 
 # 192 — A rainbow after rain, and falling stars
 No art. The morning after a wet day, once the mist has gone, a rainbow stands over the island for a while and fades -- which mornings follows from the same day's-number draw that makes the rain, so it stores nothing. On clear nights a star falls now and then: a short bright streak across the dark, a few a night. Both off with reduced motion.
+
+# 193 — Butterflies, and fish leaping
+No art. On fine spring and summer days a few butterflies wander loose loops over the island, wings opening and closing; their loops are laid on the island's diamond and their size follows the zoom, so they stay over the grass. By day and dusk a fish now and then leaps from the sea and drops back, leaving rings spreading on the water -- placed like the glints, in the sea in view, and drawn before the island so none come up through the land. Worked out from the clock, nothing stored, off with reduced motion.
+
+Fixed alongside: the delivery pops ("+25 🪵") are now drawn over the lamps instead of under the night wash, on an outline twice as wide. A villager walking a load home carries a lantern after dark (187), and its light, added over the pop, lifted the letters and the ground behind them together -- the ink check measured 3.2 to 3.7 at midnight about one run in three. Now 13.

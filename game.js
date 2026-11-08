@@ -695,6 +695,28 @@ function drawShootingStars(t, top, hh, night) {
   }
   g.globalCompositeOperation = 'source-over';
 }
+/* Butterflies on fine spring and summer days: a few wandering on loose loops
+   over the island, wings opening and closing. Their loops are laid on the
+   island and their size follows the zoom, so they stay over the grass. */
+const BUTTERFLY = ['#f4c430', '#ffffff', '#f08a3c', '#8fb8f0', '#f2a0c8'];
+function drawButterflies(t, k) {
+  const b = worldBounds(), cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2, rx = (b.x1 - b.x0) / 2, ry = (b.y1 - b.y0) / 2;
+  for (let i = 0; i < 6; i++) {
+    const s1 = 0.05 + rnd(i, 40) * 0.05, s2 = 0.07 + rnd(i, 41) * 0.05;
+    // a loop inside the diamond of the island: |u| + |v| stays under 0.8
+    const p = 0.4 * Math.sin(t * s1 + i * 2.3) + 0.04 * Math.sin(t * 1.3 + i), q = 0.4 * Math.sin(t * s2 + i * 1.7);
+    const at = camProject(cx + rx * (p + q), cy + ry * (q - p) - 40), x = at.x, y = at.y;
+    const flap = 0.25 + 0.75 * Math.abs(Math.sin(t * 11 + i * 5)), sz = 17 * Math.min(1.4, camScale() / 1.25);
+    g.save(); g.translate(x, y); g.globalAlpha = k;
+    g.fillStyle = BUTTERFLY[i % BUTTERFLY.length];
+    for (const sd of [-1, 1]) {
+      g.beginPath(); g.ellipse(sd * sz * 0.55 * flap, -sz * 0.2, sz * 0.6 * flap, sz * 0.75, 0, 0, 7); g.fill();
+      g.beginPath(); g.ellipse(sd * sz * 0.4 * flap, sz * 0.45, sz * 0.4 * flap, sz * 0.45, 0, 0, 7); g.fill();
+    }
+    g.fillStyle = '#3a2a1c'; g.fillRect(-2.5, -sz * 0.6, 5, sz * 1.3);
+    g.restore();
+  }
+}
 function drawRain(t, top, hh, rain) {
   // the light goes grey under it
   g.fillStyle = 'rgba(70,84,100,' + (0.2 * rain).toFixed(3) + ')';
@@ -775,6 +797,7 @@ function drawAmbient() {
   const bow = rainbowNow();
   if (bow > 0.01) drawRainbow(top, hh, bow);
   if (sky().night > 0.6 && rain === 0) drawShootingStars(t, top, hh, sky().night);
+  if ((key === 'spring' || key === 'summer') && rain === 0 && sky().sun > 0.15) drawButterflies(t, Math.min(1, (sky().sun - 0.15) / 0.2));
   const a = AMBIENT[key];
   if (a) {
     for (let i = 0; i < a.n; i++) {
@@ -1196,7 +1219,7 @@ function drawPops() {
     g.translate(q.x, q.y); g.scale(k, k);
     g.textAlign = 'center'; g.textBaseline = 'middle';
     g.font = `bold ${POP_PX}px Segoe UI, sans-serif`;
-    g.lineWidth = 4; g.strokeStyle = 'rgba(8,16,8,.75)';
+    g.lineWidth = 8; g.lineJoin = 'round'; g.strokeStyle = 'rgba(8,16,8,.75)';
     const txt = '+' + Math.round(q.n) + ' ' + RES_ICON[q.k];
     const y = -26 - t * 34;
     g.strokeText(txt, 0, y);
@@ -4445,6 +4468,41 @@ function drawGlints() {
   }
   g.restore();
 }
+/* Now and then a fish leaps clear of the water and drops back: a small dark
+   arc over the sea, then rings spreading where it went in. Placed like the
+   glints, in the sea in view, and drawn before the island so none land on it. */
+let leapsDrawn = 0;
+function drawLeaps() {
+  leapsDrawn = 0;
+  if (reduceMotion || sky().night > 0.7) return;
+  const t = Date.now() / 1000, a = camUnproject(0, screenTop()), c = camUnproject(W, screenBot());
+  const u = 2.2 / camScale();          // the canvas is drawn at well under half size on a phone
+  g.save(); g.lineCap = 'round';
+  for (let i = 0; i < 6; i++) {
+    const cyc = 5 + rnd(i, 42) * 4, k = t / cyc + rnd(i, 43), ph = frac(k), n = Math.floor(k);
+    if (ph > 0.5) continue;
+    const x = a.x + rnd(i + n * 3.1, 44) * (c.x - a.x), y = a.y + rnd(i + n * 3.1, 45) * (c.y - a.y);
+    const dir = rnd(i + n, 46) < 0.5 ? 1 : -1, L = 34 * u;
+    leapsDrawn++;
+    if (ph < 0.12) {                       // in the air: the fish on its arc
+      const q = ph / 0.12, fx = x + dir * (q - 1) * L, fy = y - Math.sin(q * Math.PI) * L * 0.8;
+      g.save(); g.translate(fx, fy); g.rotate(dir * (q - 0.5) * 2.2); g.scale(dir, 1);
+      g.fillStyle = 'rgba(44,62,70,0.9)';
+      g.beginPath(); g.ellipse(0, 0, 9 * u, 3.4 * u, 0, 0, 7); g.fill();
+      g.beginPath(); g.moveTo(-8 * u, 0); g.lineTo(-14 * u, -4 * u); g.lineTo(-14 * u, 4 * u); g.fill();
+      g.restore();
+      continue;
+    }
+    const q = (ph - 0.12) / 0.38;          // back in: rings widening and fading
+    for (let r = 0; r < 2; r++) {
+      const qq = q - r * 0.25;
+      if (qq <= 0) continue;
+      g.strokeStyle = 'rgba(236,250,255,' + (0.7 * (1 - qq)).toFixed(3) + ')'; g.lineWidth = 3.5 * u;
+      g.beginPath(); g.ellipse(x, y, (6 + qq * 34) * u, (3 + qq * 17) * u, 0, 0, 7); g.stroke();
+    }
+  }
+  g.restore();
+}
 function drawSeaProps(b) {
   const W = b.x1 - b.x0, cx = (b.x0 + b.x1) / 2;
   for (const s of SEA_PROPS) {
@@ -4484,6 +4542,7 @@ function drawGround() {
     g.restore();
   }
   drawGlints();
+  drawLeaps();
   drawSeaProps(b);
 
   // soft ground shadow so the plot sits ON something instead of floating
@@ -5708,7 +5767,6 @@ function drawWorld() {
   // after the entities, so the trees out in the wild are dimmed with the ground
   // they stand on rather than glowing against it
   drawFrontier();
-  drawPops();
   /* The spot being chosen, outlined over everything standing in front of it.
      The preview fill is painted on the ground, so a spot behind the hall or a
      lumber camp was entirely hidden -- a well's reach circle and label floating
@@ -8278,11 +8336,16 @@ function draw() {
 
      The same reasoning as the lamps, and with more force: a lamp that gets
      dimmed by the night is merely wrong, a warning you cannot read at 2am is
-     the thing the source already calls a bug however pretty it looks. The
-     delivery pops stay under the wash -- they carry their own near-black
-     outline and measure 8.4 at midnight, so they do not need it. */
+     the thing the source already calls a bug however pretty it looks.
+
+     The delivery pops used to stay under the wash, on their own near-black
+     outline. But a villager carrying a lantern home is exactly where a pop
+     comes up, and the lantern's light, added over the pop, lifted text and
+     ground together: 3.2 to 3.7 at midnight, about one night in three. They
+     now go over the lamps too, on an outline wide enough to back each
+     letter right through. */
   drawAmbient();                                // the season in the air, in front of the world
-  g.save(); camApply(); drawLamps(); flushBadges(); g.restore();
+  g.save(); camApply(); drawLamps(); drawPops(); flushBadges(); g.restore();
   drawHUD();
   g.restore();
 }
@@ -8904,7 +8967,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   get ordersDone() { return ordersDone; }, set ordersDone(v) { ordersDone = v; },
   get orderT() { return orderT; }, set orderT(v) { orderT = v; },
   get goalDone() { return goalDone; }, set goalDone(v) { goalDone = v; },
-  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, moonFull, mistNow, rainbowNow,
+  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, moonFull, mistNow, rainbowNow, get leapsDrawn() { return leapsDrawn; },
   /* Read through getters. Captured by value these went stale the moment the
      harness moved them, and a sweep would have cleaned up the key the game
      was no longer using. */
