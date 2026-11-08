@@ -7107,3 +7107,6 @@ No art. In spring and autumn a long V of geese crosses the screen every minute a
 
 # 195 — Thunderstorms
 No art. Two in five wet days turn to storms: at most one flash every twenty-three seconds, a jagged bolt from the top of the view and a soft pale flash over everything, and one to three seconds later a low roll of thunder (the beds' noise, low-passed hard). The flash is held to a fifth of full white for comfort; the light and the sound are both off with reduced motion, and the thunder stands down when muted or hidden. Which days and when are worked out from the clock, so nothing is stored.
+
+# 196 — Smoke from the chimneys
+No art. A thread of soft puffs rises from each chimney and bends away as it climbs: thickest in winter, then autumn and spring, a wisp in summer. CHIMNEY holds where the stack is on six of the house looks and all three halls, as a share of the summer picture. The baker and the potter have smoke painted in already, and the oak has no chimney. Drawn in the world before the night wash, so it dims with everything else; worked out from the clock, nothing stored, off with reduced motion.

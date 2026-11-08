@@ -5131,6 +5131,41 @@ function glowKey(p) {
   return GLOW_LOOKS.has(look) ? look + '_glow' : null;
 }
 for (let i = BEACON_GLOW_FROM; i <= BEACON_STAGES; i++) artFor(BEACON + '_glow' + i);
+/* Smoke from the chimneys: a thin thread of puffs from the top of each stack,
+   thickest in winter, a wisp on a summer's evening. Where each chimney is, as
+   a share of the summer picture. The baker and the potter have smoke painted
+   into their pictures already, and the oak has no chimney to smoke. */
+const CHIMNEY = {
+  house: [0.84, 0.11], house_stone: [0.84, 0.12], house_thatch: [0.81, 0.09], house_fisher: [0.85, 0.11],
+  house_weaver: [0.84, 0.085], house_bee: [0.72, 0.04],
+  hall: [0.26, 0.23], hall_2: [0.245, 0.33], hall_3: [0.27, 0.33],
+};
+const SMOKE = { winter: 1, autumn: 0.8, spring: 0.5, summer: 0.3 };
+const SMOKE_PUFFS = 5;
+let smokeDrawn = 0;
+function drawSmoke() {
+  smokeDrawn = 0;
+  if (reduceMotion) return;
+  const k = SMOKE[season().key] || 0, t = Date.now() / 1000;
+  g.save();
+  for (const q of placed) {
+    const at = q.t >= 1 && CHIMNEY[lookOf(q)];
+    if (!at) continue;
+    const ar = artRect(q);
+    if (!ar) continue;
+    const x = ar.left + at[0] * ar.wid, y = ar.baseTop + at[1] * ar.baseH, u = ar.wid / 240;
+    for (let i = 0; i < SMOKE_PUFFS; i++) {
+      const ph = frac(t / 4.5 + i / SMOKE_PUFFS + q.id * 0.37);
+      const al = 0.62 * k * (1 - ph) * Math.min(1, ph * 7);
+      g.fillStyle = 'rgba(232,232,236,' + al.toFixed(3) + ')';
+      g.beginPath();
+      g.arc(x + (ph * ph * 70 + Math.sin(ph * 7 + q.id) * 10) * u, y - ph * 190 * u, (13 + ph * 36) * u, 0, 7);
+      g.fill();
+      smokeDrawn++;
+    }
+  }
+  g.restore();
+}
 function drawWindowGlow(p, ar) {
   if (p.t < 1) return;
   const n = sky().night;
@@ -5861,6 +5896,7 @@ function drawWorld() {
     g.beginPath(); g.ellipse(w.x, w.y, rx, ry, 0, 0, 7); g.stroke();
     g.restore();
   }
+  drawSmoke();
   // after the entities, so the trees out in the wild are dimmed with the ground
   // they stand on rather than glowing against it
   drawFrontier();
@@ -9063,7 +9099,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   get ordersDone() { return ordersDone; }, set ordersDone(v) { ordersDone = v; },
   get orderT() { return orderT; }, set orderT(v) { orderT = v; },
   get goalDone() { return goalDone; }, set goalDone(v) { goalDone = v; },
-  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, moonFull, mistNow, rainbowNow, batsNow, stormNow, flashAt, get leapsDrawn() { return leapsDrawn; },
+  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, get smokeDrawn() { return smokeDrawn; }, moonFull, mistNow, rainbowNow, batsNow, stormNow, flashAt, get leapsDrawn() { return leapsDrawn; },
   /* Read through getters. Captured by value these went stale the moment the
      harness moved them, and a sweep would have cleaned up the key the game
      was no longer using. */
