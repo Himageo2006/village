@@ -871,8 +871,9 @@ function catchVisitor(sx, sy) {
   if (grant(k, n, w.x, w.y) > 0.01) SFX.goal(); else SFX.tap();
   caught[v.id]++;
   const total = caughtTotal(), mark = SPOT_MARKS.includes(total);
-  spotNote = { x: w.x, y: w.y - 60, at: Date.now(), mark,
-    text: mark ? total + ' caught — rewards ×' + spotBonus().toFixed(1) : SPOT_ICON[v.id] + ' ' + caught[v.id] };
+  // a mark's note is long, and a visitor is usually near the edge of the view, so it goes in the middle
+  spotNote = { x: mark ? camUnproject(W / 2, 0).x : w.x, y: w.y - 60, at: Date.now(), mark,
+    text: mark ? total + ' caught — rewards +' + Math.round((spotBonus() - 1) * 100) + '%' : SPOT_ICON[v.id] + ' ' + caught[v.id] };
   save();
   return true;
 }
