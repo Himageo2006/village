@@ -7131,3 +7131,6 @@ No art. At noon each day the hall bell strikes three slow strokes, and seven whi
 
 # 203 — Umbrellas in the rain
 No art. Once the rain has properly started every villager puts up an umbrella, each keeping a colour of their own, and takes it down again as the shower ends. What they carry rides above it.
+
+# 204 — The autumn wind
+No art. In autumn, on dry days, a gust every three-quarters of a minute carries a whirl of thirty leaves across the view, tumbling round a centre that travels, for about eleven seconds.

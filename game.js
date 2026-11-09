@@ -717,6 +717,29 @@ function drawButterflies(t, k) {
     g.restore();
   }
 }
+/* In autumn the wind gets up every three-quarters of a minute or so and carries
+   a whirl of leaves across the view, tumbling round a centre that travels. */
+const GUST_S = 45, GUST_LEN = 0.24, GUST_LEAVES = 30, GUST_COL = ['#d9782a', '#b8402a', '#e6b13c', '#a8622a'];
+function gustNow() {
+  if (season().key !== 'autumn' || rainNow() > 0) return -1;
+  const ph = frac(Date.now() / 1000 / GUST_S);
+  return ph < GUST_LEN ? ph / GUST_LEN : -1;
+}
+function drawGust(t, top, hh, q) {
+  const n = Math.floor(Date.now() / 1000 / GUST_S), dir = rnd(n, 62) < 0.5 ? 1 : -1, span = W + 900;
+  const cy = top + hh * (0.25 + 0.4 * rnd(n, 63)) + (q - 0.5) * hh * 0.1;
+  for (let i = 0; i < GUST_LEAVES; i++) {
+    // strung out along the path, so the whirl has a head and a trailing tail
+    const c = (dir > 0 ? -450 + q * span : W + 450 - q * span) - dir * rnd(i, 64) * 320;
+    const r = 30 + rnd(i, 65) * 130, a = t * (3 + rnd(i, 66) * 2) + i * 2.4, sz = 11 + rnd(i, 67) * 8;
+    g.save();
+    g.translate(c + Math.cos(a) * r, cy + Math.sin(a) * r * 0.55 + rnd(i, 68) * 60 - 30);
+    g.rotate(a * 1.4);
+    g.fillStyle = GUST_COL[i % GUST_COL.length];
+    g.beginPath(); g.ellipse(0, 0, sz, sz * (0.3 + 0.3 * Math.abs(Math.sin(a * 2))), 0, 0, 7); g.fill();
+    g.restore();
+  }
+}
 /* Noon, by the hall bell: three strokes, and the doves that live on the roof go
    up at the noise, wheel round for twenty seconds and come back down. */
 const NOON = 0.25, NOON_LEN = 0.04, DOVES = 7;
@@ -987,6 +1010,8 @@ function drawAmbient() {
   if ((key === 'spring' || key === 'autumn') && rain === 0 && day > 0.5) drawGeese(t, top, hh, day, key);
   const bats = batsNow();
   if (bats > 0.01) drawBats(t, top, hh, bats);
+  const gust = gustNow();
+  if (gust >= 0) drawGust(t, top, hh, gust);
   const doves = dovesNow();
   if (doves >= 0) drawDoves(t, doves);
   if ((key === 'spring' || key === 'summer') && rain === 0 && sky().sun > 0.15) drawButterflies(t, Math.min(1, (sky().sun - 0.15) / 0.2));
@@ -9319,7 +9344,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   get ordersDone() { return ordersDone; }, set ordersDone(v) { ordersDone = v; },
   get orderT() { return orderT; }, set orderT(v) { orderT = v; },
   get goalDone() { return goalDone; }, set goalDone(v) { goalDone = v; },
-  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, get smokeDrawn() { return smokeDrawn; }, get ringsDrawn() { return ringsDrawn; }, moonFull, mistNow, rainbowNow, batsNow, dovesNow, get umbrellasDrawn() { return umbrellasDrawn; }, festivalNow, auroraNow, stormNow, flashAt, get leapsDrawn() { return leapsDrawn; },
+  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, get smokeDrawn() { return smokeDrawn; }, get ringsDrawn() { return ringsDrawn; }, moonFull, mistNow, rainbowNow, batsNow, gustNow, dovesNow, get umbrellasDrawn() { return umbrellasDrawn; }, festivalNow, auroraNow, stormNow, flashAt, get leapsDrawn() { return leapsDrawn; },
   /* Read through getters. Captured by value these went stale the moment the
      harness moved them, and a sweep would have cleaned up the key the game
      was no longer using. */
