@@ -826,6 +826,14 @@ function drawKites(t, k) {
    amounts, so a visit means the same to a first village as to a full one. */
 const SPOT_SHARE = { balloon: 0.05, whale: 0.08, pod: 0.04 }, SPOT_RES = { balloon: 'food', whale: 'wood', pod: 'food' };
 const spotTaken = { balloon: -1, whale: -1, pod: -1 };
+/* And the village remembers them. Every visitor caught goes on a tally kept with
+   the save, and the more you have caught the more the next is worth: up to
+   twice the share, reached at forty. The note over the catch says how far along
+   you are, and says so louder at the marks. */
+const SPOT_ICON = { balloon: '🎈', whale: '🐋', pod: '🐬' }, SPOT_FULL = 40, SPOT_MARKS = [10, 20, 40];
+let caught = { balloon: 0, whale: 0, pod: 0 }, spotNote = null;
+const caughtTotal = () => caught.balloon + caught.whale + caught.pod;
+const spotBonus = () => 1 + Math.min(1, caughtTotal() / SPOT_FULL);
 function visitors() {
   const t = Date.now() / 1000, top = screenTop(), hh = screenBot() - top, out = [], u = 2.2 / camScale();
   const q1 = balloonNow();
@@ -859,7 +867,12 @@ function catchVisitor(sx, sy) {
   if (!v) return false;
   spotTaken[v.id] = v.n;
   const w = camUnproject(v.x, v.y), k = SPOT_RES[v.id];
-  if (grant(k, Math.max(5, Math.round(caps[k] * SPOT_SHARE[v.id])), w.x, w.y) > 0.01) SFX.goal(); else SFX.tap();
+  const n = Math.max(5, Math.round(caps[k] * SPOT_SHARE[v.id] * spotBonus()));
+  if (grant(k, n, w.x, w.y) > 0.01) SFX.goal(); else SFX.tap();
+  caught[v.id]++;
+  const total = caughtTotal(), mark = SPOT_MARKS.includes(total);
+  spotNote = { x: w.x, y: w.y - 60, at: Date.now(), mark,
+    text: mark ? total + ' caught — rewards ×' + spotBonus().toFixed(1) : SPOT_ICON[v.id] + ' ' + caught[v.id] };
   save();
   return true;
 }
@@ -1618,6 +1631,20 @@ function stepFeedback(dt) {
    these are the one sign of where goods are actually arriving, kept even when
    reduce-motion takes the decoration away. */
 const POP_PX = 21;
+function drawSpotNote() {
+  if (!spotNote) return;
+  const a = (Date.now() - spotNote.at) / (spotNote.mark ? 3500 : 2200);
+  if (a >= 1) { spotNote = null; return; }
+  const k = badgeScale() * BADGE_TEXT_PX / POP_PX * (spotNote.mark ? 1.3 : 1);
+  g.save();
+  g.globalAlpha = Math.min(1, (1 - a) * 2.2);
+  g.translate(spotNote.x, spotNote.y - a * 40); g.scale(k, k);
+  g.font = 'bold ' + POP_PX + 'px Segoe UI, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.lineJoin = 'round'; g.lineWidth = 8; g.strokeStyle = 'rgba(20,16,10,.85)';
+  g.strokeText(spotNote.text, 0, 0);
+  g.fillStyle = spotNote.mark ? '#ffe07a' : '#ffffff'; g.fillText(spotNote.text, 0, 0);
+  g.restore();
+}
 function drawPops() {
   const k = badgeScale() * BADGE_TEXT_PX / POP_PX;
   for (const q of pops) {
@@ -4194,6 +4221,7 @@ function save() {
        cannot be missed when it goes -- which is precisely what the save
        sweep tests every field for, and it would have reported the check
        going blind rather than the field being empty. */
+    ...(caughtTotal() ? { caught } : {}),
     ...(afterMark ? { mark: afterMark } : {}) }));
     saveFailed = false; savedMs = Date.now();
   } catch (e) {
@@ -4237,6 +4265,8 @@ function load() {
       pendingTransit[k] = Math.min(VILLAGER_MAX * CARRY, s.transit[k]);
   if (Array.isArray(s.seen)) tutSeen = s.seen.filter(x => typeof x === 'string');
   if (typeof s.mute === 'boolean') muted = s.mute;
+  caught = { balloon: 0, whale: 0, pod: 0 };
+  if (s.caught && typeof s.caught === 'object') for (const k in caught) if (Number.isFinite(s.caught[k])) caught[k] = Math.max(0, Math.floor(s.caught[k]));
   /* Past the end of the ladder on purpose. This clamped to GOALS.length, which
      was right while that was the last goal there was and is now a quiet reset:
      every goal the player had earned past the ladder would be handed back on
@@ -9118,7 +9148,7 @@ function draw() {
      pinned down. They now go over the lamps too, on an outline wide enough to
      back each letter right through, and measure 13. */
   drawAmbient();                                // the season in the air, in front of the world
-  g.save(); camApply(); drawLamps(); drawBoatLights(); drawPumpkinLights(); drawPops(); flushBadges(); g.restore();
+  g.save(); camApply(); drawLamps(); drawBoatLights(); drawPumpkinLights(); drawPops(); drawSpotNote(); flushBadges(); g.restore();
   drawHUD();
   g.restore();
 }
@@ -9743,7 +9773,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   get ordersDone() { return ordersDone; }, set ordersDone(v) { ordersDone = v; },
   get orderT() { return orderT; }, set orderT(v) { orderT = v; },
   get goalDone() { return goalDone; }, set goalDone(v) { goalDone = v; },
-  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, get smokeDrawn() { return smokeDrawn; }, get ringsDrawn() { return ringsDrawn; }, moonFull, mistNow, rainbowNow, batsNow, visitors, catchVisitor, podNow, kitesNow, balloonNow, whaleNow, gustNow, dovesNow, get umbrellasDrawn() { return umbrellasDrawn; }, festivalNow, auroraNow, stormNow, flashAt, get leapsDrawn() { return leapsDrawn; },
+  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, get smokeDrawn() { return smokeDrawn; }, get ringsDrawn() { return ringsDrawn; }, moonFull, mistNow, rainbowNow, batsNow, visitors, catchVisitor, get caught() { return caught; }, set caught(c) { caught = c; }, spotBonus, podNow, kitesNow, balloonNow, whaleNow, gustNow, dovesNow, get umbrellasDrawn() { return umbrellasDrawn; }, festivalNow, auroraNow, stormNow, flashAt, get leapsDrawn() { return leapsDrawn; },
   /* Read through getters. Captured by value these went stale the moment the
      harness moved them, and a sweep would have cleaned up the key the game
      was no longer using. */
