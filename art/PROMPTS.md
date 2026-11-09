@@ -7194,3 +7194,6 @@ The Town Hall's title row now opens a page of four cards, drawn from the existin
 
 ## Round 224: the album's reward (no new art)
 All twelve stars put a golden weathervane on the Town Hall, drawn in code and stood on the peak read from whichever painting the hall is wearing.
+
+## Round 225: fewer paid visits (no new art)
+Whales and dolphins still come as often, but only every third visit carries a sparkle and can be caught.

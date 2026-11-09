@@ -10868,6 +10868,82 @@
     V.step(0.001);
     return { ...out, fails };
   };
+  /* Catching visitors, which no other sweep does: every one of them starts from
+     an empty tally, so the album and all it pays were never exercised. The clock
+     is held still and walked to the moment each visit is on screen. */
+  window.visitorSweep = function () {
+    const V = window.__v, fails = [], realNow = Date.now, HOUR = 3600;
+    const at = ms => { Date.now = () => ms; V.step(0.001); V.draw(); };
+    V.placed.length = 0; V.villagers.length = 0; V.landTier = 2; V.coverPlaced();
+    V.away = null; V.goalDone = null; V.finished = null; V.claimAsk = false; V.panel = null; V.who = null;
+    V.sel = null; V.moving = null; V.ghost = null; V.armed = null; V.reduceMotion = false; V.album = false;
+    V.ensureHall(); V.placed[0].t = 1; V.placed[0].build = 0; V.step(0.001); V.camFit(true);
+    const empty = () => ({ balloon: 0, whale: 0, pod: 0, golden: 0 });
+    let from = 1.7e12;
+    // the next second, after the last one used, at which the test holds
+    const seek = test => { for (let s = 1; s < 6 * HOUR; s++) { const ms = from + s * 1000; Date.now = () => ms; if (test()) { from = ms; at(ms); return true; } } return false; };
+    const whale = () => V.visitors().find(o => o.id === 'whale');
+    const whaleUp = () => V.whaleNow() > 0.3 && V.whaleNow() < 0.7;
+    const ctx = document.querySelector('canvas').getContext('2d');
+    // on the context itself: other sweeps leave their counters there, and those hide the prototype
+    const counted = fn => { let n = 0; const names = ['fill', 'stroke', 'drawImage', 'fillText'], own = names.map(k => Object.prototype.hasOwnProperty.call(ctx, k)), keep = names.map(k => ctx[k]);
+      names.forEach((k, i) => { ctx[k] = function () { n++; return keep[i].apply(this, arguments); }; });
+      try { fn(); } finally { names.forEach((k, i) => { if (own[i]) ctx[k] = keep[i]; else delete ctx[k]; }); } return n; };
+    let out = {};
+    try {
+      if (!seek(() => whaleUp() && Math.floor(Date.now() / 1000 / 70) % V.SPOT_EVERY !== 0)) fails.push('never found a whale between the catchable ones');
+      else if (whale()) fails.push('a whale that is not every third visit could be caught, so catches pay for far more visits than intended');
+      if (!seek(() => whaleUp() && whale())) fails.push('no catchable whale came in six hours');
+      else {
+        V.caught = Object.assign(empty(), { whale: 9, pod: 9, balloon: 9 });
+        const w = whale(), cap = V.caps.wood; V.res.wood = 0;
+        V.catchVisitor(w.x, w.y);
+        const want = Math.round(cap * (0.08 * (1 + 27 / 40) + 0.15));
+        if (Math.abs(V.res.wood - want) > 1) fails.push('the tenth whale paid ' + V.res.wood + ' against ' + want + ' for the catch and its star');
+        if (V.caught.whale !== 10) fails.push('the tally read ' + V.caught.whale + ' after the tenth whale');
+        if (V.starsOf('whale') !== 2) fails.push('ten whales earned ' + V.starsOf('whale') + ' stars, not 2');
+        if (whale()) fails.push('the same whale could be caught twice');
+        V.save();
+        const kept = JSON.parse(localStorage.getItem(V.KEY)).caught;
+        if (!kept || kept.whale !== 10) fails.push('the tally did not reach the save: ' + JSON.stringify(kept));
+      }
+      if (!seek(() => whaleUp() && whale())) fails.push('no second catchable whale');
+      else {
+        V.caught = Object.assign(empty(), { whale: 10, pod: 9, balloon: 9 });
+        const w = whale(), cap = V.caps.wood; V.res.wood = 0;
+        V.catchVisitor(w.x, w.y);
+        const want = Math.round(cap * 0.08 * (1 + 28 / 40));
+        if (Math.abs(V.res.wood - want) > 1) fails.push('a catch with no star paid ' + V.res.wood + ' against ' + want);
+      }
+      V.caught = empty(); V.panel = V.hallOf().id; at(from);
+      const chip = V.albumChip(V.panelRects());
+      V.tap(chip.x, chip.y);
+      if (!V.album) fails.push('tapping the chip on the hall did not open the album');
+      else {
+        at(from);
+        const R = V.albumRects();
+        V.tap(R.x, R.y); if (!V.album) fails.push('a tap on the page put the album away');
+        V.tap(R.close.x, R.close.y); if (V.album) fails.push('the cross did not close the album');
+        V.album = true; V.tap(R.x, R.y - R.h / 2 - 10 * R.u); if (V.album) fails.push('a tap off the page did not close the album');
+        V.album = true; V.backClose(); if (V.album) fails.push('the back button did not close the album');
+        V.album = true; V.caught = { balloon: 30, whale: 30, pod: 30, golden: 10 };
+        const calls = counted(() => V.draw());
+        const alone = (V.album = false, V.panel = null, counted(() => V.draw()));
+        out.albumCalls = calls - alone;
+        if (calls - alone > 120) fails.push('the open album costs ' + (calls - alone) + ' draw calls');
+      }
+      V.panel = null; V.album = false;
+      if (V.artRect(V.hallOf())) {
+        V.caught = { balloon: 30, whale: 30, pod: 30, golden: 9 };
+        if (counted(() => { ctx.save(); V.drawVane(); ctx.restore(); }) !== 0) fails.push('the weathervane went up at eleven stars');
+        V.caught = { balloon: 30, whale: 30, pod: 30, golden: 10 };
+        if (V.albumStars() !== 12) fails.push('a full tally read ' + V.albumStars() + ' stars');
+        if (counted(() => { ctx.save(); V.drawVane(); ctx.restore(); }) === 0) fails.push('twelve stars did not put up the weathervane');
+      } else out.vaneSkipped = true;
+    } finally { Date.now = realNow; V.caught = empty(); V.album = false; V.panel = null; }
+    V.step(0.001);
+    return { ...out, fails };
+  };
   window.traySweep = function () {
     const V = window.__v, cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
     const fails = [];
@@ -13118,6 +13194,7 @@
       ['floor', () => window.floorSweep()],
       ['clock', () => window.clockSweep()],
       ['light', () => window.lightSweep()],
+      ['visitor', () => window.visitorSweep()],
       ['ink', () => window.inkSweep()],
       ['still', () => window.stillSweep()],
       ['notch', () => window.notchSweep()],

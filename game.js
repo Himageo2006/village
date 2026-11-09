@@ -830,6 +830,10 @@ const GOLD_SHARE = 0.15;
 let goldForced = false;
 const goldBalloon = n => goldForced || rnd(n, 85) < GOLD_SHARE;
 const spotTaken = { balloon: -1, whale: -1, pod: -1 };
+/* Whales and dolphins come by every minute or so, which is right to look at and
+   far too often to be paid for: a whale a minute out-earned a staffed lumber
+   camp. Only every third visit carries a sparkle and can be caught. */
+const SPOT_EVERY = 3;
 /* And the village remembers them. Every visitor caught goes on a tally kept with
    the save, and the more you have caught the more the next is worth: up to
    twice the share, reached at forty. The note over the catch says how far along
@@ -860,7 +864,7 @@ function visitors() {
   if (q2 >= 0) { const a = whaleAt(t, q2), c = camProject(a.x, a.y), s = camScale(); out.push({ id: 'whale', n: a.n, x: c.x, y: c.y, r: 120, up: 34 * u * s }); }
   const q3 = podNow();
   if (q3 >= 0) { const a = podAt(t), c = camProject(a.at.x, a.at.y), s = camScale(); out.push({ id: 'pod', n: a.n, x: c.x, y: c.y, r: 130, up: 42 * u * s }); }
-  return out.filter(v => v.n !== spotTaken[v.id] && v.y > screenTop() && v.x > 0 && v.x < W);
+  return out.filter(v => (v.id === 'balloon' || v.n % SPOT_EVERY === 0) && v.n !== spotTaken[v.id] && v.y > screenTop() && v.x > 0 && v.x < W);
 }
 function drawVisitorSparkles(t) {
   const list = visitors();
@@ -7793,7 +7797,7 @@ function drawAlbum() {
   g.fillText('Visitors', R.x, R.y - R.h / 2 + 42 * u);
   const got = albumStars(), all = ALBUM.length * 3;
   g.font = `${Math.round(22 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#ffe07a';
-  g.fillText(got === all ? '★ The album is full, and the weathervane is yours ★' : '★ ' + got + ' of ' + all + ' stars: fill them all for a golden weathervane', R.x, R.y - R.h / 2 + 82 * u);
+  g.fillText(reduceMotion ? 'Reduced motion is on, so no visitors come' : got === all ? '★ The album is full, and the weathervane is yours ★' : '★ ' + got + ' of ' + all + ' stars: fill them all for a golden weathervane', R.x, R.y - R.h / 2 + 82 * u);
   for (const c of R.cards) {
     const n = caught[c.a.key], cx = c.x + c.w / 2, marks = ALBUM_STARS[c.a.key];
     g.fillStyle = n ? 'rgba(66,84,46,.75)' : 'rgba(32,42,30,.75)';
@@ -9921,7 +9925,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   get ordersDone() { return ordersDone; }, set ordersDone(v) { ordersDone = v; },
   get orderT() { return orderT; }, set orderT(v) { orderT = v; },
   get goalDone() { return goalDone; }, set goalDone(v) { goalDone = v; },
-  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, get smokeDrawn() { return smokeDrawn; }, get ringsDrawn() { return ringsDrawn; }, moonFull, mistNow, rainbowNow, batsNow, visitors, catchVisitor, get caught() { return caught; }, set goldForced(b) { goldForced = b; }, caughtLine, set caught(c) { caught = c; }, get album() { return album; }, set album(b) { album = b; }, albumRects, albumChip, peakOf, drawVane, get spotNote() { return spotNote; }, ALBUM_STARS, starsOf, albumStars, spotBonus, podNow, kitesNow, balloonNow, whaleNow, gustNow, dovesNow, get umbrellasDrawn() { return umbrellasDrawn; }, festivalNow, auroraNow, stormNow, flashAt, get leapsDrawn() { return leapsDrawn; },
+  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, get smokeDrawn() { return smokeDrawn; }, get ringsDrawn() { return ringsDrawn; }, moonFull, mistNow, rainbowNow, batsNow, visitors, catchVisitor, get caught() { return caught; }, set goldForced(b) { goldForced = b; }, caughtLine, set caught(c) { caught = c; }, get album() { return album; }, set album(b) { album = b; }, SPOT_EVERY, albumRects, albumChip, peakOf, drawVane, get spotNote() { return spotNote; }, ALBUM_STARS, starsOf, albumStars, spotBonus, podNow, kitesNow, balloonNow, whaleNow, gustNow, dovesNow, get umbrellasDrawn() { return umbrellasDrawn; }, festivalNow, auroraNow, stormNow, flashAt, get leapsDrawn() { return leapsDrawn; },
   /* Read through getters. Captured by value these went stale the moment the
      harness moved them, and a sweep would have cleaned up the key the game
      was no longer using. */
