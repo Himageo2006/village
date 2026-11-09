@@ -5735,7 +5735,6 @@ const GLOW_LOOKS = new Set([...LOOKS.house, 'hall', 'hall_2', 'hall_3',
   'mill', 'mill_post', 'mill_smock', 'mill_water', 'mill_tower', 'mill_cider',
   'market', 'market_hall', 'lumber_cabin', 'lumber_saw',
   'find_ruin']);   // somebody keeps a fire in the ruin's old hearth (PROMPTS 188)
-for (const look of GLOW_LOOKS) artFor(look + '_glow');
 /* The beacon by stage: only the two tall ones, 4 and 5, have windows to light
    (5 its lamp too). The stumps of 2 and 3 came out of the clip misplaced and
    with a door flung open, and at that height nobody misses them. */
@@ -9698,13 +9697,11 @@ for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER]) for (let i = 1; i <
    moment it finished, and artFor remembers a miss. */
 for (let i = 1; i <= BEACON_STAGES; i++) { beaconArt(i); if (season().key !== 'summer') artFor(BEACON + '_stage' + i + '_' + season().key); }
 for (const k of ['ground', 'water', 'tree_pine', 'tree_spruce', 'tree_oak', 'tree_willow', 'tree_poplar', 'tree_cherry', 'tree_birch', 'rock', 'rock_moss', 'bush', 'bush_hydrangea', 'stump', 'log_mushroom', 'flowers_wild', 'flowers_meadow', 'sheep', 'sheep_rest', 'sheep_lambs', 'skeps', 'snowman', 'goat', 'cow', ...Object.values(SEASON_LOOK).flatMap(Object.values)]) artFor(k);
-for (const set of Object.values(LOOKS)) for (const k of set) artFor(k);
-/* Only this season's pictures ahead of time. Fetching every season's meant a
-   first visit downloaded 40 MB, most of it for months nobody could see yet; the
-   others come as the season they belong to arrives, through artFor as they are
-   drawn, with the tinted summer picture standing in for the moment that takes. */
-if (season().key === 'winter') for (const k of WINTER_LOOKS) artFor(k + '_winter');
-if (season().key === 'autumn') for (const k of AUTUMN_LOOKS) artFor(k + '_autumn');
+/* The different looks a building can have, their seasons and their lit windows
+   are not fetched ahead of time. Fetching them all meant a first visit
+   downloaded 40 MB for a village with one hall in it. artFor asks for each as it
+   is first drawn, and until it arrives the plain picture or its tinted summer
+   self stands in. */
 for (const [, k] of HALL_STAGES) artFor(k);
 for (const s of SEA_PROPS) { artFor(s.key); if (s.glow) artFor(s.key + '_glow'); if (s[season().key]) artFor(s.key + '_' + season().key); }
 

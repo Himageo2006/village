@@ -7176,3 +7176,6 @@ GPT Image edit of `water.webp`, resized back to its 1400×700 so the mirrored ti
 
 # 218 — A lighter first load
 No art. The game fetched every season's pictures at start: 525 files and 39.6 MB. It now fetches only the current season's ahead of time (394 files, 28.2 MB in autumn), and the others arrive as their season comes, with the tinted summer picture standing in until then.
+
+# 219 — Lighter still
+No art. Building looks, seasonal pictures and lit windows are now fetched when first drawn instead of at start: a first visit is 179 files and 11.4 MB, down from 39.6 MB.
