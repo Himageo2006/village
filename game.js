@@ -894,6 +894,7 @@ function catchVisitor(sx, sy) {
   // a mark's note is long, and a visitor is usually near the edge of the view, so it goes in the middle
   spotNote = { x: mark ? camUnproject(W / 2, 0).x : w.x, y: w.y - 60, at: Date.now(), mark,
     text: gold ? SPOT_ICON.golden + ' The golden balloon! ' + SPOT_ICON.golden
+      : star && albumStars() === ALBUM.length * 3 ? '★ The album is full! ★'
       : star ? '★ ' + ALBUM.find(a => a.key === kind).name + ': a new star in the album'
       : mark ? total + ' caught — rewards +' + Math.round((spotBonus() - 1) * 100) + '%' : SPOT_ICON[kind] + ' ' + caught[kind] };
   save();
@@ -1654,6 +1655,56 @@ function stepFeedback(dt) {
    these are the one sign of where goods are actually arriving, kept even when
    reduce-motion takes the decoration away. */
 const POP_PX = 21;
+/* Fill the album and the hall gets a golden weathervane, on whatever its roof
+   looks like at that level: the peak is read off the painting's own pixels, once
+   for each painting, on a small copy. It idles round with the breeze. */
+const PEAKS = new WeakMap();
+function peakOf(im) {
+  if (PEAKS.has(im)) return PEAKS.get(im);
+  let at = { x: 0.5, y: 0 };
+  try {
+    const w = 96, h = Math.max(1, Math.round(im.height * w / im.width)), c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(im, 0, 0, w, h);
+    const d = x.getImageData(0, 0, w, h).data;
+    scan: for (let r = 0; r < h; r++) {
+      let sum = 0, n = 0;
+      for (let q = 0; q < w; q++) if (d[(r * w + q) * 4 + 3] > 150) { sum += q; n++; }
+      if (n) { at = { x: (sum / n + 0.5) / w, y: (r + 0.5) / h }; break scan; }
+    }
+  } catch (e) {}
+  PEAKS.set(im, at);
+  return at;
+}
+function drawVane() {
+  if (albumStars() < ALBUM.length * 3) return;
+  const h = hallOf();
+  if (!h || !established(h) || moving === h.id) return;
+  const R = artRect(h);
+  if (!R) return;
+  const pk = peakOf(R.art), x = R.left + pk.x * R.wid, y = R.top + pk.y * R.hgt, t = Date.now() / 1000;
+  const q = reduceMotion ? 1 : Math.cos(t * 0.31 + Math.sin(t * 0.13) * 2), L = 20, top = y - 40, sq = Math.abs(q) < 0.18 ? 0.18 * (q < 0 ? -1 : 1) : q;
+  g.save(); g.lineCap = 'round'; g.lineJoin = 'round';
+  g.beginPath();
+  g.moveTo(x, y + 6); g.lineTo(x, top - 8);
+  g.moveTo(x - 11, top + 14); g.lineTo(x + 11, top + 14);
+  g.moveTo(x - L * sq, top); g.lineTo(x + L * sq, top);
+  g.strokeStyle = 'rgba(70,40,8,.85)'; g.lineWidth = 6; g.stroke();
+  g.strokeStyle = '#ffd24a'; g.lineWidth = 3; g.stroke();
+  g.beginPath();                          // the head, and the feathered tail
+  g.moveTo(x + (L + 11) * sq, top); g.lineTo(x + (L - 3) * sq, top - 8); g.lineTo(x + (L - 3) * sq, top + 8); g.closePath();
+  g.moveTo(x - (L - 2) * sq, top - 1); g.lineTo(x - (L + 11) * sq, top - 11); g.lineTo(x - (L + 6) * sq, top); g.lineTo(x - (L + 11) * sq, top + 11); g.closePath();
+  g.moveTo(x + 5.5, top - 8); g.arc(x, top - 8, 5.5, 0, 7);
+  g.fillStyle = '#ffd24a'; g.strokeStyle = 'rgba(70,40,8,.85)'; g.lineWidth = 2; g.stroke(); g.fill();
+  const shine = reduceMotion ? 0 : Math.max(0, Math.sin(t * 1.1)) ** 12;
+  if (shine > 0.02) {                     // a glint off the ball, every few seconds
+    const a = 22 * shine, cy = top - 10;
+    g.globalAlpha = shine; g.fillStyle = '#fff6c8'; g.beginPath();
+    g.moveTo(x, cy - a); g.quadraticCurveTo(x, cy, x + a, cy); g.quadraticCurveTo(x, cy, x, cy + a);
+    g.quadraticCurveTo(x, cy, x - a, cy); g.quadraticCurveTo(x, cy, x, cy - a); g.fill();
+  }
+  g.restore();
+}
 function drawSpotNote() {
   if (!spotNote) return;
   const a = (Date.now() - spotNote.at) / (spotNote.mark ? 3500 : 2200);
@@ -7742,7 +7793,7 @@ function drawAlbum() {
   g.fillText('Visitors', R.x, R.y - R.h / 2 + 42 * u);
   const got = albumStars(), all = ALBUM.length * 3;
   g.font = `${Math.round(22 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#ffe07a';
-  g.fillText(got === all ? '★ The album is full ★' : '★ ' + got + ' of ' + all + ' stars', R.x, R.y - R.h / 2 + 82 * u);
+  g.fillText(got === all ? '★ The album is full, and the weathervane is yours ★' : '★ ' + got + ' of ' + all + ' stars: fill them all for a golden weathervane', R.x, R.y - R.h / 2 + 82 * u);
   for (const c of R.cards) {
     const n = caught[c.a.key], cx = c.x + c.w / 2, marks = ALBUM_STARS[c.a.key];
     g.fillStyle = n ? 'rgba(66,84,46,.75)' : 'rgba(32,42,30,.75)';
@@ -9238,7 +9289,7 @@ function draw() {
      pinned down. They now go over the lamps too, on an outline wide enough to
      back each letter right through, and measure 13. */
   drawAmbient();                                // the season in the air, in front of the world
-  g.save(); camApply(); drawLamps(); drawBoatLights(); drawPumpkinLights(); drawPops(); drawSpotNote(); flushBadges(); g.restore();
+  g.save(); camApply(); drawLamps(); drawBoatLights(); drawPumpkinLights(); drawVane(); drawPops(); drawSpotNote(); flushBadges(); g.restore();
   drawHUD();
   g.restore();
 }
@@ -9870,7 +9921,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   get ordersDone() { return ordersDone; }, set ordersDone(v) { ordersDone = v; },
   get orderT() { return orderT; }, set orderT(v) { orderT = v; },
   get goalDone() { return goalDone; }, set goalDone(v) { goalDone = v; },
-  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, get smokeDrawn() { return smokeDrawn; }, get ringsDrawn() { return ringsDrawn; }, moonFull, mistNow, rainbowNow, batsNow, visitors, catchVisitor, get caught() { return caught; }, set goldForced(b) { goldForced = b; }, caughtLine, set caught(c) { caught = c; }, get album() { return album; }, set album(b) { album = b; }, albumRects, albumChip, ALBUM_STARS, starsOf, albumStars, spotBonus, podNow, kitesNow, balloonNow, whaleNow, gustNow, dovesNow, get umbrellasDrawn() { return umbrellasDrawn; }, festivalNow, auroraNow, stormNow, flashAt, get leapsDrawn() { return leapsDrawn; },
+  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, get smokeDrawn() { return smokeDrawn; }, get ringsDrawn() { return ringsDrawn; }, moonFull, mistNow, rainbowNow, batsNow, visitors, catchVisitor, get caught() { return caught; }, set goldForced(b) { goldForced = b; }, caughtLine, set caught(c) { caught = c; }, get album() { return album; }, set album(b) { album = b; }, albumRects, albumChip, peakOf, drawVane, get spotNote() { return spotNote; }, ALBUM_STARS, starsOf, albumStars, spotBonus, podNow, kitesNow, balloonNow, whaleNow, gustNow, dovesNow, get umbrellasDrawn() { return umbrellasDrawn; }, festivalNow, auroraNow, stormNow, flashAt, get leapsDrawn() { return leapsDrawn; },
   /* Read through getters. Captured by value these went stale the moment the
      harness moved them, and a sweep would have cleaned up the key the game
      was no longer using. */

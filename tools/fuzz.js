@@ -12026,6 +12026,7 @@
       if (!inWorld(pt.x, pt.y)) continue;
       if (!V.buildingAt(pt.x, pt.y)) continue;
       if (V.villagerAt(pt.x, pt.y, false)) continue;    // somebody really is standing there
+      if (V.visitors().some(o => Math.hypot(pt.x - o.x, pt.y - o.y) < o.r)) continue;   // a balloon overhead takes the tap, as it should
       roofs++;
       /* Every card a tap could be swallowed by, not just the villager one.
 

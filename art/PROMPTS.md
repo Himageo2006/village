@@ -7191,3 +7191,6 @@ GPT Image, keyed from flat magenta: "the same design as the striped hot-air ball
 
 ## Round 223: the visitor album (no new art)
 The Town Hall's title row now opens a page of four cards, drawn from the existing balloon, balloon_gold, whale_back and dolphin paintings. A visitor not yet caught shows as the painting filled dark.
+
+## Round 224: the album's reward (no new art)
+All twelve stars put a golden weathervane on the Town Hall, drawn in code and stood on the peak read from whichever painting the hall is wearing.
