@@ -4960,10 +4960,17 @@ function drawWhale() {
   g.save();
   if (up > 0) {
     g.save(); g.beginPath(); g.rect(x - L * 2, y - L * 2, L * 4, L * 2); g.clip();   // only what is above the water
-    g.fillStyle = '#31454f';
-    g.beginPath(); g.ellipse(x, y + (1 - up) * 18 * u, L, 11 * u, 0, 0, 7); g.fill();
-    g.fillStyle = '#4b626c';
-    g.beginPath(); g.ellipse(x - dir * L * 0.15, y - 3 * u + (1 - up) * 18 * u, L * 0.6, 5 * u, 0, 0, 7); g.fill();
+    const back = artFor('whale_back');
+    if (ready(back)) {
+      const bw = L * 2.2, bh = back.height * (bw / back.width);
+      g.translate(x, y + (1 - up) * bh); g.scale(dir, 1);
+      g.drawImage(back, -bw / 2, -bh, bw, bh);
+    } else {
+      g.fillStyle = '#31454f';
+      g.beginPath(); g.ellipse(x, y + (1 - up) * 18 * u, L, 11 * u, 0, 0, 7); g.fill();
+      g.fillStyle = '#4b626c';
+      g.beginPath(); g.ellipse(x - dir * L * 0.15, y - 3 * u + (1 - up) * 18 * u, L * 0.6, 5 * u, 0, 0, 7); g.fill();
+    }
     g.restore();
     g.strokeStyle = 'rgba(236,250,255,' + (0.75 * up).toFixed(3) + ')'; g.lineWidth = 3 * u; g.lineCap = 'round';
     g.beginPath(); g.ellipse(x, y, L * 1.08, 5 * u, 0, 0, 3.15); g.stroke();
@@ -4984,11 +4991,13 @@ function drawWhale() {
     const f = Math.sin((q - 0.72) / 0.28 * Math.PI), fx = x - dir * L * 0.5;
     g.save(); g.beginPath(); g.rect(fx - L, y - L * 2, L * 2, L * 2); g.clip();
     g.fillStyle = '#31454f';
-    g.translate(fx, y + (1 - f) * 34 * u);
-    g.beginPath(); g.moveTo(-4 * u, 4 * u); g.lineTo(-3 * u, -18 * u);
+    const tail = artFor('whale_flukes'), tw = 76 * u, th = tail ? tail.height * (tw / (tail.width || 1)) : 0;
+    g.translate(fx, y + (1 - f) * (ready(tail) ? th : 34 * u));
+    if (ready(tail)) g.drawImage(tail, -tw / 2, -th, tw, th);
+    else { g.beginPath(); g.moveTo(-4 * u, 4 * u); g.lineTo(-3 * u, -18 * u);
     g.quadraticCurveTo(-16 * u, -22 * u, -26 * u, -36 * u); g.quadraticCurveTo(-8 * u, -32 * u, 0, -24 * u);
     g.quadraticCurveTo(8 * u, -32 * u, 26 * u, -36 * u); g.quadraticCurveTo(16 * u, -22 * u, 3 * u, -18 * u);
-    g.lineTo(4 * u, 4 * u); g.closePath(); g.fill();
+    g.lineTo(4 * u, 4 * u); g.closePath(); g.fill(); }
     g.restore();
   }
   g.restore();
@@ -5005,12 +5014,18 @@ function nightBoats(paint) {
   NIGHT_BOATS.forEach(([fx, fy], i) => {
     const at = camUnproject(W * (fx + 0.015 * Math.sin(t * 0.07 + i * 2)), top + hh * fy);
     const y = at.y + Math.sin(t * 1.1 + i) * 1.5 * u, d = i % 2 ? -1 : 1;
-    paint(at.x, y, at.x + d * 15 * u, y - 17 * u, d, u, t, i);
+    paint(at.x, y, at.x + d * 24.6 * u, y - 17 * u, d, u, t, i);   // the lantern, on the painted boat's post
   });
   g.restore();
 }
 function drawNightBoats() {
   nightBoats((x, y, lx, ly, d, u) => {
+    const boat = artFor('night_boat');
+    if (ready(boat)) {
+      const bw = 56 * u, bh = boat.height * (bw / boat.width);
+      g.save(); g.translate(x, y + 5 * u); g.scale(d, 1); g.drawImage(boat, -bw / 2, -bh, bw, bh); g.restore();
+      return;
+    }
     g.fillStyle = '#1c2a33';
     g.beginPath(); g.moveTo(x - 24 * u, y - 6 * u); g.lineTo(x + 24 * u, y - 6 * u);
     g.quadraticCurveTo(x + 18 * u, y + 5 * u, x + 12 * u, y + 5 * u); g.lineTo(x - 12 * u, y + 5 * u);
@@ -5067,6 +5082,8 @@ function podBody(t, q, dir, at, u, edge) {
     if (f < 0.5) {                            // in the air, nose following the arc
       const p = f / 0.5, x = x0 + dir * (p - 0.5) * 30 * u, y = y0 - Math.sin(p * Math.PI) * 26 * u;
       g.save(); g.translate(x, y); g.scale(dir, 1); g.rotate((p - 0.5) * 1.9);
+      const fish = artFor('dolphin');
+      if (ready(fish)) { const fw = 44 * u, fh = fish.height * (fw / fish.width); g.drawImage(fish, -fw / 2, -fh / 2, fw, fh); g.restore(); continue; }
       g.beginPath(); g.ellipse(0, 0, 14 * u, 4.6 * u, 0, 0, 7);
       g.moveTo(-1 * u, -4 * u); g.lineTo(-6 * u, -9 * u); g.lineTo(3 * u, -4 * u); g.closePath();
       g.moveTo(-12 * u, 0); g.lineTo(-20 * u, -6 * u); g.lineTo(-17 * u, 0); g.lineTo(-20 * u, 6 * u); g.closePath();
