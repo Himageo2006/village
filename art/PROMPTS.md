@@ -7179,3 +7179,6 @@ No art. The game fetched every season's pictures at start: 525 files and 39.6 MB
 
 # 219 — Lighter still
 No art. Building looks, seasonal pictures and lit windows are now fetched when first drawn instead of at start: a first visit is 179 files and 11.4 MB, down from 39.6 MB.
+
+# 220 — The game stays on the phone
+No art. On the website a service worker (`sw.js`) now holds the pictures once they have been fetched and keeps a copy of the page and code for when there is no signal. A return visit drops from 11.5 MB to 1 MB, the title clip being the 1 MB, and the village opens with no network at all. The page and code still come from the network first. The phone app is left alone, since it carries everything already.

@@ -91,6 +91,11 @@
 </script>
 <script src="game.js"></script>
 <script>
+// on the website only: the phone app already carries everything inside it
+if ('serviceWorker' in navigator && (/\.github\.io$/.test(location.hostname) || /[?&]sw=1\b/.test(location.search)))
+  addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+</script>
+<script>
 (function () {
   const intro = document.getElementById('intro');
   if (!intro) return;

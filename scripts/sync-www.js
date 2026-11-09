@@ -11,7 +11,7 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..');
 const WWW = path.join(ROOT, 'www');
 
-const FILES = ['index.html', 'game.js'];
+const FILES = ['index.html', 'game.js', 'sw.js'];
 const DIRS = ['art'];
 // art/original holds the multi-megabyte PNG masters; the game never loads them
 const SKIP_DIRS = new Set(['original']);
