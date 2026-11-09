@@ -7167,3 +7167,6 @@ GPT Image, isolated on flat magenta and keyed out, replacing the shapes drawn in
 
 # 215 — Painted whale, dolphin and fishing boat → `art/whale_back.webp`, `art/whale_flukes.webp`, `art/dolphin.webp`, `art/night_boat.webp`  ✅ DONE
 GPT Image, isolated on flat magenta and keyed out, replacing the shapes drawn in code for 205, 207 and 211 (kept as the fallback before the art loads). Each subject is cut in a straight line at the waterline where it meets the sea, so the game can rise and sink it behind a clip. Prompts ask for the same painterly style with warm light from the upper left: "the long dark blue-grey back of a humpback whale breaking the surface"; "the raised tail flukes of a humpback whale seen from behind ... water streaming off the edges"; "a single dolphin in mid-leap, seen exactly from the side, body level and horizontal, nose pointing right"; "a single small wooden fishing boat seen from the side at dusk ... a small unlit iron lantern hanging on a short post at the right-hand end".
+
+# 216 — Unclaimed land in winter
+No art. The shade over land not yet claimed is a blue one in winter, so the painted snow reads as snow out of the sun instead of grey concrete. The other seasons keep the dark one.

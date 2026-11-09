@@ -6228,7 +6228,8 @@ function drawFrontier() {
     g.lineTo(p2.x, p2.y + TH / 2); g.lineTo(p2.x - TW / 2, p2.y);
     g.closePath();
   }
-  g.fillStyle = 'rgba(9,16,26,.52)'; g.fill();
+  // the same shade over snow reads as grey concrete; a blue one reads as snow out of the sun
+  g.fillStyle = season().key === 'winter' ? 'rgba(44,74,122,.5)' : 'rgba(9,16,26,.52)'; g.fill();
   // the owned edge, traced round the four corners of the claim
   const a = tileToWorld(L.lo, L.lo), b = tileToWorld(L.hi, L.lo);
   const c2 = tileToWorld(L.hi, L.hi), d = tileToWorld(L.lo, L.hi);
