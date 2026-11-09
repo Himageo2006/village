@@ -7185,3 +7185,6 @@ No art. On the website a service worker (`sw.js`) now holds the pictures once th
 
 # 221 — The village remembers its visitors
 No art. Every balloon, whale and pod of dolphins caught goes on a tally kept with the save. The more caught, the more the next is worth, rising to twice the share at forty. A note over each catch gives that kind's count, and at ten, twenty and forty it announces the new multiplier.
+
+# 222 — The golden balloon, and the tally in the hall → `art/balloon_gold.webp`  ✅ DONE
+GPT Image, keyed from flat magenta: "the same design as the striped hot-air balloon above ... rare and magical: the envelope is shining gold and deep royal purple stripes with sparkling gold trim and small glowing stars painted on it, ropes down to an ornate golden basket". About one balloon in seven is golden, worth three times the catch and counted on its own line. The hall's panel now lists every kind caught, once there is anything to list.

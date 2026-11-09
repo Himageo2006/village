@@ -755,7 +755,7 @@ function balloonAt(t, top, hh, q) {
   return { n, x: dir > 0 ? -180 + q * span : W + 180 - q * span, y: top + hh * (0.24 + rnd(n, 81) * 0.2) + Math.sin(t * 0.5) * 12 };
 }
 function drawBalloon(t, top, hh, q) {
-  const { n, x, y } = balloonAt(t, top, hh, q), R = 74, art = artFor('balloon');
+  const { n, x, y } = balloonAt(t, top, hh, q), R = 74, art = artFor(goldBalloon(n) ? 'balloon_gold' : 'balloon');
   if (ready(art)) {
     const h = R * 3.3, w = art.width * (h / art.height);
     g.drawImage(art, x - w / 2, y - R * 1.15, w, h);
@@ -825,14 +825,20 @@ function drawKites(t, k) {
    rides above any that has not been tapped yet. Shares of the caps rather than
    amounts, so a visit means the same to a first village as to a full one. */
 const SPOT_SHARE = { balloon: 0.05, whale: 0.08, pod: 0.04 }, SPOT_RES = { balloon: 'food', whale: 'wood', pod: 'food' };
+/* About one balloon in seven is the golden one: three times the catch, and a line of its own on the tally. */
+const GOLD_SHARE = 0.15;
+let goldForced = false;
+const goldBalloon = n => goldForced || rnd(n, 85) < GOLD_SHARE;
 const spotTaken = { balloon: -1, whale: -1, pod: -1 };
 /* And the village remembers them. Every visitor caught goes on a tally kept with
    the save, and the more you have caught the more the next is worth: up to
    twice the share, reached at forty. The note over the catch says how far along
    you are, and says so louder at the marks. */
-const SPOT_ICON = { balloon: '🎈', whale: '🐋', pod: '🐬' }, SPOT_FULL = 40, SPOT_MARKS = [10, 20, 40];
-let caught = { balloon: 0, whale: 0, pod: 0 }, spotNote = null;
-const caughtTotal = () => caught.balloon + caught.whale + caught.pod;
+const SPOT_ICON = { balloon: '🎈', whale: '🐋', pod: '🐬', golden: '⭐' }, SPOT_FULL = 40, SPOT_MARKS = [10, 20, 40];
+let caught = { balloon: 0, whale: 0, pod: 0, golden: 0 }, spotNote = null;
+const caughtTotal = () => caught.balloon + caught.whale + caught.pod + caught.golden;
+// the tally as one line for the hall's panel, in the order of the keys above
+const caughtLine = () => 'Visitors caught:  ' + Object.keys(caught).filter(k => caught[k]).map(k => SPOT_ICON[k] + ' ' + caught[k]).join('   ');
 const spotBonus = () => 1 + Math.min(1, caughtTotal() / SPOT_FULL);
 function visitors() {
   const t = Date.now() / 1000, top = screenTop(), hh = screenBot() - top, out = [], u = 2.2 / camScale();
@@ -867,13 +873,15 @@ function catchVisitor(sx, sy) {
   if (!v) return false;
   spotTaken[v.id] = v.n;
   const w = camUnproject(v.x, v.y), k = SPOT_RES[v.id];
-  const n = Math.max(5, Math.round(caps[k] * SPOT_SHARE[v.id] * spotBonus()));
+  const gold = v.id === 'balloon' && goldBalloon(v.n), kind = gold ? 'golden' : v.id;
+  const n = Math.max(5, Math.round(caps[k] * SPOT_SHARE[v.id] * spotBonus() * (gold ? 3 : 1)));
   if (grant(k, n, w.x, w.y) > 0.01) SFX.goal(); else SFX.tap();
-  caught[v.id]++;
-  const total = caughtTotal(), mark = SPOT_MARKS.includes(total);
+  caught[kind]++;
+  const total = caughtTotal(), mark = SPOT_MARKS.includes(total) || gold;
   // a mark's note is long, and a visitor is usually near the edge of the view, so it goes in the middle
   spotNote = { x: mark ? camUnproject(W / 2, 0).x : w.x, y: w.y - 60, at: Date.now(), mark,
-    text: mark ? total + ' caught — rewards +' + Math.round((spotBonus() - 1) * 100) + '%' : SPOT_ICON[v.id] + ' ' + caught[v.id] };
+    text: gold ? SPOT_ICON.golden + ' The golden balloon! ' + SPOT_ICON.golden
+      : mark ? total + ' caught — rewards +' + Math.round((spotBonus() - 1) * 100) + '%' : SPOT_ICON[kind] + ' ' + caught[kind] };
   save();
   return true;
 }
@@ -4266,7 +4274,7 @@ function load() {
       pendingTransit[k] = Math.min(VILLAGER_MAX * CARRY, s.transit[k]);
   if (Array.isArray(s.seen)) tutSeen = s.seen.filter(x => typeof x === 'string');
   if (typeof s.mute === 'boolean') muted = s.mute;
-  caught = { balloon: 0, whale: 0, pod: 0 };
+  caught = { balloon: 0, whale: 0, pod: 0, golden: 0 };
   if (s.caught && typeof s.caught === 'object') for (const k in caught) if (Number.isFinite(s.caught[k])) caught[k] = Math.max(0, Math.floor(s.caught[k]));
   /* Past the end of the ladder on purpose. This clamped to GOALS.length, which
      was right while that was the last goal there was and is now a quiet reset:
@@ -8985,6 +8993,7 @@ function drawPanel() {
     else if (empty) s2 += SEP + count(empty, 'post') + ' empty — ' + remedy('people');
     else s2 += SEP + 'every post filled';
     if (st.avg !== null) s2 += SEP + 'workplaces at ' + Math.round(st.avg * 100) + '%';
+    if (caughtTotal()) panelRow(caughtLine(), lx, R.y - R.h / 2 + 148 * u, R.w - 56 * u, 20 * u, '#ffe07a', '');
     panelRow(s2, lx, R.y - R.h / 2 + 78 * u, R.w - 56 * u, 20 * u,
       villageFinished() ? '#a9bd9c'
       : (full.length || st.idle || empty) ? '#f0c88a'
@@ -9774,7 +9783,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   get ordersDone() { return ordersDone; }, set ordersDone(v) { ordersDone = v; },
   get orderT() { return orderT; }, set orderT(v) { orderT = v; },
   get goalDone() { return goalDone; }, set goalDone(v) { goalDone = v; },
-  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, get smokeDrawn() { return smokeDrawn; }, get ringsDrawn() { return ringsDrawn; }, moonFull, mistNow, rainbowNow, batsNow, visitors, catchVisitor, get caught() { return caught; }, set caught(c) { caught = c; }, spotBonus, podNow, kitesNow, balloonNow, whaleNow, gustNow, dovesNow, get umbrellasDrawn() { return umbrellasDrawn; }, festivalNow, auroraNow, stormNow, flashAt, get leapsDrawn() { return leapsDrawn; },
+  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, get smokeDrawn() { return smokeDrawn; }, get ringsDrawn() { return ringsDrawn; }, moonFull, mistNow, rainbowNow, batsNow, visitors, catchVisitor, get caught() { return caught; }, set goldForced(b) { goldForced = b; }, caughtLine, set caught(c) { caught = c; }, spotBonus, podNow, kitesNow, balloonNow, whaleNow, gustNow, dovesNow, get umbrellasDrawn() { return umbrellasDrawn; }, festivalNow, auroraNow, stormNow, flashAt, get leapsDrawn() { return leapsDrawn; },
   /* Read through getters. Captured by value these went stale the moment the
      harness moved them, and a sweep would have cleaned up the key the game
      was no longer using. */
