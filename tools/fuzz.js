@@ -10849,7 +10849,13 @@
           let n = 0; for (let i = 0; i < on.length; i++) if (on[i] - off[i] > 0.004) n++;
           return n;
         };
+        /* In spring, whatever the date. Autumn's pumpkins keep off the ground behind
+           a building, so taking the lamp away can move them, and every pixel of that
+           was counted as lamp light at noon. Which tile the lamp gets varies with the
+           random finds, so this failed one run in many. */
+        const forced = V.seasonForced; V.seasonForced = 0;
         glow = { dark: lit(lo.sec), bright: lit(hi.sec) };
+        V.seasonForced = forced;
         if (!(glow.dark >= 100 && glow.dark >= glow.bright * 10))
           fails.push('the lamp lit ' + glow.dark + ' of the picture at the darkest hour of the session against '
             + glow.bright + ' at the brightest, so it is an ornament rather than a lamp');
