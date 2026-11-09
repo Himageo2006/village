@@ -7152,3 +7152,6 @@ No art. Through winter four snowmen stand on open ground nearest the hall, each 
 
 # 210 — Carved pumpkins
 No art. Through autumn up to five carved pumpkins sit on open ground near the hall, with nothing tall in front of them. Their faces are dark by day and glow, flickering, after dark.
+
+# 211 — Dolphins
+No art. Every fifty-five seconds by day, out of step with the whale, four dolphins travel past one side of the island, each leaping in turn and dropping back with a ring on the water.

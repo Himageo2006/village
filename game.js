@@ -4983,6 +4983,42 @@ function drawBoatLights() {
     g.fillStyle = '#ffe2a0'; g.beginPath(); g.arc(lx, ly, 3.6 * u, 0, 7); g.fill();
   });
 }
+/* And dolphins, on the off beat from the whale: four travelling together past
+   one side of the island, each leaping in turn and dropping back with a splash. */
+const POD_S = 55, POD_LEN = 0.26, POD = 4, POD_LEAP = 2.2;
+function podNow() {
+  if (reduceMotion || sky().night > 0.5) return -1;
+  const ph = frac(Date.now() / 1000 / POD_S + 0.5);
+  return ph < POD_LEN ? ph / POD_LEN : -1;
+}
+function drawPod() {
+  const q = podNow();
+  if (q < 0) return;
+  const t = Date.now() / 1000, n = Math.floor(t / POD_S + 0.5), left = n % 2 === 0, dir = rnd(n, 83) < 0.5 ? 1 : -1;
+  const at = camUnproject(W * (left ? 0.1 : 0.89), screenTop() + (screenBot() - screenTop()) * (0.16 + rnd(n, 84) * 0.04));
+  const u = 2.2 / camScale(), edge = Math.min(1, q / 0.1, (1 - q) / 0.1);
+  g.save(); g.globalAlpha = edge; g.lineCap = 'round';
+  g.fillStyle = '#4a6877'; g.strokeStyle = 'rgba(236,250,255,.75)'; g.lineWidth = 2.5 * u;
+  for (let i = 0; i < POD; i++) {
+    const x0 = at.x + dir * (q - 0.5) * 90 * u - dir * (i - 1.5) * 32 * u, y0 = at.y + (i % 2) * 11 * u;
+    const f = frac(t / POD_LEAP + i * 0.31);
+    if (f < 0.5) {                            // in the air, nose following the arc
+      const p = f / 0.5, x = x0 + dir * (p - 0.5) * 30 * u, y = y0 - Math.sin(p * Math.PI) * 26 * u;
+      g.save(); g.translate(x, y); g.scale(dir, 1); g.rotate((p - 0.5) * 1.9);
+      g.beginPath(); g.ellipse(0, 0, 14 * u, 4.6 * u, 0, 0, 7);
+      g.moveTo(-1 * u, -4 * u); g.lineTo(-6 * u, -9 * u); g.lineTo(3 * u, -4 * u); g.closePath();
+      g.moveTo(-12 * u, 0); g.lineTo(-20 * u, -6 * u); g.lineTo(-17 * u, 0); g.lineTo(-20 * u, 6 * u); g.closePath();
+      g.moveTo(12 * u, 0); g.lineTo(18 * u, 1 * u); g.lineTo(12 * u, 3 * u); g.closePath();
+      g.fill(); g.restore();
+    } else {                                  // the ring where it went back in
+      const p = (f - 0.5) / 0.5;
+      g.globalAlpha = edge * (1 - p);
+      g.beginPath(); g.ellipse(x0 + dir * 15 * u, y0, (5 + p * 20) * u, (2.5 + p * 10) * u, 0, 0, 7); g.stroke();
+      g.globalAlpha = edge;
+    }
+  }
+  g.restore();
+}
 function drawSeaProps(b) {
   const W = b.x1 - b.x0, cx = (b.x0 + b.x1) / 2;
   for (const s of SEA_PROPS) {
@@ -5024,6 +5060,7 @@ function drawGround() {
   drawGlints();
   drawLeaps();
   drawWhale();
+  drawPod();
   drawNightBoats();
   drawRainRings();
   drawSeaProps(b);
@@ -9606,7 +9643,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   get ordersDone() { return ordersDone; }, set ordersDone(v) { ordersDone = v; },
   get orderT() { return orderT; }, set orderT(v) { orderT = v; },
   get goalDone() { return goalDone; }, set goalDone(v) { goalDone = v; },
-  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, get smokeDrawn() { return smokeDrawn; }, get ringsDrawn() { return ringsDrawn; }, moonFull, mistNow, rainbowNow, batsNow, kitesNow, balloonNow, whaleNow, gustNow, dovesNow, get umbrellasDrawn() { return umbrellasDrawn; }, festivalNow, auroraNow, stormNow, flashAt, get leapsDrawn() { return leapsDrawn; },
+  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, get smokeDrawn() { return smokeDrawn; }, get ringsDrawn() { return ringsDrawn; }, moonFull, mistNow, rainbowNow, batsNow, podNow, kitesNow, balloonNow, whaleNow, gustNow, dovesNow, get umbrellasDrawn() { return umbrellasDrawn; }, festivalNow, auroraNow, stormNow, flashAt, get leapsDrawn() { return leapsDrawn; },
   /* Read through getters. Captured by value these went stale the moment the
      harness moved them, and a sweep would have cleaned up the key the game
      was no longer using. */
