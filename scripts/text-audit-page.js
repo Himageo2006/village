@@ -35,6 +35,8 @@ for(const [bn,n] of banks){ fill(n);
 }
 fill(1e6);
 v.caught={balloon:9999,whale:9999,pod:9999,golden:9999};v.panel=h.id;shot('hall:huge-tally');v.panel=null;v.caught={balloon:12,whale:8,pod:21,golden:3};
+for(const c of [{balloon:0,whale:0,pod:0,golden:0},{balloon:1,whale:0,pod:9,golden:2},{balloon:9999,whale:9999,pod:9999,golden:9999}]){v.caught=c;v.album=true;shot('album'+c.balloon);v.album=false;}
+v.caught={balloon:12,whale:8,pod:21,golden:3};
 const safes=[null,{top:44,bottom:34,left:0,right:0},{top:120,bottom:90,left:0,right:0}];
 for(const sf of safes){ const old=v.SAFE; if(sf)v.SAFE=Object.assign({},old,sf); const tag=sf?'safe'+sf.top:'safe0';
  v.barMode='orders';
@@ -42,7 +44,7 @@ for(const sf of safes){ const old=v.SAFE; if(sf)v.SAFE=Object.assign({},old,sf);
  v.barMode='build'; fill(1e6);
  const g0=v.goalIdx; for(let i=0;i<v.GOALS.length;i++){v.goalIdx=i;shot(tag+':goal'+i);} v.goalIdx=g0;
  for(const a of [{secs:90,got:{wood:12},capped:false,spilled:0,shared:null,fullAfter:null,beacon:null},{secs:360000,got:{wood:1234567,food:987654,stone:55555},capped:true,spilled:99999,shared:12345,fullAfter:7200,beacon:null}]){v.away=a;shot(tag+':away');} v.away=null;
- v.claimAsk=true;shot(tag+':claim');v.claimAsk=false;
+ v.album=true;shot(tag+':album');v.album=false;v.claimAsk=true;shot(tag+':claim');v.claimAsk=false;
  v.finished={villagers:72,buildings:48,trades:1234,charm:9999};shot(tag+':finished');v.finished=null;
  v.saveFailed=true;shot(tag+':savefail');v.saveFailed=false;
  v.SAFE=old;

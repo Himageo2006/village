@@ -7188,3 +7188,6 @@ No art. Every balloon, whale and pod of dolphins caught goes on a tally kept wit
 
 # 222 — The golden balloon, and the tally in the hall → `art/balloon_gold.webp`  ✅ DONE
 GPT Image, keyed from flat magenta: "the same design as the striped hot-air balloon above ... rare and magical: the envelope is shining gold and deep royal purple stripes with sparkling gold trim and small glowing stars painted on it, ropes down to an ornate golden basket". About one balloon in seven is golden, worth three times the catch and counted on its own line. The hall's panel now lists every kind caught, once there is anything to list.
+
+## Round 223: the visitor album (no new art)
+The Town Hall's title row now opens a page of four cards, drawn from the existing balloon, balloon_gold, whale_back and dolphin paintings. A visitor not yet caught shows as the painting filled dark.

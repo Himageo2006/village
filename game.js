@@ -840,6 +840,18 @@ const caughtTotal = () => caught.balloon + caught.whale + caught.pod + caught.go
 // the tally as one line for the hall's panel, in the order of the keys above
 const caughtLine = () => Object.keys(caught).filter(k => caught[k]).map(k => SPOT_ICON[k] + ' ' + caught[k]).join('  ');
 const spotBonus = () => 1 + Math.min(1, caughtTotal() / SPOT_FULL);
+/* The album: a card for each kind of visitor and three stars on each. The stars
+   are read off the tally, so there is nothing more to save, and the catch that
+   earns one pays an extra share of the stores, once. */
+const ALBUM = [
+  { key: 'balloon', name: 'Balloon',  art: 'balloon',      hint: 'Drifts over the island' },
+  { key: 'golden',  name: 'Golden Balloon', art: 'balloon_gold', hint: 'One balloon in seven' },
+  { key: 'whale',   name: 'Whale',    art: 'whale_back',   hint: 'Surfaces out at sea' },
+  { key: 'pod',     name: 'Dolphins', art: 'dolphin',      hint: 'Leap along the shore' }];
+const ALBUM_STARS = { balloon: [1, 10, 30], golden: [1, 3, 10], whale: [1, 10, 30], pod: [1, 10, 30] }, STAR_SHARE = 0.15;
+const starsOf = k => ALBUM_STARS[k].filter(m => caught[k] >= m).length;
+const albumStars = () => ALBUM.reduce((n, a) => n + starsOf(a.key), 0);
+let album = false;                     // the album is open
 function visitors() {
   const t = Date.now() / 1000, top = screenTop(), hh = screenBot() - top, out = [], u = 2.2 / camScale();
   const q1 = balloonNow();
@@ -874,13 +886,15 @@ function catchVisitor(sx, sy) {
   spotTaken[v.id] = v.n;
   const w = camUnproject(v.x, v.y), k = SPOT_RES[v.id];
   const gold = v.id === 'balloon' && goldBalloon(v.n), kind = gold ? 'golden' : v.id;
-  const n = Math.max(5, Math.round(caps[k] * SPOT_SHARE[v.id] * spotBonus() * (gold ? 3 : 1)));
+  const star = ALBUM_STARS[kind].includes(caught[kind] + 1);
+  const n = Math.max(5, Math.round(caps[k] * (SPOT_SHARE[v.id] * spotBonus() * (gold ? 3 : 1) + (star ? STAR_SHARE : 0))));
   if (grant(k, n, w.x, w.y) > 0.01) SFX.goal(); else SFX.tap();
   caught[kind]++;
-  const total = caughtTotal(), mark = SPOT_MARKS.includes(total) || gold;
+  const total = caughtTotal(), mark = SPOT_MARKS.includes(total) || gold || star;
   // a mark's note is long, and a visitor is usually near the edge of the view, so it goes in the middle
   spotNote = { x: mark ? camUnproject(W / 2, 0).x : w.x, y: w.y - 60, at: Date.now(), mark,
     text: gold ? SPOT_ICON.golden + ' The golden balloon! ' + SPOT_ICON.golden
+      : star ? '★ ' + ALBUM.find(a => a.key === kind).name + ': a new star in the album'
       : mark ? total + ' caught — rewards +' + Math.round((spotBonus() - 1) * 100) + '%' : SPOT_ICON[kind] + ' ' + caught[kind] };
   save();
   return true;
@@ -4489,7 +4503,7 @@ const finishedUp = () => !!finished && !goalDone && !away && !claimAsk;
 
    Same rule drawFinished already states for itself -- one card at a time -- 
    applied to the two things that were exempt from it. */
-const modalUp = () => claimAsk || !!away || !!finished;
+const modalUp = () => album || claimAsk || !!away || !!finished;
 /* Putting it away is what records it as seen, and the only thing that does.
 
    tutSeen used to be written the moment the card was RAISED, which is the
@@ -7282,6 +7296,7 @@ function drawHUD() {
   drawSaveState();
   drawHint();
   drawClaim();
+  drawAlbum();
   drawAway();
   drawFinished();
 }
@@ -7699,6 +7714,65 @@ function claimRects() {
   return { u, x: W / 2, y, w, h,
     yes: { x: W / 2, y: y + h / 2 - 52 * u, w: w * 0.66, h: 66 * u },
     no:  { x: W / 2 + w / 2 - 34 * u, y: y - h / 2 + 34 * u, r: 27 * u } };
+}
+function albumRects() {
+  const u = US(), top = screenTop(), bot = screenBot(), w = Math.min(W - 56 * u, 820 * u), h = Math.min(bot - top - 60 * u, 840 * u);
+  const y = (top + bot) / 2, head = 110 * u, gap = 18 * u, cw = (w - gap * 3) / 2, ch = (h - head - gap * 2) / 2;
+  return { u, x: W / 2, y, w, h, close: { x: W / 2 + w / 2 - 38 * u, y: y - h / 2 + 38 * u, r: 27 * u },
+    cards: ALBUM.map((a, i) => ({ a, x: W / 2 - w / 2 + gap + (i % 2) * (cw + gap), y: y - h / 2 + head + (i >> 1) * (ch + gap), w: cw, h: ch })) };
+}
+/* A visitor not yet caught is its own shadow: the painting filled in dark, once. */
+const shadows = {};
+function shadowOf(key, im) {
+  if (shadows[key]) return shadows[key];
+  const c = document.createElement('canvas'); c.width = im.width; c.height = im.height;
+  const x = c.getContext('2d'); x.drawImage(im, 0, 0);
+  x.globalCompositeOperation = 'source-in'; x.fillStyle = '#31402c'; x.fillRect(0, 0, c.width, c.height);
+  return shadows[key] = c;
+}
+function drawAlbum() {
+  if (!album) return;
+  const R = albumRects(), u = R.u;
+  g.save();
+  g.fillStyle = 'rgba(6,10,6,.66)'; g.fillRect(0, screenTop(), W, screenBot() - screenTop());
+  g.fillStyle = 'rgba(16,26,15,.98)'; g.strokeStyle = 'rgba(240,214,140,.55)'; g.lineWidth = 3;
+  g.beginPath(); g.roundRect(R.x - R.w / 2, R.y - R.h / 2, R.w, R.h, 24 * u); g.fill(); g.stroke();
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.font = `bold ${Math.round(34 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#fff';
+  g.fillText('Visitors', R.x, R.y - R.h / 2 + 42 * u);
+  const got = albumStars(), all = ALBUM.length * 3;
+  g.font = `${Math.round(22 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#ffe07a';
+  g.fillText(got === all ? '★ The album is full ★' : '★ ' + got + ' of ' + all + ' stars', R.x, R.y - R.h / 2 + 82 * u);
+  for (const c of R.cards) {
+    const n = caught[c.a.key], cx = c.x + c.w / 2, marks = ALBUM_STARS[c.a.key];
+    g.fillStyle = n ? 'rgba(66,84,46,.75)' : 'rgba(32,42,30,.75)';
+    g.beginPath(); g.roundRect(c.x, c.y, c.w, c.h, 16 * u); g.fill();
+    const im = artFor(c.a.art);
+    if (ready(im)) {
+      const room = c.h - 134 * u, k = Math.min((c.w - 40 * u) / im.width, room / im.height), iw = im.width * k, ih = im.height * k;
+      g.drawImage(n ? im : shadowOf(c.a.art, im), cx - iw / 2, c.y + 12 * u + (room - ih) / 2, iw, ih);
+    }
+    const b = c.y + c.h;
+    g.font = `bold ${Math.round(25 * u)}px Segoe UI, sans-serif`; g.fillStyle = n ? '#fff' : '#a9bd9c';
+    g.fillText(c.a.name, cx, b - 100 * u);
+    g.font = `${Math.round(30 * u)}px Segoe UI, sans-serif`;
+    marks.forEach((m, i) => { g.fillStyle = n >= m ? '#ffd24a' : 'rgba(255,255,255,.2)'; g.fillText('★', cx + (i - 1) * 40 * u, b - 64 * u); });
+    const next = marks.find(m => n < m);
+    g.font = `${Math.round(20 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#c7d6b8';
+    g.fillText(!n ? c.a.hint : next ? n + ' caught, ' + (next - n) + ' to the next star' : n + ' caught', cx, b - 28 * u);
+  }
+  g.fillStyle = 'rgba(255,255,255,.12)';
+  g.beginPath(); g.arc(R.close.x, R.close.y, R.close.r, 0, 7); g.fill();
+  g.font = `bold ${Math.round(28 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#fff';
+  g.fillText('×', R.close.x, R.close.y);
+  g.restore();
+}
+/* The way in: a chip on the hall's title row, which carries the tally as well. */
+function albumChip(R) {
+  const u = R.u, text = '📖 ' + (caughtTotal() ? caughtLine() : 'Album');
+  g.save(); g.font = 20 * u + 'px Segoe UI, sans-serif';
+  const w = g.measureText(text).width + 28 * u; g.restore();
+  return { x: R.close.x - R.close.r - 12 * u - w / 2, y: R.close.y, w, h: 42 * u, text };
 }
 function drawClaim() {
   if (!claimAsk) return;
@@ -8993,9 +9067,11 @@ function drawPanel() {
     else if (empty) s2 += SEP + count(empty, 'post') + ' empty — ' + remedy('people');
     else s2 += SEP + 'every post filled';
     if (st.avg !== null) s2 += SEP + 'workplaces at ' + Math.round(st.avg * 100) + '%';
-    if (caughtTotal()) {                       // the title row has room to its right; every row below it is spoken for
-      g.save(); g.textAlign = 'right'; g.textBaseline = 'middle'; g.font = 20 * u + 'px Segoe UI, sans-serif'; g.fillStyle = '#ffe07a';
-      g.fillText(caughtLine(), R.close.x - R.close.r - 14 * u, R.close.y);
+    {                                           // the title row has room to its right; every row below it is spoken for
+      const c = albumChip(R);
+      g.save(); g.fillStyle = 'rgba(255,224,122,.14)'; g.beginPath(); g.roundRect(c.x - c.w / 2, c.y - c.h / 2, c.w, c.h, c.h / 2); g.fill();
+      g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = 20 * u + 'px Segoe UI, sans-serif'; g.fillStyle = '#ffe07a';
+      g.fillText(c.text, c.x, c.y);
       g.restore();
     }
     panelRow(s2, lx, R.y - R.h / 2 + 78 * u, R.w - 56 * u, 20 * u,
@@ -9390,11 +9466,12 @@ let backArmed = false;
    backClose then refused to touch, and the player's next back press did
    nothing at all. */
 function backOpen() {
-  return !!(away || finishedUp() || claimAsk || panel != null || who != null || moving != null || selBuild || barMode !== 'build');
+  return !!(away || finishedUp() || album || claimAsk || panel != null || who != null || moving != null || selBuild || barMode !== 'build');
 }
 function backClose() {
   if (away) { away = null; return true; }
   if (finishedUp()) { closeFinished(); return true; }
+  if (album) { album = false; return true; }
   if (claimAsk) { claimAsk = false; return true; }
   if (panel != null) { panel = null; sellArm = null; return true; }
   if (who != null) { who = null; return true; }
@@ -9554,6 +9631,11 @@ function buildingAt(sx, sy) { return buildingsAt(sx, sy)[0] || null; }
 function tap(sx, sy) {
   if (away) { away = null; return; }
   if (finishedUp()) { closeFinished(); return; }
+  if (album) {                            // the cross, or anywhere off the page, puts it away
+    const R = albumRects(), x = Math.hypot(sx - R.close.x, sy - R.close.y) < Math.max(R.close.r * 1.3, TOUCH_MIN / 2);
+    if (x || Math.abs(sx - R.x) > R.w / 2 || Math.abs(sy - R.y) > R.h / 2) { album = false; SFX.tap(); }
+    return;
+  }
   if (claimAsk) {
     const R = claimRects();
     if (Math.hypot(sx - R.no.x, sy - R.no.y) < Math.max(R.no.r * 1.3, TOUCH_MIN / 2)) { claimAsk = false; return; }
@@ -9580,6 +9662,7 @@ function tap(sx, sy) {
       panel = null; sellArm = null; return; }
     const hit = r2 => r2 && Math.abs(sx - r2.x) < r2.w / 2
       && Math.abs(sy - r2.y) < padHit(r2.h / 2, 20 * R.u);
+    if (p && p.key === 'hall' && hit(albumChip(R))) { album = true; SFX.tap(); return; }
     if (p && hit(R.move)) { moving = p.id; panel = null; who = null; selBuild = null; ghost = null; armed = null; sellArm = null; SFX.tap(); return; }
     if (p && hit(R.sell)) {
       if (!canSell(p)) { SFX.deny(); return; }
@@ -9787,7 +9870,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   get ordersDone() { return ordersDone; }, set ordersDone(v) { ordersDone = v; },
   get orderT() { return orderT; }, set orderT(v) { orderT = v; },
   get goalDone() { return goalDone; }, set goalDone(v) { goalDone = v; },
-  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, get smokeDrawn() { return smokeDrawn; }, get ringsDrawn() { return ringsDrawn; }, moonFull, mistNow, rainbowNow, batsNow, visitors, catchVisitor, get caught() { return caught; }, set goldForced(b) { goldForced = b; }, caughtLine, set caught(c) { caught = c; }, spotBonus, podNow, kitesNow, balloonNow, whaleNow, gustNow, dovesNow, get umbrellasDrawn() { return umbrellasDrawn; }, festivalNow, auroraNow, stormNow, flashAt, get leapsDrawn() { return leapsDrawn; },
+  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, get smokeDrawn() { return smokeDrawn; }, get ringsDrawn() { return ringsDrawn; }, moonFull, mistNow, rainbowNow, batsNow, visitors, catchVisitor, get caught() { return caught; }, set goldForced(b) { goldForced = b; }, caughtLine, set caught(c) { caught = c; }, get album() { return album; }, set album(b) { album = b; }, albumRects, albumChip, ALBUM_STARS, starsOf, albumStars, spotBonus, podNow, kitesNow, balloonNow, whaleNow, gustNow, dovesNow, get umbrellasDrawn() { return umbrellasDrawn; }, festivalNow, auroraNow, stormNow, flashAt, get leapsDrawn() { return leapsDrawn; },
   /* Read through getters. Captured by value these went stale the moment the
      harness moved them, and a sweep would have cleaned up the key the game
      was no longer using. */
