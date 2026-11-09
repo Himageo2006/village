@@ -4895,6 +4895,51 @@ function drawWhale() {
   }
   g.restore();
 }
+/* After dark the fishing boats are out, on dry nights: three small hulls off
+   the island, each with a lantern at the stern and its light trembling on the
+   water below. */
+const NIGHT_BOATS = [[0.1, 0.16], [0.85, 0.13], [0.9, 0.2]];
+function nightBoats(paint) {
+  const k = Math.min(1, (sky().night - 0.35) / 0.2);
+  if (k <= 0 || rainNow() > 0) return;
+  const t = reduceMotion ? 0 : Date.now() / 1000, top = screenTop(), hh = screenBot() - top, u = 2.2 / camScale();
+  g.save(); g.globalAlpha = k; g.lineCap = 'round';
+  NIGHT_BOATS.forEach(([fx, fy], i) => {
+    const at = camUnproject(W * (fx + 0.015 * Math.sin(t * 0.07 + i * 2)), top + hh * fy);
+    const y = at.y + Math.sin(t * 1.1 + i) * 1.5 * u, d = i % 2 ? -1 : 1;
+    paint(at.x, y, at.x + d * 15 * u, y - 17 * u, d, u, t, i);
+  });
+  g.restore();
+}
+function drawNightBoats() {
+  nightBoats((x, y, lx, ly, d, u) => {
+    g.fillStyle = '#1c2a33';
+    g.beginPath(); g.moveTo(x - 24 * u, y - 6 * u); g.lineTo(x + 24 * u, y - 6 * u);
+    g.quadraticCurveTo(x + 18 * u, y + 5 * u, x + 12 * u, y + 5 * u); g.lineTo(x - 12 * u, y + 5 * u);
+    g.quadraticCurveTo(x - 18 * u, y + 5 * u, x - 24 * u, y - 6 * u);
+    g.rect(x - d * 3 * u - 1.2 * u, y - 34 * u, 2.4 * u, 29 * u);
+    g.rect(lx - 0.9 * u, ly, 1.8 * u, 12 * u);
+    g.fill();
+  });
+}
+// the lights go over the night's tint with the lamps, or they would be dimmed by it; a boat with land over it shows none
+function drawBoatLights() {
+  const b = worldBounds(), cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2, rx = (b.x1 - b.x0) / 2, ry = (b.y1 - b.y0) / 2;
+  nightBoats((x, y, lx, ly, d, u, t, i) => {
+    if (Math.abs(lx - cx) / rx + Math.abs(ly - cy) / ry < 1.05) return;
+    const halo = g.createRadialGradient(lx, ly, 0, lx, ly, 30 * u);
+    halo.addColorStop(0, 'rgba(255,200,110,.5)'); halo.addColorStop(1, 'rgba(255,190,90,0)');
+    g.fillStyle = halo; g.beginPath(); g.arc(lx, ly, 30 * u, 0, 7); g.fill();
+    g.strokeStyle = 'rgba(255,205,120,.5)'; g.lineWidth = 1.8 * u;
+    g.beginPath();
+    for (let j = 0; j < 6; j++) {            // the reflection, broken into wavering dashes
+      const wy = y + (8 + j * 3.6) * u, w = (3 - j * 0.25 + Math.sin(t * 2.3 + j * 1.9 + i) * 1.8) * u, sh = Math.sin(t * 1.7 + j * 2.6 + i) * 2.5 * u;
+      g.moveTo(lx + sh - w, wy); g.lineTo(lx + sh + w, wy);
+    }
+    g.stroke();
+    g.fillStyle = '#ffe2a0'; g.beginPath(); g.arc(lx, ly, 3.6 * u, 0, 7); g.fill();
+  });
+}
 function drawSeaProps(b) {
   const W = b.x1 - b.x0, cx = (b.x0 + b.x1) / 2;
   for (const s of SEA_PROPS) {
@@ -4936,6 +4981,7 @@ function drawGround() {
   drawGlints();
   drawLeaps();
   drawWhale();
+  drawNightBoats();
   drawRainRings();
   drawSeaProps(b);
 
@@ -8816,7 +8862,7 @@ function draw() {
      pinned down. They now go over the lamps too, on an outline wide enough to
      back each letter right through, and measure 13. */
   drawAmbient();                                // the season in the air, in front of the world
-  g.save(); camApply(); drawLamps(); drawPops(); flushBadges(); g.restore();
+  g.save(); camApply(); drawLamps(); drawBoatLights(); drawPops(); flushBadges(); g.restore();
   drawHUD();
   g.restore();
 }

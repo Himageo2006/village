@@ -7140,3 +7140,6 @@ No art. Every seventy seconds, except in the dead of night, a whale comes up on 
 
 # 206 — A hot-air balloon
 No art. Every two minutes or so, on dry days, a striped hot-air balloon drifts across the view for about three-quarters of a minute, in one of four colourings that change from one crossing to the next.
+
+# 207 — Fishing boats at night
+No art. On dry nights three small boats sit off the island, each with a lantern at the stern, a soft glow around it and the light trembling on the water below. The lights are drawn over the night's tint with the village lamps.
