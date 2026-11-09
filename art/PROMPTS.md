@@ -7158,3 +7158,6 @@ No art. Every fifty-five seconds by day, out of step with the whale, four dolphi
 
 # 212 — Catching the visitors
 No art. A sparkle rides above each balloon, whale and pod of dolphins until it is tapped. Tapping one once gives a small share of the store's capacity: food from a balloon or the dolphins, wood from a whale. It is once per visit, and building placement takes the tap first when a building is selected.
+
+# 213 — The island painted for each season → `art/ground_spring.webp`, `ground_autumn.webp`, `ground_winter.webp`  ✅ DONE
+GPT Image edits of `ground.webp` on flat magenta, then magenta keyed out and each fitted to the summer picture's opaque bounds so the island stays in register. Prompt: "Edit this image. Keep the exact same island: same diamond shape, same outline, same size and position in the frame, same cliffs and beach at the front, same painterly game-art style, every bush, rock and flower patch in the same place. Change only the season to <season description>. No buildings, no people, no text. The flat solid magenta (#FF00FF) background stays exactly as it is. Landscape 3:2." Summer keeps the original with its tint.

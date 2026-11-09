@@ -5076,6 +5076,7 @@ function podBody(t, q, dir, at, u, edge) {
   }
   g.restore();
 }
+const GROUND_PAINTED = new Set(['spring', 'autumn', 'winter']);
 function drawSeaProps(b) {
   const W = b.x1 - b.x0, cx = (b.x0 + b.x1) / 2;
   for (const s of SEA_PROPS) {
@@ -5134,7 +5135,9 @@ function drawGround() {
     const hgt = land.height * (wid / land.width);
     // the near corner of the grass meets the near corner of tile (GW-1, GH-1)
     const ny = tileToWorld(GW - 1, GH - 1).y + TH / 2;
-    g.drawImage(seasonSkin(land, 'ground'), cx - f.ax * wid, ny - f.ay * hgt, wid, hgt);
+    // spring, autumn and winter each have the island painted for them, to the summer picture's frame (art/PROMPTS.md 213)
+    const key = season().key, painted = GROUND_PAINTED.has(key) ? artFor('ground_' + key) : null;
+    g.drawImage(ready(painted) ? painted : seasonSkin(land, 'ground'), cx - f.ax * wid, ny - f.ay * hgt, wid, hgt);
     return;
   }
 
