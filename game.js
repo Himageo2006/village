@@ -4778,11 +4778,13 @@ const GROUND_FIT = { faceW: 0.9446, ax: 0.5000, ay: 0.7245 };
 /* The sea is one painted image mirrored into a 2x2 tile, which makes it repeat
    with no seam whatever the artwork does at its edges: every tile boundary
    meets its own reflection. Built once, on the first frame after it loads. */
-let waterPat = null;
+let waterPat = null, waterPatKey = null;
 function waterPattern() {
-  if (waterPat) return waterPat;
-  const im = artFor('water');
-  if (!ready(im)) return null;
+  // winter has its own sea, cold and with ice on it (art/PROMPTS.md 217), once that has loaded
+  const key = season().key === 'winter' && ready(artFor('water_winter')) ? 'water_winter' : 'water';
+  if (waterPat && waterPatKey === key) return waterPat;
+  const im = artFor(key);
+  if (!ready(im)) return waterPat;
   const w = im.width, h = im.height;
   const cv = document.createElement('canvas');
   cv.width = w * 2; cv.height = h * 2;
@@ -4791,7 +4793,7 @@ function waterPattern() {
   q.save(); q.translate(w * 2, 0); q.scale(-1, 1); q.drawImage(im, 0, 0); q.restore();
   q.save(); q.translate(0, h * 2); q.scale(1, -1); q.drawImage(im, 0, 0); q.restore();
   q.save(); q.translate(w * 2, h * 2); q.scale(-1, -1); q.drawImage(im, 0, 0); q.restore();
-  waterPat = g.createPattern(cv, 'repeat');
+  waterPat = g.createPattern(cv, 'repeat'); waterPatKey = key;
   return waterPat;
 }
 
@@ -5497,7 +5499,7 @@ function drawPumpkinLights() {
     halo.addColorStop(0, 'rgba(255,170,70,.45)'); halo.addColorStop(1, 'rgba(255,150,50,0)');
     g.fillStyle = halo; g.beginPath(); g.arc(x, y, PUMPKIN_R * 3, 0, 7); g.fill();
     const art = artFor('pumpkin'), lit = artFor('pumpkin_glow');
-    if (ready(art) && ready(lit)) { const r = pumpkinRect(o, art); g.drawImage(lit, r.x, r.y, r.w, r.h); }
+    if (ready(art) && ready(lit)) { const r = pumpkinRect(o, art); g.drawImage(lit, r.x, r.y, r.w, r.h); glowsDrawn++; }
     else { g.fillStyle = '#ffd66b'; pumpkinFace(x, y); }
   });
   g.restore();

@@ -7170,3 +7170,6 @@ GPT Image, isolated on flat magenta and keyed out, replacing the shapes drawn in
 
 # 216 — Unclaimed land in winter
 No art. The shade over land not yet claimed is a blue one in winter, so the painted snow reads as snow out of the sun instead of grey concrete. The other seasons keep the dark one.
+
+# 217 — The winter sea → `art/water_winter.webp`  ✅ DONE
+GPT Image edit of `water.webp`, resized back to its 1400×700 so the mirrored tiling holds. Prompt: "Edit this image of sea water, seen from above. Keep the same painterly game-art style, the same scale of waves and the same overall pattern of light across the surface, filling the whole frame edge to edge. Change the season to deep winter: the water becomes cold steel-blue and slate teal, less saturated, with a dozen small pale ice floes scattered evenly across it, thin slushy ice along them and soft white foam. No land, no boats, no text, no border."
