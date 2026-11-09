@@ -7143,3 +7143,6 @@ No art. Every two minutes or so, on dry days, a striped hot-air balloon drifts a
 
 # 207 — Fishing boats at night
 No art. On dry nights three small boats sit off the island, each with a lantern at the stern, a soft glow around it and the light trembling on the water below. The lights are drawn over the night's tint with the village lamps.
+
+# 208 — Kite days
+No art. On a little over half the dry days outside winter, two kites fly through the daylight on long strings from the green beside the hall, leaning and dipping on the wind with bow-tied tails snaking after them.

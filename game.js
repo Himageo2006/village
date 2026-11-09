@@ -772,6 +772,47 @@ function drawBalloon(t, top, hh, q) {
   g.fillStyle = 'rgba(255,255,255,.2)'; g.beginPath(); g.ellipse(-R * 0.34, -R * 0.3, R * 0.2, R * 0.42, 0.25, 0, 7); g.fill();
   g.restore();
 }
+/* Every other day or so, when it is dry and not winter, somebody has the kites
+   out: two of them through the daylight, on long strings from the green beside
+   the hall, leaning and dipping on the wind with their tails snaking after. */
+const KITES = [[-150, 60, '#d8483c', '#f2c14e', 0], [165, 40, '#3f74b5', '#f4ead2', 2.1]];
+function kitesNow() {
+  const ph = dayPhase(), day = Math.floor(Date.now() / DAY_MS);
+  if (season().key === 'winter' || rainNow() > 0 || !hallOf() || ph < 0.04 || ph > 0.44 || rnd(day, 82) >= 0.55) return 0;
+  return Math.min(1, (ph - 0.04) / 0.02, (0.44 - ph) / 0.02);
+}
+function drawKites(t, k) {
+  const c = centreOf(hallOf()), s = camScale(), sc = Math.min(1.4, s / 1.25), sz = 38 * sc;
+  g.save(); g.globalAlpha = k; g.lineCap = 'round'; g.lineJoin = 'round';
+  for (const [dx, dy, a, b, off] of KITES) {
+    const gr = camProject(c.x + dx, c.y + dy);
+    const x = gr.x + dx * 0.5 * sc + Math.sin(t * 0.4 + off) * 34 * sc, y = gr.y - (300 + Math.sin(t * 0.55 + off * 2) * 30) * sc;
+    const lean = Math.sin(t * 0.8 + off) * 0.22;
+    g.strokeStyle = 'rgba(245,245,235,.6)'; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(gr.x, gr.y); g.quadraticCurveTo(gr.x + (x - gr.x) * 0.8, gr.y + (y - gr.y) * 0.45, x, y + sz);
+    g.stroke();
+    g.save(); g.translate(x, y); g.rotate(lean);
+    g.fillStyle = a; g.beginPath(); g.moveTo(0, -sz); g.lineTo(sz * 0.72, -sz * 0.15); g.lineTo(0, sz); g.closePath(); g.fill();
+    g.fillStyle = b; g.beginPath(); g.moveTo(0, -sz); g.lineTo(-sz * 0.72, -sz * 0.15); g.lineTo(0, sz); g.closePath(); g.fill();
+    g.strokeStyle = 'rgba(40,30,24,.65)'; g.lineWidth = 2.5;
+    g.beginPath(); g.moveTo(0, -sz); g.lineTo(sz * 0.72, -sz * 0.15); g.lineTo(0, sz); g.lineTo(-sz * 0.72, -sz * 0.15); g.closePath();
+    g.moveTo(0, -sz); g.lineTo(0, sz); g.moveTo(-sz * 0.72, -sz * 0.15); g.lineTo(sz * 0.72, -sz * 0.15);
+    // the tail, snaking
+    g.moveTo(0, sz);
+    for (let i = 1; i <= 7; i++) g.lineTo(Math.sin(t * 3.5 + i * 1.1 + off) * (4 + i * 2.2) * sc, sz + i * 13 * sc);
+    g.stroke();
+    g.fillStyle = b;
+    g.beginPath();
+    for (const i of [2, 4, 6]) {
+      const bx = Math.sin(t * 3.5 + i * 1.1 + off) * (4 + i * 2.2) * sc, by = sz + i * 13 * sc, w = 9 * sc;
+      g.moveTo(bx, by); g.lineTo(bx - w, by - w * 0.6); g.lineTo(bx - w, by + w * 0.6); g.closePath();
+      g.moveTo(bx, by); g.lineTo(bx + w, by - w * 0.6); g.lineTo(bx + w, by + w * 0.6); g.closePath();
+    }
+    g.fill();
+    g.restore();
+  }
+  g.restore();
+}
 /* Noon, by the hall bell: three strokes, and the doves that live on the roof go
    up at the noise, wheel round for twenty seconds and come back down. */
 const NOON = 0.25, NOON_LEN = 0.04, DOVES = 7;
@@ -1042,6 +1083,8 @@ function drawAmbient() {
   if ((key === 'spring' || key === 'autumn') && rain === 0 && day > 0.5) drawGeese(t, top, hh, day, key);
   const bats = batsNow();
   if (bats > 0.01) drawBats(t, top, hh, bats);
+  const kites = kitesNow();
+  if (kites > 0.01) drawKites(t, kites);
   const balloon = balloonNow();
   if (balloon >= 0) drawBalloon(t, top, hh, balloon);
   const gust = gustNow();
@@ -9484,7 +9527,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   get ordersDone() { return ordersDone; }, set ordersDone(v) { ordersDone = v; },
   get orderT() { return orderT; }, set orderT(v) { orderT = v; },
   get goalDone() { return goalDone; }, set goalDone(v) { goalDone = v; },
-  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, get smokeDrawn() { return smokeDrawn; }, get ringsDrawn() { return ringsDrawn; }, moonFull, mistNow, rainbowNow, batsNow, balloonNow, whaleNow, gustNow, dovesNow, get umbrellasDrawn() { return umbrellasDrawn; }, festivalNow, auroraNow, stormNow, flashAt, get leapsDrawn() { return leapsDrawn; },
+  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, get smokeDrawn() { return smokeDrawn; }, get ringsDrawn() { return ringsDrawn; }, moonFull, mistNow, rainbowNow, batsNow, kitesNow, balloonNow, whaleNow, gustNow, dovesNow, get umbrellasDrawn() { return umbrellasDrawn; }, festivalNow, auroraNow, stormNow, flashAt, get leapsDrawn() { return leapsDrawn; },
   /* Read through getters. Captured by value these went stale the moment the
      harness moved them, and a sweep would have cleaned up the key the game
      was no longer using. */
