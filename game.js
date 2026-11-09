@@ -5316,6 +5316,37 @@ function drawUmbrella(v, bob, k) {
   if (camScale() >= 0.8) g.stroke();     // too small to see from further out, and that is when there are most of them
   umbrellasDrawn++;
 }
+/* Winter's snowmen: four of them on open ground nearest the hall, on tiles picked
+   by the same sort of hash as the scenery so they stay put from one day to the
+   next, and moving on only if something gets built where they stand. */
+const SNOWMEN = 4, SNOWMAN_SCARF = ['#c8473c', '#3f74b5', '#4f9a62', '#e0a93a'];
+function snowmanTiles(occ) {
+  const h = hallOf(), L = landBounds(), out = [], taken = new Set(SCENERY.map(o => o.c + ',' + o.r));
+  if (!h) return out;
+  for (let c = L.lo; c <= L.hi; c++) for (let r = L.lo; r <= L.hi; r++) {
+    const key = c + ',' + r;
+    if (occ.has(key) || taken.has(key) || rnd(c * 37 + r * 101, 90) < 0.55) continue;
+    out.push({ c, r, d: (c - h.c) * (c - h.c) + (r - h.r) * (r - h.r) });
+  }
+  return out.sort((a, b) => a.d - b.d || a.c - b.c).slice(0, SNOWMEN);
+}
+function drawSnowman(o, i) {
+  const { x, y } = tileToWorld(o.c, o.r);
+  g.save(); g.translate(x, y);
+  g.fillStyle = 'rgba(40,60,90,.22)'; g.beginPath(); g.ellipse(0, 3, 24, 10, 0, 0, 7); g.fill();
+  g.fillStyle = '#f6f9fc'; g.strokeStyle = 'rgba(90,120,160,.55)'; g.lineWidth = 2;
+  g.beginPath(); g.arc(0, -16, 19, 0, 7); g.moveTo(14, -46); g.arc(0, -46, 14, 0, 7); g.moveTo(10, -68); g.arc(0, -68, 10, 0, 7);
+  g.fill(); g.stroke();
+  g.fillStyle = SNOWMAN_SCARF[i % SNOWMAN_SCARF.length];
+  g.beginPath(); g.roundRect(-12, -60, 24, 6, 3); g.roundRect(4, -58, 6, 16, 3); g.fill();
+  g.fillStyle = '#2b2622';
+  g.beginPath(); g.moveTo(-1.5, -71); g.arc(-4, -71, 1.8, 0, 7); g.moveTo(5.8, -71); g.arc(4, -71, 1.8, 0, 7);
+  g.moveTo(1.8, -47); g.arc(0, -47, 1.8, 0, 7); g.moveTo(1.8, -38); g.arc(0, -38, 1.8, 0, 7);
+  g.rect(-10, -80, 20, 3); g.rect(-6.5, -91, 13, 11);
+  g.fill();
+  g.fillStyle = '#e8842c'; g.beginPath(); g.moveTo(0, -69); g.lineTo(13, -66); g.lineTo(0, -64); g.closePath(); g.fill();
+  g.restore();
+}
 function drawVillager(v) {
   const key = villagerArt(v);
   /* Far from where he is going, and nothing holding him there.
@@ -6291,6 +6322,7 @@ function drawWorld() {
   for (const o of SCENERY) { if (occSet.has(o.c + ',' + o.r)) continue;
     ents.push({ y: tileToWorld(o.c, o.r).y, d: () => drawScenery(o) }); }
   for (const v of villagers) ents.push({ y: v.y, d: () => drawVillager(v) });
+  if (season().key === 'winter') snowmanTiles(occSet).forEach((o, i) => ents.push({ y: tileToWorld(o.c, o.r).y, d: () => drawSnowman(o, i) }));
   ents.sort((a, b2) => a.y - b2.y);
   badgeQueue = [];
   for (const e of ents) e.d();

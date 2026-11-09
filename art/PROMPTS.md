@@ -7146,3 +7146,6 @@ No art. On dry nights three small boats sit off the island, each with a lantern 
 
 # 208 — Kite days
 No art. On a little over half the dry days outside winter, two kites fly through the daylight on long strings from the green beside the hall, leaning and dipping on the wind with bow-tied tails snaking after them.
+
+# 209 — Snowmen
+No art. Through winter four snowmen stand on open ground nearest the hall, each with a top hat, a carrot and a scarf of its own colour. They stay on the same tiles from day to day and move on only if something is built where they stand.
