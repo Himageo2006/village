@@ -755,7 +755,12 @@ function balloonAt(t, top, hh, q) {
   return { n, x: dir > 0 ? -180 + q * span : W + 180 - q * span, y: top + hh * (0.24 + rnd(n, 81) * 0.2) + Math.sin(t * 0.5) * 12 };
 }
 function drawBalloon(t, top, hh, q) {
-  const { n, x, y } = balloonAt(t, top, hh, q), R = 74;
+  const { n, x, y } = balloonAt(t, top, hh, q), R = 74, art = artFor('balloon');
+  if (ready(art)) {
+    const h = R * 3.3, w = art.width * (h / art.height);
+    g.drawImage(art, x - w / 2, y - R * 1.15, w, h);
+    return;
+  }
   const [a, b] = BALLOON_COL[n % BALLOON_COL.length];
   g.save(); g.translate(x, y);
   g.strokeStyle = '#5a4230'; g.lineWidth = 3;
@@ -5447,7 +5452,13 @@ function pumpkinFace(x, y) {
   g.moveTo(x - R * 0.62, y + R * 0.14); g.quadraticCurveTo(x, y + R * 0.95, x + R * 0.62, y + R * 0.14); g.quadraticCurveTo(x, y + R * 0.42, x - R * 0.62, y + R * 0.14);
   g.fill();
 }
+function pumpkinRect(o, art) {
+  const { x, y } = tileToWorld(o.c, o.r), h = 62, w = art.width * (h / art.height);
+  return { x: x - w / 2, y: y + 6 - h, w, h };
+}
 function drawPumpkin(o) {
+  const art = artFor('pumpkin');
+  if (ready(art)) { const r = pumpkinRect(o, art); g.drawImage(art, r.x, r.y, r.w, r.h); return; }
   const { x, y: gy } = tileToWorld(o.c, o.r), R = PUMPKIN_R, y = gy - R * 0.72;
   g.fillStyle = 'rgba(30,20,10,.3)'; g.beginPath(); g.ellipse(x, gy + 2, R * 1.2, R * 0.45, 0, 0, 7); g.fill();
   g.fillStyle = '#5d7a2e'; g.beginPath(); g.roundRect(x - 3, y - R * 1.1, 7, R * 0.5, 2); g.fill();
@@ -5468,12 +5479,19 @@ function drawPumpkinLights() {
     const halo = g.createRadialGradient(x, y, 0, x, y, PUMPKIN_R * 3);
     halo.addColorStop(0, 'rgba(255,170,70,.45)'); halo.addColorStop(1, 'rgba(255,150,50,0)');
     g.fillStyle = halo; g.beginPath(); g.arc(x, y, PUMPKIN_R * 3, 0, 7); g.fill();
-    g.fillStyle = '#ffd66b'; pumpkinFace(x, y);
+    const art = artFor('pumpkin'), lit = artFor('pumpkin_glow');
+    if (ready(art) && ready(lit)) { const r = pumpkinRect(o, art); g.drawImage(lit, r.x, r.y, r.w, r.h); }
+    else { g.fillStyle = '#ffd66b'; pumpkinFace(x, y); }
   });
   g.restore();
 }
 function drawSnowman(o, i) {
-  const { x, y } = tileToWorld(o.c, o.r);
+  const { x, y } = tileToWorld(o.c, o.r), art = artFor('snowman_painted');
+  if (ready(art)) {
+    const h = 108, w = art.width * (h / art.height);
+    g.drawImage(art, x - w / 2, y + 8 - h, w, h);
+    return;
+  }
   g.save(); g.translate(x, y);
   g.fillStyle = 'rgba(40,60,90,.22)'; g.beginPath(); g.ellipse(0, 3, 24, 10, 0, 0, 7); g.fill();
   g.fillStyle = '#f6f9fc'; g.strokeStyle = 'rgba(90,120,160,.55)'; g.lineWidth = 2;
