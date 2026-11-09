@@ -7134,3 +7134,6 @@ No art. Once the rain has properly started every villager puts up an umbrella, e
 
 # 204 — The autumn wind
 No art. In autumn, on dry days, a gust every three-quarters of a minute carries a whirl of thirty leaves across the view, tumbling round a centre that travels, for about eleven seconds.
+
+# 205 — A whale off the island
+No art. Every seventy seconds, except in the dead of night, a whale comes up on the open water to one side of the island: the long back breaking the surface, two plumes of spray, and the flukes lifting as it dives, about fourteen seconds in all.

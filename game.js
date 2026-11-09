@@ -728,16 +728,18 @@ function gustNow() {
 function drawGust(t, top, hh, q) {
   const n = Math.floor(Date.now() / 1000 / GUST_S), dir = rnd(n, 62) < 0.5 ? 1 : -1, span = W + 900;
   const cy = top + hh * (0.25 + 0.4 * rnd(n, 63)) + (q - 0.5) * hh * 0.1;
-  for (let i = 0; i < GUST_LEAVES; i++) {
-    // strung out along the path, so the whirl has a head and a trailing tail
-    const c = (dir > 0 ? -450 + q * span : W + 450 - q * span) - dir * rnd(i, 64) * 320;
-    const r = 30 + rnd(i, 65) * 130, a = t * (3 + rnd(i, 66) * 2) + i * 2.4, sz = 11 + rnd(i, 67) * 8;
-    g.save();
-    g.translate(c + Math.cos(a) * r, cy + Math.sin(a) * r * 0.55 + rnd(i, 68) * 60 - 30);
-    g.rotate(a * 1.4);
-    g.fillStyle = GUST_COL[i % GUST_COL.length];
-    g.beginPath(); g.ellipse(0, 0, sz, sz * (0.3 + 0.3 * Math.abs(Math.sin(a * 2))), 0, 0, 7); g.fill();
-    g.restore();
+  for (let col = 0; col < GUST_COL.length; col++) {        // one fill a colour, however many leaves
+    g.fillStyle = GUST_COL[col];
+    g.beginPath();
+    for (let i = col; i < GUST_LEAVES; i += GUST_COL.length) {
+      // strung out along the path, so the whirl has a head and a trailing tail
+      const c = (dir > 0 ? -450 + q * span : W + 450 - q * span) - dir * rnd(i, 64) * 320;
+      const r = 30 + rnd(i, 65) * 130, a = t * (3 + rnd(i, 66) * 2) + i * 2.4, sz = 11 + rnd(i, 67) * 8;
+      const x = c + Math.cos(a) * r, y = cy + Math.sin(a) * r * 0.55 + rnd(i, 68) * 60 - 30;
+      g.moveTo(x + sz, y);
+      g.ellipse(x, y, sz, sz * (0.3 + 0.3 * Math.abs(Math.sin(a * 2))), a * 1.4, 0, 7);
+    }
+    g.fill();
   }
 }
 /* Noon, by the hall bell: three strokes, and the doves that live on the roof go
@@ -4758,12 +4760,18 @@ function drawRainRings() {
   if (reduceMotion || rain < 0.05) return;
   const t = Date.now() / 1000, a = camUnproject(0, screenTop()), c = camUnproject(W, screenBot()), u = 2.2 / camScale();
   g.save(); g.lineWidth = 2.2 * u;
+  // four strokes, one per band of fading, rather than one a ring
+  for (let band = 0; band < 4; band++) {
+  g.strokeStyle = 'rgba(232,246,255,' + (0.6 * (1 - (band + 0.5) / 4)).toFixed(3) + ')';
+  g.beginPath();
   for (let i = 0; i < RAIN_RINGS * rain; i++) {
     const cyc = 0.8 + rnd(i, 73) * 0.6, k = t / cyc + rnd(i, 74), ph = frac(k), n = Math.floor(k);
     const x = a.x + rnd(i + n * 5.3, 75) * (c.x - a.x), y = a.y + rnd(i + n * 5.3, 76) * (c.y - a.y);
-    g.strokeStyle = 'rgba(232,246,255,' + (0.6 * (1 - ph)).toFixed(3) + ')';
-    g.beginPath(); g.ellipse(x, y, (2 + ph * 14) * u, (1 + ph * 7) * u, 0, 0, 7); g.stroke();
+    if (Math.floor(ph * 4) !== band) continue;
+    g.moveTo(x + (2 + ph * 14) * u, y); g.ellipse(x, y, (2 + ph * 14) * u, (1 + ph * 7) * u, 0, 0, 7);
     ringsDrawn++;
+  }
+  g.stroke();
   }
   g.restore();
 }
@@ -4799,6 +4807,59 @@ function drawLeaps() {
       g.strokeStyle = 'rgba(236,250,255,' + (0.7 * (1 - qq)).toFixed(3) + ')'; g.lineWidth = 3.5 * u;
       g.beginPath(); g.ellipse(x, y, (6 + qq * 34) * u, (3 + qq * 17) * u, 0, 0, 7); g.stroke();
     }
+  }
+  g.restore();
+}
+/* Every minute or so a whale comes up off to one side of the view,
+   where there is always sea: the long back breaking the surface, two spouts of
+   spray, and the flukes lifting as it dives. Drawn before the island, like the
+   fish, so that a camera panned the other way just has land over it. */
+const WHALE_S = 70, WHALE_LEN = 0.2;
+function whaleNow() {
+  if (reduceMotion || sky().night > 0.7) return -1;
+  const ph = frac(Date.now() / 1000 / WHALE_S);
+  return ph < WHALE_LEN ? ph / WHALE_LEN : -1;
+}
+function drawWhale() {
+  const q = whaleNow();
+  if (q < 0) return;
+  const t = Date.now() / 1000, n = Math.floor(t / WHALE_S), left = rnd(n, 70) < 0.5, dir = rnd(n, 71) < 0.5 ? 1 : -1;
+  const at = camUnproject(W * (left ? 0.12 + rnd(n, 72) * 0.07 : 0.8 + rnd(n, 72) * 0.07), screenTop() + (screenBot() - screenTop()) * (0.15 + rnd(n, 73) * 0.05));
+  const u = 2.2 / camScale(), x = at.x + dir * (q - 0.5) * 60 * u, y = at.y;
+  const up = Math.min(1, q / 0.12, (0.72 - q) / 0.1), L = 44 * u;
+  g.save();
+  if (up > 0) {
+    g.save(); g.beginPath(); g.rect(x - L * 2, y - L * 2, L * 4, L * 2); g.clip();   // only what is above the water
+    g.fillStyle = '#31454f';
+    g.beginPath(); g.ellipse(x, y + (1 - up) * 18 * u, L, 11 * u, 0, 0, 7); g.fill();
+    g.fillStyle = '#4b626c';
+    g.beginPath(); g.ellipse(x - dir * L * 0.15, y - 3 * u + (1 - up) * 18 * u, L * 0.6, 5 * u, 0, 0, 7); g.fill();
+    g.restore();
+    g.strokeStyle = 'rgba(236,250,255,' + (0.75 * up).toFixed(3) + ')'; g.lineWidth = 3 * u; g.lineCap = 'round';
+    g.beginPath(); g.ellipse(x, y, L * 1.08, 5 * u, 0, 0, 3.15); g.stroke();
+  }
+  for (const b of [0.14, 0.42]) {                 // a spout: spray going up and fanning out
+    const sq = (q - b) / 0.12;
+    if (sq <= 0 || sq >= 1) continue;
+    g.fillStyle = 'rgba(244,252,255,' + (0.9 * (1 - sq)).toFixed(3) + ')';
+    g.beginPath();
+    for (let i = 0; i < 30; i++) {
+      const h = (0.3 + rnd(i, 74) * 0.7) * Math.sin(sq * 1.7) * 50 * u, sp = (rnd(i, 75) - 0.5) * (0.25 + sq) * 34 * u;
+      const dx = x + dir * L * 0.4 + sp, dy = y - 8 * u - h, dr = (3 + rnd(i, 76) * 3.5) * u;
+      g.moveTo(dx + dr, dy); g.arc(dx, dy, dr, 0, 7);
+    }
+    g.fill();
+  }
+  if (q > 0.72) {                                  // the flukes, going down last
+    const f = Math.sin((q - 0.72) / 0.28 * Math.PI), fx = x - dir * L * 0.5;
+    g.save(); g.beginPath(); g.rect(fx - L, y - L * 2, L * 2, L * 2); g.clip();
+    g.fillStyle = '#31454f';
+    g.translate(fx, y + (1 - f) * 34 * u);
+    g.beginPath(); g.moveTo(-4 * u, 4 * u); g.lineTo(-3 * u, -18 * u);
+    g.quadraticCurveTo(-16 * u, -22 * u, -26 * u, -36 * u); g.quadraticCurveTo(-8 * u, -32 * u, 0, -24 * u);
+    g.quadraticCurveTo(8 * u, -32 * u, 26 * u, -36 * u); g.quadraticCurveTo(16 * u, -22 * u, 3 * u, -18 * u);
+    g.lineTo(4 * u, 4 * u); g.closePath(); g.fill();
+    g.restore();
   }
   g.restore();
 }
@@ -4842,6 +4903,7 @@ function drawGround() {
   }
   drawGlints();
   drawLeaps();
+  drawWhale();
   drawRainRings();
   drawSeaProps(b);
 
@@ -5116,11 +5178,9 @@ function villagerArt(v) {
    the colour of their own, and down again as it stops. */
 const UMBRELLA = ['#c8473c', '#3f74b5', '#e0a93a', '#4f9a62', '#8a57a8', '#e07a9a'];
 let umbrellasDrawn = 0;
+// one path for canopy and pole, one fill and one stroke: a full village is a lot of umbrellas
 function drawUmbrella(v, bob, k) {
-  const r = VILLAGER_H * 0.52 * k, x = v.x, top = v.y - VILLAGER_H - 13 - bob, rib = r * 0.42;
-  g.save();
-  g.strokeStyle = '#4a3524'; g.lineWidth = 3;
-  g.beginPath(); g.moveTo(x, top - r * 0.5); g.lineTo(x, v.y - VILLAGER_H * 0.45 - bob); g.stroke();
+  const r = VILLAGER_H * 0.52 * k, x = v.x, top = v.y - VILLAGER_H - 13 - bob;
   g.fillStyle = UMBRELLA[Math.abs(Math.floor(v.seed * 97)) % UMBRELLA.length];
   g.strokeStyle = 'rgba(30,24,20,.65)'; g.lineWidth = 2.5; g.lineJoin = 'round';
   g.beginPath();
@@ -5129,8 +5189,10 @@ function drawUmbrella(v, bob, k) {
   g.quadraticCurveTo(x + r * 0.85, top - r * 0.62, x + r, top + r * 0.28);
   // the scalloped hem between the ribs
   for (let i = 1; i >= -1; i -= 0.5) g.quadraticCurveTo(x + (i + 0.25) * r * 0.8, top + r * 0.02, x + i * r * 0.8 - (i === -1 ? r * 0.2 : 0), top + r * 0.28);
-  g.closePath(); g.fill(); g.stroke();
-  g.restore();
+  g.closePath();
+  g.moveTo(x, top + r * 0.1); g.lineTo(x, v.y - VILLAGER_H * 0.45 - bob);
+  g.fill();
+  if (camScale() >= 0.8) g.stroke();     // too small to see from further out, and that is when there are most of them
   umbrellasDrawn++;
 }
 function drawVillager(v) {
@@ -9344,7 +9406,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   get ordersDone() { return ordersDone; }, set ordersDone(v) { ordersDone = v; },
   get orderT() { return orderT; }, set orderT(v) { orderT = v; },
   get goalDone() { return goalDone; }, set goalDone(v) { goalDone = v; },
-  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, get smokeDrawn() { return smokeDrawn; }, get ringsDrawn() { return ringsDrawn; }, moonFull, mistNow, rainbowNow, batsNow, gustNow, dovesNow, get umbrellasDrawn() { return umbrellasDrawn; }, festivalNow, auroraNow, stormNow, flashAt, get leapsDrawn() { return leapsDrawn; },
+  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, get smokeDrawn() { return smokeDrawn; }, get ringsDrawn() { return ringsDrawn; }, moonFull, mistNow, rainbowNow, batsNow, whaleNow, gustNow, dovesNow, get umbrellasDrawn() { return umbrellasDrawn; }, festivalNow, auroraNow, stormNow, flashAt, get leapsDrawn() { return leapsDrawn; },
   /* Read through getters. Captured by value these went stale the moment the
      harness moved them, and a sweep would have cleaned up the key the game
      was no longer using. */
