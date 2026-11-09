@@ -5087,6 +5087,27 @@ function villagerArt(v) {
   }
   return VILLAGERS[v.k % VILLAGERS.length];
 }
+/* Up go the umbrellas once the rain has properly started, each villager keeping
+   the colour of their own, and down again as it stops. */
+const UMBRELLA = ['#c8473c', '#3f74b5', '#e0a93a', '#4f9a62', '#8a57a8', '#e07a9a'];
+let umbrellasDrawn = 0;
+function drawUmbrella(v, bob, k) {
+  const r = VILLAGER_H * 0.52 * k, x = v.x, top = v.y - VILLAGER_H - 13 - bob, rib = r * 0.42;
+  g.save();
+  g.strokeStyle = '#4a3524'; g.lineWidth = 3;
+  g.beginPath(); g.moveTo(x, top - r * 0.5); g.lineTo(x, v.y - VILLAGER_H * 0.45 - bob); g.stroke();
+  g.fillStyle = UMBRELLA[Math.abs(Math.floor(v.seed * 97)) % UMBRELLA.length];
+  g.strokeStyle = 'rgba(30,24,20,.65)'; g.lineWidth = 2.5; g.lineJoin = 'round';
+  g.beginPath();
+  g.moveTo(x - r, top + r * 0.28);
+  g.quadraticCurveTo(x - r * 0.85, top - r * 0.62, x, top - r * 0.66);
+  g.quadraticCurveTo(x + r * 0.85, top - r * 0.62, x + r, top + r * 0.28);
+  // the scalloped hem between the ribs
+  for (let i = 1; i >= -1; i -= 0.5) g.quadraticCurveTo(x + (i + 0.25) * r * 0.8, top + r * 0.02, x + i * r * 0.8 - (i === -1 ? r * 0.2 : 0), top + r * 0.28);
+  g.closePath(); g.fill(); g.stroke();
+  g.restore();
+  umbrellasDrawn++;
+}
 function drawVillager(v) {
   const key = villagerArt(v);
   /* Far from where he is going, and nothing holding him there.
@@ -5183,10 +5204,12 @@ function drawVillager(v) {
     g.fillStyle = '#5a6f8a'; g.fillRect(v.x - 5, v.y - HGT * 0.6, 10, HGT * 0.6);
   }
   g.restore();
+  const wet = rainNow(), brolly = wet > 0.3 ? Math.min(1, (wet - 0.3) / 0.2) : 0;
+  if (brolly > 0) drawUmbrella(v, bob, brolly);
   /* What they are carrying, drawn OUTSIDE the mirrored transform so the icon
      does not flip when a villager turns round. */
   if (v.carry) {
-    const y = v.y - HGT - 13 - bob;        // carried goods ride the bob, not the air above it
+    const y = v.y - HGT - 13 - bob - brolly * 34;        // carried goods ride the bob, not the air above it, and clear an umbrella
     g.save();
     g.fillStyle = 'rgba(14,22,12,.72)';
     g.beginPath(); g.roundRect(v.x - 15, y - 12, 30, 24, 12); g.fill();
@@ -9296,7 +9319,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   get ordersDone() { return ordersDone; }, set ordersDone(v) { ordersDone = v; },
   get orderT() { return orderT; }, set orderT(v) { orderT = v; },
   get goalDone() { return goalDone; }, set goalDone(v) { goalDone = v; },
-  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, get smokeDrawn() { return smokeDrawn; }, get ringsDrawn() { return ringsDrawn; }, moonFull, mistNow, rainbowNow, batsNow, dovesNow, festivalNow, auroraNow, stormNow, flashAt, get leapsDrawn() { return leapsDrawn; },
+  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, get smokeDrawn() { return smokeDrawn; }, get ringsDrawn() { return ringsDrawn; }, moonFull, mistNow, rainbowNow, batsNow, dovesNow, get umbrellasDrawn() { return umbrellasDrawn; }, festivalNow, auroraNow, stormNow, flashAt, get leapsDrawn() { return leapsDrawn; },
   /* Read through getters. Captured by value these went stale the moment the
      harness moved them, and a sweep would have cleaned up the key the game
      was no longer using. */

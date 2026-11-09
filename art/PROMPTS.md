@@ -7128,3 +7128,6 @@ No art. The night of the full moon, one night in sixteen, is the village's festi
 
 # 202 — The hall bell and the doves
 No art. At noon each day the hall bell strikes three slow strokes, and seven white doves go up from the roof at the noise, wheel round for about twenty seconds and come back down. The doves stay in out of the rain and with reduced motion on; the bell rings regardless unless the game is muted or out of sight.
+
+# 203 — Umbrellas in the rain
+No art. Once the rain has properly started every villager puts up an umbrella, each keeping a colour of their own, and takes it down again as the shower ends. What they carry rides above it.
