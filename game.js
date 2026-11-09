@@ -838,7 +838,7 @@ const SPOT_ICON = { balloon: '🎈', whale: '🐋', pod: '🐬', golden: '⭐' }
 let caught = { balloon: 0, whale: 0, pod: 0, golden: 0 }, spotNote = null;
 const caughtTotal = () => caught.balloon + caught.whale + caught.pod + caught.golden;
 // the tally as one line for the hall's panel, in the order of the keys above
-const caughtLine = () => 'Visitors caught:  ' + Object.keys(caught).filter(k => caught[k]).map(k => SPOT_ICON[k] + ' ' + caught[k]).join('   ');
+const caughtLine = () => Object.keys(caught).filter(k => caught[k]).map(k => SPOT_ICON[k] + ' ' + caught[k]).join('  ');
 const spotBonus = () => 1 + Math.min(1, caughtTotal() / SPOT_FULL);
 function visitors() {
   const t = Date.now() / 1000, top = screenTop(), hh = screenBot() - top, out = [], u = 2.2 / camScale();
@@ -8993,7 +8993,11 @@ function drawPanel() {
     else if (empty) s2 += SEP + count(empty, 'post') + ' empty — ' + remedy('people');
     else s2 += SEP + 'every post filled';
     if (st.avg !== null) s2 += SEP + 'workplaces at ' + Math.round(st.avg * 100) + '%';
-    if (caughtTotal()) panelRow(caughtLine(), lx, R.y - R.h / 2 + 148 * u, R.w - 56 * u, 20 * u, '#ffe07a', '');
+    if (caughtTotal()) {                       // the title row has room to its right; every row below it is spoken for
+      g.save(); g.textAlign = 'right'; g.textBaseline = 'middle'; g.font = 20 * u + 'px Segoe UI, sans-serif'; g.fillStyle = '#ffe07a';
+      g.fillText(caughtLine(), R.close.x - R.close.r - 14 * u, R.close.y);
+      g.restore();
+    }
     panelRow(s2, lx, R.y - R.h / 2 + 78 * u, R.w - 56 * u, 20 * u,
       villageFinished() ? '#a9bd9c'
       : (full.length || st.idle || empty) ? '#f0c88a'
