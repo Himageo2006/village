@@ -7155,3 +7155,6 @@ No art. Through autumn up to five carved pumpkins sit on open ground near the ha
 
 # 211 — Dolphins
 No art. Every fifty-five seconds by day, out of step with the whale, four dolphins travel past one side of the island, each leaping in turn and dropping back with a ring on the water.
+
+# 212 — Catching the visitors
+No art. A sparkle rides above each balloon, whale and pod of dolphins until it is tapped. Tapping one once gives a small share of the store's capacity: food from a balloon or the dolphins, wood from a whale. It is once per visit, and building placement takes the tap first when a building is selected.

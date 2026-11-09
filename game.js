@@ -750,10 +750,12 @@ function balloonNow() {
   const ph = frac(Date.now() / 1000 / BALLOON_S);
   return ph < BALLOON_LEN ? ph / BALLOON_LEN : -1;
 }
+function balloonAt(t, top, hh, q) {
+  const n = Math.floor(t / BALLOON_S), dir = rnd(n, 80) < 0.5 ? 1 : -1, span = W + 360;
+  return { n, x: dir > 0 ? -180 + q * span : W + 180 - q * span, y: top + hh * (0.24 + rnd(n, 81) * 0.2) + Math.sin(t * 0.5) * 12 };
+}
 function drawBalloon(t, top, hh, q) {
-  const n = Math.floor(t / BALLOON_S), dir = rnd(n, 80) < 0.5 ? 1 : -1, span = W + 360, R = 74;
-  const x = dir > 0 ? -180 + q * span : W + 180 - q * span;
-  const y = top + hh * (0.24 + rnd(n, 81) * 0.2) + Math.sin(t * 0.5) * 12;
+  const { n, x, y } = balloonAt(t, top, hh, q), R = 74;
   const [a, b] = BALLOON_COL[n % BALLOON_COL.length];
   g.save(); g.translate(x, y);
   g.strokeStyle = '#5a4230'; g.lineWidth = 3;
@@ -812,6 +814,49 @@ function drawKites(t, k) {
     g.restore();
   }
   g.restore();
+}
+/* The visitors can be caught. Each balloon, whale and pod is worth a small share
+   of what the stores hold, once, for whoever taps it while it is there; a sparkle
+   rides above any that has not been tapped yet. Shares of the caps rather than
+   amounts, so a visit means the same to a first village as to a full one. */
+const SPOT_SHARE = { balloon: 0.05, whale: 0.08, pod: 0.04 }, SPOT_RES = { balloon: 'food', whale: 'wood', pod: 'food' };
+const spotTaken = { balloon: -1, whale: -1, pod: -1 };
+function visitors() {
+  const t = Date.now() / 1000, top = screenTop(), hh = screenBot() - top, out = [], u = 2.2 / camScale();
+  const q1 = balloonNow();
+  if (q1 >= 0 && !reduceMotion) { const a = balloonAt(t, top, hh, q1); out.push({ id: 'balloon', n: a.n, x: a.x, y: a.y, r: 100, up: 92 }); }
+  const q2 = whaleNow();
+  if (q2 >= 0) { const a = whaleAt(t, q2), c = camProject(a.x, a.y), s = camScale(); out.push({ id: 'whale', n: a.n, x: c.x, y: c.y, r: 120, up: 34 * u * s }); }
+  const q3 = podNow();
+  if (q3 >= 0) { const a = podAt(t), c = camProject(a.at.x, a.at.y), s = camScale(); out.push({ id: 'pod', n: a.n, x: c.x, y: c.y, r: 130, up: 42 * u * s }); }
+  return out.filter(v => v.n !== spotTaken[v.id] && v.y > screenTop() && v.x > 0 && v.x < W);
+}
+function drawVisitorSparkles(t) {
+  const list = visitors();
+  if (!list.length) return;
+  g.save(); g.fillStyle = '#ffe07a'; g.strokeStyle = 'rgba(120,70,10,.7)'; g.lineWidth = 2; g.lineJoin = 'round';
+  g.globalAlpha = 0.72 + 0.28 * Math.sin(t * 5);
+  g.beginPath();
+  for (const v of list) {                 // a four-pointed star, and a small one beside it
+    const y = v.y - v.up + Math.sin(t * 2.4) * 7;
+    for (const [cx, cy, R] of [[v.x, y, 24 + Math.sin(t * 5) * 3], [v.x + 24, y - 20, 10]]) {
+      g.moveTo(cx, cy - R);
+      g.quadraticCurveTo(cx, cy, cx + R, cy); g.quadraticCurveTo(cx, cy, cx, cy + R);
+      g.quadraticCurveTo(cx, cy, cx - R, cy); g.quadraticCurveTo(cx, cy, cx, cy - R);
+      g.closePath();
+    }
+  }
+  g.fill(); g.stroke();
+  g.restore();
+}
+function catchVisitor(sx, sy) {
+  const v = visitors().find(o => Math.hypot(sx - o.x, sy - o.y) < o.r);
+  if (!v) return false;
+  spotTaken[v.id] = v.n;
+  const w = camUnproject(v.x, v.y), k = SPOT_RES[v.id];
+  if (grant(k, Math.max(5, Math.round(caps[k] * SPOT_SHARE[v.id])), w.x, w.y) > 0.01) SFX.goal(); else SFX.tap();
+  save();
+  return true;
 }
 /* Noon, by the hall bell: three strokes, and the doves that live on the roof go
    up at the noise, wheel round for twenty seconds and come back down. */
@@ -1091,6 +1136,7 @@ function drawAmbient() {
   if (gust >= 0) drawGust(t, top, hh, gust);
   const doves = dovesNow();
   if (doves >= 0) drawDoves(t, doves);
+  drawVisitorSparkles(t);
   if ((key === 'spring' || key === 'summer') && rain === 0 && sky().sun > 0.15) drawButterflies(t, Math.min(1, (sky().sun - 0.15) / 0.2));
   const a = AMBIENT[key];
   if (a) {
@@ -4895,12 +4941,16 @@ function whaleNow() {
   const ph = frac(Date.now() / 1000 / WHALE_S);
   return ph < WHALE_LEN ? ph / WHALE_LEN : -1;
 }
+function whaleAt(t, q) {
+  const n = Math.floor(t / WHALE_S), left = rnd(n, 70) < 0.5, dir = rnd(n, 71) < 0.5 ? 1 : -1;
+  const at = camUnproject(W * (left ? 0.12 + rnd(n, 72) * 0.07 : 0.8 + rnd(n, 72) * 0.07), screenTop() + (screenBot() - screenTop()) * (0.15 + rnd(n, 73) * 0.05));
+  const u = 2.2 / camScale();
+  return { n, dir, u, x: at.x + dir * (q - 0.5) * 60 * u, y: at.y };
+}
 function drawWhale() {
   const q = whaleNow();
   if (q < 0) return;
-  const t = Date.now() / 1000, n = Math.floor(t / WHALE_S), left = rnd(n, 70) < 0.5, dir = rnd(n, 71) < 0.5 ? 1 : -1;
-  const at = camUnproject(W * (left ? 0.12 + rnd(n, 72) * 0.07 : 0.8 + rnd(n, 72) * 0.07), screenTop() + (screenBot() - screenTop()) * (0.15 + rnd(n, 73) * 0.05));
-  const u = 2.2 / camScale(), x = at.x + dir * (q - 0.5) * 60 * u, y = at.y;
+  const { dir, u, x, y } = whaleAt(Date.now() / 1000, q);
   const up = Math.min(1, q / 0.12, (0.72 - q) / 0.1), L = 44 * u;
   g.save();
   if (up > 0) {
@@ -4994,9 +5044,16 @@ function podNow() {
 function drawPod() {
   const q = podNow();
   if (q < 0) return;
-  const t = Date.now() / 1000, n = Math.floor(t / POD_S + 0.5), left = n % 2 === 0, dir = rnd(n, 83) < 0.5 ? 1 : -1;
-  const at = camUnproject(W * (left ? 0.1 : 0.89), screenTop() + (screenBot() - screenTop()) * (0.16 + rnd(n, 84) * 0.04));
+  const t = Date.now() / 1000, { n, dir, at } = podAt(t);
   const u = 2.2 / camScale(), edge = Math.min(1, q / 0.1, (1 - q) / 0.1);
+  podBody(t, q, dir, at, u, edge);
+}
+function podAt(t) {
+  const n = Math.floor(t / POD_S + 0.5), left = n % 2 === 0, dir = rnd(n, 83) < 0.5 ? 1 : -1;
+  const at = camUnproject(W * (left ? 0.1 : 0.89), screenTop() + (screenBot() - screenTop()) * (0.16 + rnd(n, 84) * 0.04));
+  return { n, dir, at };
+}
+function podBody(t, q, dir, at, u, edge) {
   g.save(); g.globalAlpha = edge; g.lineCap = 'round';
   g.fillStyle = '#4a6877'; g.strokeStyle = 'rgba(236,250,255,.75)'; g.lineWidth = 2.5 * u;
   for (let i = 0; i < POD; i++) {
@@ -9500,6 +9557,7 @@ function tap(sx, sy) {
     ghost = null; armed = null;
     return;
   }
+  if (catchVisitor(sx, sy)) return;
   /* Three questions in order, and the order is the design.
 
      A villager where they are DRAWN comes first. They stand on the building
@@ -9643,7 +9701,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   get ordersDone() { return ordersDone; }, set ordersDone(v) { ordersDone = v; },
   get orderT() { return orderT; }, set orderT(v) { orderT = v; },
   get goalDone() { return goalDone; }, set goalDone(v) { goalDone = v; },
-  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, get smokeDrawn() { return smokeDrawn; }, get ringsDrawn() { return ringsDrawn; }, moonFull, mistNow, rainbowNow, batsNow, podNow, kitesNow, balloonNow, whaleNow, gustNow, dovesNow, get umbrellasDrawn() { return umbrellasDrawn; }, festivalNow, auroraNow, stormNow, flashAt, get leapsDrawn() { return leapsDrawn; },
+  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, get smokeDrawn() { return smokeDrawn; }, get ringsDrawn() { return ringsDrawn; }, moonFull, mistNow, rainbowNow, batsNow, visitors, catchVisitor, podNow, kitesNow, balloonNow, whaleNow, gustNow, dovesNow, get umbrellasDrawn() { return umbrellasDrawn; }, festivalNow, auroraNow, stormNow, flashAt, get leapsDrawn() { return leapsDrawn; },
   /* Read through getters. Captured by value these went stale the moment the
      harness moved them, and a sweep would have cleaned up the key the game
      was no longer using. */
