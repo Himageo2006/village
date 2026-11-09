@@ -7125,3 +7125,6 @@ No art. On wet days rings open on the open water where the drops land, thicker a
 
 # 201 — Fireworks at the full moon
 No art. The night of the full moon, one night in sixteen, is the village's festival: three fireworks going at a time over the island, each a shell climbing and a burst of coloured sparks falling away, with a soft thud as it opens. Dry nights only. Worked out from the clock, nothing stored; off with reduced motion, and the thuds stand down when muted or hidden.
+
+# 202 — The hall bell and the doves
+No art. At noon each day the hall bell strikes three slow strokes, and seven white doves go up from the roof at the noise, wheel round for about twenty seconds and come back down. The doves stay in out of the rain and with reduced motion on; the bell rings regardless unless the game is muted or out of sight.

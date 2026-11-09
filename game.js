@@ -717,6 +717,30 @@ function drawButterflies(t, k) {
     g.restore();
   }
 }
+/* Noon, by the hall bell: three strokes, and the doves that live on the roof go
+   up at the noise, wheel round for twenty seconds and come back down. */
+const NOON = 0.25, NOON_LEN = 0.04, DOVES = 7;
+function dovesNow() {
+  const q = (dayPhase() - NOON) / NOON_LEN;
+  return q >= 0 && q <= 1 && rainNow() === 0 && hallOf() ? q : -1;
+}
+function drawDoves(t, q) {
+  const c = centreOf(hallOf()), s = camScale(), sz = 20 * Math.min(1.4, s / 1.25);
+  const out = Math.sin(Math.PI * q);   // up and away, then home again
+  g.lineCap = 'round';
+  for (const [col, lw] of [['rgba(50,56,66,.75)', 10], ['#fbfaf3', 5.5]]) {
+    g.strokeStyle = col; g.lineWidth = lw;
+    g.beginPath();
+    for (let i = 0; i < DOVES; i++) {
+      const a = i / DOVES * 6.283 + t * 0.55, r = out * (70 + rnd(i, 60) * 45);
+      const at = camProject(c.x + Math.cos(a) * r, c.y - 70 - out * (75 + rnd(i, 61) * 45) + Math.sin(a) * r * 0.5);
+      const lift = sz * (0.15 + 0.5 * Math.sin(t * 13 + i * 2.1));
+      g.moveTo(at.x - sz, at.y - lift); g.quadraticCurveTo(at.x - sz * 0.4, at.y - lift - 3, at.x, at.y);
+      g.quadraticCurveTo(at.x + sz * 0.4, at.y - lift - 3, at.x + sz, at.y - lift);
+    }
+    g.stroke();
+  }
+}
 /* Spring and autumn bring the geese over: one long V crossing every minute and
    a half or so, north in spring and south in autumn, which here is up and down
    the screen's slant. */
@@ -963,6 +987,8 @@ function drawAmbient() {
   if ((key === 'spring' || key === 'autumn') && rain === 0 && day > 0.5) drawGeese(t, top, hh, day, key);
   const bats = batsNow();
   if (bats > 0.01) drawBats(t, top, hh, bats);
+  const doves = dovesNow();
+  if (doves >= 0) drawDoves(t, doves);
   if ((key === 'spring' || key === 'summer') && rain === 0 && sky().sun > 0.15) drawButterflies(t, Math.min(1, (sky().sun - 0.15) / 0.2));
   const a = AMBIENT[key];
   if (a) {
@@ -1156,6 +1182,14 @@ function thunder() {
    (not in winter), gulls through the day, an owl in the dead of night. Dry
    weather only -- nothing sings in the rain. Ordinary tones, so they stand
    down by tone()'s own rule. */
+// three slow strokes: a low hum under a brighter strike, with a long tail
+function bell() {
+  beds.bellRung = (beds.bellRung || 0) + 1;
+  for (let i = 0; i < 3; i++) {
+    tone({ f: 330, type: 'sine', dur: 2.2, vol: 0.09, delay: i * 1.5 });
+    tone({ f: 792, type: 'sine', dur: 1.1, vol: 0.035, delay: i * 1.5 });
+  }
+}
 function stepCalls(now) {
   if (now < beds.callAt || rainNow() > 0) return;
   const ph = dayPhase(), { sun, night } = sky();
@@ -1200,6 +1234,8 @@ function stepAmbience() {
     }
   }
   if (!quiet) stepCalls(now);
+  const today = Math.floor(Date.now() / DAY_MS), ph = dayPhase();
+  if (!quiet && ph >= NOON && ph < NOON + 0.01 && beds.bellDay !== today) { beds.bellDay = today; bell(); }
   if (!quiet && !reduceMotion && festivalNow()) {
     // a soft thud as each one bursts
     for (let i = 0; i < FIREWORKS; i++) {
@@ -9260,7 +9296,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   get ordersDone() { return ordersDone; }, set ordersDone(v) { ordersDone = v; },
   get orderT() { return orderT; }, set orderT(v) { orderT = v; },
   get goalDone() { return goalDone; }, set goalDone(v) { goalDone = v; },
-  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, get smokeDrawn() { return smokeDrawn; }, get ringsDrawn() { return ringsDrawn; }, moonFull, mistNow, rainbowNow, batsNow, festivalNow, auroraNow, stormNow, flashAt, get leapsDrawn() { return leapsDrawn; },
+  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, get smokeDrawn() { return smokeDrawn; }, get ringsDrawn() { return ringsDrawn; }, moonFull, mistNow, rainbowNow, batsNow, dovesNow, festivalNow, auroraNow, stormNow, flashAt, get leapsDrawn() { return leapsDrawn; },
   /* Read through getters. Captured by value these went stale the moment the
      harness moved them, and a sweep would have cleaned up the key the game
      was no longer using. */
