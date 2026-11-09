@@ -9696,13 +9696,17 @@ for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER]) for (let i = 1; i <
 /* The beacon's five, asked for here for the same reason the walk frames are:
    a village with none of them drawn would otherwise send five requests the
    moment it finished, and artFor remembers a miss. */
-for (let i = 1; i <= BEACON_STAGES; i++) { beaconArt(i); artFor(BEACON + '_stage' + i + '_winter'); artFor(BEACON + '_stage' + i + '_autumn'); artFor(BEACON + '_stage' + i + '_spring'); }
+for (let i = 1; i <= BEACON_STAGES; i++) { beaconArt(i); if (season().key !== 'summer') artFor(BEACON + '_stage' + i + '_' + season().key); }
 for (const k of ['ground', 'water', 'tree_pine', 'tree_spruce', 'tree_oak', 'tree_willow', 'tree_poplar', 'tree_cherry', 'tree_birch', 'rock', 'rock_moss', 'bush', 'bush_hydrangea', 'stump', 'log_mushroom', 'flowers_wild', 'flowers_meadow', 'sheep', 'sheep_rest', 'sheep_lambs', 'skeps', 'snowman', 'goat', 'cow', ...Object.values(SEASON_LOOK).flatMap(Object.values)]) artFor(k);
 for (const set of Object.values(LOOKS)) for (const k of set) artFor(k);
-for (const k of WINTER_LOOKS) artFor(k + '_winter');
-for (const k of AUTUMN_LOOKS) artFor(k + '_autumn');
+/* Only this season's pictures ahead of time. Fetching every season's meant a
+   first visit downloaded 40 MB, most of it for months nobody could see yet; the
+   others come as the season they belong to arrives, through artFor as they are
+   drawn, with the tinted summer picture standing in for the moment that takes. */
+if (season().key === 'winter') for (const k of WINTER_LOOKS) artFor(k + '_winter');
+if (season().key === 'autumn') for (const k of AUTUMN_LOOKS) artFor(k + '_autumn');
 for (const [, k] of HALL_STAGES) artFor(k);
-for (const s of SEA_PROPS) { artFor(s.key); if (s.glow) artFor(s.key + '_glow'); for (const sk of ['spring', 'autumn', 'winter']) if (s[sk]) artFor(s.key + '_' + sk); }
+for (const s of SEA_PROPS) { artFor(s.key); if (s.glow) artFor(s.key + '_glow'); if (s[season().key]) artFor(s.key + '_' + season().key); }
 
 /* test hooks */
 window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return placed; }, B, BUILDINGS, tileToWorld, worldToTile,

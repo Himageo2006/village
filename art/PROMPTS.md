@@ -7173,3 +7173,6 @@ No art. The shade over land not yet claimed is a blue one in winter, so the pain
 
 # 217 — The winter sea → `art/water_winter.webp`  ✅ DONE
 GPT Image edit of `water.webp`, resized back to its 1400×700 so the mirrored tiling holds. Prompt: "Edit this image of sea water, seen from above. Keep the same painterly game-art style, the same scale of waves and the same overall pattern of light across the surface, filling the whole frame edge to edge. Change the season to deep winter: the water becomes cold steel-blue and slate teal, less saturated, with a dozen small pale ice floes scattered evenly across it, thin slushy ice along them and soft white foam. No land, no boats, no text, no border."
+
+# 218 — A lighter first load
+No art. The game fetched every season's pictures at start: 525 files and 39.6 MB. It now fetches only the current season's ahead of time (394 files, 28.2 MB in autumn), and the others arrive as their season comes, with the tinted summer picture standing in until then.
