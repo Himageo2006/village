@@ -742,6 +742,36 @@ function drawGust(t, top, hh, q) {
     g.fill();
   }
 }
+/* Every couple of minutes on a clear day a hot-air balloon drifts over, high up
+   and in no hurry. The colours change from one to the next. */
+const BALLOON_S = 140, BALLOON_LEN = 0.32, BALLOON_COL = [['#c8473c', '#f0d9a8'], ['#3f74b5', '#f2c14e'], ['#4f9a62', '#f4ead2'], ['#8a57a8', '#f0b65a']];
+function balloonNow() {
+  if (rainNow() > 0 || sky().night > 0.4) return -1;
+  const ph = frac(Date.now() / 1000 / BALLOON_S);
+  return ph < BALLOON_LEN ? ph / BALLOON_LEN : -1;
+}
+function drawBalloon(t, top, hh, q) {
+  const n = Math.floor(t / BALLOON_S), dir = rnd(n, 80) < 0.5 ? 1 : -1, span = W + 360, R = 74;
+  const x = dir > 0 ? -180 + q * span : W + 180 - q * span;
+  const y = top + hh * (0.24 + rnd(n, 81) * 0.2) + Math.sin(t * 0.5) * 12;
+  const [a, b] = BALLOON_COL[n % BALLOON_COL.length];
+  g.save(); g.translate(x, y);
+  g.strokeStyle = '#5a4230'; g.lineWidth = 3;
+  g.beginPath(); g.moveTo(-20, R * 0.9); g.lineTo(-14, R * 1.5); g.moveTo(20, R * 0.9); g.lineTo(14, R * 1.5); g.stroke();
+  g.fillStyle = '#8a5f35'; g.beginPath(); g.roundRect(-16, R * 1.5, 32, 25, 5); g.fill();
+  g.strokeStyle = 'rgba(30,24,20,.6)'; g.lineWidth = 2.5; g.stroke();
+  // the skirt, then the gores as nested ellipses in turn
+  g.fillStyle = a;
+  g.beginPath(); g.moveTo(-R * 0.72, R * 0.55); g.quadraticCurveTo(-R * 0.3, R * 0.85, -22, R * 1.02);
+  g.lineTo(22, R * 1.02); g.quadraticCurveTo(R * 0.3, R * 0.85, R * 0.72, R * 0.55); g.closePath(); g.fill(); g.stroke();
+  for (let i = 0; i < 4; i++) {
+    g.fillStyle = i % 2 ? b : a;
+    g.beginPath(); g.ellipse(0, 0, R * (1 - i * 0.26), R, 0, 0, 7); g.fill();
+    if (!i) g.stroke();
+  }
+  g.fillStyle = 'rgba(255,255,255,.2)'; g.beginPath(); g.ellipse(-R * 0.34, -R * 0.3, R * 0.2, R * 0.42, 0.25, 0, 7); g.fill();
+  g.restore();
+}
 /* Noon, by the hall bell: three strokes, and the doves that live on the roof go
    up at the noise, wheel round for twenty seconds and come back down. */
 const NOON = 0.25, NOON_LEN = 0.04, DOVES = 7;
@@ -1012,6 +1042,8 @@ function drawAmbient() {
   if ((key === 'spring' || key === 'autumn') && rain === 0 && day > 0.5) drawGeese(t, top, hh, day, key);
   const bats = batsNow();
   if (bats > 0.01) drawBats(t, top, hh, bats);
+  const balloon = balloonNow();
+  if (balloon >= 0) drawBalloon(t, top, hh, balloon);
   const gust = gustNow();
   if (gust >= 0) drawGust(t, top, hh, gust);
   const doves = dovesNow();
@@ -9406,7 +9438,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   get ordersDone() { return ordersDone; }, set ordersDone(v) { ordersDone = v; },
   get orderT() { return orderT; }, set orderT(v) { orderT = v; },
   get goalDone() { return goalDone; }, set goalDone(v) { goalDone = v; },
-  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, get smokeDrawn() { return smokeDrawn; }, get ringsDrawn() { return ringsDrawn; }, moonFull, mistNow, rainbowNow, batsNow, whaleNow, gustNow, dovesNow, get umbrellasDrawn() { return umbrellasDrawn; }, festivalNow, auroraNow, stormNow, flashAt, get leapsDrawn() { return leapsDrawn; },
+  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, get smokeDrawn() { return smokeDrawn; }, get ringsDrawn() { return ringsDrawn; }, moonFull, mistNow, rainbowNow, batsNow, balloonNow, whaleNow, gustNow, dovesNow, get umbrellasDrawn() { return umbrellasDrawn; }, festivalNow, auroraNow, stormNow, flashAt, get leapsDrawn() { return leapsDrawn; },
   /* Read through getters. Captured by value these went stale the moment the
      harness moved them, and a sweep would have cleaned up the key the game
      was no longer using. */

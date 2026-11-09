@@ -7137,3 +7137,6 @@ No art. In autumn, on dry days, a gust every three-quarters of a minute carries 
 
 # 205 — A whale off the island
 No art. Every seventy seconds, except in the dead of night, a whale comes up on the open water to one side of the island: the long back breaking the surface, two plumes of spray, and the flukes lifting as it dives, about fourteen seconds in all.
+
+# 206 — A hot-air balloon
+No art. Every two minutes or so, on dry days, a striped hot-air balloon drifts across the view for about three-quarters of a minute, in one of four colourings that change from one crossing to the next.
