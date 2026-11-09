@@ -7149,3 +7149,6 @@ No art. On a little over half the dry days outside winter, two kites fly through
 
 # 209 — Snowmen
 No art. Through winter four snowmen stand on open ground nearest the hall, each with a top hat, a carrot and a scarf of its own colour. They stay on the same tiles from day to day and move on only if something is built where they stand.
+
+# 210 — Carved pumpkins
+No art. Through autumn up to five carved pumpkins sit on open ground near the hall, with nothing tall in front of them. Their faces are dark by day and glow, flickering, after dark.

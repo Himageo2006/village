@@ -5320,15 +5320,60 @@ function drawUmbrella(v, bob, k) {
    by the same sort of hash as the scenery so they stay put from one day to the
    next, and moving on only if something gets built where they stand. */
 const SNOWMEN = 4, SNOWMAN_SCARF = ['#c8473c', '#3f74b5', '#4f9a62', '#e0a93a'];
-function snowmanTiles(occ) {
-  const h = hallOf(), L = landBounds(), out = [], taken = new Set(SCENERY.map(o => o.c + ',' + o.r));
+function seasonTiles(occ, count, salt, inFront = 0) {
+  const h = hallOf(), L = landBounds(), out = [], taken = new Set(SCENERY.map(o => o.c + ',' + o.r)),
+    tall = new Set(SCENERY.filter(o => o.kind.startsWith('tree')).map(o => o.c + ',' + o.r));
   if (!h) return out;
   for (let c = L.lo; c <= L.hi; c++) for (let r = L.lo; r <= L.hi; r++) {
     const key = c + ',' + r;
-    if (occ.has(key) || taken.has(key) || rnd(c * 37 + r * 101, 90) < 0.55) continue;
+    if (occ.has(key) || taken.has(key) || rnd(c * 37 + r * 101, salt) < (inFront ? 0.15 : 0.55)) continue;   // the view-clear test thins them enough already
+    // nothing standing nearer the viewer, for anything whose light is drawn over everything
+    let hidden = false;
+    for (let dc = 0; dc <= inFront && !hidden; dc++) for (let dr = 0; dr <= inFront; dr++) {
+      const f = (c + dc) + ',' + (r + dr);
+      if (occ.has(f) || tall.has(f)) { hidden = true; break; }
+    }
+    if (hidden) continue;
     out.push({ c, r, d: (c - h.c) * (c - h.c) + (r - h.r) * (r - h.r) });
   }
-  return out.sort((a, b) => a.d - b.d || a.c - b.c).slice(0, SNOWMEN);
+  return out.sort((a, b) => a.d - b.d || a.c - b.c).slice(0, count);
+}
+/* And autumn's pumpkins, carved and set out on the open ground the same way. The
+   faces are dark by day; after dark they are lit, over the night's tint with
+   the other lights. */
+const PUMPKINS = 5, PUMPKIN_R = 20;
+let pumpkinTiles = [];
+function pumpkinFace(x, y) {
+  const R = PUMPKIN_R;
+  g.beginPath();
+  for (const d of [-1, 1]) { g.moveTo(x + d * R * 0.42, y - R * 0.5); g.lineTo(x + d * R * 0.62, y - R * 0.12); g.lineTo(x + d * R * 0.2, y - R * 0.12); g.closePath(); }
+  g.moveTo(x - R * 0.62, y + R * 0.14); g.quadraticCurveTo(x, y + R * 0.95, x + R * 0.62, y + R * 0.14); g.quadraticCurveTo(x, y + R * 0.42, x - R * 0.62, y + R * 0.14);
+  g.fill();
+}
+function drawPumpkin(o) {
+  const { x, y: gy } = tileToWorld(o.c, o.r), R = PUMPKIN_R, y = gy - R * 0.72;
+  g.fillStyle = 'rgba(30,20,10,.3)'; g.beginPath(); g.ellipse(x, gy + 2, R * 1.2, R * 0.45, 0, 0, 7); g.fill();
+  g.fillStyle = '#5d7a2e'; g.beginPath(); g.roundRect(x - 3, y - R * 1.1, 7, R * 0.5, 2); g.fill();
+  g.fillStyle = '#df7a1f'; g.strokeStyle = 'rgba(110,50,10,.8)'; g.lineWidth = 2;
+  g.beginPath();
+  for (const [dx, rx] of [[-0.55, 0.62], [0.55, 0.62], [0, 0.72]]) { g.moveTo(x + (dx + rx) * R, y); g.ellipse(x + dx * R, y, rx * R, R * 0.8, 0, 0, 7); }
+  g.fill(); g.stroke();
+  g.fillStyle = '#3b2010'; pumpkinFace(x, y);
+}
+function drawPumpkinLights() {
+  const k = Math.min(1, (sky().night - 0.3) / 0.2);
+  if (k <= 0 || season().key !== 'autumn') return;
+  const t = reduceMotion ? 0 : Date.now() / 1000;
+  g.save();
+  pumpkinTiles.forEach((o, i) => {
+    const { x, y: gy } = tileToWorld(o.c, o.r), y = gy - PUMPKIN_R * 0.72;
+    g.globalAlpha = k * (0.85 + 0.15 * Math.sin(t * 8 + i * 2.2) * Math.sin(t * 5.1 + i));
+    const halo = g.createRadialGradient(x, y, 0, x, y, PUMPKIN_R * 3);
+    halo.addColorStop(0, 'rgba(255,170,70,.45)'); halo.addColorStop(1, 'rgba(255,150,50,0)');
+    g.fillStyle = halo; g.beginPath(); g.arc(x, y, PUMPKIN_R * 3, 0, 7); g.fill();
+    g.fillStyle = '#ffd66b'; pumpkinFace(x, y);
+  });
+  g.restore();
 }
 function drawSnowman(o, i) {
   const { x, y } = tileToWorld(o.c, o.r);
@@ -6322,7 +6367,9 @@ function drawWorld() {
   for (const o of SCENERY) { if (occSet.has(o.c + ',' + o.r)) continue;
     ents.push({ y: tileToWorld(o.c, o.r).y, d: () => drawScenery(o) }); }
   for (const v of villagers) ents.push({ y: v.y, d: () => drawVillager(v) });
-  if (season().key === 'winter') snowmanTiles(occSet).forEach((o, i) => ents.push({ y: tileToWorld(o.c, o.r).y, d: () => drawSnowman(o, i) }));
+  if (season().key === 'winter') seasonTiles(occSet, SNOWMEN, 90).forEach((o, i) => ents.push({ y: tileToWorld(o.c, o.r).y, d: () => drawSnowman(o, i) }));
+  pumpkinTiles = season().key === 'autumn' ? seasonTiles(occSet, PUMPKINS, 91, 3) : [];
+  for (const o of pumpkinTiles) ents.push({ y: tileToWorld(o.c, o.r).y, d: () => drawPumpkin(o) });
   ents.sort((a, b2) => a.y - b2.y);
   badgeQueue = [];
   for (const e of ents) e.d();
@@ -8937,7 +8984,7 @@ function draw() {
      pinned down. They now go over the lamps too, on an outline wide enough to
      back each letter right through, and measure 13. */
   drawAmbient();                                // the season in the air, in front of the world
-  g.save(); camApply(); drawLamps(); drawBoatLights(); drawPops(); flushBadges(); g.restore();
+  g.save(); camApply(); drawLamps(); drawBoatLights(); drawPumpkinLights(); drawPops(); flushBadges(); g.restore();
   drawHUD();
   g.restore();
 }
