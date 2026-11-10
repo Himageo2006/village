@@ -7089,6 +7089,16 @@
           if (loose.length) fails.push(what + ' prints "' + loose[0].t + '" with the emoji instead of the painted load');
           if (!band.length) fails.push(what + ' drew no words to look at');
           if (what === 'the goal banner' && rib && !pics.some(o => o.im === rib)) fails.push('a met goal was not shown on the ribbon');
+          /* and the elder cheers it, with the sparkles bursting along the band
+             in its first second -- asked half a second in, when several are lit */
+          if (what === 'the goal banner') {
+            for (const k of ['icon_elder_cheer', 'spark_0', 'spark_1', 'spark_2', 'spark_3', 'spark_4', 'spark_5']) V.artFor(k);
+            for (let i = 0; i < 50 && !V.artFor('icon_elder_cheer'); i++) await new Promise(r => setTimeout(r, 100));
+            V.goalDone.age = 0.5;
+            const before = V.sparkleCount, { ims: lit } = read();
+            if (!lit.some(o => o.im === V.artFor('icon_elder_cheer'))) fails.push('the elder does not cheer a met goal');
+            if (V.sparkleCount === before) fails.push('a met goal raised no sparkles');
+          }
         }
         V.goalDone = null;
       }

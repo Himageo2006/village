@@ -7767,6 +7767,29 @@ function buyProgress(kind) {
   return Object.entries(cost).filter(([k, v]) => res[k] < v)
     .map(([k, v]) => RES_ICON[k] + Math.floor(res[k]) + '/' + v).join(' ');
 }
+/* Gold sparkles (Leonardo, painted on black so they add light rather than
+   cover anything) that burst along the ribbon in its first second and a half,
+   each at its own moment and place along the band. Fixed rather than random,
+   so the same goal reads the same way. Under reduced motion they are the same
+   sparkles, fading in and out where they are without growing or rising. */
+const SPARKLES = [[-0.92, -0.6, 0.0], [0.88, -0.75, 0.12], [-0.45, 0.85, 0.22], [0.3, -0.95, 0.3],
+  [0.62, 0.8, 0.42], [-0.7, 0.1, 0.5], [0.05, 0.95, 0.62], [0.95, 0.2, 0.7], [-0.2, -0.9, 0.8], [0.45, 0.05, 0.95]];
+let sparkleCount = 0;
+function sparkleBurst(age, cx, cy, rx, ry, u) {
+  if (age > 2) return;
+  g.save(); g.globalCompositeOperation = 'lighter';
+  SPARKLES.forEach(([ax, ay, at], i) => {
+    const im = artFor('spark_' + (i % 6));
+    const k = (age - at) / 0.8;
+    if (!im || k <= 0 || k >= 1) return;
+    // the paintings are mostly dark halo round a small core, so they are drawn large
+    const sz = (150 + (i * 29) % 90) * u * (reduceMotion ? 0.9 : 0.55 + 0.65 * Math.sin(k * Math.PI));
+    g.globalAlpha = Math.sin(k * Math.PI);
+    g.drawImage(im, cx + ax * rx - sz / 2, cy + ay * ry - sz / 2 - (reduceMotion ? 0 : k * 10 * u), sz, sz);
+    sparkleCount++;
+  });
+  g.restore();
+}
 const RIBBON_BAND = 0.55, RIBBON_MID = 0.53, RIBBON_CUT = 0.2;   // measured off art/ribbon.webp
 function drawGoal() {
   if (away) return;
@@ -7811,6 +7834,12 @@ function drawGoal() {
       g.drawImage(rib, sw, 0, rib.width - 2 * sw, rib.height, x0 + tail, top, mid, bh);
       g.drawImage(rib, rib.width - sw, 0, sw, rib.height, x0 + tail + mid, top, tail, bh);
       chromeDrawn += 3;
+      const cheer = artFor('icon_elder_cheer');
+      if (cheer) {                     // over the left tail, a little taller than the band
+        const sz = Math.min(band * 1.9, tail * 1.25);
+        g.drawImage(cheer, x0 + tail * 0.45 - sz / 2, cy - sz / 2 - 4 * u, sz, sz); chromeDrawn++;
+      }
+      sparkleBurst(goalDone.age, W / 2, cy, mid / 2 + tail * 0.6, bh * 0.55, u);
       g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#fff';
       g.shadowColor = 'rgba(70,0,0,.75)'; g.shadowOffsetY = 2 * u;
       pillLines(fit, W / 2, cy);
@@ -8049,8 +8078,11 @@ function fitLinesNow(text, maxW, px, minPx, maxLines, weight) {
    when she arrives; she stands a little taller than the pill. */
 const ELDER = 104;                     // what the pill adds for her, against the 56 of plain padding
 const elderCx = u => 24 * u;           // the text's centre moves right by this, off her slot
-function drawElder(x0, y, hh, u) {
-  const im = artFor('icon_elder');
+/* And how she looks saying it: a tip with a finger raised, a goal met with a
+   wave of a golden leaf -- the same woman, painted twice more by ChatGPT from
+   the first. The plain portrait stands in for either until it has loaded. */
+function drawElder(x0, y, hh, u, mood) {
+  const im = (mood && artFor('icon_elder_' + mood)) || artFor('icon_elder');
   if (!im) return;
   const sz = Math.min(80 * u, hh + 26 * u);
   g.drawImage(im, x0 + 44 * u - sz / 2, y - sz / 2 - 2 * u, sz, sz);
@@ -8086,7 +8118,7 @@ function drawHint() {
   g.fillStyle = paper || 'rgba(20,32,18,.92)';
   g.strokeStyle = paper ? 'rgba(120,74,30,.95)' : 'rgba(159,232,107,.55)'; g.lineWidth = paper ? 3 : 2.5;
   g.beginPath(); g.roundRect(W / 2 - w / 2, y - hh / 2, w, hh, Math.min(hh, 58 * u) / 2); g.fill(); g.stroke();
-  drawElder(W / 2 - w / 2, y, hh, u);
+  drawElder(W / 2 - w / 2, y, hh, u, 'tip');
   g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = paper ? '#3b2410' : '#dff0c8';
   pillLines(fit, W / 2 + elderCx(u), y);
   g.restore();
@@ -8626,7 +8658,8 @@ function drawShow() {
   const a = Math.min(1, t / 0.35, (SHOW_TIME - t) / 0.6);
   // below the goal strip, and below the save warning when one is up
   const warned = saveFailed || loadedFromBackup || otherBuild;
-  const top = chipsBot() + (warned ? 150 : 84) * u;
+  // and the frame's depth lower when it has one, or its top laps the hint above
+  const top = chipsBot() + (warned ? 150 : 84) * u + (artFor('frame_gilt') ? 16 * u : 0);
   const w = Math.min(W - 48 * u, 560 * u), h = w * 9 / 16, x = W / 2 - w / 2;
   const y = top + (1 - a) * 14 * u;
   g.save();
@@ -8634,7 +8667,10 @@ function drawShow() {
   g.beginPath(); g.roundRect(x, y, w, h, 16 * u); g.save(); g.clip();
   g.drawImage(pic, x, y, w, h);
   g.restore();
-  g.strokeStyle = 'rgba(232,201,138,.75)'; g.lineWidth = 3; g.stroke();
+  // hung in the same gilt frame as the welcome-back painting
+  if (!drawFrame(x + 5 * u, y + 5 * u, w - 10 * u, h - 10 * u, 24 * u)) {
+    g.strokeStyle = 'rgba(232,201,138,.75)'; g.lineWidth = 3; g.stroke();
+  }
   const txt = show.caption;
   g.font = `bold ${Math.round(22 * u)}px Segoe UI, sans-serif`;
   const pw = g.measureText(txt).width + 44 * u, ph = 40 * u, py = y + h - ph / 2;
@@ -10404,7 +10440,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   SEASONS, SEASON_OF, SEASON_LEAF, seasonIdx, season, seasonSkin, drawGround, drawScenery, SCENERY,
   GW, GH, tileToWorld, deliveredOf,
   get seasonForced() { return seasonForced; }, set seasonForced(v) { seasonForced = v; },
-  get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, winterArt, ART, villagerArt, glowKey, get glowsDrawn() { return glowsDrawn; }, get iconsDrawn() { return iconsDrawn; }, get carriesDrawn() { return carriesDrawn; }, get chromeDrawn() { return chromeDrawn; }, chromeCache,
+  get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, winterArt, ART, villagerArt, glowKey, get glowsDrawn() { return glowsDrawn; }, get iconsDrawn() { return iconsDrawn; }, get carriesDrawn() { return carriesDrawn; }, get chromeDrawn() { return chromeDrawn; }, get sparkleCount() { return sparkleCount; }, chromeCache,
   get plainIcons() { return plainIcons; }, set plainIcons(v) { plainIcons = !!v; }, ICON_OF,
   hudTop, hudBot, screenTop, screenBot, readSafeArea, get SAFE() { return SAFE; }, set SAFE(v) { SAFE = v; },
   get safeKnown() { return safeKnown; }, set safeKnown(v) { safeKnown = !!v; },
