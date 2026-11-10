@@ -44,7 +44,7 @@ for(const sf of safes){ const old=v.SAFE; if(sf)v.SAFE=Object.assign({},old,sf);
  v.barMode='build'; fill(1e6);
  const g0=v.goalIdx; for(let i=0;i<v.GOALS.length;i++){v.goalIdx=i;shot(tag+':goal'+i);} v.goalIdx=g0;
  for(const a of [{secs:90,got:{wood:12},capped:false,spilled:0,shared:null,fullAfter:null,beacon:null},{secs:360000,got:{wood:1234567,food:987654,stone:55555},capped:true,spilled:99999,shared:12345,fullAfter:7200,beacon:null}]){v.away=a;shot(tag+':away');} v.away=null;
- v.album=true;shot(tag+':album');v.album=false;for(const c of [{code:null,note:''},{code:'x',note:''},{code:'x',note:'Copied. Open the game on the other device and paste it there.'},{code:'x',note:'That is not a village code this game can read.'}]){v.carry=c;shot(tag+':carry');}v.carry=null;v.panel=h.id;v.caught={balloon:9999,whale:9999,pod:9999,golden:9999};shot(tag+':hall-chips');v.caught={balloon:12,whale:8,pod:21,golden:3};v.panel=null;v.claimAsk=true;shot(tag+':claim');v.claimAsk=false;
+ v.album=true;shot(tag+':album');v.album=false;for(const c of [{code:null,note:''},{code:'x',note:''},{code:'x',note:'Copied. Open the game on the other device and paste it there.'},{code:'x',note:'That is not a village code this game can read.'},{code:'x',note:'',before:true},{code:null,note:'There is no earlier village on this device.',before:true}]){v.carry=c;shot(tag+':carry');}v.carry=null;v.panel=h.id;v.caught={balloon:9999,whale:9999,pod:9999,golden:9999};shot(tag+':hall-chips');v.caught={balloon:12,whale:8,pod:21,golden:3};v.panel=null;v.claimAsk=true;shot(tag+':claim');v.claimAsk=false;
  v.finished={villagers:72,buildings:48,trades:1234,charm:9999};shot(tag+':finished');v.finished=null;
  v.saveFailed=true;shot(tag+':savefail');v.saveFailed=false;
  v.SAFE=old;

@@ -4365,8 +4365,16 @@ function takeVillage(json, reload = true) {
   return true;
 }
 let carry = null;                      // the move card: { code, note } while it is open
+/* The village a paste replaced, brought back the same way: it trades places
+   with the one here, so this can be undone as well. */
+function villageBefore() { try { const t = localStorage.getItem(KEY_BEFORE); return t && usableSave(readSave(t)) ? t : null; } catch (e) { return null; } }
+function undoCarry() {
+  const t = villageBefore();
+  if (!t) { if (carry) carry.note = 'There is no earlier village on this device.'; return; }
+  if (window.confirm('Bring back the village from before the last paste (' + readSave(t).placed.length + ' buildings)? The village here is kept aside instead.')) takeVillage(t);
+}
 function openCarry() {
-  carry = { code: null, note: '' };
+  carry = { code: null, note: '', before: !!villageBefore() };
   const mine = carry;
   villageCode().then(c => { if (carry === mine) carry.code = c; }, () => { if (carry === mine) carry.note = 'This browser cannot make a code'; });
 }
@@ -7920,10 +7928,12 @@ function carryChip(R) {
   return { x: a.x - a.w / 2 - 10 * u - w / 2, y: a.y, w, h: a.h, text };
 }
 function carryRects() {
-  const u = US(), w = Math.min(W - 80 * u, 680 * u), h = 384 * u, y = (screenTop() + screenBot()) / 2;
+  const back = !!(carry && carry.before);
+  const u = US(), w = Math.min(W - 80 * u, 680 * u), h = (back ? 466 : 384) * u, y = (screenTop() + screenBot()) / 2, top = y - h / 2;
   return { u, x: W / 2, y, w, h, close: { x: W / 2 + w / 2 - 34 * u, y: y - h / 2 + 34 * u, r: 27 * u },
-    copy:  { x: W / 2, y: y + 6 * u, w: w * 0.78, h: 66 * u },
-    paste: { x: W / 2, y: y + 88 * u, w: w * 0.78, h: 66 * u } };
+    copy:  { x: W / 2, y: top + 198 * u, w: w * 0.78, h: 66 * u },
+    paste: { x: W / 2, y: top + 280 * u, w: w * 0.78, h: 66 * u },
+    undo:  back ? { x: W / 2, y: top + 362 * u, w: w * 0.78, h: 66 * u } : null };
 }
 function drawCarry() {
   if (!carry) return;
@@ -7939,7 +7949,7 @@ function drawCarry() {
   const fit = fitLines(say, R.w - 70 * u, 21 * u, 15 * u, 2);
   g.fillStyle = carry.note ? '#ffe07a' : '#a9bd9c';
   fit.lines.forEach((l, i) => g.fillText(l, R.x, R.y - R.h / 2 + 100 * u + (i - (fit.lines.length - 1) / 2) * fit.px * 1.2));
-  for (const [b, label, on] of [[R.copy, carry.code ? 'Copy this village' : 'Making the code…', !!carry.code], [R.paste, 'Paste a code', true]]) {
+  for (const [b, label, on] of [[R.copy, carry.code ? 'Copy this village' : 'Making the code…', !!carry.code], [R.paste, 'Paste a code', true]].concat(R.undo ? [[R.undo, 'Bring back the village before', true]] : [])) {
     g.fillStyle = on ? 'rgba(44,74,104,.98)' : 'rgba(40,44,36,.9)';
     g.strokeStyle = on ? '#9fd0ff' : 'rgba(255,255,255,.16)'; g.lineWidth = 3;
     g.beginPath(); g.roundRect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h, 16 * u); g.fill(); g.stroke();
@@ -9822,6 +9832,7 @@ function tap(sx, sy) {
     const hit = b => Math.abs(sx - b.x) < b.w / 2 && Math.abs(sy - b.y) < padHit(b.h / 2, 12 * R.u);
     if (hit(R.copy)) { if (carry.code) { SFX.tap(); copyCarry(); } else SFX.deny(); return; }
     if (hit(R.paste)) { SFX.tap(); pasteCarry(); return; }
+    if (R.undo && hit(R.undo)) { SFX.tap(); undoCarry(); return; }
     if (x || Math.abs(sx - R.x) > R.w / 2 || Math.abs(sy - R.y) > R.h / 2) { carry = null; SFX.tap(); }
     return;
   }
@@ -10065,7 +10076,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   get ordersDone() { return ordersDone; }, set ordersDone(v) { ordersDone = v; },
   get orderT() { return orderT; }, set orderT(v) { orderT = v; },
   get goalDone() { return goalDone; }, set goalDone(v) { goalDone = v; },
-  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, get smokeDrawn() { return smokeDrawn; }, get ringsDrawn() { return ringsDrawn; }, moonFull, mistNow, rainbowNow, batsNow, visitors, catchVisitor, get caught() { return caught; }, set goldForced(b) { goldForced = b; }, caughtLine, set caught(c) { caught = c; }, get album() { return album; }, set album(b) { album = b; }, villageCode, readCode, takeVillage, carryRects, carryChip, openCarry, get carry() { return carry; }, set carry(v) { carry = v; }, get arriving() { return arriving; }, set arriving(v) { arriving = v; }, KEY_BEFORE, unmadeBy, SPOT_EVERY, albumRects, albumChip, peakOf, drawVane, get spotNote() { return spotNote; }, ALBUM_STARS, starsOf, albumStars, spotBonus, podNow, kitesNow, balloonNow, whaleNow, gustNow, dovesNow, get umbrellasDrawn() { return umbrellasDrawn; }, festivalNow, auroraNow, stormNow, flashAt, get leapsDrawn() { return leapsDrawn; },
+  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, get smokeDrawn() { return smokeDrawn; }, get ringsDrawn() { return ringsDrawn; }, moonFull, mistNow, rainbowNow, batsNow, visitors, catchVisitor, get caught() { return caught; }, set goldForced(b) { goldForced = b; }, caughtLine, set caught(c) { caught = c; }, get album() { return album; }, set album(b) { album = b; }, villageCode, readCode, takeVillage, villageBefore, carryRects, carryChip, openCarry, get carry() { return carry; }, set carry(v) { carry = v; }, get arriving() { return arriving; }, set arriving(v) { arriving = v; }, KEY_BEFORE, unmadeBy, SPOT_EVERY, albumRects, albumChip, peakOf, drawVane, get spotNote() { return spotNote; }, ALBUM_STARS, starsOf, albumStars, spotBonus, podNow, kitesNow, balloonNow, whaleNow, gustNow, dovesNow, get umbrellasDrawn() { return umbrellasDrawn; }, festivalNow, auroraNow, stormNow, flashAt, get leapsDrawn() { return leapsDrawn; },
   /* Read through getters. Captured by value these went stale the moment the
      harness moved them, and a sweep would have cleaned up the key the game
      was no longer using. */

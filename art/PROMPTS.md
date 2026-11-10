@@ -7203,3 +7203,6 @@ A goal-following playthrough sat on "Build a mill" with no stone coming in. The 
 
 ## Round 227: carry a village to another device (no new art)
 A Transfer chip on the Town Hall opens a card that copies the save as a short code, or takes one pasted from another device. The village it replaces is kept aside under its own key.
+
+## Round 228: undo a pasted village (no new art)
+When a paste has replaced a village, the Transfer card offers "Bring back the village before", which trades the two places. A profile of a full village under a sixfold CPU slowdown found no frame-rate problem, so nothing was changed for speed.
