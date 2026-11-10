@@ -6231,7 +6231,12 @@ function drawStatus(p) {
   const t = topOf(p), s = badgeScale();
   const kind = (!hall && up) ? 'up' : far ? 'far' : hall ? 'hall' : resting ? 'rest' : 'idle';
   g.save(); g.font = 'bold 20px Segoe UI, sans-serif';
-  const hw = kind === 'far' ? 30 : kind === 'hall' ? (g.measureText('Lv ' + hallLevel()).width + 22) / 2 + (up ? 30 : 0) : 17;
+  /* What it takes up, so the queue can keep two from landing on each other:
+     the boots add to the walk's pill and the plaque is wider than the pill. */
+  const painted = k => !plainIcons && !!artFor('badge_' + k);
+  const lw = g.measureText('Lv ' + hallLevel()).width + 22;
+  const hw = kind === 'far' ? 30 + (painted('far') ? 25 : 0)
+    : kind === 'hall' ? (painted('plaque') ? Math.max(lw + 24, 104) : lw) / 2 + (up ? 30 : 0) : 17;
   g.restore();
   badgeQueue.push({ prio: BADGE_PRIO[kind], x: t.x, y: t.y - 14 * s, hw: hw * s, hh: 16 * s, paint: () => {
   g.save();
@@ -6241,10 +6246,12 @@ function drawStatus(p) {
     /* You can afford to improve this. Shown only when it is actually
        affordable, so the village points at what to do next instead of wearing
        a permanent row of level numbers. */
-    g.fillStyle = 'rgba(24,52,20,.9)'; g.strokeStyle = 'rgba(150,232,110,.95)'; g.lineWidth = 2.5;
-    g.beginPath(); g.roundRect(-17, -16, 34, 32, 16); g.fill(); g.stroke();
-    g.font = 'bold 20px Segoe UI, sans-serif'; g.fillStyle = '#b6f58a';
-    g.fillText('▲', 0, 1);
+    if (!badgeArt('up', 0, 0, 40)) {
+      g.fillStyle = 'rgba(24,52,20,.9)'; g.strokeStyle = 'rgba(150,232,110,.95)'; g.lineWidth = 2.5;
+      g.beginPath(); g.roundRect(-17, -16, 34, 32, 16); g.fill(); g.stroke();
+      g.font = 'bold 20px Segoe UI, sans-serif'; g.fillStyle = '#b6f58a';
+      g.fillText('▲', 0, 1);
+    }
   } else if (far) {
     /* This building is losing more than half of itself to the walk. Amber
        rather than red: it is working, just badly, and the fix is a storehouse
@@ -6255,12 +6262,23 @@ function drawStatus(p) {
     g.beginPath(); g.roundRect(-30, -16, 60, 32, 16); g.fill(); g.stroke();
     g.font = 'bold 19px Segoe UI, sans-serif'; g.fillStyle = '#ffd98a';
     g.fillText('−' + Math.round((1 - reach) * 100) + '%', 0, 1);
+    badgeArt('far', -38, 0, 34);           // the boots, hung off the pill's left end
   } else if (hall) {
     const label = 'Lv ' + hallLevel();
     g.font = 'bold 20px Segoe UI, sans-serif';
     const w = g.measureText(label).width + 22;
-    g.fillStyle = 'rgba(20,32,16,.86)'; g.strokeStyle = 'rgba(226,200,120,.9)'; g.lineWidth = 2;
-    g.beginPath(); g.roundRect(-w / 2, -15, w, 30, 15); g.fill(); g.stroke();
+    const plaque = !plainIcons && artFor('badge_plaque');
+    if (plaque) {
+      /* The plaque is three times as wide as it is tall; stretched only
+         sideways and only a little, so the rounded ends keep their shape. */
+      const ph = 40, pw = Math.max(w + 24, ph * 2.6);
+      g.drawImage(plaque, -pw / 2, -ph / 2, pw, ph); iconsDrawn++;
+      g.strokeStyle = 'rgba(30,14,4,.85)'; g.lineWidth = 3.5; g.lineJoin = 'round';
+      g.strokeText(label, 0, 1);
+    } else {
+      g.fillStyle = 'rgba(20,32,16,.86)'; g.strokeStyle = 'rgba(226,200,120,.9)'; g.lineWidth = 2;
+      g.beginPath(); g.roundRect(-w / 2, -15, w, 30, 15); g.fill(); g.stroke();
+    }
     g.fillStyle = '#f0d894'; g.fillText(label, 0, 1);
     if (up) {
       /* A hall that can grow gets a tick beside its level, and it is the SAME
@@ -6273,10 +6291,13 @@ function drawStatus(p) {
          hall can grow", which gates the land, the people and every build limit,
          was the smallest thing on the screen. The circle is matched to the
          height of the pill it hangs off, so what it reaches to is unchanged. */
-      g.fillStyle = 'rgba(24,52,20,.92)'; g.strokeStyle = 'rgba(150,232,110,.95)'; g.lineWidth = 2;
-      g.beginPath(); g.arc(w / 2 + 15, 0, 15, 0, 7); g.fill(); g.stroke();
-      g.font = 'bold 20px Segoe UI, sans-serif'; g.fillStyle = '#b6f58a';
-      g.fillText('▲', w / 2 + 15, 1);
+      const tx = plaque ? Math.max(w + 24, 104) / 2 + 12 : w / 2 + 15;
+      if (!badgeArt('up', tx, 0, 36)) {
+        g.fillStyle = 'rgba(24,52,20,.92)'; g.strokeStyle = 'rgba(150,232,110,.95)'; g.lineWidth = 2;
+        g.beginPath(); g.arc(tx, 0, 15, 0, 7); g.fill(); g.stroke();
+        g.font = 'bold 20px Segoe UI, sans-serif'; g.fillStyle = '#b6f58a';
+        g.fillText('▲', tx, 1);
+      }
     }
   } else if (resting) {
     /* Nowhere to put what it makes, so nobody is working it. A calm slate pill
@@ -6284,20 +6305,24 @@ function drawStatus(p) {
        thing and the answer is storage, not another house. Two drawn bars rather
        than a glyph -- the pause character is not in every font, and at this size
        a missing one is a box. */
-    g.fillStyle = 'rgba(24,32,40,.9)'; g.strokeStyle = 'rgba(150,180,205,.85)'; g.lineWidth = 2.5;
-    g.beginPath(); g.roundRect(-17, -16, 34, 32, 16); g.fill(); g.stroke();
-    g.fillStyle = '#b6ccdd';
-    g.beginPath(); g.roundRect(-7, -8, 5, 16, 2); g.fill();
-    g.beginPath(); g.roundRect(2, -8, 5, 16, 2); g.fill();
+    if (!badgeArt('rest', 0, 0, 40)) {
+      g.fillStyle = 'rgba(24,32,40,.9)'; g.strokeStyle = 'rgba(150,180,205,.85)'; g.lineWidth = 2.5;
+      g.beginPath(); g.roundRect(-17, -16, 34, 32, 16); g.fill(); g.stroke();
+      g.fillStyle = '#b6ccdd';
+      g.beginPath(); g.roundRect(-7, -8, 5, 16, 2); g.fill();
+      g.beginPath(); g.roundRect(2, -8, 5, 16, 2); g.fill();
+    }
   } else {
     /* A producer with nobody at it is the single most confusing state in the
        game, so it says so rather than quietly making nothing. Drawn as a plain
        glyph, not an emoji: at this size an emoji is a smudge, and it would be
        drawn in whatever colour happened to be current. */
-    g.fillStyle = 'rgba(52,20,14,.9)'; g.strokeStyle = 'rgba(240,170,110,.95)'; g.lineWidth = 2.5;
-    g.beginPath(); g.roundRect(-17, -16, 34, 32, 16); g.fill(); g.stroke();
-    g.font = 'bold 23px Segoe UI, sans-serif'; g.fillStyle = '#ffca7a';
-    g.fillText('!', 0, 1);
+    if (!badgeArt('idle', 0, 0, 40)) {
+      g.fillStyle = 'rgba(52,20,14,.9)'; g.strokeStyle = 'rgba(240,170,110,.95)'; g.lineWidth = 2.5;
+      g.beginPath(); g.roundRect(-17, -16, 34, 32, 16); g.fill(); g.stroke();
+      g.font = 'bold 23px Segoe UI, sans-serif'; g.fillStyle = '#ffca7a';
+      g.fillText('!', 0, 1);
+    }
   }
   g.restore();
   } });
@@ -6311,6 +6336,17 @@ function drawStatus(p) {
    roof in front. The warnings are what the player must not miss, so they go
    down first and an upgrade tick gives way to them; zooming in spreads the
    village out and brings the others back. */
+/* The painted badges (ChatGPT): an enamel disc each for the tick, the "!" and
+   the pause, a pair of boots ahead of the walk's figure, and a walnut plaque
+   for the hall's level. Drawn a little larger than the pill they replace,
+   since a disc has no corners to fill; until one loads, or while the checkers
+   read the glyphs, the drawn pill stands in. */
+function badgeArt(key, x, y, d) {
+  const im = !plainIcons && artFor('badge_' + key);
+  if (!im) return false;
+  g.drawImage(im, x - d / 2, y - d / 2, d, d); iconsDrawn++;
+  return true;
+}
 let badgeQueue = [], lastBadges = [];
 const BADGE_PRIO = { hall: 0, idle: 1, far: 2, rest: 3, up: 4 };
 function flushBadges() {

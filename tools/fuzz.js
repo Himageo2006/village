@@ -6984,6 +6984,41 @@
         if (cart && stalls.length > cards.length && !pics.some(o => o.im === cart)) fails.push('the stall waiting for a trader shows no cart');
         V.orders.length = 0;
       }
+      /* The badges over the buildings are painted too: the hall's plaque, the
+         tick, the "!" and the pause each have a picture, and a badge the queue
+         kept must show it rather than the drawn pill and its glyph. Two scenes
+         between them raise all four -- full stores send the posts to rest and
+         let a house be improved, empty ones leave the posts wanting people.
+         The walk's boots need a stranded workplace and are left to the eye. */
+      {
+        const NAME = { 0: 'plaque', 1: 'idle', 2: 'far', 3: 'rest', 4: 'up' };
+        for (const k of Object.values(NAME)) V.artFor('badge_' + k);
+        for (let i = 0; i < 50 && Object.values(NAME).some(k => !V.artFor('badge_' + k)); i++) await new Promise(r => setTimeout(r, 100));
+        const none = Object.values(NAME).filter(k => !V.artFor('badge_' + k));
+        if (none.length) fails.push('no painted badge loaded for ' + none.join(', '));
+        V.barMode = 'build';
+        for (const k of V.RES) V.res[k] = 9e5;
+        let house = null;
+        for (let c = -6; c <= 6 && !house; c++) for (let r = -6; r <= 6 && !house; r++)
+          if (V.canPlace('house', c, r, V.occupied()) && V.place('house', c, r)) house = V.placed[V.placed.length - 1];
+        if (!house) fails.push('the badge check could not place a house');
+        else { house.t = 1; house.build = 0; }
+        const seen = new Set();
+        for (const full of [true, false]) {
+          for (const k of V.RES) V.res[k] = full ? V.caps[k] : 0;
+          V.camFit(true); V.step(0.001);
+          V.villagers.length = 0;           // after the step, which would house people and staff the posts
+          const { texts, ims: pics } = read();
+          for (const bg of V.lastBadges) {
+            const name = NAME[bg.prio], pic = V.artFor('badge_' + name);
+            seen.add(name);
+            if (pic && !pics.some(o => o.im === pic)) fails.push((/^[aeiou]/.test(name) ? 'an ' : 'a ') + name + ' badge was drawn without its painted picture');
+          }
+          const glyph = texts.find(o => o.t === '▲' || o.t === '!');
+          if (glyph) fails.push('a badge still prints "' + glyph.t + '" with its painting loaded');
+        }
+        for (const k of ['plaque', 'idle', 'rest', 'up']) if (!seen.has(k)) fails.push('the badge check never raised a ' + k + ' badge to look at');
+      }
       // and with the switch back on the emoji are what the readers get
       V.plainIcons = true; V.step(0.001); V.draw();
       if (V.iconsDrawn) fails.push('with plain icons asked for, ' + V.iconsDrawn + ' painted icons were still drawn');
