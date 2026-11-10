@@ -5821,6 +5821,129 @@ function drawSnowman(o, i) {
   g.fillStyle = '#e8842c'; g.beginPath(); g.moveTo(0, -69); g.lineTo(13, -66); g.lineTo(0, -64); g.closePath(); g.fill();
   g.restore();
 }
+/* Children, and cats on the doorsteps.
+
+   Nobody in the village was ever young, and nothing lived in it but people at
+   work. A few houses now have a child (painted by ChatGPT, with her own walk
+   cycle) who runs down to the well -- or the hall, before there is one -- to
+   play ball with the others, stays a while and runs home again; and a few
+   have a ginger cat (painted by Leonardo) asleep on the step. Both are out
+   by day and indoors at night or in the rain.
+
+   Neither is a villager. They hold no post, carry nothing, have no card and
+   are not saved: where a child is is worked out from the clock, the way the
+   kites and the geese are, so a reload finds her exactly where she was. Under
+   reduce motion she stands at the well with her ball and does not run. */
+const KID = 'villager_girl', KIDS_MAX = 4, KID_H = VILLAGER_H * 0.7, KID_SPD = 40;
+const KID_PLAY = 36, KID_HOME = 10;                // seconds at the well, and at the door
+const CAT = 'cat_sleep', CATS_MAX = 3, CAT_W = 36;
+let lifeDrawn = 0;                                  // children and cats, tallied for the cost sweep
+function lifeOut() { return sky().night < 0.35 && rainNow() < 0.3; }
+const homes = () => placed.filter(p => B(p.key).pop && p.key !== 'hall' && established(p)).sort((a, b) => a.id - b.id);
+// the step in front of a building: the bottom corner of its footprint
+function doorOf(p) {
+  const b = B(p.key), o = tileToWorld(p.c + b.w - 1, p.r + b.h - 1);
+  return { x: o.x, y: o.y + TH / 2 };
+}
+/* Ground a child or a cat can be seen on: not under anything standing. A
+   path is laid on the ground and is as good as grass for this; a tree or a
+   rock on open land is not, and the first child to play by the well did it
+   behind an oak. */
+function standing() {
+  const set = new Set();
+  for (const o of SCENERY) if ((SCENERY_H[o.kind] || 0) >= 40) set.add(o.c + ',' + o.r);
+  for (const p of placed) { const b = B(p.key); if (b.flat) continue;
+    for (let dc = 0; dc < b.w; dc++) for (let dr = 0; dr < b.h; dr++) set.add((p.c + dc) + ',' + (p.r + dr)); }
+  return set;
+}
+const openAt = (c, r, solid) => inLand(c, r) && !solid.has(c + ',' + r);
+/* And nothing tall in the two rows in front of it, which is where whatever
+   would hide it from the camera stands: a cat on a step with the hall's
+   tower two tiles down the slope was a cat nobody would ever see. */
+const IN_FRONT = [[0, 1], [1, 0], [1, 1], [0, 2], [1, 2], [2, 1], [2, 2]];
+const seenAt = (c, r, solid) => IN_FRONT.every(([dc, dr]) => !solid.has((c + dc) + ',' + (r + dr)));
+/* The open tile nearest the well that is nearest the hall -- or the hall
+   itself, before there is a well. In front of the well was the first answer,
+   and in a crowded village that is the roof of the house in front of it. */
+function playSpot(solid) {
+  const hall = placed.find(p => p.key === 'hall');
+  const wells = placed.filter(p => p.key === 'well' && established(p));
+  const at = hall ? doorOf(hall) : null;
+  const dist = q => at ? Math.hypot(doorOf(q).x - at.x, doorOf(q).y - at.y) : q.id;
+  const site = wells.sort((a, b) => dist(a) - dist(b))[0] || hall;
+  if (!site) return null;
+  const b = B(site.key), c0 = site.c + b.w - 1, r0 = site.r + b.h - 1;
+  let best = null;
+  for (let dc = -3; dc <= 4; dc++) for (let dr = -3; dr <= 4; dr++) {
+    const c = c0 + dc, r = r0 + dr;
+    if (!openAt(c, r, solid)) continue;
+    // a spot the camera can see is worth walking two tiles further for
+    const d = Math.hypot(dc - 0.5, dr - 0.5) + (seenAt(c, r, solid) ? 0 : 2.5);
+    if (!best || d < best.d) best = { c, r, d };
+  }
+  return best && tileToWorld(best.c, best.r);
+}
+/* Where each child is at this instant. A round is: run to the well, play,
+   run home, a rest at the door -- and each child is a different way through
+   it, so they do not all leave at once. */
+function kidsNow() {
+  if (!lifeOut()) return [];
+  const spot = playSpot(standing());
+  if (!spot) return [];
+  // every other house, in the order they were built, so a new one never moves a child
+  const hs = homes().filter((h, i) => i % 2 === 0).slice(0, KIDS_MAX);
+  const n = hs.length, t = Date.now() / 1000;
+  return hs.map((h, i) => {
+    /* In a row across the spot, a step apart and facing its middle, the way
+       children stand to throw a ball between them. Round a circle, two of
+       three stood one in front of the other. */
+    const side = i - (n - 1) / 2;
+    const to = { x: spot.x + side * 24, y: spot.y + (i % 2 ? 6 : -4) };
+    const from = doorOf(h), d = Math.hypot(to.x - from.x, to.y - from.y), run = d / KID_SPD;
+    const round = 2 * run + KID_PLAY + KID_HOME;
+    let q = reduceMotion ? run + 1 : frac(t / round + rnd(h.id, 22)) * round;
+    let x, y, face, ph = 0, moving = false, play = false;
+    const along = k => { x = from.x + (to.x - from.x) * k; y = from.y + (to.y - from.y) * k; };
+    if (q < run) { along(q / run); face = to.x < from.x ? -1 : 1; moving = true; ph = q * KID_SPD; }
+    else if (q < run + KID_PLAY) { along(1); face = side > 0 ? -1 : 1; play = true; }
+    else if (q < 2 * run + KID_PLAY) { const k = (q - run - KID_PLAY) / run; along(1 - k); face = from.x < to.x ? -1 : 1; moving = true; ph = k * d; }
+    else { along(0); face = 1; }
+    return { id: h.id, x, y, face, moving, play, ph: ph * Math.PI / (STRIDE * 0.7), t: t + i };
+  });
+}
+function drawKid(k) {
+  const set = walkFrames(KID);
+  const im = set ? set[k.moving && !reduceMotion ? Math.floor(k.ph / (Math.PI * 2) * WALK_STEPS) % WALK_STEPS : WALK_STAND] : artFor(KID);
+  if (!ready(im)) return;
+  g.save();
+  g.fillStyle = 'rgba(10,18,8,.3)';
+  g.beginPath(); g.ellipse(k.x, k.y + 2, KID_H * 0.24, KID_H * 0.11, 0, 0, 7); g.fill();
+  const w = im.width * (KID_H / im.height);
+  /* At play she bounces on her toes, as children waiting for the ball do. */
+  const hop = k.play && !reduceMotion ? Math.max(0, Math.sin(k.t * 5)) * 3 : 0;
+  g.translate(k.x, k.y - hop); g.scale(k.face, 1);
+  g.drawImage(im, -w / 2, -KID_H, w, KID_H);
+  g.restore();
+  lifeDrawn++;
+}
+/* The cats: every other house with open ground in front of its door has one
+   asleep on the step, to the left of the door so it is not under anybody's
+   feet. A step with a house built right up against it has no cat: it would be
+   lying under the next roof. */
+function catsNow() {
+  if (!lifeOut()) return [];
+  const solid = standing();
+  const front = h => { const b = B(h.key);
+    return seenAt(h.c + b.w - 1, h.r + b.h - 1, solid); };
+  return homes().filter(front).filter((h, i) => i % 2 === 0).slice(0, CATS_MAX)
+    .map(h => { const d = doorOf(h); return { x: d.x - TW * 0.22, y: d.y - TH * 0.16 }; });
+}
+function drawCat(c) {
+  const im = artFor(CAT);
+  if (!ready(im)) return;
+  g.drawImage(im, c.x - CAT_W / 2, c.y - CAT_W * im.height / im.width * 0.7, CAT_W, CAT_W * im.height / im.width);
+  lifeDrawn++;
+}
 function drawVillager(v) {
   const key = villagerArt(v);
   /* Far from where he is going, and nothing holding him there.
@@ -6866,6 +6989,8 @@ function drawWorld() {
   for (const o of SCENERY) { if (occSet.has(o.c + ',' + o.r)) continue;
     ents.push({ y: tileToWorld(o.c, o.r).y, d: () => drawScenery(o) }); }
   for (const v of villagers) ents.push({ y: v.y, d: () => drawVillager(v) });
+  for (const k of kidsNow()) ents.push({ y: k.y, d: () => drawKid(k) });
+  for (const c of catsNow()) ents.push({ y: c.y, d: () => drawCat(c) });
   if (season().key === 'winter') seasonTiles(occSet, SNOWMEN, 90).forEach((o, i) => ents.push({ y: tileToWorld(o.c, o.r).y, d: () => drawSnowman(o, i) }));
   pumpkinTiles = season().key === 'autumn' ? seasonTiles(occSet, PUMPKINS, 91, 3) : [];
   for (const o of pumpkinTiles) ents.push({ y: tileToWorld(o.c, o.r).y, d: () => drawPumpkin(o) });
@@ -9905,7 +10030,7 @@ function drawPanel() {
 }
 
 function draw() {
-  glowsDrawn = 0; iconsDrawn = 0; carriesDrawn = 0; chromeDrawn = 0; thoughtsDrawn = 0;
+  glowsDrawn = 0; iconsDrawn = 0; carriesDrawn = 0; chromeDrawn = 0; thoughtsDrawn = 0; lifeDrawn = 0;
   stepAmbience();
   fitCanvas();
   g.setTransform(1, 0, 0, 1, 0, 0);
@@ -10525,12 +10650,12 @@ for (const b of BUILDINGS) if (!SET_ART[b.key]) artFor(b.key);
     im.addEventListener('error', done, { once: true });
   }
 }
-for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER, WOODSWOMAN]) artFor(v);
+for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER, WOODSWOMAN, KID, CAT]) artFor(v);
 /* Asked for once, here, rather than on the first frame somebody walks: a
    villager with no cycle drawn for him would otherwise send six requests
    the moment he set off, and artFor remembers a miss, so doing it at boot
    costs the same misses at a moment when nothing is moving yet. */
-for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER, WOODSWOMAN]) for (let i = 1; i <= WALK_STEPS; i++) artFor(v + '_walk' + i);
+for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER, WOODSWOMAN, KID]) for (let i = 1; i <= WALK_STEPS; i++) artFor(v + '_walk' + i);
 /* The beacon's five, asked for here for the same reason the walk frames are:
    a village with none of them drawn would otherwise send five requests the
    moment it finished, and artFor remembers a miss. */
@@ -10596,7 +10721,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   SEASONS, SEASON_OF, SEASON_LEAF, seasonIdx, season, seasonSkin, drawGround, drawScenery, SCENERY,
   GW, GH, tileToWorld, deliveredOf,
   get seasonForced() { return seasonForced; }, set seasonForced(v) { seasonForced = v; },
-  get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, winterArt, ART, villagerArt, glowKey, get glowsDrawn() { return glowsDrawn; }, get iconsDrawn() { return iconsDrawn; }, get carriesDrawn() { return carriesDrawn; }, get chromeDrawn() { return chromeDrawn; }, portraitKey, merchantOf, panelFaces, thoughtOf, get thoughtsDrawn() { return thoughtsDrawn; }, get sparkleCount() { return sparkleCount; }, chromeCache,
+  get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, winterArt, ART, villagerArt, glowKey, get glowsDrawn() { return glowsDrawn; }, get iconsDrawn() { return iconsDrawn; }, get carriesDrawn() { return carriesDrawn; }, get chromeDrawn() { return chromeDrawn; }, portraitKey, merchantOf, panelFaces, thoughtOf, get thoughtsDrawn() { return thoughtsDrawn; }, get lifeDrawn() { return lifeDrawn; }, kidsNow, catsNow, KIDS_MAX, CATS_MAX, get sparkleCount() { return sparkleCount; }, chromeCache,
   get plainIcons() { return plainIcons; }, set plainIcons(v) { plainIcons = !!v; }, ICON_OF,
   hudTop, hudBot, screenTop, screenBot, readSafeArea, get SAFE() { return SAFE; }, set SAFE(v) { SAFE = v; },
   get safeKnown() { return safeKnown; }, set safeKnown(v) { safeKnown = !!v; },

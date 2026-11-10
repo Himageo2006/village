@@ -6827,12 +6827,14 @@
       /* And the painted card furniture -- a card's board and frame, the pieces
          of a button or the ribbon, the gold disc on the orders tab -- which
          the game tallies as it draws them, as it does the icons. */
-      const lit = V.glowsDrawn | 0, icons = V.iconsDrawn | 0, carried = V.carriesDrawn | 0, chrome = V.chromeDrawn | 0, thought = V.thoughtsDrawn | 0;
+      const lit = V.glowsDrawn | 0, icons = V.iconsDrawn | 0, carried = V.carriesDrawn | 0, chrome = V.chromeDrawn | 0, thought = V.thoughtsDrawn | 0, life = V.lifeDrawn | 0;
       rows.push({ what, things, lit, icons, carried, chrome, drawImage: ops.drawImage, total: ops.total });
+      // the children at play and the cats on the steps, a handful at most
+      if (life > V.KIDS_MAX + V.CATS_MAX) fails.push(what + ' draws ' + life + ' children and cats, past the ' + (V.KIDS_MAX + V.CATS_MAX) + ' the village has');
       if (chrome > 20) fails.push(what + ' draws ' + chrome + ' pieces of card furniture on one frame -- a card and a tab need perhaps a dozen');
       if (carried > V.villagers.length) fails.push(what + ' draws ' + carried + ' carried loads for ' + V.villagers.length + ' villagers');
       if (icons > 40) fails.push(what + ' draws ' + icons + ' painted icons on one frame -- the HUD has room for perhaps thirty');
-      if (ops.drawImage > things + lit + Math.min(icons, 40) + Math.min(carried, V.villagers.length) + Math.min(chrome, 20) + Math.min(thought, 2 * V.villagers.length) + spareHere)
+      if (ops.drawImage > things + lit + Math.min(icons, 40) + Math.min(carried, V.villagers.length) + Math.min(chrome, 20) + Math.min(thought, 2 * V.villagers.length) + Math.min(life, V.KIDS_MAX + V.CATS_MAX) + spareHere)
         fails.push(what + ' reaches for an image ' + ops.drawImage + ' times with '
           + things + ' things standing on it' + (lit ? ' and ' + lit + ' lit at night' : '')
           + ' (' + icons + ' icons, ' + carried + ' loads, ' + chrome + ' card pieces)'
@@ -7180,6 +7182,48 @@
           for (const t of V.tabRects()) if (!pics.some(o => o.im === V.artFor('icon_tab_' + t.mode) && inside(o, t)))
             fails.push('the ' + t.label + ' tab has no painted icon');
         }
+        /* Children out playing and cats on the steps by day, painted, and
+           everybody indoors at night. The clock is moved to the middle of a
+           dry day -- a wet one keeps them in too. */
+        const KIDART = ['villager_girl', ...[1, 2, 3, 4, 5, 6].map(i => 'villager_girl_walk' + i)];
+        for (const k of [...KIDART, 'cat_sleep']) V.artFor(k);
+        for (let i = 0; i < 50 && ![...KIDART, 'cat_sleep'].every(k => V.artFor(k)); i++) await new Promise(r => setTimeout(r, 100));
+        /* A house with open ground in front of its door: the first house has
+           a child, and a cat sleeps only on a step it can be seen on. */
+        for (let n = 0, L = V.landBounds(); n < 1; n++) {
+          for (const k of V.RES) V.res[k] = 9e5;
+          let done = false;
+          const trees = new Set(V.SCENERY.map(o => o.c + ',' + o.r));
+          const hb = V.B('house'), clear = (occ, c, r) => [[0, 1], [1, 0], [1, 1], [0, 2], [1, 2], [2, 1], [2, 2]]
+            .map(([dc, dr]) => [c + hb.w - 1 + dc, r + hb.h - 1 + dr])
+            .every(([x, y]) => !occ.has(x + ',' + y) && !trees.has(x + ',' + y));
+          for (let c = L.lo; c <= L.hi && !done; c++) for (let r = L.lo; r <= L.hi && !done; r++) {
+            const occ = V.occupied();
+            if (V.canPlace('house', c, r, occ) && clear(occ, c, r)) done = !!V.place('house', c, r);
+          }
+          if (done) { const h = V.placed[V.placed.length - 1]; h.t = 1; h.build = 0; }
+        }
+        const realNow = Date.now, DAY = 8 * 60 * 1000;
+        try {
+          let noon = null;
+          for (let d = 0; d < 40 && noon == null; d++) {
+            const at = realNow() - (realNow() % DAY) + d * DAY + DAY * 0.4;
+            Date.now = () => at;
+            if (V.kidsNow().length && V.catsNow().length) noon = at;
+          }
+          if (noon == null) fails.push('in forty days of this village no child or no cat was ever out');
+          else {
+            Date.now = () => noon; V.step(0.001);
+            const { ims: pics } = read();
+            const kids = V.kidsNow().length, cats = V.catsNow().length;
+            if (kids > V.KIDS_MAX || cats > V.CATS_MAX) fails.push(kids + ' children and ' + cats + ' cats are out, past the ' + V.KIDS_MAX + ' and ' + V.CATS_MAX + ' allowed');
+            if (V.lifeDrawn !== kids + cats) fails.push(kids + ' children and ' + cats + ' cats are out by day and ' + V.lifeDrawn + ' were drawn');
+            if (!pics.some(o => KIDART.some(k => o.im === V.artFor(k)))) fails.push('no child was drawn with her painted figure by day');
+            if (!pics.some(o => o.im === V.artFor('cat_sleep'))) fails.push('no cat was drawn asleep on a step by day');
+            Date.now = () => noon - (noon % DAY) + DAY * 0.75; V.step(0.001); V.draw();
+            if (V.kidsNow().length || V.catsNow().length || V.lifeDrawn) fails.push('at night ' + V.lifeDrawn + ' children and cats were still out');
+          }
+        } finally { Date.now = realNow; V.step(0.001); }
       }
       // and with the switch back on the emoji are what the readers get
       V.plainIcons = true; V.step(0.001); V.draw();
