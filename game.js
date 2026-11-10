@@ -7185,12 +7185,28 @@ function boardPanel(x, y, w, h, r) {
   g.fillStyle = 'rgba(18,8,2,.32)'; g.fillRect(x, y, w, h);
   g.restore();
 }
+/* Real grain under the wood (Leonardo): walnut planks, mirrored into a tile
+   that repeats without a seam, and laid under the old gradient, which still
+   sets the colour and the darkness the text is measured against. */
+let woodPat = null;
+function woodGrain() {
+  if (woodPat) return woodPat;
+  const im = artFor('wood_grain');
+  if (!im) return null;
+  woodPat = g.createPattern(im, 'repeat');
+  woodPat.setTransform(new DOMMatrix().scale(0.6));
+  return woodPat;
+}
 function woodPanel(x, y, w, h, r, rim, rimW, warm) {
   const gr = g.createLinearGradient(0, y, 0, y + h);
   gr.addColorStop(0, warm ? 'rgba(84,36,24,.94)' : 'rgba(74,47,24,.93)');
   gr.addColorStop(1, warm ? 'rgba(52,20,14,.94)' : 'rgba(42,26,13,.93)');
-  g.fillStyle = gr;
-  g.beginPath(); g.roundRect(x, y, w, h, r); g.fill();
+  const grain = woodGrain();
+  g.beginPath(); g.roundRect(x, y, w, h, r);
+  if (grain) {
+    g.fillStyle = grain; g.fill();
+    g.save(); g.globalAlpha *= 0.62; g.fillStyle = gr; g.fill(); g.restore();
+  } else { g.fillStyle = gr; g.fill(); }
   g.save(); g.clip();                    // the bevel catching the light, inside the rim
   g.strokeStyle = 'rgba(255,222,160,.14)'; g.lineWidth = 2;
   g.beginPath(); g.roundRect(x + 3, y + 3, w - 6, h - 6, Math.max(0, r - 3)); g.stroke();
@@ -7704,6 +7720,7 @@ function buyProgress(kind) {
   return Object.entries(cost).filter(([k, v]) => res[k] < v)
     .map(([k, v]) => RES_ICON[k] + Math.floor(res[k]) + '/' + v).join(' ');
 }
+const RIBBON_BAND = 0.55, RIBBON_MID = 0.53, RIBBON_CUT = 0.2;   // measured off art/ribbon.webp
 function drawGoal() {
   if (away) return;
   const u = US(), y = chipsBot() + 42 * u;
@@ -7728,6 +7745,30 @@ function drawGoal() {
     g.save();
     g.globalAlpha = Math.min(1, (1 - t) * 3);
     const txt = 'Goal complete!   ' + parts;
+    const rib = artFor('ribbon');
+    if (rib) {
+      /* A crimson ribbon for the moment a goal is met (ChatGPT), where it was
+         the same green pill as everything else. Three pieces: the folded tails
+         at each end, and the plain band between them stretched to the words.
+         The band is 55% of the painting's height and sits a little above its
+         middle, and the tails take a fifth of its width each side. */
+      const fit = fitLines(txt, W - 300 * u, 24 * u, 14 * u, 2);
+      const tw = Math.max(...fit.lines.map(l => g.measureText(l).width));
+      const band = Math.max(58 * u, fit.lines.length * fit.px * 1.22 + 22 * u);
+      const bh = band / RIBBON_BAND, mid = tw + 28 * u;
+      const tail = Math.min(bh * RIBBON_CUT * rib.width / rib.height, (W - 16 * u - mid) / 2);
+      // kept below the chips: two lines make it tall enough for its leaves to reach them
+      const top = Math.max(y - RIBBON_MID * bh, chipsBot() + 4 * u), cy = top + RIBBON_MID * bh;
+      const x0 = W / 2 - mid / 2 - tail, sw = rib.width * RIBBON_CUT;
+      g.drawImage(rib, 0, 0, sw, rib.height, x0, top, tail, bh);
+      g.drawImage(rib, sw, 0, rib.width - 2 * sw, rib.height, x0 + tail, top, mid, bh);
+      g.drawImage(rib, rib.width - sw, 0, sw, rib.height, x0 + tail + mid, top, tail, bh);
+      g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#fff';
+      g.shadowColor = 'rgba(70,0,0,.75)'; g.shadowOffsetY = 2 * u;
+      pillLines(fit, W / 2, cy);
+      g.restore();
+      return;
+    }
     const fit = fitLines(txt, W - 108 * u, 24 * u, 14 * u, 2);
     const tw = Math.max(...fit.lines.map(l => g.measureText(l).width));
     const w = Math.min(W - 40 * u, tw + 60 * u);
@@ -7969,7 +8010,7 @@ function drawElder(x0, y, hh, u) {
 function pillLines(fit, cx, cy) {
   const lh = fit.px * 1.22;
   const top = cy - (fit.lines.length - 1) * lh / 2;
-  fit.lines.forEach((l, i) => g.fillText(l, cx, top + i * lh));
+  fit.lines.forEach((l, i) => iconText(l, cx, top + i * lh, fit.px));
 }
 /* One thing at a time -- and somebody there to read it.
 

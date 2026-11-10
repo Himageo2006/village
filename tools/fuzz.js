@@ -6898,7 +6898,10 @@
       const read = () => {
         const texts = [], ims = [], oT = ctx.fillText, oI = ctx.drawImage;
         ctx.fillText = function (t, x, y) { const m = this.getTransform(); texts.push({ t: String(t), x: m.a * x + m.e, y: m.d * y + m.f }); return oT.apply(this, arguments); };
-        ctx.drawImage = function (im, x, y, w, h) { const m = this.getTransform(); if (arguments.length === 5) ims.push({ im, x: m.a * (x + w / 2) + m.e, y: m.d * (y + h / 2) + m.f }); return oI.apply(this, arguments); };
+        ctx.drawImage = function (im, ...q) {
+          const m = this.getTransform(), [x, y, w, h] = q.length === 8 ? q.slice(4) : q;   // a slice of a picture is logged where it lands
+          if (q.length === 4 || q.length === 8) ims.push({ im, x: m.a * (x + w / 2) + m.e, y: m.d * (y + h / 2) + m.f });
+          return oI.apply(this, arguments); };
         try { V.draw(); } finally { ctx.fillText = oT; ctx.drawImage = oI; }
         return { texts, ims };
       };
@@ -7018,6 +7021,26 @@
           if (glyph) fails.push('a badge still prints "' + glyph.t + '" with its painting loaded');
         }
         for (const k of ['plaque', 'idle', 'rest', 'up']) if (!seen.has(k)) fails.push('the badge check never raised a ' + k + ' badge to look at');
+      }
+      /* The goal line and the banner for a met goal name loads as well, and the
+         banner is the crimson ribbon rather than a pill. */
+      {
+        V.artFor('ribbon');
+        for (let i = 0; i < 50 && !V.artFor('ribbon'); i++) await new Promise(r => setTimeout(r, 100));
+        const rib = V.artFor('ribbon');
+        if (!rib) fails.push('the goal ribbon did not load');
+        V.tutSeen.length = 0; for (const h of V.TUT) V.tutSeen.push(h.id);
+        for (const [what, set] of [['the goal line', () => { V.goalDone = null; }],
+          ['the goal banner', () => { V.goalDone = { g: V.GOALS[2], got: { wood: 100, food: 60 }, age: 0 }; }]]) {
+          set(); V.step(0.001); set();
+          const { texts, ims: pics } = read();
+          const band = texts.filter(o => o.y < V.chipsBot() + 140 && o.y > V.chipsBot());
+          const loose = band.filter(o => emoji.some(e => o.t.includes(e) && V.artFor('icon_' + V.ICON_OF[e])));
+          if (loose.length) fails.push(what + ' prints "' + loose[0].t + '" with the emoji instead of the painted load');
+          if (!band.length) fails.push(what + ' drew no words to look at');
+          if (what === 'the goal banner' && rib && !pics.some(o => o.im === rib)) fails.push('a met goal was not shown on the ribbon');
+        }
+        V.goalDone = null;
       }
       // and with the switch back on the emoji are what the readers get
       V.plainIcons = true; V.step(0.001); V.draw();
@@ -9506,7 +9529,9 @@
         const rows = [], o = ctx2.fillText;
         ctx2.fillText = function (t, ...a) { rows.push(String(t)); return o.call(this, t, ...a); };
         try { V.draw(); } finally { ctx2.fillText = o; }
-        return rows.find(t => t.indexOf('Goal complete') === 0) || '';
+        // and the line after it: the banner may take two, and the ribbon wraps sooner than the pill did
+        const at = rows.findIndex(t => t.indexOf('Goal complete') === 0);
+        return at < 0 ? '' : rows.slice(at, at + 2).join(' ');
       };
       V.goalIdx = 0; V.goalDone = null; V.finished = null;
       for (let guard = 0; V.goalIdx < V.GOALS.length && guard < 300; guard++) {
