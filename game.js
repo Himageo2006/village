@@ -5857,15 +5857,50 @@ function standing() {
   return set;
 }
 const openAt = (c, r, solid) => inLand(c, r) && !solid.has(c + ',' + r);
-/* And nothing tall in the two rows in front of it, which is where whatever
-   would hide it from the camera stands: a cat on a step with the hall's
-   tower two tiles down the slope was a cat nobody would ever see. */
-const IN_FRONT = [[0, 1], [1, 0], [1, 1], [0, 2], [1, 2], [2, 1], [2, 2]];
-const seenAt = (c, r, solid) => IN_FRONT.every(([dc, dr]) => !solid.has((c + dc) + ',' + (r + dr)));
+/* And not behind anything: every picture standing nearer the camera, as the
+   box it is drawn in. Counting clear tiles in front was the first answer and
+   no number of rows was right -- a cat two tiles up from the hall was under
+   its tower, and a child three tiles up was under its spire. What hides a
+   thing is a picture drawn over it, so that is what is asked. */
+function occluders() {
+  const out = [], solid = new Set();
+  for (const p of placed) {
+    const b = B(p.key);
+    if (b.flat) continue;
+    for (let dc = 0; dc < b.w; dc++) for (let dr = 0; dr < b.h; dr++) solid.add((p.c + dc) + ',' + (p.r + dr));
+    const depth = tileToWorld(p.c + b.w - 1, p.r + b.h - 1).y, R = artRect(p);
+    // a decoration is drawn to no plot of its own: a post or a statue on its tile
+    out.push(R ? { x0: R.left, x1: R.left + R.wid, top: R.top, depth }
+      : { x0: tileToWorld(p.c, p.r).x - TW * 0.25, x1: tileToWorld(p.c, p.r).x + TW * 0.25, top: depth - 70, depth });
+  }
+  for (const o of SCENERY) {
+    const h = (SCENERY_H[o.kind] || 0) * (o.s || 1);
+    if (h < 40 || solid.has(o.c + ',' + o.r)) continue;
+    const at = tileToWorld(o.c, o.r);
+    out.push({ x0: at.x - h * 0.35, x1: at.x + h * 0.35, top: at.y - h, depth: at.y });
+  }
+  return out;
+}
+// more than a fifth of the box under any one picture drawn after it
+function hidden(occ, x0, x1, top, bot, depth) {
+  const area = (x1 - x0) * (bot - top);
+  return occ.some(o => {
+    if (o.depth <= depth) return false;
+    const w = Math.min(x1, o.x1) - Math.max(x0, o.x0), h = Math.min(bot, o.depth + TH / 2) - Math.max(top, o.top);
+    return w > 0 && h > 0 && w * h > area * 0.2;
+  });
+}
 /* The open tile nearest the well that is nearest the hall -- or the hall
    itself, before there is a well. In front of the well was the first answer,
    and in a crowded village that is the roof of the house in front of it. */
-function playSpot(solid) {
+/* Where each of n children stands at play, round the spot: in a row a step
+   apart, the way children stand to throw a ball between them. Round a
+   circle, two of three stood one in front of the other. Never up the slope
+   from the middle of the tile: a house beside it on the same row sorts at
+   exactly that depth, and two girls four pixels up were drawn behind it. */
+const rowAt = (spot, i, n) => ({ x: spot.x + (i - (n - 1) / 2) * 24, y: spot.y + (i % 2 ? 9 : 3) });
+function playSpot(solid, n) {
+  const occ = occluders();
   const hall = placed.find(p => p.key === 'hall');
   const wells = placed.filter(p => p.key === 'well' && established(p));
   const at = hall ? doorOf(hall) : null;
@@ -5876,9 +5911,18 @@ function playSpot(solid) {
   let best = null;
   for (let dc = -3; dc <= 4; dc++) for (let dr = -3; dr <= 4; dr++) {
     const c = c0 + dc, r = r0 + dr;
-    if (!openAt(c, r, solid)) continue;
-    // a spot the camera can see is worth walking two tiles further for
-    const d = Math.hypot(dc - 0.5, dr - 0.5) + (seenAt(c, r, solid) ? 0 : 2.5);
+    /* Not on the back edge of the land either: the shade over the wild is
+       painted over everything standing, and a child there had her head and
+       shoulders in it. Her sprite reaches up into the tiles behind her. */
+    if (!openAt(c, r, solid) || !inLand(c - 1, r) || !inLand(c, r - 1)) continue;
+    // a spot the camera can see beats any spot it cannot, however near
+    /* Each child on her own: a spire is thin, and over the whole row it was
+       a sliver while one girl stood entirely behind it. */
+    const w = tileToWorld(c, r);
+    let behind = 0;
+    for (let i = 0; i < n; i++) { const k = rowAt(w, i, n);
+      if (hidden(occ, k.x - 10, k.x + 10, k.y - KID_H, k.y, k.y)) behind++; }
+    const d = Math.hypot(dc - 0.5, dr - 0.5) + behind * 20;
     if (!best || d < best.d) best = { c, r, d };
   }
   return best && tileToWorld(best.c, best.r);
@@ -5888,17 +5932,13 @@ function playSpot(solid) {
    it, so they do not all leave at once. */
 function kidsNow() {
   if (!lifeOut()) return [];
-  const spot = playSpot(standing());
-  if (!spot) return [];
   // every other house, in the order they were built, so a new one never moves a child
   const hs = homes().filter((h, i) => i % 2 === 0).slice(0, KIDS_MAX);
+  const spot = hs.length && playSpot(standing(), hs.length);
+  if (!spot) return [];
   const n = hs.length, t = Date.now() / 1000;
   return hs.map((h, i) => {
-    /* In a row across the spot, a step apart and facing its middle, the way
-       children stand to throw a ball between them. Round a circle, two of
-       three stood one in front of the other. */
-    const side = i - (n - 1) / 2;
-    const to = { x: spot.x + side * 24, y: spot.y + (i % 2 ? 6 : -4) };
+    const side = i - (n - 1) / 2, to = rowAt(spot, i, n);     // facing the middle of the row
     const from = doorOf(h), d = Math.hypot(to.x - from.x, to.y - from.y), run = d / KID_SPD;
     const round = 2 * run + KID_PLAY + KID_HOME;
     let q = reduceMotion ? run + 1 : frac(t / round + rnd(h.id, 22)) * round;
@@ -5926,17 +5966,16 @@ function drawKid(k) {
   g.restore();
   lifeDrawn++;
 }
-/* The cats: every other house with open ground in front of its door has one
-   asleep on the step, to the left of the door so it is not under anybody's
-   feet. A step with a house built right up against it has no cat: it would be
-   lying under the next roof. */
+/* The cats: every other house whose step can be seen has one asleep on it,
+   to the left of the door so it is not under anybody's feet. A step with a
+   house built up in front of it has no cat: it would be lying under the
+   next roof. */
+const catAt = h => { const d = doorOf(h); return { x: d.x - TW * 0.22, y: d.y - TH * 0.16 }; };
 function catsNow() {
   if (!lifeOut()) return [];
-  const solid = standing();
-  const front = h => { const b = B(h.key);
-    return seenAt(h.c + b.w - 1, h.r + b.h - 1, solid); };
-  return homes().filter(front).filter((h, i) => i % 2 === 0).slice(0, CATS_MAX)
-    .map(h => { const d = doorOf(h); return { x: d.x - TW * 0.22, y: d.y - TH * 0.16 }; });
+  const occ = occluders();
+  return homes().map(catAt).filter(c => !hidden(occ, c.x - CAT_W / 2, c.x + CAT_W / 2, c.y - CAT_W * 0.6, c.y + 4, c.y))
+    .filter((c, i) => i % 2 === 0).slice(0, CATS_MAX);
 }
 function drawCat(c) {
   const im = artFor(CAT);
@@ -10721,7 +10760,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   SEASONS, SEASON_OF, SEASON_LEAF, seasonIdx, season, seasonSkin, drawGround, drawScenery, SCENERY,
   GW, GH, tileToWorld, deliveredOf,
   get seasonForced() { return seasonForced; }, set seasonForced(v) { seasonForced = v; },
-  get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, winterArt, ART, villagerArt, glowKey, get glowsDrawn() { return glowsDrawn; }, get iconsDrawn() { return iconsDrawn; }, get carriesDrawn() { return carriesDrawn; }, get chromeDrawn() { return chromeDrawn; }, portraitKey, merchantOf, panelFaces, thoughtOf, get thoughtsDrawn() { return thoughtsDrawn; }, get lifeDrawn() { return lifeDrawn; }, kidsNow, catsNow, KIDS_MAX, CATS_MAX, get sparkleCount() { return sparkleCount; }, chromeCache,
+  get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, winterArt, ART, villagerArt, glowKey, get glowsDrawn() { return glowsDrawn; }, get iconsDrawn() { return iconsDrawn; }, get carriesDrawn() { return carriesDrawn; }, get chromeDrawn() { return chromeDrawn; }, portraitKey, merchantOf, panelFaces, thoughtOf, get thoughtsDrawn() { return thoughtsDrawn; }, get lifeDrawn() { return lifeDrawn; }, kidsNow, catsNow, occluders, hidden, artRect, KIDS_MAX, CATS_MAX, get sparkleCount() { return sparkleCount; }, chromeCache,
   get plainIcons() { return plainIcons; }, set plainIcons(v) { plainIcons = !!v; }, ICON_OF,
   hudTop, hudBot, screenTop, screenBot, readSafeArea, get SAFE() { return SAFE; }, set SAFE(v) { SAFE = v; },
   get safeKnown() { return safeKnown; }, set safeKnown(v) { safeKnown = !!v; },

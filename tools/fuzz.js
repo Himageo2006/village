@@ -7220,6 +7220,23 @@
             if (V.lifeDrawn !== kids + cats) fails.push(kids + ' children and ' + cats + ' cats are out by day and ' + V.lifeDrawn + ' were drawn');
             if (!pics.some(o => KIDART.some(k => o.im === V.artFor(k)))) fails.push('no child was drawn with her painted figure by day');
             if (!pics.some(o => o.im === V.artFor('cat_sleep'))) fails.push('no cat was drawn asleep on a step by day');
+            /* And every child is on ground of the village's own: inside the
+               claim and off its back edge, where the shade over the wild would
+               cover her, and not standing in anything built. */
+            const L = V.landBounds(), built = new Set();
+            for (const q of V.placed) { const b = V.B(q.key); if (b.flat) continue;
+              for (let dc = 0; dc < b.w; dc++) for (let dr = 0; dr < b.h; dr++) built.add((q.c + dc) + ',' + (q.r + dr)); }
+            // at play: one at home stands on her doorstep, a corner shared with the tile in front
+            for (let s2 = 0; s2 < 120 && !V.kidsNow().some(k => k.play); s2 += 2) Date.now = () => noon + s2 * 1000;
+            for (const k of V.kidsNow().filter(k => k.play)) {
+              const at = V.worldToTile(k.x, k.y), c = Math.round(at.c), r = Math.round(at.r);
+              if (c <= L.lo || r <= L.lo || c > L.hi || r > L.hi) fails.push('a child at play stands on tile ' + c + ',' + r + ', on or past the edge of land ' + L.lo + '..' + L.hi);
+              else if (built.has(c + ',' + r)) fails.push('a child at play stands inside something built on tile ' + c + ',' + r);
+              // and on a village this open, in front of everything, not behind a roof or a spire
+              else if (V.hidden(V.occluders(), k.x - 10, k.x + 10, k.y - 42, k.y, k.y)) fails.push('a child at play on tile ' + c + ',' + r + ' is behind something drawn in front of her');
+            }
+            if (!V.kidsNow().some(k => k.play)) fails.push('in two minutes of a dry noon no child was at play, so where they play went unchecked');
+            Date.now = () => noon;
             Date.now = () => noon - (noon % DAY) + DAY * 0.75; V.step(0.001); V.draw();
             if (V.kidsNow().length || V.catsNow().length || V.lifeDrawn) fails.push('at night ' + V.lifeDrawn + ' children and cats were still out');
           }
