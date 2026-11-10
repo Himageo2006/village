@@ -7022,6 +7022,34 @@
         }
         for (const k of ['plaque', 'idle', 'rest', 'up']) if (!seen.has(k)) fails.push('the badge check never raised a ' + k + ' badge to look at');
       }
+      /* The panel's buttons are painted faces, and the welcome-back card is the
+         walnut board with its painting in the gilt frame and its loads painted. */
+      {
+        const art = ['btn_on', 'btn_warn', 'btn_off', 'frame_gilt', 'panel_wood'];
+        for (const k of art) V.artFor(k);
+        for (let i = 0; i < 50 && art.some(k => !V.artFor(k)); i++) await new Promise(r => setTimeout(r, 100));
+        const none = art.filter(k => !V.artFor(k));
+        if (none.length) fails.push('no painting loaded for ' + none.join(', '));
+        const faces = ['on', 'warn', 'off'].map(k => V.artFor('btn_' + k));
+        const hall = V.placed.find(q => q.key === 'hall');
+        V.panel = hall.id; V.step(0.001);
+        { const { ims: pics } = read();
+          if (!pics.some(o => faces.includes(o.im))) fails.push('the building panel drew no painted button'); }
+        V.panel = null;
+        V.away = { secs: 7200, got: { wood: 340, food: 220 } };
+        for (let i = 0; i < 40; i++) { V.step(0.001); V.draw(); await new Promise(r => setTimeout(r, 50)); }
+        const { texts, ims: pics } = read();
+        const R = V.awayRect();
+        const said = texts.filter(o => Math.abs(o.x - R.x) <= R.w / 2 && Math.abs(o.y - R.y) <= R.h / 2);
+        const loose = said.filter(o => emoji.some(e => o.t.includes(e) && V.artFor('icon_' + V.ICON_OF[e])));
+        if (loose.length) fails.push('the welcome-back card prints "' + loose[0].t + '" with the emoji instead of the painted load');
+        /* Both are painted once into a canvas of their own and drawn from there,
+           so it is that canvas the frame has to show. */
+        const made = what => [...V.chromeCache].filter(([k]) => k.startsWith(what)).map(([, c]) => c);
+        if (!pics.some(o => made('frame').includes(o.im))) fails.push('the welcome-back painting has no gilt frame');
+        if (!pics.some(o => made('board').includes(o.im))) fails.push('the welcome-back card is not on the walnut board');
+        V.away = null; V.step(0.001);
+      }
       /* The goal line and the banner for a met goal name loads as well, and the
          banner is the crimson ribbon rather than a pill. */
       {

@@ -7167,6 +7167,30 @@ const WOOD_RIM = 'rgba(214,170,88,.80)', WOOD_ON = '#f3d27a';
    every shape the panel takes. Square-cornered as painted, so it is clipped to
    the panel's rounding. Until it has loaded, the flat dark card it replaced. */
 const BOARD_CUT = 112;                 // source pixels of rim and corner ornament, of 1024
+/* The cards that take the whole screen -- the welcome back, the finished
+   village, the claim and the transfer -- on the same walnut board as the
+   building panel, rather than the last of the dark green. Each keeps its own
+   rim colour, so they are still told apart at a glance. */
+/* The painted button faces (ChatGPT): green enamel for something you can do,
+   rust for a warning, matte slate for something you cannot yet. Each is a
+   pill, drawn in three pieces -- the rounded ends, and the plain middle
+   stretched to the button -- so one painting fits every width. The drawn face
+   stays as the fallback. */
+function paintedButton(kind, x, y, w, h) {
+  const im = artFor('btn_' + kind);
+  if (!im) return false;
+  const iw = im.width, ih = im.height, sc = ih * 0.6, dc = Math.min(h * 0.6, w / 2);
+  g.drawImage(im, 0, 0, sc, ih, x, y, dc, h);
+  g.drawImage(im, sc, 0, iw - 2 * sc, ih, x + dc, y, w - 2 * dc, h);
+  g.drawImage(im, iw - sc, 0, sc, ih, x + w - dc, y, dc, h);
+  return true;
+}
+function cardBoard(R, rim) {
+  const u = R.u, x = R.x - R.w / 2, y = R.y - R.h / 2;
+  boardPanel(x, y, R.w, R.h, 24 * u);
+  g.strokeStyle = rim; g.lineWidth = 3;
+  g.beginPath(); g.roundRect(x, y, R.w, R.h, 24 * u); g.stroke();
+}
 function boardPanel(x, y, w, h, r) {
   const im = artFor('panel_wood');
   if (!im) {
@@ -7174,16 +7198,17 @@ function boardPanel(x, y, w, h, r) {
     g.beginPath(); g.roundRect(x, y, w, h, r); g.fill(); g.stroke();
     return;
   }
-  const S = im.width, c = BOARD_CUT * S / 1024, d = Math.round(Math.min(26 * US(), w / 3, h / 3));
-  const xs = [0, c, S - c, S], ys = xs, X = [x, x + d, x + w - d, x + w].map(Math.round), Y = [y, y + d, y + h - d, y + h].map(Math.round);
-  g.save();
-  g.beginPath(); g.roundRect(x, y, w, h, r); g.clip();
-  for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++)
-    g.drawImage(im, xs[i], ys[j], xs[i + 1] - xs[i], ys[j + 1] - ys[j], X[i], Y[j], X[i + 1] - X[i], Y[j + 1] - Y[j]);
-  /* Darkened: the light streaks in the grain measured 106,55,31, and the salmon
-     of a sale warning or a slow round trip came to 4.27 against them. */
-  g.fillStyle = 'rgba(18,8,2,.32)'; g.fillRect(x, y, w, h);
-  g.restore();
+  const W2 = Math.round(w), H2 = Math.round(h);
+  g.drawImage(chrome('board' + Math.round(r), W2, H2, b => {
+    const S = im.width, c = BOARD_CUT * S / 1024, d = Math.round(Math.min(26 * US(), W2 / 3, H2 / 3));
+    const xs = [0, c, S - c, S], ys = xs, X = [0, d, W2 - d, W2], Y = [0, d, H2 - d, H2];
+    b.beginPath(); b.roundRect(0, 0, W2, H2, r); b.clip();
+    for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++)
+      b.drawImage(im, xs[i], ys[j], xs[i + 1] - xs[i], ys[j + 1] - ys[j], X[i], Y[j], X[i + 1] - X[i], Y[j + 1] - Y[j]);
+    /* Darkened: the light streaks in the grain measured 106,55,31, and the salmon
+       of a sale warning or a slow round trip came to 4.27 against them. */
+    b.fillStyle = 'rgba(18,8,2,.32)'; b.fillRect(0, 0, W2, H2);
+  }), Math.round(x), Math.round(y), W2, H2);
 }
 /* Real grain under the wood (Leonardo): walnut planks, mirrored into a tile
    that repeats without a seam, and laid under the old gradient, which still
@@ -8139,8 +8164,7 @@ function drawCarry() {
   const R = carryRects(), u = R.u;
   g.save();
   g.fillStyle = 'rgba(6,10,6,.66)'; g.fillRect(0, screenTop(), W, screenBot() - screenTop());
-  g.fillStyle = 'rgba(16,26,15,.98)'; g.strokeStyle = 'rgba(160,210,255,.5)'; g.lineWidth = 3;
-  g.beginPath(); g.roundRect(R.x - R.w / 2, R.y - R.h / 2, R.w, R.h, 24 * u); g.fill(); g.stroke();
+  cardBoard(R, 'rgba(160,210,255,.5)');
   g.textAlign = 'center'; g.textBaseline = 'middle';
   g.font = 'bold ' + Math.round(32 * u) + 'px Segoe UI, sans-serif'; g.fillStyle = '#fff';
   g.fillText('To another device', R.x, R.y - R.h / 2 + 50 * u);
@@ -8168,8 +8192,7 @@ function drawClaim() {
   const R = claimRects(), u = R.u, cost = landNext();
   g.save();
   g.fillStyle = 'rgba(6,10,6,.66)'; g.fillRect(0, screenTop(), W, screenBot() - screenTop());
-  g.fillStyle = 'rgba(16,26,15,.98)'; g.strokeStyle = 'rgba(240,214,140,.55)'; g.lineWidth = 3;
-  g.beginPath(); g.roundRect(R.x - R.w / 2, R.y - R.h / 2, R.w, R.h, 24 * u); g.fill(); g.stroke();
+  cardBoard(R, 'rgba(240,214,140,.55)');
   g.textAlign = 'center'; g.textBaseline = 'middle';
   g.font = `bold ${Math.round(32 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#fff';
   g.fillText(cost ? 'Claim more land' : 'The whole island is yours', R.x, R.y - R.h / 2 + 54 * u);
@@ -8194,12 +8217,14 @@ function drawClaim() {
     const ok = canClaim();
     g.font = `bold ${Math.round(30 * u)}px Segoe UI, sans-serif`;
     g.fillStyle = ok ? '#e8c98a' : '#e59a86';
-    g.fillText(Object.entries(cost).map(([k, v]) => (RES_ICON[k] + ' ') + v).join('     '),
-      R.x, R.y + 14 * u);   // at +2 its emoji touched the descenders of the line above
-    g.fillStyle = ok ? 'rgba(62,104,44,.98)' : 'rgba(40,44,36,.9)';
-    g.strokeStyle = ok ? '#9fe86b' : 'rgba(255,255,255,.16)'; g.lineWidth = 3;
-    g.beginPath(); g.roundRect(R.yes.x - R.yes.w / 2, R.yes.y - R.yes.h / 2, R.yes.w, R.yes.h, 16 * u);
-    g.fill(); g.stroke();
+    iconText(Object.entries(cost).map(([k, v]) => (RES_ICON[k] + ' ') + v).join('     '),
+      R.x, R.y + 14 * u, 30 * u);   // at +2 its emoji touched the descenders of the line above
+    if (!paintedButton(ok ? 'on' : 'off', R.yes.x - R.yes.w / 2, R.yes.y - R.yes.h / 2, R.yes.w, R.yes.h)) {
+      g.fillStyle = ok ? 'rgba(62,104,44,.98)' : 'rgba(40,44,36,.9)';
+      g.strokeStyle = ok ? '#9fe86b' : 'rgba(255,255,255,.16)'; g.lineWidth = 3;
+      g.beginPath(); g.roundRect(R.yes.x - R.yes.w / 2, R.yes.y - R.yes.h / 2, R.yes.w, R.yes.h, 16 * u);
+      g.fill(); g.stroke();
+    }
     g.fillStyle = ok ? '#eaffd6' : DIM;
     g.font = `bold ${Math.round(26 * u)}px Segoe UI, sans-serif`;
     /* A later ring can cost more than the village is able to HOLD, and then
@@ -8207,9 +8232,9 @@ function drawClaim() {
        bigger hall or another storehouse, so say that instead. */
     const overCap = Object.entries(cost).some(([k, val]) => val > caps[k]);
     g.font = `bold ${Math.round((overCap ? 22 : 26) * u)}px Segoe UI, sans-serif`;
-    g.fillText(ok ? 'Claim it'
+    iconText(ok ? 'Claim it'
       : overCap ? 'Your stores cannot hold this much yet'
-      : 'Need ' + shortText(cost) + ' more', R.yes.x, R.yes.y);
+      : 'Need ' + shortText(cost) + ' more', R.yes.x, R.yes.y, (overCap ? 22 : 26) * u);
   }
   g.fillStyle = 'rgba(255,255,255,.12)';
   g.beginPath(); g.arc(R.no.x, R.no.y, R.no.r, 0, 7); g.fill();
@@ -8311,8 +8336,7 @@ function drawAway() {
   g.save();
   g.fillStyle = 'rgba(6,10,6,.66)'; g.fillRect(0, screenTop(), W, screenBot() - screenTop());
   drawAwayPic(R);
-  g.fillStyle = 'rgba(16,26,15,.98)'; g.strokeStyle = 'rgba(159,232,107,.5)'; g.lineWidth = 3;
-  g.beginPath(); g.roundRect(R.x - R.w / 2, R.y - R.h / 2, R.w, R.h, 24 * u); g.fill(); g.stroke();
+  cardBoard(R, 'rgba(159,232,107,.5)');
   g.textAlign = 'center'; g.textBaseline = 'middle';
   g.font = `bold ${Math.round(34 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#fff';
   g.fillText('While you were away', R.x, R.y - R.h / 2 + 52 * u);
@@ -8323,7 +8347,7 @@ function drawAway() {
     R.x, R.y - R.h / 2 + 92 * u);
   const parts = Object.entries(away.got).map(([k, v]) => (RES_ICON[k] + ' +') + v);
   g.font = `bold ${Math.round(40 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#e8c98a';
-  g.fillText(parts.length ? parts.join('     ') : 'nothing would fit', R.x, R.y + 6 * u);
+  iconText(parts.length ? parts.join('     ') : 'nothing would fit', R.x, R.y + 6 * u, 40 * u);
   const sharedParts = away.shared ? Object.entries(away.shared)
     .filter(([, v]) => v >= 1).map(([k, v]) => RES_ICON[k] + compact(v)) : [];
   if (sharedParts.length) {
@@ -8332,7 +8356,7 @@ function drawAway() {
     const fit = fitLines('and ' + sharedParts.join(' ') + ' shipped to the neighbours',
       R.w - 56 * u, 20 * u, 14 * u, 1);
     g.font = `${Math.round(fit.px)}px Segoe UI, sans-serif`; g.fillStyle = '#9fd6a0';
-    g.fillText(fit.lines[0], R.x, R.y + 46 * u);
+    iconText(fit.lines[0], R.x, R.y + 46 * u, fit.px);
   } else if (away.spilled) {
     /* WHEN the stores filled is the part a player can act on. "The rest spilled"
        said the same thing about three minutes of loss as about five hours and
@@ -8398,6 +8422,54 @@ function drawFinale(R) {
    As wide as the card, or as tall as the room between the HUD and the card --
    and below the save warning when one is up: a finished village that cannot
    be saved drew the warning straight across the picture. */
+/* A carved gilt frame (Leonardo) round the card paintings. It has ornaments
+   at the corners and in the middle of each side, so it is cut five ways each
+   way rather than nine: those keep their shape and only the plain moulding
+   between them stretches to the picture. Measured off art/frame_gilt.webp,
+   775 by 680: the band is 104 deep on every side. */
+const FRAME_BAND = 104, FRAME_CORNER = 200, FRAME_ORN_X = 95, FRAME_ORN_Y = 105;
+/* Painted once per size and kept. The frame is twenty-four pieces and the
+   board under a card nine, and a finished village draws the card on top of
+   every building it has -- the heaviest frame in the game, where the draw
+   budget measured thirty-five images over. Cards keep their size, so after the
+   first frame each is one image. */
+const chromeCache = new Map();
+let chromeDrawn = 0;
+function chrome(key, w, h, paint) {
+  const k = key + '|' + Math.round(w) + 'x' + Math.round(h);
+  let c = chromeCache.get(k);
+  if (!c) {
+    c = document.createElement('canvas');
+    c.width = Math.max(1, Math.ceil(w)); c.height = Math.max(1, Math.ceil(h));
+    paint(c.getContext('2d'));
+    if (chromeCache.size > 32) chromeCache.clear();
+    chromeCache.set(k, c);
+  }
+  chromeDrawn++;
+  return c;
+}
+function drawFrame(x, y, w, h, band) {
+  const im = artFor('frame_gilt');
+  if (!im) return false;
+  const L = w + 2 * band, T = h + 2 * band;
+  const c = chrome('frame', L, T, b => frameInto(b, im, band, band, w, h, band));
+  g.drawImage(c, x - band, y - band, c.width, c.height);
+  return true;
+}
+function frameInto(c, im, x, y, w, h, band) {
+  const iw = im.width, ih = im.height;
+  let k = band / FRAME_BAND;
+  const X = x - band, Y = y - band, L = w + 2 * band, T = h + 2 * band;
+  k = Math.min(k, L / (2 * FRAME_CORNER + 2 * FRAME_ORN_X), T / (2 * FRAME_CORNER + 2 * FRAME_ORN_Y));
+  const cuts = (n, o) => [0, FRAME_CORNER, n / 2 - o, n / 2 + o, n - FRAME_CORNER, n];
+  const lay = (at, len, o) => { const c = FRAME_CORNER * k, m = 2 * o * k, plain = (len - 2 * c - m) / 2;
+    return [at, at + c, at + c + plain, at + c + plain + m, at + len - c, at + len]; };
+  const sx = cuts(iw, FRAME_ORN_X), sy = cuts(ih, FRAME_ORN_Y), dx = lay(X, L, FRAME_ORN_X), dy = lay(Y, T, FRAME_ORN_Y);
+  for (let i = 0; i < 5; i++) for (let j = 0; j < 5; j++) {
+    if (i > 0 && i < 4 && j > 0 && j < 4) continue;               // the opening
+    c.drawImage(im, sx[i], sy[j], sx[i + 1] - sx[i], sy[j + 1] - sy[j], dx[i], dy[j], dx[i + 1] - dx[i], dy[j + 1] - dy[j]);
+  }
+}
 function cardPicture(R, pic, rim) {
   const u = R.u;
   const warned = saveFailed || loadedFromBackup || otherBuild;
@@ -8414,6 +8486,8 @@ function cardPicture(R, pic, rim) {
   const s = Math.max(w / sw, h / sh);
   g.drawImage(pic, R.x - sw * s / 2, y + h / 2 - sh * s / 2, sw * s, sh * s);
   g.restore();
+  // the frame's inner edge laps the picture a little, over its rounded corners
+  if (drawFrame(x + 6 * u, y + 6 * u, w - 12 * u, h - 12 * u, 30 * u)) return;
   g.strokeStyle = rim; g.lineWidth = 3;
   g.beginPath(); g.roundRect(x, y, w, h, 18 * u); g.stroke();
 }
@@ -8552,8 +8626,7 @@ function drawFinished() {
   g.save();
   g.fillStyle = 'rgba(6,10,6,.66)'; g.fillRect(0, screenTop(), W, screenBot() - screenTop());
   drawFinale(R);
-  g.fillStyle = 'rgba(16,26,15,.98)'; g.strokeStyle = 'rgba(232,201,138,.65)'; g.lineWidth = 3;
-  g.beginPath(); g.roundRect(R.x - R.w / 2, R.y - R.h / 2, R.w, R.h, 24 * u); g.fill(); g.stroke();
+  cardBoard(R, 'rgba(232,201,138,.65)');
   g.textAlign = 'center'; g.textBaseline = 'middle';
   g.font = `bold ${Math.round(34 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#fff';
   g.fillText('Your village is finished', R.x, R.y - R.h / 2 + 52 * u);
@@ -9488,9 +9561,11 @@ function drawPanel() {
   const busy = p.t < 1;
 
   const btnFace = (r2, on, text, small, warn) => {
-    g.fillStyle = warn ? 'rgba(122,58,38,.98)' : on ? 'rgba(62,104,44,.98)' : 'rgba(40,44,36,.9)';
-    g.strokeStyle = warn ? '#f0a07a' : on ? '#9fe86b' : 'rgba(255,255,255,.16)'; g.lineWidth = 3;
-    g.beginPath(); g.roundRect(r2.x - r2.w / 2, r2.y - r2.h / 2, r2.w, r2.h, 16 * u); g.fill(); g.stroke();
+    if (!paintedButton(warn ? 'warn' : on ? 'on' : 'off', r2.x - r2.w / 2, r2.y - r2.h / 2, r2.w, r2.h)) {
+      g.fillStyle = warn ? 'rgba(122,58,38,.98)' : on ? 'rgba(62,104,44,.98)' : 'rgba(40,44,36,.9)';
+      g.strokeStyle = warn ? '#f0a07a' : on ? '#9fe86b' : 'rgba(255,255,255,.16)'; g.lineWidth = 3;
+      g.beginPath(); g.roundRect(r2.x - r2.w / 2, r2.y - r2.h / 2, r2.w, r2.h, 16 * u); g.fill(); g.stroke();
+    }
     g.fillStyle = warn ? '#ffe4d6' : on ? '#eaffd6' : DIM;
     g.textAlign = 'center';
     /* Shrink to fit rather than spill into the neighbouring button. These
@@ -9588,9 +9663,11 @@ function drawPanel() {
     : overCap ? (atLimit('store') ? 'Needs a bigger storehouse' : 'Needs another storehouse')
     : !canAfford(i.cost) ? 'Need ' + shortText(i.cost) + ' more' + (unmadeBy(i.cost) ? ' — ' + firstText(unmadeBy(i.cost)) : '')
     : 'Upgrade to ' + (lvlOf(p) + 1) + '   ' + Object.entries(i.cost).map(([k, v]) => RES_ICON[k] + v).join('  ');
-  g.fillStyle = ok ? 'rgba(62,104,44,.98)' : 'rgba(40,44,36,.9)';
-  g.strokeStyle = ok ? '#9fe86b' : 'rgba(255,255,255,.16)'; g.lineWidth = 3;
-  g.beginPath(); g.roundRect(R.up.x - R.up.w / 2, R.up.y - R.up.h / 2, R.up.w, R.up.h, 16 * u); g.fill(); g.stroke();
+  if (!paintedButton(ok ? 'on' : 'off', R.up.x - R.up.w / 2, R.up.y - R.up.h / 2, R.up.w, R.up.h)) {
+    g.fillStyle = ok ? 'rgba(62,104,44,.98)' : 'rgba(40,44,36,.9)';
+    g.strokeStyle = ok ? '#9fe86b' : 'rgba(255,255,255,.16)'; g.lineWidth = 3;
+    g.beginPath(); g.roundRect(R.up.x - R.up.w / 2, R.up.y - R.up.h / 2, R.up.w, R.up.h, 16 * u); g.fill(); g.stroke();
+  }
   /* Through the fitter, like every other label. This button was drawn by its
      own code rather than by btnFace beside it, at a fixed size with no shrinking
      at all -- so EVERY upgrade label overflowed its button, by six logical
@@ -9602,7 +9679,7 @@ function drawPanel() {
 }
 
 function draw() {
-  glowsDrawn = 0; iconsDrawn = 0; carriesDrawn = 0;
+  glowsDrawn = 0; iconsDrawn = 0; carriesDrawn = 0; chromeDrawn = 0;
   stepAmbience();
   fitCanvas();
   g.setTransform(1, 0, 0, 1, 0, 0);
@@ -10255,7 +10332,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   artRect, paintedAt, isDecor, decorCount, DECOR_MAX, charmTotal, charmMul, charmGainFrom, decorGainAt, deliveredAtMul, charmRoom, usefulCharm, CHARM_FULL,
   // the size of a load: the finest difference any delivery measurement can see
   CARRY,
-  tabRects, modalUp, chipRects, chipsBot, buildList, decorList, stripRows, stripH, stripTop, stripBot, cardStrings, stallStrings, US, drawDecor, grant, deliver, flushBadges, get lastBadges() { return lastBadges; }, badgeScale, BADGE_TEXT_PX, POP_PX, camScale, ZMIN, ZMAX, VILLAGER_H, centreOf, get W() { return W; }, get H() { return H; },
+  tabRects, awayRect, modalUp, chipRects, chipsBot, buildList, decorList, stripRows, stripH, stripTop, stripBot, cardStrings, stallStrings, US, drawDecor, grant, deliver, flushBadges, get lastBadges() { return lastBadges; }, badgeScale, BADGE_TEXT_PX, POP_PX, camScale, ZMIN, ZMAX, VILLAGER_H, centreOf, get W() { return W; }, get H() { return H; },
   sparePeople, outOfRoom, noSpareHands, peopleComing, livedIn,
   sellBuilding, canSell, sellValue, investedIn, capsWithout, get moving() { return moving; }, set moving(v) { moving = v; },
   get armed() { return armed; }, set armed(v) { armed = v; },
@@ -10288,7 +10365,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   SEASONS, SEASON_OF, SEASON_LEAF, seasonIdx, season, seasonSkin, drawGround, drawScenery, SCENERY,
   GW, GH, tileToWorld, deliveredOf,
   get seasonForced() { return seasonForced; }, set seasonForced(v) { seasonForced = v; },
-  get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, winterArt, ART, villagerArt, glowKey, get glowsDrawn() { return glowsDrawn; }, get iconsDrawn() { return iconsDrawn; }, get carriesDrawn() { return carriesDrawn; },
+  get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, winterArt, ART, villagerArt, glowKey, get glowsDrawn() { return glowsDrawn; }, get iconsDrawn() { return iconsDrawn; }, get carriesDrawn() { return carriesDrawn; }, get chromeDrawn() { return chromeDrawn; }, chromeCache,
   get plainIcons() { return plainIcons; }, set plainIcons(v) { plainIcons = !!v; }, ICON_OF,
   hudTop, hudBot, screenTop, screenBot, readSafeArea, get SAFE() { return SAFE; }, set SAFE(v) { SAFE = v; },
   get safeKnown() { return safeKnown; }, set safeKnown(v) { safeKnown = !!v; },
