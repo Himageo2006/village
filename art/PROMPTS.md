@@ -7200,3 +7200,6 @@ Whales and dolphins still come as often, but only every third visit carries a sp
 
 ## Round 226: say when a quarry comes first (no new art)
 A goal-following playthrough sat on "Build a mill" with no stone coming in. The strip, the placement label and the upgrade button now say "build a quarry first" when a price needs goods nothing in the village makes yet.
+
+## Round 227: carry a village to another device (no new art)
+A Transfer chip on the Town Hall opens a card that copies the save as a short code, or takes one pasted from another device. The village it replaces is kept aside under its own key.

@@ -10944,6 +10944,53 @@
     V.step(0.001);
     return { ...out, fails };
   };
+  /* Moving a village to another device: the code must carry the save exactly,
+     refuse anything that is not one, and taking one in must keep the village it
+     replaces. Never reloads -- takeVillage is asked not to -- and puts the real
+     save back afterwards. */
+  window.moveSweep = async function () {
+    const V = window.__v, fails = [], out = {};
+    const keep = {}; for (const k of [V.KEY, V.KEY_BAK, V.KEY_BEFORE]) keep[k] = localStorage.getItem(k);
+    try {
+      V.save();
+      const saved = localStorage.getItem(V.KEY);
+      const code = await V.villageCode();
+      out.codeLength = code.length; out.saveLength = saved.length;
+      if (!/^VIL1:[zp][A-Za-z0-9+/=]+$/.test(code)) fails.push('the code is not letters a phone keyboard can carry: ' + code.slice(0, 40));
+      const back = await V.readCode(code);
+      if (back !== saved) fails.push('the code did not read back as the save it was made from');
+      const spaced = code.replace(/(.{60})/g, '$1\n  ');
+      if ((await V.readCode(spaced)) !== saved) fails.push('a code broken over lines by a messenger app no longer read');
+      for (const [why, bad] of [['empty', ''], ['words', 'hello there'], ['cut short', code.slice(0, Math.floor(code.length / 2))],
+        ['another game', 'VIL1:p' + btoa('{"v":-1,"placed":[]}')], ['not a save', 'VIL1:p' + btoa('[1,2,3]')]])
+        if ((await V.readCode(bad)) !== null) fails.push('a code that was ' + why + ' was taken as a village');
+      if (V.carry !== null) fails.push('the move card was open before anyone asked for it');
+      // taking one in keeps the old village aside and leaves the new one for the next start
+      const other = JSON.parse(saved); other.res = Object.assign({}, other.res, { wood: 12345 });
+      const json = JSON.stringify(other);
+      if (!V.takeVillage(json, false)) fails.push('takeVillage refused a good village');
+      if (localStorage.getItem(V.KEY) !== json || localStorage.getItem(V.KEY_BAK) !== json) fails.push('the pasted village was not written to both save slots');
+      if (localStorage.getItem(V.KEY_BEFORE) !== saved) fails.push('the village it replaced was not kept aside');
+      V.save();
+      if (localStorage.getItem(V.KEY) !== json) fails.push('an autosave after the paste wrote the old village back over the new one');
+      // the card itself: the chip on the hall opens it, and the usual ways close it
+      V.arriving = false; V.panel = V.hallOf().id; V.step(0.001); V.draw();
+      const chip = V.carryChip(V.panelRects());
+      V.tap(chip.x, chip.y);
+      if (!V.carry) fails.push('tapping Transfer on the hall did not open the card');
+      else {
+        const R = V.carryRects();
+        V.tap(R.x, R.y - R.h / 2 + 50 * R.u); if (!V.carry) fails.push('a tap on the card closed it');
+        V.tap(R.close.x, R.close.y); if (V.carry) fails.push('the cross did not close the move card');
+        V.carry = { code: null, note: '' }; V.backClose(); if (V.carry) fails.push('the back button did not close the move card');
+        V.carry = { code: null, note: '' }; V.tap(R.x, R.y + R.h / 2 + 20 * R.u); if (V.carry) fails.push('a tap off the card did not close it');
+      }
+    } finally {
+      V.arriving = false; V.carry = null; V.panel = null;
+      for (const [k, v] of Object.entries(keep)) { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); }
+    }
+    return { ...out, fails };
+  };
   window.traySweep = function () {
     const V = window.__v, cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
     const fails = [];
@@ -13195,6 +13242,7 @@
       ['clock', () => window.clockSweep()],
       ['light', () => window.lightSweep()],
       ['visitor', () => window.visitorSweep()],
+      ['move', () => window.moveSweep()],
       ['ink', () => window.inkSweep()],
       ['still', () => window.stillSweep()],
       ['notch', () => window.notchSweep()],

@@ -4279,6 +4279,7 @@ const inTransit = () => {
   return out;
 };
 function save() {
+  if (arriving) return;
   try {
     /* Promote the last KNOWN-GOOD primary before overwriting it -- known-good
        by reading it, which is what the note above the backup claims happens
@@ -4318,6 +4319,74 @@ function save() {
        down, and finds out when they come back to nothing. */
     saveFailed = true;
   }
+}
+/* A village carried to another device. The save lives in one browser's storage,
+   so a phone and a laptop each grew their own village and clearing site data
+   lost it. The code is the save itself, squeezed and written out in letters:
+   copied on one device, pasted on the other. */
+const MOVE_TAG = 'VIL1:', KEY_BEFORE = 'vil_before_move';
+let arriving = false;                  // a pasted village is being written; nothing else may save over it
+const b64 = bytes => { let t = ''; for (let i = 0; i < bytes.length; i += 0x8000) t += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(t); };
+const unb64 = t => Uint8Array.from(atob(t), c => c.charCodeAt(0));
+async function squeeze(bytes, way) {
+  if (typeof CompressionStream === 'undefined') return null;
+  const S = way === 'in' ? new CompressionStream('deflate-raw') : new DecompressionStream('deflate-raw');
+  return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(S)).arrayBuffer());
+}
+async function villageCode() {
+  save();
+  const raw = new TextEncoder().encode(localStorage.getItem(KEY) || '');
+  const z = await squeeze(raw, 'in');
+  return z ? MOVE_TAG + 'z' + b64(z) : MOVE_TAG + 'p' + b64(raw);
+}
+// the save a code holds, or null for anything that is not a village this build can read
+async function readCode(code) {
+  try {
+    const t = String(code || '').replace(/\s+/g, '');
+    if (!t.startsWith(MOVE_TAG)) return null;
+    const kind = t[MOVE_TAG.length], bytes = unb64(t.slice(MOVE_TAG.length + 1));
+    const raw = kind === 'z' ? await squeeze(bytes, 'out') : kind === 'p' ? bytes : null;
+    if (!raw) return null;
+    const json = new TextDecoder().decode(raw), x = readSave(json);
+    return usableSave(x) ? json : null;
+  } catch (e) { return null; }
+}
+/* The village here is kept under its own key before it is replaced, so a paste
+   on the wrong device is not the end of it; then the page starts again on the
+   new one. */
+function takeVillage(json, reload = true) {
+  try {
+    const here = localStorage.getItem(KEY);
+    if (here) localStorage.setItem(KEY_BEFORE, here);
+    arriving = true;
+    localStorage.setItem(KEY, json); localStorage.setItem(KEY_BAK, json);
+  } catch (e) { arriving = false; return false; }
+  if (reload) location.reload();
+  return true;
+}
+let carry = null;                      // the move card: { code, note } while it is open
+function openCarry() {
+  carry = { code: null, note: '' };
+  const mine = carry;
+  villageCode().then(c => { if (carry === mine) carry.code = c; }, () => { if (carry === mine) carry.note = 'This browser cannot make a code'; });
+}
+function copyCarry() {
+  const c = carry && carry.code;
+  if (!c) return;
+  const by = () => { try { window.prompt('Copy this code, then paste it into the game on the other device', c); } catch (e) {} };
+  if (navigator.clipboard && navigator.clipboard.writeText)
+    navigator.clipboard.writeText(c).then(() => { if (carry) carry.note = 'Copied. Open the game on the other device and paste it there.'; }, by);
+  else by();
+}
+function pasteCarry() {
+  let t = null;
+  try { t = window.prompt('Paste the village code from your other device'); } catch (e) {}
+  if (!t) return;
+  readCode(t).then(json => {
+    if (!json) { if (carry) carry.note = 'That is not a village code this game can read.'; return; }
+    const x = readSave(json), n = x.placed.length;
+    if (window.confirm('Replace this village with the one in the code (' + n + ' buildings)? The village here is kept aside, not deleted.')) takeVillage(json);
+  });
 }
 function load() {
   const parse = k => readSave(localStorage.getItem(k));
@@ -4568,7 +4637,7 @@ const finishedUp = () => !!finished && !goalDone && !away && !claimAsk;
 
    Same rule drawFinished already states for itself -- one card at a time -- 
    applied to the two things that were exempt from it. */
-const modalUp = () => album || claimAsk || !!away || !!finished;
+const modalUp = () => !!carry || album || claimAsk || !!away || !!finished;
 /* Putting it away is what records it as seen, and the only thing that does.
 
    tutSeen used to be written the moment the card was RAISED, which is the
@@ -7364,6 +7433,7 @@ function drawHUD() {
   drawHint();
   drawClaim();
   drawAlbum();
+  drawCarry();
   drawAway();
   drawFinished();
 }
@@ -7842,6 +7912,47 @@ function albumChip(R) {
   g.save(); g.font = 20 * u + 'px Segoe UI, sans-serif';
   const w = g.measureText(text).width + 28 * u; g.restore();
   return { x: R.close.x - R.close.r - 12 * u - w / 2, y: R.close.y, w, h: 42 * u, text };
+}
+function carryChip(R) {
+  const u = R.u, a = albumChip(R), text = '⇄ Transfer';
+  g.save(); g.font = 20 * u + 'px Segoe UI, sans-serif';
+  const w = g.measureText(text).width + 28 * u; g.restore();
+  return { x: a.x - a.w / 2 - 10 * u - w / 2, y: a.y, w, h: a.h, text };
+}
+function carryRects() {
+  const u = US(), w = Math.min(W - 80 * u, 680 * u), h = 384 * u, y = (screenTop() + screenBot()) / 2;
+  return { u, x: W / 2, y, w, h, close: { x: W / 2 + w / 2 - 34 * u, y: y - h / 2 + 34 * u, r: 27 * u },
+    copy:  { x: W / 2, y: y + 6 * u, w: w * 0.78, h: 66 * u },
+    paste: { x: W / 2, y: y + 88 * u, w: w * 0.78, h: 66 * u } };
+}
+function drawCarry() {
+  if (!carry) return;
+  const R = carryRects(), u = R.u;
+  g.save();
+  g.fillStyle = 'rgba(6,10,6,.66)'; g.fillRect(0, screenTop(), W, screenBot() - screenTop());
+  g.fillStyle = 'rgba(16,26,15,.98)'; g.strokeStyle = 'rgba(160,210,255,.5)'; g.lineWidth = 3;
+  g.beginPath(); g.roundRect(R.x - R.w / 2, R.y - R.h / 2, R.w, R.h, 24 * u); g.fill(); g.stroke();
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.font = 'bold ' + Math.round(32 * u) + 'px Segoe UI, sans-serif'; g.fillStyle = '#fff';
+  g.fillText('To another device', R.x, R.y - R.h / 2 + 50 * u);
+  const say = carry.note || 'Copy a code here, paste it on your other device';
+  const fit = fitLines(say, R.w - 70 * u, 21 * u, 15 * u, 2);
+  g.fillStyle = carry.note ? '#ffe07a' : '#a9bd9c';
+  fit.lines.forEach((l, i) => g.fillText(l, R.x, R.y - R.h / 2 + 100 * u + (i - (fit.lines.length - 1) / 2) * fit.px * 1.2));
+  for (const [b, label, on] of [[R.copy, carry.code ? 'Copy this village' : 'Making the code…', !!carry.code], [R.paste, 'Paste a code', true]]) {
+    g.fillStyle = on ? 'rgba(44,74,104,.98)' : 'rgba(40,44,36,.9)';
+    g.strokeStyle = on ? '#9fd0ff' : 'rgba(255,255,255,.16)'; g.lineWidth = 3;
+    g.beginPath(); g.roundRect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h, 16 * u); g.fill(); g.stroke();
+    g.font = 'bold ' + Math.round(25 * u) + 'px Segoe UI, sans-serif'; g.fillStyle = on ? '#e6f3ff' : DIM;
+    g.fillText(label, b.x, b.y);
+  }
+  g.font = Math.round(21 * u) + 'px Segoe UI, sans-serif'; g.fillStyle = '#a9bd9c';
+  g.fillText('Pasting replaces the village here; it is kept aside', R.x, R.y + R.h / 2 - 36 * u);
+  g.fillStyle = 'rgba(255,255,255,.12)';
+  g.beginPath(); g.arc(R.close.x, R.close.y, R.close.r, 0, 7); g.fill();
+  g.font = 'bold ' + Math.round(28 * u) + 'px Segoe UI, sans-serif'; g.fillStyle = '#fff';
+  g.fillText('×', R.close.x, R.close.y);
+  g.restore();
 }
 function drawClaim() {
   if (!claimAsk) return;
@@ -9137,6 +9248,11 @@ function drawPanel() {
     else s2 += SEP + 'every post filled';
     if (st.avg !== null) s2 += SEP + 'workplaces at ' + Math.round(st.avg * 100) + '%';
     {                                           // the title row has room to its right; every row below it is spoken for
+      const m = carryChip(R);
+      g.save(); g.fillStyle = 'rgba(160,210,255,.14)'; g.beginPath(); g.roundRect(m.x - m.w / 2, m.y - m.h / 2, m.w, m.h, m.h / 2); g.fill();
+      g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = 20 * u + 'px Segoe UI, sans-serif'; g.fillStyle = '#bfe0ff';
+      g.fillText(m.text, m.x, m.y);
+      g.restore();
       const c = albumChip(R);
       g.save(); g.fillStyle = 'rgba(255,224,122,.14)'; g.beginPath(); g.roundRect(c.x - c.w / 2, c.y - c.h / 2, c.w, c.h, c.h / 2); g.fill();
       g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = 20 * u + 'px Segoe UI, sans-serif'; g.fillStyle = '#ffe07a';
@@ -9535,11 +9651,12 @@ let backArmed = false;
    backClose then refused to touch, and the player's next back press did
    nothing at all. */
 function backOpen() {
-  return !!(away || finishedUp() || album || claimAsk || panel != null || who != null || moving != null || selBuild || barMode !== 'build');
+  return !!(away || finishedUp() || carry || album || claimAsk || panel != null || who != null || moving != null || selBuild || barMode !== 'build');
 }
 function backClose() {
   if (away) { away = null; return true; }
   if (finishedUp()) { closeFinished(); return true; }
+  if (carry) { carry = null; return true; }
   if (album) { album = false; return true; }
   if (claimAsk) { claimAsk = false; return true; }
   if (panel != null) { panel = null; sellArm = null; return true; }
@@ -9700,6 +9817,14 @@ function buildingAt(sx, sy) { return buildingsAt(sx, sy)[0] || null; }
 function tap(sx, sy) {
   if (away) { away = null; return; }
   if (finishedUp()) { closeFinished(); return; }
+  if (carry) {
+    const R = carryRects(), x = Math.hypot(sx - R.close.x, sy - R.close.y) < Math.max(R.close.r * 1.3, TOUCH_MIN / 2);
+    const hit = b => Math.abs(sx - b.x) < b.w / 2 && Math.abs(sy - b.y) < padHit(b.h / 2, 12 * R.u);
+    if (hit(R.copy)) { if (carry.code) { SFX.tap(); copyCarry(); } else SFX.deny(); return; }
+    if (hit(R.paste)) { SFX.tap(); pasteCarry(); return; }
+    if (x || Math.abs(sx - R.x) > R.w / 2 || Math.abs(sy - R.y) > R.h / 2) { carry = null; SFX.tap(); }
+    return;
+  }
   if (album) {                            // the cross, or anywhere off the page, puts it away
     const R = albumRects(), x = Math.hypot(sx - R.close.x, sy - R.close.y) < Math.max(R.close.r * 1.3, TOUCH_MIN / 2);
     if (x || Math.abs(sx - R.x) > R.w / 2 || Math.abs(sy - R.y) > R.h / 2) { album = false; SFX.tap(); }
@@ -9732,6 +9857,7 @@ function tap(sx, sy) {
     const hit = r2 => r2 && Math.abs(sx - r2.x) < r2.w / 2
       && Math.abs(sy - r2.y) < padHit(r2.h / 2, 20 * R.u);
     if (p && p.key === 'hall' && hit(albumChip(R))) { album = true; SFX.tap(); return; }
+    if (p && p.key === 'hall' && hit(carryChip(R))) { openCarry(); SFX.tap(); return; }
     if (p && hit(R.move)) { moving = p.id; panel = null; who = null; selBuild = null; ghost = null; armed = null; sellArm = null; SFX.tap(); return; }
     if (p && hit(R.sell)) {
       if (!canSell(p)) { SFX.deny(); return; }
@@ -9939,7 +10065,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   get ordersDone() { return ordersDone; }, set ordersDone(v) { ordersDone = v; },
   get orderT() { return orderT; }, set orderT(v) { orderT = v; },
   get goalDone() { return goalDone; }, set goalDone(v) { goalDone = v; },
-  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, get smokeDrawn() { return smokeDrawn; }, get ringsDrawn() { return ringsDrawn; }, moonFull, mistNow, rainbowNow, batsNow, visitors, catchVisitor, get caught() { return caught; }, set goldForced(b) { goldForced = b; }, caughtLine, set caught(c) { caught = c; }, get album() { return album; }, set album(b) { album = b; }, unmadeBy, SPOT_EVERY, albumRects, albumChip, peakOf, drawVane, get spotNote() { return spotNote; }, ALBUM_STARS, starsOf, albumStars, spotBonus, podNow, kitesNow, balloonNow, whaleNow, gustNow, dovesNow, get umbrellasDrawn() { return umbrellasDrawn; }, festivalNow, auroraNow, stormNow, flashAt, get leapsDrawn() { return leapsDrawn; },
+  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, get smokeDrawn() { return smokeDrawn; }, get ringsDrawn() { return ringsDrawn; }, moonFull, mistNow, rainbowNow, batsNow, visitors, catchVisitor, get caught() { return caught; }, set goldForced(b) { goldForced = b; }, caughtLine, set caught(c) { caught = c; }, get album() { return album; }, set album(b) { album = b; }, villageCode, readCode, takeVillage, carryRects, carryChip, openCarry, get carry() { return carry; }, set carry(v) { carry = v; }, get arriving() { return arriving; }, set arriving(v) { arriving = v; }, KEY_BEFORE, unmadeBy, SPOT_EVERY, albumRects, albumChip, peakOf, drawVane, get spotNote() { return spotNote; }, ALBUM_STARS, starsOf, albumStars, spotBonus, podNow, kitesNow, balloonNow, whaleNow, gustNow, dovesNow, get umbrellasDrawn() { return umbrellasDrawn; }, festivalNow, auroraNow, stormNow, flashAt, get leapsDrawn() { return leapsDrawn; },
   /* Read through getters. Captured by value these went stale the moment the
      harness moved them, and a sweep would have cleaned up the key the game
      was no longer using. */
