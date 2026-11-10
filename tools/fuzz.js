@@ -7102,6 +7102,23 @@
         }
         V.goalDone = null;
       }
+      /* A villager's card shows their own face, in the gilt ring: the face
+         asked for is the one painted after the figure they walk about as. */
+      {
+        const looks = new Map();
+        for (const v of V.villagers) if (!looks.has(V.portraitKey(v))) looks.set(V.portraitKey(v), v);
+        for (const k of [...looks.keys(), 'ring_gilt']) V.artFor(k);
+        for (let i = 0; i < 50 && ![...looks.keys(), 'ring_gilt'].every(k => V.artFor(k)); i++) await new Promise(r => setTimeout(r, 100));
+        if (!looks.size) fails.push('the portrait check had no villager to look at');
+        for (const [k, v] of looks) {
+          V.who = v.seed; V.step(0.001); V.who = v.seed;
+          const { ims: pics } = read();
+          if (!V.artFor(k)) fails.push(k + ' did not load');
+          else if (!pics.some(o => o.im === V.artFor(k))) fails.push('the card for a ' + k.replace('portrait_', '') + ' shows no face');
+          if (V.artFor('ring_gilt') && !pics.some(o => o.im === V.artFor('ring_gilt'))) fails.push('a villager\'s face has no gilt ring round it');
+        }
+        V.who = null;
+      }
       // and with the switch back on the emoji are what the readers get
       V.plainIcons = true; V.step(0.001); V.draw();
       if (V.iconsDrawn) fails.push('with plain icons asked for, ' + V.iconsDrawn + ' painted icons were still drawn');

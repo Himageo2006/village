@@ -9172,6 +9172,26 @@ function panelRow(text, x, y, maxW, px, colour, weight, map) {
   g.fillStyle = colour;
   iconText(fit.lines[0], x, y, fit.px, map);
 }
+/* A villager's face on their card (ChatGPT, painted after the walking figures
+   in the elder's style), in a round window with a gilt ring round it
+   (Leonardo). The face is chosen by the figure, so the card shows the person
+   the player tapped on. The ring is drawn even before the face has loaded. */
+function portraitKey(v) { return 'portrait_' + villagerArt(v).replace('villager_', ''); }
+function drawPortrait(v, cx, cy, d) {
+  const face = !plainIcons && artFor(portraitKey(v)), ring = !plainIcons && artFor('ring_gilt');
+  g.save();
+  g.fillStyle = '#3a2614';
+  g.beginPath(); g.arc(cx, cy, d / 2, 0, Math.PI * 2); g.fill();
+  if (face) {
+    g.save(); g.clip();
+    // the bust is cut off at the bottom of the painting, so it sits low in the window
+    g.drawImage(face, cx - d * 0.55, cy - d * 0.5, d * 1.1, d * 1.1);
+    g.restore(); chromeDrawn++;
+  }
+  if (ring) { const r = d * 1.16; g.drawImage(ring, cx - r / 2, cy - r / 2, r, r); chromeDrawn++; }
+  else { g.strokeStyle = '#d9b25a'; g.lineWidth = Math.max(3, d * 0.05); g.beginPath(); g.arc(cx, cy, d / 2, 0, Math.PI * 2); g.stroke(); }
+  g.restore();
+}
 /* One villager's card.
 
    Deliberately not pinned to the villager: they walk, and a label that walks
@@ -9187,8 +9207,10 @@ function drawWho() {
   const y = tabs[0].y - tabs[0].h / 2 - 14 * u - h / 2;
   g.save();
   boardPanel(W / 2 - w / 2, y - h / 2, w, h, 20 * u);
+  const pd = h - 40 * u;
+  drawPortrait(v, W / 2 - w / 2 + 24 * u + pd / 2, y, pd);
   g.textAlign = 'left'; g.textBaseline = 'middle';
-  const lx = W / 2 - w / 2 + 26 * u, tw = w - 56 * u;
+  const lx = W / 2 - w / 2 + 44 * u + pd, tw = w - 74 * u - pd;
   const trade = tradeOf(v);
   const head = villagerName(v) + ROW_SEP + trade.name
     + (trade.at ? ' at the ' + B(trade.at.key).name.toLowerCase() : '');
@@ -10440,7 +10462,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   SEASONS, SEASON_OF, SEASON_LEAF, seasonIdx, season, seasonSkin, drawGround, drawScenery, SCENERY,
   GW, GH, tileToWorld, deliveredOf,
   get seasonForced() { return seasonForced; }, set seasonForced(v) { seasonForced = v; },
-  get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, winterArt, ART, villagerArt, glowKey, get glowsDrawn() { return glowsDrawn; }, get iconsDrawn() { return iconsDrawn; }, get carriesDrawn() { return carriesDrawn; }, get chromeDrawn() { return chromeDrawn; }, get sparkleCount() { return sparkleCount; }, chromeCache,
+  get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, winterArt, ART, villagerArt, glowKey, get glowsDrawn() { return glowsDrawn; }, get iconsDrawn() { return iconsDrawn; }, get carriesDrawn() { return carriesDrawn; }, get chromeDrawn() { return chromeDrawn; }, portraitKey, get sparkleCount() { return sparkleCount; }, chromeCache,
   get plainIcons() { return plainIcons; }, set plainIcons(v) { plainIcons = !!v; }, ICON_OF,
   hudTop, hudBot, screenTop, screenBot, readSafeArea, get SAFE() { return SAFE; }, set SAFE(v) { SAFE = v; },
   get safeKnown() { return safeKnown; }, set safeKnown(v) { safeKnown = !!v; },
