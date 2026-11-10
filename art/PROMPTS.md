@@ -7197,3 +7197,6 @@ All twelve stars put a golden weathervane on the Town Hall, drawn in code and st
 
 ## Round 225: fewer paid visits (no new art)
 Whales and dolphins still come as often, but only every third visit carries a sparkle and can be caught.
+
+## Round 226: say when a quarry comes first (no new art)
+A goal-following playthrough sat on "Build a mill" with no stone coming in. The strip, the placement label and the upgrade button now say "build a quarry first" when a price needs goods nothing in the village makes yet.

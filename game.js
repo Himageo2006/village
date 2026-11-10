@@ -3380,9 +3380,9 @@ const GOALS = [
     clip: ['goal_decor5_clip', 'A village worth a stroll'],
     at: () => [decorCount(), 5] },
   { text: 'Upgrade any building to level 3', done: () => anyAtLevel(3),        give: { wood: 250, food: 160 } },
-  { text: 'Build a mill',                  done: () => countOf('mill') >= 1,   give: { wood: 350, food: 220 } },
+  { text: 'Build a mill', build: 'mill',    done: () => countOf('mill') >= 1,   give: { wood: 350, food: 220 } },
   { text: 'Raise the town hall to level 4', buy: 'hall', done: () => hallLevel() >= 4,      give: { wood: 550, food: 360 } },
-  { text: 'Open a market',                 done: () => countOf('market') >= 1, give: { wood: 800, food: 500 } },
+  { text: 'Open a market', build: 'market', done: () => countOf('market') >= 1, give: { wood: 800, food: 500 } },
   { text: 'Raise the town hall to level 5', buy: 'hall', done: () => hallLevel() >= 5,      give: { wood: 1400, food: 900 } },
   /* The fourth ring, which was never asked for.
 
@@ -3892,6 +3892,16 @@ const hallFor = k => {
 /* The first kind in a price that the village is short of AND cannot make. */
 const blockedBy = cost => Object.entries(cost || {})
   .find(([k, v]) => res[k] < v && !canMake(k)) || null;
+/* And short of a kind the village COULD make but has nothing making: a mill
+   costs stone, the quarry is in the tray, and no goal ever asks for one -- so a
+   player following the goals was told "need 🪨60 more" and waited on a pile
+   that was never going to grow. Named with the building that fills it. */
+const unmadeBy = cost => {
+  const hit = Object.entries(cost || {}).find(([k, v]) => res[k] < v && canMake(k)
+    && !BUILDINGS.some(b => b.makes && b.makes[k] && countOf(b.key) > 0));
+  return hit ? BUILDINGS.find(b => b.makes && b.makes[hit[0]] && b.key !== 'hall' && unlocked(b.key)) || null : null;
+};
+const firstText = b => 'build a ' + (b.short || b.name).toLowerCase() + ' first';
 /* Whether "build one of these" is advice the player can actually take: the hall
    allows another, and the card is on the tray to be tapped. Three places asked
    it and a fourth -- the hint that fires when the stores fill -- did not, and
@@ -6484,7 +6494,9 @@ function drawWorld() {
             + ' comes with hall level ' + hallFor(stuck[0]);
         else if (cantAfford && overCaps(B(selKey).cost))
           txt = 'costs more than your stores hold — ' + (atLimit('store') ? 'needs a bigger storehouse' : 'needs another storehouse');
-        else if (cantAfford) txt = 'need ' + shortText(B(selKey).cost) + ' more';
+        // the whole shortfall still, and then what has to come first
+        else if (cantAfford) txt = 'need ' + shortText(B(selKey).cost) + ' more'
+          + (unmadeBy(B(selKey).cost) ? ' — ' + firstText(unmadeBy(B(selKey).cost)) : '');
         else if (isWell) {
           /* A well already standing is a different question from one that is
              not there yet -- see wellMoveGain. */
@@ -7566,10 +7578,12 @@ function drawGoal() {
      about to print; this one asked only whether it was allowed to print
      something. */
   const buy = gl.buy ? buyProgress(gl.buy) : '';
+  // a goal whose building the village has nothing to pay for says what comes first
+  const first = gl.build && !countOf(gl.build) && !canAfford(B(gl.build).cost) ? unmadeBy(B(gl.build).cost) : null;
   const txt = gl.text
     + (prog && prog[0] < prog[1] ? '   ·   ' + prog[0] + '/' + prog[1] : '')
     + (buy ? '   ·   ' + buy : '')
-    + (reward ? '   ·   ' + reward : '');
+    + (first ? '   ·   ' + firstText(first) : reward ? '   ·   ' + reward : '');
   const fit = fitLines(txt, W - 108 * u, 22 * u, 13 * u, 2);
   const tw = Math.max(...fit.lines.map(l => g.measureText(l).width));
   const w = Math.min(W - 40 * u, tw + 56 * u);
@@ -9248,7 +9262,7 @@ function drawPanel() {
        Storehouse LEVELS raise the ceiling as well as storehouse count, so at
        the limit there is still an answer, and it is a different one. */
     : overCap ? (atLimit('store') ? 'Needs a bigger storehouse' : 'Needs another storehouse')
-    : !canAfford(i.cost) ? 'Need ' + shortText(i.cost) + ' more'
+    : !canAfford(i.cost) ? 'Need ' + shortText(i.cost) + ' more' + (unmadeBy(i.cost) ? ' — ' + firstText(unmadeBy(i.cost)) : '')
     : 'Upgrade to ' + (lvlOf(p) + 1) + '   ' + Object.entries(i.cost).map(([k, v]) => RES_ICON[k] + v).join('  ');
   g.fillStyle = ok ? 'rgba(62,104,44,.98)' : 'rgba(40,44,36,.9)';
   g.strokeStyle = ok ? '#9fe86b' : 'rgba(255,255,255,.16)'; g.lineWidth = 3;
@@ -9925,7 +9939,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   get ordersDone() { return ordersDone; }, set ordersDone(v) { ordersDone = v; },
   get orderT() { return orderT; }, set orderT(v) { orderT = v; },
   get goalDone() { return goalDone; }, set goalDone(v) { goalDone = v; },
-  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, get smokeDrawn() { return smokeDrawn; }, get ringsDrawn() { return ringsDrawn; }, moonFull, mistNow, rainbowNow, batsNow, visitors, catchVisitor, get caught() { return caught; }, set goldForced(b) { goldForced = b; }, caughtLine, set caught(c) { caught = c; }, get album() { return album; }, set album(b) { album = b; }, SPOT_EVERY, albumRects, albumChip, peakOf, drawVane, get spotNote() { return spotNote; }, ALBUM_STARS, starsOf, albumStars, spotBonus, podNow, kitesNow, balloonNow, whaleNow, gustNow, dovesNow, get umbrellasDrawn() { return umbrellasDrawn; }, festivalNow, auroraNow, stormNow, flashAt, get leapsDrawn() { return leapsDrawn; },
+  SFX, muteRect, audioOn, get master() { return master; }, get muted() { return muted; }, set muted(v) { muted = v; }, get beds() { return beds; }, get glintsDrawn() { return glintsDrawn; }, get smokeDrawn() { return smokeDrawn; }, get ringsDrawn() { return ringsDrawn; }, moonFull, mistNow, rainbowNow, batsNow, visitors, catchVisitor, get caught() { return caught; }, set goldForced(b) { goldForced = b; }, caughtLine, set caught(c) { caught = c; }, get album() { return album; }, set album(b) { album = b; }, unmadeBy, SPOT_EVERY, albumRects, albumChip, peakOf, drawVane, get spotNote() { return spotNote; }, ALBUM_STARS, starsOf, albumStars, spotBonus, podNow, kitesNow, balloonNow, whaleNow, gustNow, dovesNow, get umbrellasDrawn() { return umbrellasDrawn; }, festivalNow, auroraNow, stormNow, flashAt, get leapsDrawn() { return leapsDrawn; },
   /* Read through getters. Captured by value these went stale the moment the
      harness moved them, and a sweep would have cleaned up the key the game
      was no longer using. */
