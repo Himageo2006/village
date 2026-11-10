@@ -1517,12 +1517,24 @@ function drawIcon(key, emoji, x, y, px, k = 1.2) {
    fillText would place the whole line. Each picture is a little narrower than
    the emoji it replaces, so a line fitted with the emoji still fits. Any icon
    not yet loaded stays an emoji. */
-const ICON_OF = { '🪵': 'wood', '🌾': 'food', '🪨': 'stone', '✨': 'charm' };
-const ICON_SPLIT = /(🪵|🌾|🪨|✨)/u;
-function iconText(line, x, y, px) {
+const ALBUM_ICON = { '📖': 'album' };
+const ICON_OF = { '🪵': 'wood', '🌾': 'food', '🪨': 'stone', '✨': 'charm', '🔒': 'lock' };
+/* The same glyph is a load in a price and a building in a count -- 🌾 is grain
+   in "🌾20" and a farm in the hall's "🌾3" -- so a caller says which it means.
+   Made on first use, when BUILDINGS exists; the first building to use a glyph
+   has it. */
+let buildIconOf = null;
+const BUILD_ICONS = () => buildIconOf || (buildIconOf = BUILDINGS.reduce((m, b) => (b.icon in m ? m : { ...m, [b.icon]: b.key }), {}));
+const splitters = new WeakMap();
+const splitterOf = map => {
+  if (!splitters.has(map)) splitters.set(map, new RegExp('(' + Object.keys(map).sort((a, b) => b.length - a.length)
+    .map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')', 'u'));
+  return splitters.get(map);
+};
+function iconText(line, x, y, px, map = ICON_OF) {
   if (plainIcons) { g.fillText(line, x, y); return; }
-  const bits = String(line).split(ICON_SPLIT).filter(Boolean);
-  const ims = bits.map(b => ICON_OF[b] ? artFor('icon_' + ICON_OF[b]) : null);
+  const bits = String(line).split(splitterOf(map)).filter(Boolean);
+  const ims = bits.map(b => map[b] ? artFor('icon_' + map[b]) : null);
   if (!ims.some(Boolean)) { g.fillText(line, x, y); return; }
   iconsDrawn += ims.filter(Boolean).length;
   const s = px * 1.12, wide = bits.map((b, i) => ims[i] ? s + px * 0.08 : g.measureText(b).width);
@@ -7104,6 +7116,30 @@ const chipsBot = () => {
    lost its gold price to it, and the contrast sweeps measure exactly this.
    What says "selected" is the rim, brighter and thicker, not the fill. */
 const WOOD_RIM = 'rgba(214,170,88,.80)', WOOD_ON = '#f3d27a';
+/* The board behind the building panel and a villager's card: a painted walnut
+   board (Leonardo), cut in nine. Its rim and gilt corners keep their size and
+   the plain wood between them stretches to the panel, so one picture serves
+   every shape the panel takes. Square-cornered as painted, so it is clipped to
+   the panel's rounding. Until it has loaded, the flat dark card it replaced. */
+const BOARD_CUT = 112;                 // source pixels of rim and corner ornament, of 1024
+function boardPanel(x, y, w, h, r) {
+  const im = artFor('panel_wood');
+  if (!im) {
+    g.fillStyle = 'rgba(14,22,13,.95)'; g.strokeStyle = 'rgba(255,255,255,.18)'; g.lineWidth = 2.5;
+    g.beginPath(); g.roundRect(x, y, w, h, r); g.fill(); g.stroke();
+    return;
+  }
+  const S = im.width, c = BOARD_CUT * S / 1024, d = Math.round(Math.min(26 * US(), w / 3, h / 3));
+  const xs = [0, c, S - c, S], ys = xs, X = [x, x + d, x + w - d, x + w].map(Math.round), Y = [y, y + d, y + h - d, y + h].map(Math.round);
+  g.save();
+  g.beginPath(); g.roundRect(x, y, w, h, r); g.clip();
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++)
+    g.drawImage(im, xs[i], ys[j], xs[i + 1] - xs[i], ys[j + 1] - ys[j], X[i], Y[j], X[i + 1] - X[i], Y[j + 1] - Y[j]);
+  /* Darkened: the light streaks in the grain measured 106,55,31, and the salmon
+     of a sale warning or a slow round trip came to 4.27 against them. */
+  g.fillStyle = 'rgba(18,8,2,.32)'; g.fillRect(x, y, w, h);
+  g.restore();
+}
 function woodPanel(x, y, w, h, r, rim, rimW, warm) {
   const gr = g.createLinearGradient(0, y, 0, y + h);
   gr.addColorStop(0, warm ? 'rgba(84,36,24,.94)' : 'rgba(74,47,24,.93)');
@@ -8462,7 +8498,7 @@ function drawMute() {
   g.textAlign = 'center'; g.textBaseline = 'middle';
   g.font = `${Math.round(30 * u)}px Segoe UI, sans-serif`;
   g.fillStyle = muted ? '#8d9487' : '#fff';
-  g.fillText(muted ? '🔇' : '🔊', R.x, R.y + 1 * u);
+  drawIcon(muted ? 'sound_off' : 'sound_on', muted ? '🔇' : '🔊', R.x, R.y + 1 * u, 30 * u, 1.25);
   g.restore();
 }
 
@@ -8884,7 +8920,7 @@ function spoilText(room, spoiling) {
    by putting the clauses in the right order.
 
    So: promise first, state last, in every row that has both. */
-function panelRow(text, x, y, maxW, px, colour, weight) {
+function panelRow(text, x, y, maxW, px, colour, weight, map) {
   let parts = String(text).split(ROW_SEP);
   let fit = fitLines(parts.join(ROW_SEP), maxW, px, px * 0.62, 1, weight);
   while (parts.length > 1 && g.measureText(fit.lines[0]).width > maxW) {
@@ -8892,7 +8928,7 @@ function panelRow(text, x, y, maxW, px, colour, weight) {
     fit = fitLines(parts.join(ROW_SEP), maxW, px, px * 0.62, 1, weight);
   }
   g.fillStyle = colour;
-  g.fillText(fit.lines[0], x, y);
+  iconText(fit.lines[0], x, y, fit.px, map);
 }
 /* One villager's card.
 
@@ -8908,8 +8944,7 @@ function drawWho() {
   const w = Math.min(W - 48 * u, 960), h = 152 * u;
   const y = tabs[0].y - tabs[0].h / 2 - 14 * u - h / 2;
   g.save();
-  g.fillStyle = 'rgba(14,22,13,.95)'; g.strokeStyle = 'rgba(255,255,255,.18)'; g.lineWidth = 2.5;
-  g.beginPath(); g.roundRect(W / 2 - w / 2, y - h / 2, w, h, 20 * u); g.fill(); g.stroke();
+  boardPanel(W / 2 - w / 2, y - h / 2, w, h, 20 * u);
   g.textAlign = 'left'; g.textBaseline = 'middle';
   const lx = W / 2 - w / 2 + 26 * u, tw = w - 56 * u;
   const trade = tradeOf(v);
@@ -8929,16 +8964,15 @@ function drawPanel() {
   const p = byId(panel); if (!p) { panel = null; return; }
   const b = B(p.key), R = panelRects(), u = R.u;
   g.save();
-  g.fillStyle = 'rgba(14,22,13,.95)'; g.strokeStyle = 'rgba(255,255,255,.18)'; g.lineWidth = 2.5;
-  g.beginPath(); g.roundRect(R.x - R.w / 2, R.y - R.h / 2, R.w, R.h, 20 * u); g.fill(); g.stroke();
+  boardPanel(R.x - R.w / 2, R.y - R.h / 2, R.w, R.h, 20 * u);
   g.textAlign = 'left'; g.textBaseline = 'middle';
   const lx = R.x - R.w / 2 + 26 * u;
   g.font = `bold ${Math.round(30 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#fff';
   /* The beacon has stages, not levels -- it is never upgraded, it fills --
      and its own row says "Stage 3 of 5". The header said "Level 3" over it,
      one number under two names. */
-  g.fillText(b.icon + '  ' + b.name + (B(p.key).decor || p.key === BEACON ? '' : '  ·  Level ' + lvlOf(p)),
-    lx, R.y - R.h / 2 + 38 * u);
+  iconText(b.icon + '  ' + b.name + (B(p.key).decor || p.key === BEACON ? '' : '  ·  Level ' + lvlOf(p)),
+    lx, R.y - R.h / 2 + 38 * u, 30 * u, { [b.icon]: p.key });
   /* The hall has three things to say -- what it allows, what the next level
      adds, and how the village is doing -- and two rows to say them in. Its
      blurb is the least useful line on the panel, so the summary takes that
@@ -9254,7 +9288,7 @@ function drawPanel() {
         .map(k => B(k).icon + '+' + ((nx[k] || 0) - (a[k] || 0)));
       if (add.length) panelRow('level ' + show + ' adds   ' + add.join(' ')
         + (up ? ' when it is done' : ''),
-        lx, R.y - R.h / 2 + 148 * u, R.w - 56 * u, 20 * u, '#a9bd9c', '');
+        lx, R.y - R.h / 2 + 148 * u, R.w - 56 * u, 20 * u, '#a9bd9c', '', BUILD_ICONS());
     } else {
       /* And at the top, what is still allowed and not yet built, in the row
          the next level used to fill. A finished hall left that row blank --
@@ -9264,10 +9298,11 @@ function drawPanel() {
       const left = Object.keys(a).filter(k => a[k] > countOf(k))
         .map(k => B(k).icon + '+' + (a[k] - countOf(k)));
       panelRow(left.length ? 'still to build   ' + left.join(' ') : 'every building it allows is standing',
-        lx, R.y - R.h / 2 + 148 * u, R.w - 56 * u, 20 * u, '#a9bd9c', '');
+        lx, R.y - R.h / 2 + 148 * u, R.w - 56 * u, 20 * u, '#a9bd9c', '', BUILD_ICONS());
     }
   }
-  panelRow(line, lx, R.y - R.h / 2 + (twoLine ? 146 : 116) * u, R.w - 56 * u, 22 * u, '#e8c98a', '');
+  panelRow(line, lx, R.y - R.h / 2 + (twoLine ? 146 : 116) * u, R.w - 56 * u, 22 * u, '#e8c98a', '',
+    p.key === 'hall' ? BUILD_ICONS() : undefined);   // the hall's row counts buildings; everyone else's names loads
   // houses, wells and decorations have nothing else on that row
   if (saleRow && !(b.jobs && b.makes) && !b.caps && p.key !== 'market')
     panelRow(saleRow, lx, R.y - R.h / 2 + 148 * u, R.w - 56 * u, 20 * u, '#e59a86', '');
@@ -9332,7 +9367,7 @@ function drawPanel() {
       const c = albumChip(R);
       g.save(); g.fillStyle = 'rgba(255,224,122,.14)'; g.beginPath(); g.roundRect(c.x - c.w / 2, c.y - c.h / 2, c.w, c.h, c.h / 2); g.fill();
       g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = 20 * u + 'px Segoe UI, sans-serif'; g.fillStyle = '#ffe07a';
-      g.fillText(c.text, c.x, c.y);
+      iconText(c.text, c.x, c.y, 20 * u, ALBUM_ICON);
       g.restore();
     }
     panelRow(s2, lx, R.y - R.h / 2 + 78 * u, R.w - 56 * u, 20 * u,
@@ -9388,13 +9423,13 @@ function drawPanel() {
     const maxW = r2.w - 16 * u;
     const one = fitLines(text, maxW, px, 11 * u, 1);
     const i = text.search(RES.map(k => RES_ICON[k]).join('|'));
-    if (g.measureText(one.lines[0]).width <= maxW + 0.5 || i <= 0) { g.fillText(one.lines[0], r2.x, r2.y); return; }
+    if (g.measureText(one.lines[0]).width <= maxW + 0.5 || i <= 0) { iconText(one.lines[0], r2.x, r2.y, one.px); return; }
     const parts = [text.slice(0, i).trim(), text.slice(i).trim().replace(/\s{2,}/g, ' ')];
     const size = Math.min(...parts.map(t => fitLines(t, maxW, px, 11 * u, 1).px));
     g.font = `bold ${Math.round(size)}px Segoe UI, sans-serif`;
     const lh = size * 1.12;
-    g.fillText(parts[0], r2.x, r2.y - lh / 2);
-    g.fillText(parts[1], r2.x, r2.y + lh / 2);
+    iconText(parts[0], r2.x, r2.y - lh / 2, size);
+    iconText(parts[1], r2.x, r2.y + lh / 2, size);
   }
   btnFace(R.move, true, 'Move', true);
   const sv = canSell(p) ? sellValue(p) : null;

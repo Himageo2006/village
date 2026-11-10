@@ -6888,7 +6888,8 @@
       V.ensureHall(); V.placed[0].t = 1; V.placed[0].build = 0; V.placed[0].lvl = 3;
       for (const k of V.RES) V.res[k] = 40;
       V.step(0.001); V.camFit(true);
-      const keys = [...V.buildList(), ...V.decorList()].map(b => b.key).concat(V.RES, ['charm']);
+      const keys = [...V.buildList(), ...V.decorList()].map(b => b.key).concat(V.RES, ['charm', 'hall', 'lock', 'album', 'sound_on', 'sound_off']);
+      V.artFor('panel_wood');
       for (const k of keys) V.artFor('icon_' + k);
       for (let i = 0; i < 100 && keys.some(k => !V.artFor('icon_' + k)); i++) await new Promise(r => setTimeout(r, 100));
       const missing = keys.filter(k => !V.artFor('icon_' + k));
@@ -6923,6 +6924,32 @@
         if (pic && !ims.some(o => o.im === pic && o.x >= c.x && o.x <= c.x + c.w && Math.abs(o.y - c.y) <= c.h / 2)) fails.push('the ' + c.k + ' chip does not show its painted icon');
       }
       if (!(V.iconsDrawn > 0)) fails.push('a frame with every icon loaded drew no painted icons at all');
+      // the sound button
+      { const m = V.muteRect(), pic = V.artFor('icon_' + (V.muted ? 'sound_off' : 'sound_on'));
+        if (pic && !ims.some(o => o.im === pic && Math.hypot(o.x - m.x, o.y - m.y) <= m.r)) fails.push('the sound button does not show its painted speaker'); }
+      /* The panels: the hall counts buildings and a farm names loads and
+         prices, and neither should print an emoji the game has a picture for
+         -- the building glyphs on the hall, the loads everywhere. */
+      const hall = V.placed.find(q => q.key === 'hall');
+      for (const k of V.RES) V.res[k] = 300;
+      let farm = null;
+      for (let c = 6; c >= -6 && !farm; c--) for (let r = 6; r >= -6 && !farm; r--)
+        if (V.canPlace('farm', c, r, V.occupied()) && V.place('farm', c, r)) farm = V.placed[V.placed.length - 1];
+      if (farm) { farm.t = 1; farm.build = 0; }
+      const painted = { ...V.ICON_OF };
+      for (const b of V.BUILDINGS) if (!(b.icon in painted)) painted[b.icon] = b.key;
+      for (const q of [hall, farm]) {
+        if (!q) { fails.push('the panel check could not place a farm'); continue; }
+        V.panel = q.id; V.step(0.001);
+        const { texts, ims: pics } = read(), R = V.panelRects();
+        const inPanel = o => Math.abs(o.x - R.x) <= R.w / 2 && Math.abs(o.y - R.y) <= R.h / 2;
+        const said = texts.filter(inPanel);
+        const left = said.filter(o => Object.keys(painted).some(e => o.t.includes(e) && V.artFor('icon_' + painted[e])));
+        if (left.length) fails.push('the ' + q.key + ' panel prints "' + left[0].t + '" with an emoji the game has a picture for');
+        const own = V.artFor('icon_' + q.key);
+        if (own && !pics.some(o => o.im === own && inPanel(o))) fails.push('the ' + q.key + ' panel title has no painted icon');
+      }
+      V.panel = null; V.step(0.001);
       // and with the switch back on the emoji are what the readers get
       V.plainIcons = true; V.step(0.001); V.draw();
       if (V.iconsDrawn) fails.push('with plain icons asked for, ' + V.iconsDrawn + ' painted icons were still drawn');
