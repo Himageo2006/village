@@ -55,6 +55,10 @@ const STONECUTTER = 'villager_stonecutter';
 const TRADER = 'villager_trader';
 // and the mill's, white with flour, where the field hands used to stand in
 const MILLER = 'villager_miller';
+// and a woman's figure at the lumber camp, beside the woodcutter, so that the
+// wood is not cut by men alone: half its hands, by the same parity that splits
+// the field hands between the farmer and the basket woman
+const WOODSWOMAN = 'villager_woodswoman';
 /* A painted walk cycle, if one has been drawn for this villager.
 
    Six frames to the stride, and the stride is the one the walker is
@@ -1956,7 +1960,7 @@ const MEN = [
   'Stig', 'Tor', 'Ulf', 'Viggo', 'Axel', 'Bastian', 'Dag', 'Eskil', 'Halvard', 'Ingvar', 'Jarl', 'Kasper',
   'Loke', 'Nikolai', 'Ove', 'Ragnar', 'Sindre', 'Tarjei', 'Vemund', 'Arvid',
 ];
-const WOMEN_FIGURES = new Set(['villager_basket', 'villager_stonecutter']);
+const WOMEN_FIGURES = new Set(['villager_basket', 'villager_stonecutter', WOODSWOMAN]);
 const NAME_STEP = 37;                 // coprime with 80, so seeds do not collide
 const villagerName = v => {
   // the figure they are meant to have, so the name does not change as the art arrives
@@ -5693,7 +5697,10 @@ function villagerArt(v, ask = artFor) {      // ask: whether a figure can be dra
     if (p.key === 'market' && ask(TRADER)) return TRADER;
     // the mill makes food too, so it is asked for before the field hands
     if (p.key === 'mill' && ask(MILLER)) return MILLER;
-    if (b.makes.wood !== undefined) return 'villager_woodcutter';
+    /* Every other hand at a lumber camp is a woodswoman (painted by ChatGPT
+       to match), so felling is not a men-only trade. v.k is fixed for life,
+       so who they are, and the name that goes with it, does not change. */
+    if (b.makes.wood !== undefined) return (v.k % 2 && ask(WOODSWOMAN)) ? WOODSWOMAN : 'villager_woodcutter';
     /* Stone has a figure of its own: a pick over the shoulder and an apron
        grey with dust. The quarry drew on the food workers until it had one,
        so a basket of vegetables went to work cutting rock. Off duty she
@@ -9294,12 +9301,14 @@ function drawMedallion(key, cx, cy, d) {
      frame over the ceiling the cost sweep holds it to. The canvas is tagged
      with the face, so the checkers can still tell who is on it. */
   const face = !plainIcons && artFor(key), ring = !plainIcons && artFor('ring_gilt');
+  const back = !plainIcons && artFor('portrait_bg');     // an autumn blur behind the face (Leonardo)
   const S2 = Math.ceil(d * 1.16), m = S2 / 2;
-  const c = chrome('medal:' + key + (face ? '+f' : '') + (ring ? '+r' : ''), S2, S2, b => {
+  const c = chrome('medal:' + key + (face ? '+f' : '') + (ring ? '+r' : '') + (back ? '+b' : ''), S2, S2, b => {
     b.fillStyle = '#3a2614';
     b.beginPath(); b.arc(m, m, d / 2, 0, Math.PI * 2); b.fill();
+    if (back) { b.save(); b.clip(); b.drawImage(back, m - d / 2, m - d / 2, d, d); b.restore(); }
     if (face) {
-      b.save(); b.clip();
+      b.save(); b.beginPath(); b.arc(m, m, d / 2, 0, Math.PI * 2); b.clip();
       // the bust is cut off at the bottom of the painting, so it sits low in the window
       b.drawImage(face, m - d * 0.55, m - d * 0.5, d * 1.1, d * 1.1);
       b.restore();
@@ -10516,12 +10525,12 @@ for (const b of BUILDINGS) if (!SET_ART[b.key]) artFor(b.key);
     im.addEventListener('error', done, { once: true });
   }
 }
-for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER]) artFor(v);
+for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER, WOODSWOMAN]) artFor(v);
 /* Asked for once, here, rather than on the first frame somebody walks: a
    villager with no cycle drawn for him would otherwise send six requests
    the moment he set off, and artFor remembers a miss, so doing it at boot
    costs the same misses at a moment when nothing is moving yet. */
-for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER]) for (let i = 1; i <= WALK_STEPS; i++) artFor(v + '_walk' + i);
+for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER, WOODSWOMAN]) for (let i = 1; i <= WALK_STEPS; i++) artFor(v + '_walk' + i);
 /* The beacon's five, asked for here for the same reason the walk frames are:
    a village with none of them drawn would otherwise send five requests the
    moment it finished, and artFor remembers a miss. */

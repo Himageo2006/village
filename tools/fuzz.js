@@ -12146,7 +12146,7 @@
 
      Four ways for it to go wrong, and the fourth is the one that would only
      show up in a village that has been played for a long time. */
-  window.nameSweep = function () {
+  window.nameSweep = async function () {
     const V = window.__v, fails = [];
     const cv5 = document.querySelector('canvas'), ctx5 = cv5.getContext('2d');
 
@@ -12186,6 +12186,27 @@
       const woman = V.WOMEN_FIGURES.has(V.villagerArt(v, () => true));
       if (!(woman ? V.WOMEN : V.MEN).includes(V.villagerName(v)))
         fails.push(V.villagerName(v) + ' is drawn as ' + V.villagerArt(v).replace('villager_', 'the ') + ' but has a name from the other list');
+    }
+
+    /* The lumber camps are worked by both: an odd k is the woodswoman, with a
+       woman's name and her own face on the card. */
+    const hand = V.villagers.find(v => v.job != null && V.placed.find(p => p.id === v.job && p.key === 'lumber'));
+    if (!hand) fails.push('the name check found nobody working at a lumber camp');
+    else if (V.artFor('villager_woodswoman')) {
+      // the faces load on first ask, so ask and give them a moment
+      for (let i = 0; i < 40 && !(V.artFor('portrait_woodswoman') && V.artFor('portrait_woodcutter')); i++)
+        await new Promise(r => setTimeout(r, 100));
+      const keep = hand.k;
+      try {
+        for (const k of [keep | 1, (keep | 1) + 1]) {
+          hand.k = k;
+          const art = V.villagerArt(hand), want = k % 2 ? 'villager_woodswoman' : 'villager_woodcutter';
+          if (art !== want) fails.push('a lumber hand with k=' + k + ' is drawn as ' + art + ', not ' + want);
+          if (!(k % 2 ? V.WOMEN : V.MEN).includes(V.villagerName(hand)))
+            fails.push('the ' + art.replace('villager_', '') + ' is called ' + V.villagerName(hand) + ', a name from the other list');
+          if (!V.artFor(V.portraitKey(hand))) fails.push('the ' + art.replace('villager_', '') + ' has no face for the card (' + V.portraitKey(hand) + ')');
+        }
+      } finally { hand.k = keep; }
     }
 
     /* The village comes back with the same people in it. Emptying the list
