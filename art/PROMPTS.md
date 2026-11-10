@@ -7206,3 +7206,8 @@ A Transfer chip on the Town Hall opens a card that copies the save as a short co
 
 ## Round 228: undo a pasted village (no new art)
 When a paste has replaced a village, the Transfer card offers "Bring back the village before", which trades the two places. A profile of a full village under a sixfold CPU slowdown found no frame-rate problem, so nothing was changed for speed.
+
+# 229 — Painted album and weathervane → `art/weathervane.webp`, `art/card_whale.webp`, `art/card_pod.webp`, `art/album_page.webp`  ✅ DONE
+- **weathervane** (GPT Image, flat magenta, keyed): "a gilded rooster weathervane ... arrow pointing right, N/E/S/W letters on the cross arms, standing on a short pole with a gold ball", matched to the village's warm painted style. It replaces the vane that was drawn in code (that stays as the fallback). It stands about 78 world units tall on the hall's peak and turns edge-on with the wind.
+- **card_whale** and **card_pod** (GPT Image, flat magenta, keyed): a whole humpback breaching with splash, and three leaping dolphins, both in the style of the existing whale_back and dolphin art. The album cards now show the whole animal rather than the part the sea shows.
+- **album_page** (Leonardo Lucid Origin, free relaxed, keyed): "an old naturalist's album page, aged parchment with torn edges and gilded autumn-leaf scrollwork in the corners, empty centre". The Visitors album is drawn on it with dark-brown ink, and the cards sit 50u in from the edges, clear of the corners.

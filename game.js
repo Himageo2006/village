@@ -850,8 +850,8 @@ const spotBonus = () => 1 + Math.min(1, caughtTotal() / SPOT_FULL);
 const ALBUM = [
   { key: 'balloon', name: 'Balloon',  art: 'balloon',      hint: 'Drifts over the island' },
   { key: 'golden',  name: 'Golden Balloon', art: 'balloon_gold', hint: 'One balloon in seven' },
-  { key: 'whale',   name: 'Whale',    art: 'whale_back',   hint: 'Surfaces out at sea' },
-  { key: 'pod',     name: 'Dolphins', art: 'dolphin',      hint: 'Leap along the shore' }];
+  { key: 'whale',   name: 'Whale',    art: 'card_whale',   hint: 'Surfaces out at sea' },
+  { key: 'pod',     name: 'Dolphins', art: 'card_pod',     hint: 'Leap along the shore' }];
 const ALBUM_STARS = { balloon: [1, 10, 30], golden: [1, 3, 10], whale: [1, 10, 30], pod: [1, 10, 30] }, STAR_SHARE = 0.15;
 const starsOf = k => ALBUM_STARS[k].filter(m => caught[k] >= m).length;
 const albumStars = () => ALBUM.reduce((n, a) => n + starsOf(a.key), 0);
@@ -1688,6 +1688,22 @@ function drawVane() {
   if (!R) return;
   const pk = peakOf(R.art), x = R.left + pk.x * R.wid, y = R.top + pk.y * R.hgt, t = Date.now() / 1000;
   const q = reduceMotion ? 1 : Math.cos(t * 0.31 + Math.sin(t * 0.13) * 2), L = 20, top = y - 40, sq = Math.abs(q) < 0.18 ? 0.18 * (q < 0 ? -1 : 1) : q;
+  const art = artFor('weathervane');
+  if (ready(art)) {                       // the painted rooster, its foot on the peak and turning edge-on with the wind
+    const H = 78, w = art.width * (H / art.height);
+    g.save(); g.translate(x, y + 4); g.scale(sq, 1);
+    g.drawImage(art, -w / 2, -H, w, H);
+    g.restore();
+    const shine = reduceMotion ? 0 : Math.max(0, Math.sin(t * 1.1)) ** 12;
+    if (shine > 0.02) {
+      const a = 18 * shine, cx = x + 4 * sq, cy = y + 4 - H * 0.8;
+      g.save(); g.globalAlpha = shine; g.fillStyle = '#fff6c8'; g.beginPath();
+      g.moveTo(cx, cy - a); g.quadraticCurveTo(cx, cy, cx + a, cy); g.quadraticCurveTo(cx, cy, cx, cy + a);
+      g.quadraticCurveTo(cx, cy, cx - a, cy); g.quadraticCurveTo(cx, cy, cx, cy - a); g.fill();
+      g.restore();
+    }
+    return;
+  }
   g.save(); g.lineCap = 'round'; g.lineJoin = 'round';
   g.beginPath();
   g.moveTo(x, y + 6); g.lineTo(x, top - 8);
@@ -7864,9 +7880,10 @@ function claimRects() {
 }
 function albumRects() {
   const u = US(), top = screenTop(), bot = screenBot(), w = Math.min(W - 56 * u, 820 * u), h = Math.min(bot - top - 60 * u, 840 * u);
-  const y = (top + bot) / 2, head = 110 * u, gap = 18 * u, cw = (w - gap * 3) / 2, ch = (h - head - gap * 2) / 2;
-  return { u, x: W / 2, y, w, h, close: { x: W / 2 + w / 2 - 38 * u, y: y - h / 2 + 38 * u, r: 27 * u },
-    cards: ALBUM.map((a, i) => ({ a, x: W / 2 - w / 2 + gap + (i % 2) * (cw + gap), y: y - h / 2 + head + (i >> 1) * (ch + gap), w: cw, h: ch })) };
+  const pad = 50 * u;                    // clear of the page's gilt corners
+  const y = (top + bot) / 2, head = 116 * u, gap = 16 * u, cw = (w - pad * 2 - gap) / 2, ch = (h - head - pad - gap) / 2;
+  return { u, x: W / 2, y, w, h, close: { x: W / 2 + w / 2 - 64 * u, y: y - h / 2 + 58 * u, r: 27 * u },
+    cards: ALBUM.map((a, i) => ({ a, x: W / 2 - w / 2 + pad + (i % 2) * (cw + gap), y: y - h / 2 + head + (i >> 1) * (ch + gap), w: cw, h: ch })) };
 }
 /* A visitor not yet caught is its own shadow: the painting filled in dark, once. */
 const shadows = {};
@@ -7882,17 +7899,28 @@ function drawAlbum() {
   const R = albumRects(), u = R.u;
   g.save();
   g.fillStyle = 'rgba(6,10,6,.66)'; g.fillRect(0, screenTop(), W, screenBot() - screenTop());
-  g.fillStyle = 'rgba(16,26,15,.98)'; g.strokeStyle = 'rgba(240,214,140,.55)'; g.lineWidth = 3;
-  g.beginPath(); g.roundRect(R.x - R.w / 2, R.y - R.h / 2, R.w, R.h, 24 * u); g.fill(); g.stroke();
+  /* A painted page of an old naturalist's album, with ink to match. Until the
+     page has arrived the card is the dark one every other card is, with the
+     light lettering that reads on it. */
+  const page = artFor('album_page'), paper = ready(page);
+  const ink = paper ? { head: '#3b2410', sub: '#8a5208', card: 'rgba(255,250,232,.55)', cardOff: 'rgba(110,80,40,.14)',
+    name: '#3b2410', nameOff: '#7a5a38', star: '#d9940a', starOff: 'rgba(90,60,30,.22)', note: '#5a3e22', x: 'rgba(60,36,14,.14)', xInk: '#3b2410' }
+    : { head: '#fff', sub: '#ffe07a', card: 'rgba(66,84,46,.75)', cardOff: 'rgba(32,42,30,.75)',
+    name: '#fff', nameOff: '#a9bd9c', star: '#ffd24a', starOff: 'rgba(255,255,255,.2)', note: '#c7d6b8', x: 'rgba(255,255,255,.12)', xInk: '#fff' };
+  if (paper) g.drawImage(page, R.x - R.w / 2, R.y - R.h / 2, R.w, R.h);
+  else {
+    g.fillStyle = 'rgba(16,26,15,.98)'; g.strokeStyle = 'rgba(240,214,140,.55)'; g.lineWidth = 3;
+    g.beginPath(); g.roundRect(R.x - R.w / 2, R.y - R.h / 2, R.w, R.h, 24 * u); g.fill(); g.stroke();
+  }
   g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.font = `bold ${Math.round(34 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#fff';
-  g.fillText('Visitors', R.x, R.y - R.h / 2 + 42 * u);
+  g.font = `bold ${Math.round(34 * u)}px Segoe UI, sans-serif`; g.fillStyle = ink.head;
+  g.fillText('Visitors', R.x, R.y - R.h / 2 + 50 * u);
   const got = albumStars(), all = ALBUM.length * 3;
-  g.font = `${Math.round(22 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#ffe07a';
-  g.fillText(reduceMotion ? 'Reduced motion is on, so no visitors come' : got === all ? '★ The album is full, and the weathervane is yours ★' : '★ ' + got + ' of ' + all + ' stars: fill them all for a golden weathervane', R.x, R.y - R.h / 2 + 82 * u);
+  g.font = `${Math.round(22 * u)}px Segoe UI, sans-serif`; g.fillStyle = ink.sub;
+  g.fillText(reduceMotion ? 'Reduced motion is on, so no visitors come' : got === all ? '★ The album is full, and the weathervane is yours ★' : '★ ' + got + ' of ' + all + ' stars: fill them all for a golden weathervane', R.x, R.y - R.h / 2 + 88 * u);
   for (const c of R.cards) {
     const n = caught[c.a.key], cx = c.x + c.w / 2, marks = ALBUM_STARS[c.a.key];
-    g.fillStyle = n ? 'rgba(66,84,46,.75)' : 'rgba(32,42,30,.75)';
+    g.fillStyle = n ? ink.card : ink.cardOff;
     g.beginPath(); g.roundRect(c.x, c.y, c.w, c.h, 16 * u); g.fill();
     const im = artFor(c.a.art);
     if (ready(im)) {
@@ -7900,17 +7928,17 @@ function drawAlbum() {
       g.drawImage(n ? im : shadowOf(c.a.art, im), cx - iw / 2, c.y + 12 * u + (room - ih) / 2, iw, ih);
     }
     const b = c.y + c.h;
-    g.font = `bold ${Math.round(25 * u)}px Segoe UI, sans-serif`; g.fillStyle = n ? '#fff' : '#a9bd9c';
+    g.font = `bold ${Math.round(25 * u)}px Segoe UI, sans-serif`; g.fillStyle = n ? ink.name : ink.nameOff;
     g.fillText(c.a.name, cx, b - 100 * u);
     g.font = `${Math.round(30 * u)}px Segoe UI, sans-serif`;
-    marks.forEach((m, i) => { g.fillStyle = n >= m ? '#ffd24a' : 'rgba(255,255,255,.2)'; g.fillText('★', cx + (i - 1) * 40 * u, b - 64 * u); });
+    marks.forEach((m, i) => { g.fillStyle = n >= m ? ink.star : ink.starOff; g.fillText('★', cx + (i - 1) * 40 * u, b - 64 * u); });
     const next = marks.find(m => n < m);
-    g.font = `${Math.round(20 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#c7d6b8';
+    g.font = `${Math.round(20 * u)}px Segoe UI, sans-serif`; g.fillStyle = ink.note;
     g.fillText(!n ? c.a.hint : next ? n + ' caught, ' + (next - n) + ' to the next star' : n + ' caught', cx, b - 28 * u);
   }
-  g.fillStyle = 'rgba(255,255,255,.12)';
+  g.fillStyle = ink.x;
   g.beginPath(); g.arc(R.close.x, R.close.y, R.close.r, 0, 7); g.fill();
-  g.font = `bold ${Math.round(28 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#fff';
+  g.font = `bold ${Math.round(28 * u)}px Segoe UI, sans-serif`; g.fillStyle = ink.xInk;
   g.fillText('×', R.close.x, R.close.y);
   g.restore();
 }
