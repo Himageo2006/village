@@ -6990,6 +6990,17 @@
         }
         const cart = V.artFor('icon_cart');
         if (cart && stalls.length > cards.length && !pics.some(o => o.im === cart)) fails.push('the stall waiting for a trader shows no cart');
+        /* Each offer has the merchant who brought it, and an empty stall is
+           drawn as a stall. */
+        const faces = V.orders.map(o => V.merchantOf(o));
+        for (const k of [...faces, 'stall_empty']) V.artFor(k);
+        for (let i = 0; i < 50 && ![...faces, 'stall_empty'].every(k => V.artFor(k)); i++) await new Promise(r => setTimeout(r, 100));
+        V.barMode = 'orders'; V.step(0.001);           // the live frames go on while the art loads, and leave the board
+        const { ims: seen } = read();
+        for (const k of faces) if (!V.artFor(k)) fails.push(k + ' did not load');
+          else if (!seen.some(o => o.im === V.artFor(k) && cards.some(r => inside(o, r)))) fails.push('an offer shows no face for ' + k);
+        if (stalls.length > cards.length && V.artFor('stall_empty') && !seen.some(o => o.im === V.artFor('stall_empty')))
+          fails.push('an empty stall is not drawn as a stall');
         V.orders.length = 0;
       }
       /* The badges over the buildings are painted too: the hall's plaque, the

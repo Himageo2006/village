@@ -7070,6 +7070,13 @@ function stripLay(n, cap) {
 /* Every stall on the board, filled or not. The cards are laid out for all of
    them, so drawing only the filled ones put a lone offer in the left-hand
    third of the screen beside an empty row. */
+/* Who is standing at a stall (ChatGPT, painted as visitors from away in the
+   villagers' portrait style). Worked out from the order rather than stored on
+   it, so offers saved before there were merchants have one too; the stall
+   comes first, so two offers on the board side by side are never the same
+   face unless the numbers make them so. */
+const MERCHANTS = ['captain', 'spice', 'pedlar', 'cheese'];
+function merchantOf(o) { return 'merchant_' + MERCHANTS[((o.slot | 0) + Math.floor(o.giveN / 5)) % MERCHANTS.length]; }
 function orderSlotRects() {
   return stripLay(Math.max(1, orderSlots()), STALL_W);
 }
@@ -7486,6 +7493,13 @@ function drawHUD() {
       g.setLineDash([10, 8]);
       g.beginPath(); g.roundRect(r.x - r.w / 2, r.y - r.h / 2, r.w, r.h, 16); g.fill(); g.stroke();
       g.setLineDash([]);
+      /* The empty stall itself (Leonardo), faint behind the words, so the slot
+         reads as a place a trader will stand rather than a hole in the board. */
+      const stall = !plainIcons && artFor('stall_empty');
+      if (stall) {
+        const sh = r.h * 0.86, sw = sh * stall.width / stall.height;
+        g.globalAlpha = 0.3; g.drawImage(stall, r.x - sw / 2, r.y - sh / 2, sw, sh); g.globalAlpha = 1; chromeDrawn++;
+      }
       g.textAlign = 'center'; g.textBaseline = 'middle';
       const first = i === firstFree && wait !== null;
       const secs = first ? Math.ceil(wait) : 0;
@@ -7532,14 +7546,17 @@ function drawHUD() {
       woodPanel(r.x - r.w / 2, r.y - r.h / 2, r.w, r.h, 16,
         best ? 'rgba(240,216,148,.9)' : ok ? 'rgba(159,232,107,.75)' : 'rgba(200,110,90,.6)', ok ? 3 : 2.5, !ok);
       g.textAlign = 'center'; g.textBaseline = 'middle';
+      const md = Math.min(r.h - 34 * u, 66 * u), mx = r.x - r.w / 2 + 12 * u + md / 2;
+      drawMedallion(merchantOf(r.o), mx, r.y, md);
+      const tx = r.x + (md + 12 * u) / 2, tw = r.w - md - 12 * u;
       /* Which way the goods go. "🌾42 for 🪵39" reads either way round -- is
          that 42 food for their 39 wood, or 42 food they want for 39 of yours?
          The card said it only by making the lower figure green. */
       const side = (verb, k, n, at, colour) => {
-        const fit = fitLines(verb + '  ' + RES_ICON[k] + ' ' + n, r.w - 18 * u, 26 * u, 14 * u, 1, 'bold ');
+        const fit = fitLines(verb + '  ' + RES_ICON[k] + ' ' + n, tw - 18 * u, 26 * u, 14 * u, 1, 'bold ');
         g.font = `bold ${Math.round(fit.px)}px Segoe UI, sans-serif`;
         g.fillStyle = colour;
-        iconText(fit.lines[0], r.x, r.y + r.h * at, fit.px);
+        iconText(fit.lines[0], tx, r.y + r.h * at, fit.px);
       };
       side('give', r.o.giveK, r.o.giveN, -0.26, ok ? '#fff' : '#d8b3a6');
       g.font = `${Math.round(20 * u)}px Segoe UI, sans-serif`;
@@ -7555,9 +7572,9 @@ function drawHUD() {
         : !hasRoom(r.o) ? 'no room' : best ? 'best rate' : 'tap to trade';
       g.fillStyle = why === 'tap to trade' ? DIM
         : short <= 0 && hasRoom(r.o) ? '#f0d894' : '#e59a86';
-      const whyFit = fitLines(why, r.w - 16 * u, 20 * u, 13 * u, 1);
+      const whyFit = fitLines(why, tw - 16 * u, 20 * u, 13 * u, 1);
       g.font = `${Math.round(whyFit.px)}px Segoe UI, sans-serif`;
-      iconText(whyFit.lines[0], r.x, r.y, whyFit.px);
+      iconText(whyFit.lines[0], tx, r.y, whyFit.px);
       side('get', r.o.getK, r.o.getN, 0.26, ok ? '#9fe86b' : '#b4a291');   // 4.46 against the warm wood at #a2907f
       g.restore();
     }
@@ -9177,8 +9194,9 @@ function panelRow(text, x, y, maxW, px, colour, weight, map) {
    (Leonardo). The face is chosen by the figure, so the card shows the person
    the player tapped on. The ring is drawn even before the face has loaded. */
 function portraitKey(v) { return 'portrait_' + villagerArt(v).replace('villager_', ''); }
-function drawPortrait(v, cx, cy, d) {
-  const face = !plainIcons && artFor(portraitKey(v)), ring = !plainIcons && artFor('ring_gilt');
+function drawPortrait(v, cx, cy, d) { drawMedallion(portraitKey(v), cx, cy, d); }
+function drawMedallion(key, cx, cy, d) {
+  const face = !plainIcons && artFor(key), ring = !plainIcons && artFor('ring_gilt');
   g.save();
   g.fillStyle = '#3a2614';
   g.beginPath(); g.arc(cx, cy, d / 2, 0, Math.PI * 2); g.fill();
@@ -10462,7 +10480,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   SEASONS, SEASON_OF, SEASON_LEAF, seasonIdx, season, seasonSkin, drawGround, drawScenery, SCENERY,
   GW, GH, tileToWorld, deliveredOf,
   get seasonForced() { return seasonForced; }, set seasonForced(v) { seasonForced = v; },
-  get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, winterArt, ART, villagerArt, glowKey, get glowsDrawn() { return glowsDrawn; }, get iconsDrawn() { return iconsDrawn; }, get carriesDrawn() { return carriesDrawn; }, get chromeDrawn() { return chromeDrawn; }, portraitKey, get sparkleCount() { return sparkleCount; }, chromeCache,
+  get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, winterArt, ART, villagerArt, glowKey, get glowsDrawn() { return glowsDrawn; }, get iconsDrawn() { return iconsDrawn; }, get carriesDrawn() { return carriesDrawn; }, get chromeDrawn() { return chromeDrawn; }, portraitKey, merchantOf, get sparkleCount() { return sparkleCount; }, chromeCache,
   get plainIcons() { return plainIcons; }, set plainIcons(v) { plainIcons = !!v; }, ICON_OF,
   hudTop, hudBot, screenTop, screenBot, readSafeArea, get SAFE() { return SAFE; }, set SAFE(v) { SAFE = v; },
   get safeKnown() { return safeKnown; }, set safeKnown(v) { safeKnown = !!v; },
