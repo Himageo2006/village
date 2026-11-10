@@ -5834,7 +5834,13 @@ function drawSnowman(o, i) {
    are not saved: where a child is is worked out from the clock, the way the
    kites and the geese are, so a reload finds her exactly where she was. Under
    reduce motion she stands at the well with her ball and does not run. */
-const KID = 'villager_girl', KIDS_MAX = 4, KID_H = VILLAGER_H * 0.7, KID_SPD = 40;
+/* A girl and a boy (both ChatGPT), turn and turn about down the houses, and
+   a cat and a dog (both Leonardo) the same way down the steps. */
+const KID_FIGS = ['villager_girl', 'villager_boy'], PETS = ['cat_sleep', 'dog_sleep'];
+const GIRLS = ['Pip', 'Wren', 'Tilly', 'Mae', 'Elsie', 'Nell', 'Poppy', 'Ivy', 'Rosie', 'Hattie', 'Lottie', 'Bea'];
+const BOYS = ['Sam', 'Alfie', 'Ned', 'Toby', 'Kit', 'Ollie', 'Bram', 'Jory', 'Fin', 'Robin', 'Teddy', 'Hal'];
+let kidWho = null;                                  // the house whose child's card is open
+const KID = KID_FIGS[0], KIDS_MAX = 4, KID_H = VILLAGER_H * 0.7, KID_SPD = 40;
 const KID_PLAY = 36, KID_HOME = 10;                // seconds at the well, and at the door
 const CAT = 'cat_sleep', CATS_MAX = 3, CAT_W = 36;
 let lifeDrawn = 0;                                  // children and cats, tallied for the cost sweep
@@ -5948,16 +5954,23 @@ function kidsNow() {
     else if (q < run + KID_PLAY) { along(1); face = side > 0 ? -1 : 1; play = true; }
     else if (q < 2 * run + KID_PLAY) { const k = (q - run - KID_PLAY) / run; along(1 - k); face = from.x < to.x ? -1 : 1; moving = true; ph = k * d; }
     else { along(0); face = 1; }
-    return { id: h.id, x, y, face, moving, play, ph: ph * Math.PI / (STRIDE * 0.7), t: t + i };
+    const fig = KID_FIGS[i % 2], girl = fig === KID_FIGS[0];
+    return { id: h.id, x, y, face, moving, play, home: q >= run + KID_PLAY, ph: ph * Math.PI / (STRIDE * 0.7), t: t + i,
+      fig, girl, name: (girl ? GIRLS : BOYS)[(h.id * 5) % 12] };
   });
 }
 function drawKid(k) {
-  const set = walkFrames(KID);
-  const im = set ? set[k.moving && !reduceMotion ? Math.floor(k.ph / (Math.PI * 2) * WALK_STEPS) % WALK_STEPS : WALK_STAND] : artFor(KID);
+  const set = walkFrames(k.fig);
+  const im = set ? set[k.moving && !reduceMotion ? Math.floor(k.ph / (Math.PI * 2) * WALK_STEPS) % WALK_STEPS : WALK_STAND] : artFor(k.fig);
   if (!ready(im)) return;
   g.save();
   g.fillStyle = 'rgba(10,18,8,.3)';
   g.beginPath(); g.ellipse(k.x, k.y + 2, KID_H * 0.24, KID_H * 0.11, 0, 0, 7); g.fill();
+  // whose card is open, on the ground as a villager's is
+  if (kidWho === k.id) {
+    g.strokeStyle = '#9fe86b'; g.lineWidth = 2.5;
+    g.beginPath(); g.ellipse(k.x, k.y + 2, KID_H * 0.3, KID_H * 0.14, 0, 0, 7); g.stroke();
+  }
   const w = im.width * (KID_H / im.height);
   /* At play she bounces on her toes, as children waiting for the ball do. */
   const hop = k.play && !reduceMotion ? Math.max(0, Math.sin(k.t * 5)) * 3 : 0;
@@ -5971,14 +5984,62 @@ function drawKid(k) {
    house built up in front of it has no cat: it would be lying under the
    next roof. */
 const catAt = h => { const d = doorOf(h); return { x: d.x - TW * 0.22, y: d.y - TH * 0.16 }; };
+/* Who a child belongs to. Villagers are not born in any one house -- the
+   village has them, not a family -- so each house is given the next few of
+   them by number, in the order the houses were built: the first house the
+   first two, and so on. Stable for as long as the houses stand. */
+function parentsOf(id) {
+  let from = 0;
+  for (const h of homes()) {
+    if (h.id === id) return villagers.filter(v => v.seed >= from && v.seed < from + popOf(h)).sort((a, b) => a.seed - b.seed).slice(0, 2);
+    from += popOf(h);
+  }
+  return [];
+}
+/* The child under a fingertip, where she is drawn, nearest the camera. */
+function kidAt(sx, sy) {
+  const sc = camScale();
+  let best = null;
+  for (const k of kidsNow()) {
+    const pt = camProject(k.x, k.y), hw = Math.max(KID_H * 0.3 * sc, 14), hh = KID_H * sc;
+    if (Math.abs(sx - pt.x) > hw || sy > pt.y + hh * 0.18 || sy < pt.y - hh) continue;
+    if (!best || k.y >= best.y) best = k;
+  }
+  return best;
+}
+/* A child's card, where a villager's goes: her face, her name, whose she is,
+   and what she is up to. */
+function drawKidCard() {
+  if (kidWho == null || who != null || panel != null || modalUp()) return;
+  const k = kidsNow().find(q => q.id === kidWho);
+  if (!k) { kidWho = null; return; }                 // home for the night, or in out of the rain
+  const u = US(), tabs = tabRects();
+  const w = Math.min(W - 48 * u, 960), h = 152 * u;
+  const y = tabs[0].y - tabs[0].h / 2 - 14 * u - h / 2;
+  g.save();
+  boardPanel(W / 2 - w / 2, y - h / 2, w, h, 20 * u);
+  const pd = h - 40 * u;
+  drawMedallion('portrait_' + k.fig.replace('villager_', ''), W / 2 - w / 2 + 24 * u + pd / 2, y, pd);
+  g.textAlign = 'left'; g.textBaseline = 'middle';
+  const lx = W / 2 - w / 2 + 44 * u + pd, tw = w - 74 * u - pd;
+  const folk = parentsOf(k.id);
+  panelRow(k.name + ROW_SEP + (folk.length ? (k.girl ? 'Daughter of ' : 'Son of ') + nameList(folk) : 'A child of the village'),
+    lx, y - h / 2 + 38 * u, tw, 30 * u, '#fff');
+  const site = placed.some(p => p.key === 'well' && established(p)) ? 'well' : 'hall';
+  panelRow(k.play ? 'Playing ball by the ' + site
+    : k.moving ? (k.home ? 'Running home' : 'Running down to the ' + site)
+    : 'At home on the step', lx, y - h / 2 + 80 * u, tw, 22 * u, '#bccfae', '');
+  panelRow('Out to play by day, indoors at dusk and when it rains', lx, y - h / 2 + 118 * u, tw, 22 * u, DIM, '');
+  g.restore();
+}
 function catsNow() {
   if (!lifeOut()) return [];
   const occ = occluders();
   return homes().map(catAt).filter(c => !hidden(occ, c.x - CAT_W / 2, c.x + CAT_W / 2, c.y - CAT_W * 0.6, c.y + 4, c.y))
-    .filter((c, i) => i % 2 === 0).slice(0, CATS_MAX);
+    .filter((c, i) => i % 2 === 0).slice(0, CATS_MAX).map((c, i) => ({ ...c, key: PETS[i % 2] }));
 }
 function drawCat(c) {
-  const im = artFor(CAT);
+  const im = artFor(c.key);
   if (!ready(im)) return;
   g.drawImage(im, c.x - CAT_W / 2, c.y - CAT_W * im.height / im.width * 0.7, CAT_W, CAT_W * im.height / im.width);
   lifeDrawn++;
@@ -7879,6 +7940,7 @@ function drawHUD() {
   drawMute();
   drawPanel();
   drawWho();
+  drawKidCard();
   drawGoal();
   drawSaveState();
   drawHint();
@@ -10326,7 +10388,7 @@ let backArmed = false;
    backClose then refused to touch, and the player's next back press did
    nothing at all. */
 function backOpen() {
-  return !!(away || finishedUp() || carry || album || claimAsk || panel != null || who != null || moving != null || selBuild || barMode !== 'build');
+  return !!(away || finishedUp() || carry || album || claimAsk || panel != null || who != null || kidWho != null || moving != null || selBuild || barMode !== 'build');
 }
 function backClose() {
   if (away) { away = null; return true; }
@@ -10336,6 +10398,7 @@ function backClose() {
   if (claimAsk) { claimAsk = false; return true; }
   if (panel != null) { panel = null; sellArm = null; return true; }
   if (who != null) { who = null; return true; }
+  if (kidWho != null) { kidWho = null; return true; }
   if (moving != null) { moving = null; ghost = null; armed = null; return true; }
   if (selBuild) { selBuild = null; ghost = null; armed = null; return true; }
   if (barMode !== 'build') { barMode = 'build'; return true; }
@@ -10615,8 +10678,12 @@ function tap(sx, sy) {
      The fingertip comes last, over open ground, which is where it is worth
      having: a villager at the far zoom out is eleven pixels tall and nobody
      hits that, so a near miss onto grass still opens the person aimed at. */
+  kidWho = null;
   const on = villagerAt(sx, sy, false);
   if (on) { SFX.tap(); who = on.seed; panel = null; return; }
+  // a child where she is drawn, next: she stands among the grown-ups and is half their size
+  const kid = kidAt(sx, sy);
+  if (kid) { SFX.tap(); kidWho = kid.id; who = null; panel = null; return; }
   /* The first tap opens what is drawn here; tapping the same place again goes
      to whatever is standing under it, and round again. That is the whole of
      the fix for a buried building: the patch you have to hit is the COVERING
@@ -10689,12 +10756,12 @@ for (const b of BUILDINGS) if (!SET_ART[b.key]) artFor(b.key);
     im.addEventListener('error', done, { once: true });
   }
 }
-for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER, WOODSWOMAN, KID, CAT]) artFor(v);
+for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER, WOODSWOMAN, ...KID_FIGS, ...PETS]) artFor(v);
 /* Asked for once, here, rather than on the first frame somebody walks: a
    villager with no cycle drawn for him would otherwise send six requests
    the moment he set off, and artFor remembers a miss, so doing it at boot
    costs the same misses at a moment when nothing is moving yet. */
-for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER, WOODSWOMAN, KID]) for (let i = 1; i <= WALK_STEPS; i++) artFor(v + '_walk' + i);
+for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER, WOODSWOMAN, ...KID_FIGS]) for (let i = 1; i <= WALK_STEPS; i++) artFor(v + '_walk' + i);
 /* The beacon's five, asked for here for the same reason the walk frames are:
    a village with none of them drawn would otherwise send five requests the
    moment it finished, and artFor remembers a miss. */
@@ -10760,7 +10827,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   SEASONS, SEASON_OF, SEASON_LEAF, seasonIdx, season, seasonSkin, drawGround, drawScenery, SCENERY,
   GW, GH, tileToWorld, deliveredOf,
   get seasonForced() { return seasonForced; }, set seasonForced(v) { seasonForced = v; },
-  get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, winterArt, ART, villagerArt, glowKey, get glowsDrawn() { return glowsDrawn; }, get iconsDrawn() { return iconsDrawn; }, get carriesDrawn() { return carriesDrawn; }, get chromeDrawn() { return chromeDrawn; }, portraitKey, merchantOf, panelFaces, thoughtOf, get thoughtsDrawn() { return thoughtsDrawn; }, get lifeDrawn() { return lifeDrawn; }, kidsNow, catsNow, occluders, hidden, artRect, KIDS_MAX, CATS_MAX, get sparkleCount() { return sparkleCount; }, chromeCache,
+  get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, winterArt, ART, villagerArt, glowKey, get glowsDrawn() { return glowsDrawn; }, get iconsDrawn() { return iconsDrawn; }, get carriesDrawn() { return carriesDrawn; }, get chromeDrawn() { return chromeDrawn; }, portraitKey, merchantOf, panelFaces, thoughtOf, get thoughtsDrawn() { return thoughtsDrawn; }, get lifeDrawn() { return lifeDrawn; }, kidsNow, catsNow, occluders, hidden, artRect, kidAt, parentsOf, KID_FIGS, PETS, get kidWho() { return kidWho; }, set kidWho(v) { kidWho = v; }, KIDS_MAX, CATS_MAX, get sparkleCount() { return sparkleCount; }, chromeCache,
   get plainIcons() { return plainIcons; }, set plainIcons(v) { plainIcons = !!v; }, ICON_OF,
   hudTop, hudBot, screenTop, screenBot, readSafeArea, get SAFE() { return SAFE; }, set SAFE(v) { SAFE = v; },
   get safeKnown() { return safeKnown; }, set safeKnown(v) { safeKnown = !!v; },

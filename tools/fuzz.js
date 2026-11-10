@@ -7185,21 +7185,28 @@
         /* Children out playing and cats on the steps by day, painted, and
            everybody indoors at night. The clock is moved to the middle of a
            dry day -- a wet one keeps them in too. */
-        const KIDART = ['villager_girl', ...[1, 2, 3, 4, 5, 6].map(i => 'villager_girl_walk' + i)];
-        for (const k of [...KIDART, 'cat_sleep']) V.artFor(k);
-        for (let i = 0; i < 50 && ![...KIDART, 'cat_sleep'].every(k => V.artFor(k)); i++) await new Promise(r => setTimeout(r, 100));
-        /* A house with open ground in front of its door: the first house has
-           a child, and a cat sleeps only on a step it can be seen on. */
-        for (let n = 0, L = V.landBounds(); n < 1; n++) {
+        const artOf = f => [f, ...[1, 2, 3, 4, 5, 6].map(i => f + '_walk' + i)];
+        const KIDART = V.KID_FIGS.flatMap(artOf), LIFE = [...KIDART, ...V.PETS, 'portrait_girl', 'portrait_boy'];
+        for (const k of LIFE) V.artFor(k);
+        for (let i = 0; i < 50 && !LIFE.every(k => V.artFor(k)); i++) await new Promise(r => setTimeout(r, 100));
+        /* Houses with open ground in front of their doors, and none built in
+           front of another's: a pet sleeps only on a step it can be seen on,
+           and it takes three houses to have a girl and a boy, a cat and a dog. */
+        const steps = [[0, 1], [1, 0], [1, 1], [0, 2], [1, 2], [2, 1], [2, 2]];
+        for (let n = 0, L = V.landBounds(); n < 4; n++) {
           for (const k of V.RES) V.res[k] = 9e5;
           let done = false;
           const trees = new Set(V.SCENERY.map(o => o.c + ',' + o.r));
           const hb = V.B('house'), clear = (occ, c, r) => [[0, 1], [1, 0], [1, 1], [0, 2], [1, 2], [2, 1], [2, 2]]
             .map(([dc, dr]) => [c + hb.w - 1 + dc, r + hb.h - 1 + dr])
             .every(([x, y]) => !occ.has(x + ',' + y) && !trees.has(x + ',' + y));
+          const fronts = new Set();
+          for (const h of V.placed.filter(q => q.key === 'house'))
+            for (const [dc, dr] of steps) fronts.add((h.c + hb.w - 1 + dc) + ',' + (h.r + hb.h - 1 + dr));
           for (let c = L.lo; c <= L.hi && !done; c++) for (let r = L.lo; r <= L.hi && !done; r++) {
             const occ = V.occupied();
-            if (V.canPlace('house', c, r, occ) && clear(occ, c, r)) done = !!V.place('house', c, r);
+            if (V.canPlace('house', c, r, occ) && clear(occ, c, r) && ![[c, r], [c + 1, r]].some(([x, y]) => fronts.has(x + ',' + y)))
+              done = !!V.place('house', c, r);
           }
           if (done) { const h = V.placed[V.placed.length - 1]; h.t = 1; h.build = 0; }
         }
@@ -7220,6 +7227,12 @@
             if (V.lifeDrawn !== kids + cats) fails.push(kids + ' children and ' + cats + ' cats are out by day and ' + V.lifeDrawn + ' were drawn');
             if (!pics.some(o => KIDART.some(k => o.im === V.artFor(k)))) fails.push('no child was drawn with her painted figure by day');
             if (!pics.some(o => o.im === V.artFor('cat_sleep'))) fails.push('no cat was drawn asleep on a step by day');
+            // the girl and the boy turn about, and the cat and the dog
+            for (const [i, f] of V.KID_FIGS.entries())
+              if (kids > i && !pics.some(o => artOf(f).some(k => o.im === V.artFor(k)))) fails.push(kids + ' children are out and none is drawn as the ' + f.replace('villager_', ''));
+            if (kids < 2) fails.push('only ' + kids + ' child came out of this village\'s houses, so the boy went unchecked');
+            if (cats > 1 && !pics.some(o => o.im === V.artFor('dog_sleep'))) fails.push(cats + ' pets are out and no dog is drawn');
+            if (cats < 2) fails.push('only ' + cats + ' pet was out in this village, so the dog went unchecked');
             /* And every child is on ground of the village's own: inside the
                claim and off its back edge, where the shade over the wild would
                cover her, and not standing in anything built. */
@@ -7236,6 +7249,21 @@
               else if (V.hidden(V.occluders(), k.x - 10, k.x + 10, k.y - 42, k.y, k.y)) fails.push('a child at play on tile ' + c + ',' + r + ' is behind something drawn in front of her');
             }
             if (!V.kidsNow().some(k => k.play)) fails.push('in two minutes of a dry noon no child was at play, so where they play went unchecked');
+            /* A tap on a child opens her card: her name, whose she is, and her
+               face in the ring. */
+            for (const k of V.kidsNow().filter(k => k.play).slice(0, 2)) {
+              V.who = null; V.panel = null; V.kidWho = null;
+              const pt = V.camProject(k.x, k.y), sc = V.camScale();
+              V.tap(pt.x, pt.y - 42 * 0.5 * sc);
+              if (V.kidWho !== k.id) { fails.push('tapping ' + k.name + ' where ' + (k.girl ? 'she' : 'he') + ' is drawn did not open the card'); continue; }
+              const { texts, ims: cardPics } = read();
+              const said = texts.map(o => o.t).join(' | ');
+              if (!said.includes(k.name)) fails.push(k.name + '\'s card does not give the name: ' + said.slice(0, 120));
+              if (!/(Daughter|Son) of |A child of the village/.test(said)) fails.push(k.name + '\'s card does not say whose child this is');
+              const face = 'portrait_' + k.fig.replace('villager_', '');
+              if (!cardPics.some(o => o.im.medal && o.im.medal.face === face)) fails.push(k.name + '\'s card has no ' + face + ' in the ring');
+            }
+            V.kidWho = null;
             Date.now = () => noon;
             Date.now = () => noon - (noon % DAY) + DAY * 0.75; V.step(0.001); V.draw();
             if (V.kidsNow().length || V.catsNow().length || V.lifeDrawn) fails.push('at night ' + V.lifeDrawn + ' children and cats were still out');
