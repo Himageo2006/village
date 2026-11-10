@@ -1497,6 +1497,44 @@ const RES_SET = new Set(RES);
 const tally = (v) => { const o = {}; for (const k of RES) o[k] = v || 0; return o; };
 /* The icon for a kind of goods, in one place. */
 const RES_ICON = { wood: '🪵', food: '🌾', stone: '🪨' };
+/* The painted icon for a building or a load, where one has arrived, in place of
+   the emoji -- which every phone draws its own way, and none of them in the
+   village's paint. The emoji stays for anything not painted, and until the
+   picture has loaded. Sized off the font the glyph would have been, and placed
+   by the same textAlign, so a caller swaps one for the other and nothing moves. */
+/* plainIcons keeps the emoji: the soak test's many readers of the canvas find
+   a price or a pill by the text drawn, and set it while they read. iconsDrawn
+   is this frame's tally, so the draw-call budget can allow for the HUD. */
+let plainIcons = false, iconsDrawn = 0;
+function drawIcon(key, emoji, x, y, px, k = 1.2) {
+  const im = !plainIcons && artFor('icon_' + key);
+  if (!im) { g.fillText(emoji, x, y); return; }
+  iconsDrawn++;
+  const s = px * k, a = g.textAlign;
+  g.drawImage(im, a === 'left' || a === 'start' ? x : a === 'center' ? x - s / 2 : x - s, y - s / 2, s, s);
+}
+/* A line of text with the loads in it drawn as their painted icons, placed as
+   fillText would place the whole line. Each picture is a little narrower than
+   the emoji it replaces, so a line fitted with the emoji still fits. Any icon
+   not yet loaded stays an emoji. */
+const ICON_OF = { '🪵': 'wood', '🌾': 'food', '🪨': 'stone', '✨': 'charm' };
+const ICON_SPLIT = /(🪵|🌾|🪨|✨)/u;
+function iconText(line, x, y, px) {
+  if (plainIcons) { g.fillText(line, x, y); return; }
+  const bits = String(line).split(ICON_SPLIT).filter(Boolean);
+  const ims = bits.map(b => ICON_OF[b] ? artFor('icon_' + ICON_OF[b]) : null);
+  if (!ims.some(Boolean)) { g.fillText(line, x, y); return; }
+  iconsDrawn += ims.filter(Boolean).length;
+  const s = px * 1.12, wide = bits.map((b, i) => ims[i] ? s + px * 0.08 : g.measureText(b).width);
+  const total = wide.reduce((a, b) => a + b, 0), a = g.textAlign;
+  let cx = a === 'center' ? x - total / 2 : a === 'right' || a === 'end' ? x - total : x;
+  g.textAlign = 'left';
+  bits.forEach((b, i) => {
+    if (ims[i]) g.drawImage(ims[i], cx, y - s / 2, s, s); else g.fillText(b, cx, y);
+    cx += wide[i];
+  });
+  g.textAlign = a;
+}
 /* And the colour, where a figure is tinted by what it counts rather than by
    what it means -- the delivery pops over a storehouse are the only ones. */
 const RES_TINT = { wood: '#f0d49a', food: '#cdeb9a', stone: '#d6dde6' };
@@ -7100,7 +7138,7 @@ function drawHUD() {
     const x = c.x, ry = c.y, wch = c.w, h = c.h, full = isFull(k);
     woodPanel(x, ry - h / 2, wch, h, h / 2, full ? 'rgba(235,150,110,.85)' : null, full ? 3 : 2.5);
     g.textAlign = 'left'; g.font = `${Math.round(28 * u)}px Segoe UI, sans-serif`;
-    g.fillStyle = '#fff'; g.fillText(icon, x + 16 * u, ry - 1 * u);
+    g.fillStyle = '#fff'; drawIcon(k, icon, x + 12 * u, ry - 1 * u, 28 * u, 1.35);
     /* The most-looked-at number in the game, and it was spilling out of its own
        pill for most of a playthrough: "1800 / 1800" is 201 logical pixels wide
        in the 185 the chip leaves it, and every cap from hall three onwards is
@@ -7165,7 +7203,7 @@ function drawHUD() {
     const x = c.x, ry = c.y, wch = c.w, hh = c.h;
     woodPanel(x, ry - hh / 2, wch, hh, hh / 2);
     g.textAlign = 'left'; g.font = `${Math.round(28 * u)}px Segoe UI, sans-serif`;
-    g.fillStyle = '#fff'; g.fillText('✨', x + 16 * u, ry - 1 * u);
+    g.fillStyle = '#fff'; drawIcon('charm', '✨', x + 12 * u, ry - 1 * u, 28 * u, 1.35);
     const cd = charmDelivered();
     g.font = `bold ${Math.round(27 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#cbb6f0';
     g.fillText(cd > 0.005 ? '+' + cd.toFixed(2) + '/s' : 'charm ' + ch, x + 58 * u, ry - 12 * u);
@@ -7201,7 +7239,7 @@ function drawHUD() {
        measureText): icon 32 is -18..+13, a name at 20 is -9.5..+5.5 (+2 for a
        descender), a cost row at 20 is -12.5..+8.5. The card is -59..+59. */
     g.font = `${Math.round(32 * u)}px Segoe UI, sans-serif`;
-    g.fillText(r.b.icon, r.x, r.y + TRAY_ICON * u);
+    drawIcon(r.b.key, r.b.icon, r.x, r.y + (TRAY_ICON - 2) * u, 32 * u, 1.26);
     /* Shrunk like the price beneath it. The buttons divide a fixed 1024 across
        however many kinds there are, while the font grows with the HUD scale --
        so on a tall phone "Lumber Camp" came out 158 wide in a 134 button and ran
@@ -7226,7 +7264,7 @@ function drawHUD() {
     const trayRow = (text, colour, at) => {
       const fit = fitLines(text, r.w - 14 * u, 20 * u, 11 * u, 1, '');
       g.fillStyle = colour;
-      g.fillText(fit.lines[0], r.x, r.y + at * u);
+      iconText(fit.lines[0], r.x, r.y + at * u, fit.px);
     };
     /* Charm goes on the LAST cost line. It was beside the name for a while and
        "Flowerbed ✨5" is 193 logical pixels in a 139 pixel button -- one
@@ -9432,7 +9470,7 @@ function drawPanel() {
 }
 
 function draw() {
-  glowsDrawn = 0;
+  glowsDrawn = 0; iconsDrawn = 0;
   stepAmbience();
   fitCanvas();
   g.setTransform(1, 0, 0, 1, 0, 0);
@@ -10118,7 +10156,8 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   SEASONS, SEASON_OF, SEASON_LEAF, seasonIdx, season, seasonSkin, drawGround, drawScenery, SCENERY,
   GW, GH, tileToWorld, deliveredOf,
   get seasonForced() { return seasonForced; }, set seasonForced(v) { seasonForced = v; },
-  get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, winterArt, ART, villagerArt, glowKey, get glowsDrawn() { return glowsDrawn; },
+  get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, winterArt, ART, villagerArt, glowKey, get glowsDrawn() { return glowsDrawn; }, get iconsDrawn() { return iconsDrawn; },
+  get plainIcons() { return plainIcons; }, set plainIcons(v) { plainIcons = !!v; }, ICON_OF,
   hudTop, hudBot, screenTop, screenBot, readSafeArea, get SAFE() { return SAFE; }, set SAFE(v) { SAFE = v; },
   get safeKnown() { return safeKnown; }, set safeKnown(v) { safeKnown = !!v; },
   fitLines, fitLinesNow, TUT, GOALS, get finished() { return finished; }, set finished(v) { finished = v; },

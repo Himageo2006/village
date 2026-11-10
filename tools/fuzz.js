@@ -32,6 +32,11 @@
   'use strict';
   const V = window.__v;
   if (!V) { console.error('fuzz: load this on a page with the game running'); return; }
+  /* Dozens of sweeps find a price, a pill or a card by the text the canvas is
+     handed -- "🪵30" -- and the painted icons draw that as a picture and a
+     number. They read the emoji version, which is laid out in the same place;
+     iconSweep and costSweep look at the painted one. */
+  V.plainIcons = true;
 
   const R = n => (Math.random() * n) | 0;
   const pick = a => a[R(a.length)];
@@ -6757,6 +6762,8 @@
   window.costSweep = function () {
     const V = window.__v, cv = document.querySelector('canvas'), ctx = cv.getContext('2d');
     const fails = [];
+    V.plainIcons = false;   // what a player's frame really costs, painted icons and all
+    try {
     const NAMES = ['drawImage', 'fillText', 'fill', 'stroke', 'save', 'roundRect'];
     const count = () => {
       const ops = {}, saved = {};
@@ -6817,9 +6824,10 @@
          time as the light in its windows -- one more image each, by design,
          so the game's own tally of them is allowed rather than left to the
          spare. Read after the frame count() just drew. */
-      const lit = V.glowsDrawn | 0;
-      rows.push({ what, things, lit, drawImage: ops.drawImage, total: ops.total });
-      if (ops.drawImage > things + lit + spareHere)
+      const lit = V.glowsDrawn | 0, icons = V.iconsDrawn | 0;
+      rows.push({ what, things, lit, icons, drawImage: ops.drawImage, total: ops.total });
+      if (icons > 40) fails.push(what + ' draws ' + icons + ' painted icons on one frame -- the HUD has room for perhaps thirty');
+      if (ops.drawImage > things + lit + Math.min(icons, 40) + spareHere)
         fails.push(what + ' reaches for an image ' + ops.drawImage + ' times with '
           + things + ' things standing on it' + (lit ? ' and ' + lit + ' lit at night' : '')
           + ', which is more than one each and ' + spareHere + ' for the scenery');
@@ -6861,6 +6869,65 @@
 
     V.goalIdx = 0; V.step(0.001);
     return { village: rows, perFrame, spare, bars: { spare: SPARE, ceiling: CEILING }, fails };
+    } finally { V.plainIcons = true; }
+  };
+
+  /* The painted icons: every card on both trays shows its building's picture
+     and not its emoji, every price on them is drawn with the painted loads,
+     and every resource chip has its picture. Waits for the pictures first --
+     until one has loaded the emoji stands in, which is right for a player and
+     would let this sweep pass on nothing. */
+  window.iconSweep = async function () {
+    const V = window.__v, fails = [], ctx = document.querySelector('canvas').getContext('2d');
+    const keepMode = V.barMode;
+    V.plainIcons = false;
+    try {
+      V.placed.length = 0; V.villagers.length = 0; V.landTier = 2; V.coverPlaced();
+      V.away = null; V.goalDone = null; V.finished = null; V.claimAsk = false; V.panel = null;
+      V.sel = null; V.moving = null; V.ghost = null; V.armed = null; V.album = false;
+      V.ensureHall(); V.placed[0].t = 1; V.placed[0].build = 0; V.placed[0].lvl = 3;
+      for (const k of V.RES) V.res[k] = 40;
+      V.step(0.001); V.camFit(true);
+      const keys = [...V.buildList(), ...V.decorList()].map(b => b.key).concat(V.RES, ['charm']);
+      for (const k of keys) V.artFor('icon_' + k);
+      for (let i = 0; i < 100 && keys.some(k => !V.artFor('icon_' + k)); i++) await new Promise(r => setTimeout(r, 100));
+      const missing = keys.filter(k => !V.artFor('icon_' + k));
+      if (missing.length) fails.push('no painted icon loaded for ' + missing.join(', '));
+      const read = () => {
+        const texts = [], ims = [], oT = ctx.fillText, oI = ctx.drawImage;
+        ctx.fillText = function (t, x, y) { const m = this.getTransform(); texts.push({ t: String(t), x: m.a * x + m.e, y: m.d * y + m.f }); return oT.apply(this, arguments); };
+        ctx.drawImage = function (im, x, y, w, h) { const m = this.getTransform(); if (arguments.length === 5) ims.push({ im, x: m.a * (x + w / 2) + m.e, y: m.d * (y + h / 2) + m.f }); return oI.apply(this, arguments); };
+        try { V.draw(); } finally { ctx.fillText = oT; ctx.drawImage = oI; }
+        return { texts, ims };
+      };
+      const emoji = Object.keys(V.ICON_OF);
+      const inside = (p, r) => Math.abs(p.x - r.x) <= r.w / 2 && Math.abs(p.y - r.y) <= r.h / 2;
+      for (const mode of ['build', 'decor']) {
+        V.barMode = mode; V.step(0.001);
+        const { texts, ims } = read(), cards = V.barRects();
+        if (!cards.length) fails.push('the ' + mode + ' tray had no cards to look at');
+        for (const r of cards) {
+          const pic = V.artFor('icon_' + r.b.key);
+          if (pic && !ims.some(o => o.im === pic && inside(o, r)))
+            fails.push('the ' + r.b.key + ' card on the ' + mode + ' tray does not show its painted icon');
+          const said = texts.filter(o => inside(o, r));
+          if (said.some(o => o.t === r.b.icon)) fails.push('the ' + r.b.key + ' card still prints its emoji ' + r.b.icon);
+          const loose = said.filter(o => emoji.some(e => o.t.includes(e) && V.artFor('icon_' + V.ICON_OF[e])));
+          if (loose.length) fails.push('the ' + r.b.key + ' card prints "' + loose[0].t + '" with the emoji instead of the painted load');
+        }
+      }
+      V.barMode = 'build'; V.step(0.001);
+      const { ims } = read();
+      for (const c of V.chipRects()) {
+        const pic = V.artFor('icon_' + c.k);
+        if (pic && !ims.some(o => o.im === pic && o.x >= c.x && o.x <= c.x + c.w && Math.abs(o.y - c.y) <= c.h / 2)) fails.push('the ' + c.k + ' chip does not show its painted icon');
+      }
+      if (!(V.iconsDrawn > 0)) fails.push('a frame with every icon loaded drew no painted icons at all');
+      // and with the switch back on the emoji are what the readers get
+      V.plainIcons = true; V.step(0.001); V.draw();
+      if (V.iconsDrawn) fails.push('with plain icons asked for, ' + V.iconsDrawn + ' painted icons were still drawn');
+    } finally { V.plainIcons = true; V.barMode = keepMode; }
+    return { fails };
   };
 
   window.panSweep = function () {
@@ -13251,6 +13318,7 @@
       ['clock', () => window.clockSweep()],
       ['light', () => window.lightSweep()],
       ['visitor', () => window.visitorSweep()],
+      ['icon', () => window.iconSweep()],
       ['move', () => window.moveSweep()],
       ['ink', () => window.inkSweep()],
       ['still', () => window.stillSweep()],
