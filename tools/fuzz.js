@@ -6827,12 +6827,12 @@
       /* And the painted card furniture -- a card's board and frame, the pieces
          of a button or the ribbon, the gold disc on the orders tab -- which
          the game tallies as it draws them, as it does the icons. */
-      const lit = V.glowsDrawn | 0, icons = V.iconsDrawn | 0, carried = V.carriesDrawn | 0, chrome = V.chromeDrawn | 0;
+      const lit = V.glowsDrawn | 0, icons = V.iconsDrawn | 0, carried = V.carriesDrawn | 0, chrome = V.chromeDrawn | 0, thought = V.thoughtsDrawn | 0;
       rows.push({ what, things, lit, icons, carried, chrome, drawImage: ops.drawImage, total: ops.total });
       if (chrome > 20) fails.push(what + ' draws ' + chrome + ' pieces of card furniture on one frame -- a card and a tab need perhaps a dozen');
       if (carried > V.villagers.length) fails.push(what + ' draws ' + carried + ' carried loads for ' + V.villagers.length + ' villagers');
       if (icons > 40) fails.push(what + ' draws ' + icons + ' painted icons on one frame -- the HUD has room for perhaps thirty');
-      if (ops.drawImage > things + lit + Math.min(icons, 40) + Math.min(carried, V.villagers.length) + Math.min(chrome, 20) + spareHere)
+      if (ops.drawImage > things + lit + Math.min(icons, 40) + Math.min(carried, V.villagers.length) + Math.min(chrome, 20) + Math.min(thought, 2 * V.villagers.length) + spareHere)
         fails.push(what + ' reaches for an image ' + ops.drawImage + ' times with '
           + things + ' things standing on it' + (lit ? ' and ' + lit + ' lit at night' : '')
           + ' (' + icons + ' icons, ' + carried + ' loads, ' + chrome + ' card pieces)'
@@ -6998,7 +6998,7 @@
         V.barMode = 'orders'; V.step(0.001);           // the live frames go on while the art loads, and leave the board
         const { ims: seen } = read();
         for (const k of faces) if (!V.artFor(k)) fails.push(k + ' did not load');
-          else if (!seen.some(o => o.im === V.artFor(k) && cards.some(r => inside(o, r)))) fails.push('an offer shows no face for ' + k);
+          else if (!seen.some(o => o.im.medal && o.im.medal.face === k && cards.some(r => inside(o, r)))) fails.push('an offer shows no face for ' + k);
         if (stalls.length > cards.length && V.artFor('stall_empty') && !seen.some(o => o.im === V.artFor('stall_empty')))
           fails.push('an empty stall is not drawn as a stall');
         V.orders.length = 0;
@@ -7125,8 +7125,8 @@
           V.who = v.seed; V.step(0.001); V.who = v.seed;
           const { ims: pics } = read();
           if (!V.artFor(k)) fails.push(k + ' did not load');
-          else if (!pics.some(o => o.im === V.artFor(k))) fails.push('the card for a ' + k.replace('portrait_', '') + ' shows no face');
-          if (V.artFor('ring_gilt') && !pics.some(o => o.im === V.artFor('ring_gilt'))) fails.push('a villager\'s face has no gilt ring round it');
+          else if (!pics.some(o => o.im.medal && o.im.medal.face === k)) fails.push('the card for a ' + k.replace('portrait_', '') + ' shows no face');
+          if (V.artFor('ring_gilt') && !pics.some(o => o.im.medal && o.im.medal.ring)) fails.push('a villager\'s face has no gilt ring round it');
         }
         V.who = null;
         /* And a building's panel shows the faces of the people posted there,
@@ -7137,13 +7137,40 @@
           V.panel = site.id; V.step(0.001); V.panel = site.id;
           const R = V.panelRects(), faces = V.panelFaces(R), { ims: pics } = read();
           if (faces.length !== Math.min(4, V.workersOf(site.id).length)) fails.push('the ' + site.key + ' panel shows ' + faces.length + ' faces for ' + V.workersOf(site.id).length + ' workers');
-          for (const f of faces) if (!pics.some(o => o.im === V.artFor(V.portraitKey(f.v)) && Math.hypot(o.x - f.x, o.y - f.y) < f.r))
+          for (const f of faces) if (!pics.some(o => o.im.medal && o.im.medal.face === V.portraitKey(f.v) && Math.hypot(o.x - f.x, o.y - f.y) < f.r))
             fails.push('the ' + site.key + ' panel has no face for ' + V.villagerName(f.v));
           if (faces[0]) {
             V.tap(faces[0].x, faces[0].y);
             if (V.who !== faces[0].v.seed) fails.push('tapping a worker\'s face on the ' + site.key + ' panel did not open their card');
           }
           V.panel = null; V.who = null;
+        }
+        /* A villager with no post thinks of the hammer and saw, and one whose
+           post is still scaffolding thinks of the hourglass. */
+        for (const k of ['bubble_think', 'icon_tab_build', 'icon_hourglass']) V.artFor(k);
+        for (let i = 0; i < 50 && !['bubble_think', 'icon_tab_build', 'icon_hourglass'].every(k => V.artFor(k)); i++) await new Promise(r => setTimeout(r, 100));
+        const thinker = V.villagers.find(v => v.job != null);
+        if (!thinker) fails.push('the thought check had no villager with a post');
+        else {
+          const keep = { job: thinker.job, carry: thinker.carry, st: thinker.st };
+          try {
+            for (const [what, set, pic] of [
+              ['a villager with no post', () => { thinker.job = null; thinker.carry = null; }, 'icon_tab_build'],
+              ['a villager waiting on scaffolding', () => {
+                thinker.job = keep.job; thinker.carry = null; thinker.st = 'work';
+                const p = V.placed.find(b => b.id === keep.job); p.__t = p.t; p.__l = p.lvl; p.t = 0.5; p.lvl = 1;
+              }, 'icon_hourglass']]) {
+              set();
+              const { ims: pics } = read();
+              const near = o => Math.abs(o.x - thinker.x) < 200 && Math.abs(o.y - thinker.y) < 300;
+              if (V.thoughtOf(thinker) !== pic.replace('icon_', '')) fails.push(what + ' is thought of as ' + V.thoughtOf(thinker));
+              if (!['bubble_think', pic].every(k => pics.some(o => o.im === V.artFor(k)))) fails.push(what + ' shows no thought bubble with ' + pic.replace('icon_', 'the '));
+            }
+          } finally {
+            const p = V.placed.find(b => b.id === keep.job);
+            if (p && p.__t !== undefined) { p.t = p.__t; p.lvl = p.__l; delete p.__t; delete p.__l; }
+            Object.assign(thinker, keep);
+          }
         }
         /* The three tabs each carry their painted icon. */
         for (const m of ['build', 'decor', 'orders']) V.artFor('icon_tab_' + m);

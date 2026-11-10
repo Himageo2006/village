@@ -5922,8 +5922,40 @@ function drawVillager(v) {
     g.font = '17px Segoe UI, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
     drawIcon(v.carry.k, RES_ICON[v.carry.k], v.x, y + 1, 17, 1.25, true);
     g.restore();
-  }
+  } else drawThought(v, v.y - HGT - 13 - bob - brolly * 34);
 }
+/* What a villager with nothing to carry is waiting for, as a thought over
+   their head (the bubble by Leonardo, the hourglass by ChatGPT): the hammer
+   and saw of the Build tab when they have no post, so the player knows a
+   workplace would put them to work, and the hourglass when their post is
+   still scaffolding. Always there while it is true -- a thought that came and
+   went on a timer would change what is drawn from one instant to the next,
+   which is the thing reduce motion asks not to happen -- and only the gentle
+   bob is left out under it. Queued with the villager and painted with the
+   badges, over the roofs and the night wash: a villager standing behind the
+   hall is still thinking, and the thought is information, not scenery. */
+const THOUGHT_W = 56, THOUGHT_TIP = [0.08, 0.96], THOUGHT_MID = [0.5, 0.405];   // measured off art/bubble_think.webp
+let thoughtsDrawn = 0, thoughtQueue = [];
+function thoughtOf(v) {
+  if (v.carry) return null;
+  if (v.job == null) return 'tab_build';
+  const p = byId(v.job);
+  return p && v.st === 'work' && !established(p) ? 'hourglass' : null;
+}
+function drawThought(v, y) {
+  const what = !plainIcons && thoughtOf(v), bub = what && artFor('bubble_think'), pic = bub && artFor('icon_' + what);
+  if (!pic) return;
+  const w = THOUGHT_W, h = w * bub.height / bub.width;
+  const lift = reduceMotion ? 0 : Math.sin(Date.now() / 700 + v.seed) * 2;
+  const x0 = v.x + 6 - THOUGHT_TIP[0] * w, y0 = y + 4 - THOUGHT_TIP[1] * h + lift;
+  thoughtQueue.push(() => {
+    g.drawImage(bub, x0, y0, w, h);
+    const s2 = w * 0.48;
+    g.drawImage(pic, x0 + THOUGHT_MID[0] * w - s2 / 2, y0 + THOUGHT_MID[1] * h - s2 / 2, s2, s2);
+    thoughtsDrawn += 2;
+  });
+}
+function flushThoughts() { const q = thoughtQueue; thoughtQueue = []; for (const f of q) f(); }
 /* Draws the painted sprite when it has loaded, and the procedural building when
    it has not -- so the village still works before the art arrives, and while it
    is still decoding on a cold start. */
@@ -6831,7 +6863,7 @@ function drawWorld() {
   pumpkinTiles = season().key === 'autumn' ? seasonTiles(occSet, PUMPKINS, 91, 3) : [];
   for (const o of pumpkinTiles) ents.push({ y: tileToWorld(o.c, o.r).y, d: () => drawPumpkin(o) });
   ents.sort((a, b2) => a.y - b2.y);
-  badgeQueue = [];
+  badgeQueue = []; thoughtQueue = [];
   for (const e of ents) e.d();
   /* The badges are QUEUED here and painted in draw(), after the night wash.
      See the note beside that call: they are information, not scenery. */
@@ -9256,19 +9288,27 @@ function panelRow(text, x, y, maxW, px, colour, weight, map) {
 function portraitKey(v) { return 'portrait_' + villagerArt(v).replace('villager_', ''); }
 function drawPortrait(v, cx, cy, d) { drawMedallion(portraitKey(v), cx, cy, d); }
 function drawMedallion(key, cx, cy, d) {
+  /* Painted once per face and size into the chrome cache: the disc, the face
+     clipped into it and the ring are eleven canvas calls, and a building's
+     panel shows four of them -- enough, at night with a panel open, to tip the
+     frame over the ceiling the cost sweep holds it to. The canvas is tagged
+     with the face, so the checkers can still tell who is on it. */
   const face = !plainIcons && artFor(key), ring = !plainIcons && artFor('ring_gilt');
-  g.save();
-  g.fillStyle = '#3a2614';
-  g.beginPath(); g.arc(cx, cy, d / 2, 0, Math.PI * 2); g.fill();
-  if (face) {
-    g.save(); g.clip();
-    // the bust is cut off at the bottom of the painting, so it sits low in the window
-    g.drawImage(face, cx - d * 0.55, cy - d * 0.5, d * 1.1, d * 1.1);
-    g.restore(); chromeDrawn++;
-  }
-  if (ring) { const r = d * 1.16; g.drawImage(ring, cx - r / 2, cy - r / 2, r, r); chromeDrawn++; }
-  else { g.strokeStyle = '#d9b25a'; g.lineWidth = Math.max(3, d * 0.05); g.beginPath(); g.arc(cx, cy, d / 2, 0, Math.PI * 2); g.stroke(); }
-  g.restore();
+  const S2 = Math.ceil(d * 1.16), m = S2 / 2;
+  const c = chrome('medal:' + key + (face ? '+f' : '') + (ring ? '+r' : ''), S2, S2, b => {
+    b.fillStyle = '#3a2614';
+    b.beginPath(); b.arc(m, m, d / 2, 0, Math.PI * 2); b.fill();
+    if (face) {
+      b.save(); b.clip();
+      // the bust is cut off at the bottom of the painting, so it sits low in the window
+      b.drawImage(face, m - d * 0.55, m - d * 0.5, d * 1.1, d * 1.1);
+      b.restore();
+    }
+    if (ring) b.drawImage(ring, 0, 0, S2, S2);
+    else { b.strokeStyle = '#d9b25a'; b.lineWidth = Math.max(3, d * 0.05); b.beginPath(); b.arc(m, m, d / 2, 0, Math.PI * 2); b.stroke(); }
+  });
+  c.medal = { face: face ? key : null, ring: !!ring };
+  g.drawImage(c, cx - m, cy - m, S2, S2);
 }
 /* One villager's card.
 
@@ -9856,7 +9896,7 @@ function drawPanel() {
 }
 
 function draw() {
-  glowsDrawn = 0; iconsDrawn = 0; carriesDrawn = 0; chromeDrawn = 0;
+  glowsDrawn = 0; iconsDrawn = 0; carriesDrawn = 0; chromeDrawn = 0; thoughtsDrawn = 0;
   stepAmbience();
   fitCanvas();
   g.setTransform(1, 0, 0, 1, 0, 0);
@@ -9885,7 +9925,7 @@ function draw() {
      pinned down. They now go over the lamps too, on an outline wide enough to
      back each letter right through, and measure 13. */
   drawAmbient();                                // the season in the air, in front of the world
-  g.save(); camApply(); drawLamps(); drawBoatLights(); drawPumpkinLights(); drawVane(); drawPops(); drawSpotNote(); flushBadges(); g.restore();
+  g.save(); camApply(); drawLamps(); drawBoatLights(); drawPumpkinLights(); drawVane(); drawPops(); drawSpotNote(); flushThoughts(); flushBadges(); g.restore();
   drawHUD();
   g.restore();
 }
@@ -10547,7 +10587,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   SEASONS, SEASON_OF, SEASON_LEAF, seasonIdx, season, seasonSkin, drawGround, drawScenery, SCENERY,
   GW, GH, tileToWorld, deliveredOf,
   get seasonForced() { return seasonForced; }, set seasonForced(v) { seasonForced = v; },
-  get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, winterArt, ART, villagerArt, glowKey, get glowsDrawn() { return glowsDrawn; }, get iconsDrawn() { return iconsDrawn; }, get carriesDrawn() { return carriesDrawn; }, get chromeDrawn() { return chromeDrawn; }, portraitKey, merchantOf, panelFaces, get sparkleCount() { return sparkleCount; }, chromeCache,
+  get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, winterArt, ART, villagerArt, glowKey, get glowsDrawn() { return glowsDrawn; }, get iconsDrawn() { return iconsDrawn; }, get carriesDrawn() { return carriesDrawn; }, get chromeDrawn() { return chromeDrawn; }, portraitKey, merchantOf, panelFaces, thoughtOf, get thoughtsDrawn() { return thoughtsDrawn; }, get sparkleCount() { return sparkleCount; }, chromeCache,
   get plainIcons() { return plainIcons; }, set plainIcons(v) { plainIcons = !!v; }, ICON_OF,
   hudTop, hudBot, screenTop, screenBot, readSafeArea, get SAFE() { return SAFE; }, set SAFE(v) { SAFE = v; },
   get safeKnown() { return safeKnown; }, set safeKnown(v) { safeKnown = !!v; },
