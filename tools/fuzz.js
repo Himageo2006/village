@@ -6824,10 +6824,11 @@
          time as the light in its windows -- one more image each, by design,
          so the game's own tally of them is allowed rather than left to the
          spare. Read after the frame count() just drew. */
-      const lit = V.glowsDrawn | 0, icons = V.iconsDrawn | 0;
-      rows.push({ what, things, lit, icons, drawImage: ops.drawImage, total: ops.total });
+      const lit = V.glowsDrawn | 0, icons = V.iconsDrawn | 0, carried = V.carriesDrawn | 0;
+      rows.push({ what, things, lit, icons, carried, drawImage: ops.drawImage, total: ops.total });
+      if (carried > V.villagers.length) fails.push(what + ' draws ' + carried + ' carried loads for ' + V.villagers.length + ' villagers');
       if (icons > 40) fails.push(what + ' draws ' + icons + ' painted icons on one frame -- the HUD has room for perhaps thirty');
-      if (ops.drawImage > things + lit + Math.min(icons, 40) + spareHere)
+      if (ops.drawImage > things + lit + Math.min(icons, 40) + Math.min(carried, V.villagers.length) + spareHere)
         fails.push(what + ' reaches for an image ' + ops.drawImage + ' times with '
           + things + ' things standing on it' + (lit ? ' and ' + lit + ' lit at night' : '')
           + ', which is more than one each and ' + spareHere + ' for the scenery');
@@ -6888,7 +6889,7 @@
       V.ensureHall(); V.placed[0].t = 1; V.placed[0].build = 0; V.placed[0].lvl = 3;
       for (const k of V.RES) V.res[k] = 40;
       V.step(0.001); V.camFit(true);
-      const keys = [...V.buildList(), ...V.decorList()].map(b => b.key).concat(V.RES, ['charm', 'hall', 'lock', 'album', 'sound_on', 'sound_off']);
+      const keys = [...V.buildList(), ...V.decorList()].map(b => b.key).concat(V.RES, ['charm', 'hall', 'lock', 'album', 'sound_on', 'sound_off', 'elder', 'cart']);
       V.artFor('panel_wood');
       for (const k of keys) V.artFor('icon_' + k);
       for (let i = 0; i < 100 && keys.some(k => !V.artFor('icon_' + k)); i++) await new Promise(r => setTimeout(r, 100));
@@ -6950,6 +6951,39 @@
         if (own && !pics.some(o => o.im === own && inPanel(o))) fails.push('the ' + q.key + ' panel title has no painted icon');
       }
       V.panel = null; V.step(0.001);
+      /* What a villager carries rides above them as the painted load, counted
+         on its own tally (the draw budget allows one per villager). */
+      const walker = V.villagers[0];
+      if (!walker) fails.push('the carry check had no villager to give a load to');
+      else {
+        const keep = walker.carry; walker.carry = { k: 'stone', n: 3 };
+        try { V.draw(); if (V.carriesDrawn < 1) fails.push('a villager carrying stone drew no painted load over their head'); }
+        finally { walker.carry = keep; }
+      }
+      /* The orders board: a trade's two sides and its shortfall name loads,
+         and the waiting stall names the trader's cart. */
+      for (const k of V.RES) V.res[k] = 900;
+      V.placed[0].lvl = 4;                      // the first hall that allows a market
+      const put = V.placed.length;
+      for (let c = 6; c >= -6 && V.placed.length === put; c--) for (let r = 6; r >= -6 && V.placed.length === put; r--)
+        if (V.canPlace('market', c, r, V.occupied())) V.place('market', c, r);
+      const mk = V.placed.length > put ? V.placed[V.placed.length - 1] : null;
+      if (!mk) fails.push('the orders check could not place a market');
+      else {
+        mk.t = 1; mk.build = 0; V.res.wood = 900; V.res.food = 30; V.res.stone = 30; V.step(0.001);
+        V.orders.length = 0; V.orders.push({ ...V.makeOrder(), slot: V.freeStall() });
+        V.barMode = 'orders'; V.step(0.001);
+        const { texts, ims: pics } = read(), cards = V.orderRects(), stalls = V.orderSlotRects();
+        if (!cards.length) fails.push('the orders board showed no trade to look at');
+        for (const r of cards) {
+          const loose = texts.filter(o => inside(o, r) && emoji.some(e => o.t.includes(e) && V.artFor('icon_' + V.ICON_OF[e])));
+          if (loose.length) fails.push('an order card prints "' + loose[0].t + '" with the emoji instead of the painted load');
+          if (!pics.some(o => inside(o, r))) fails.push('an order card drew no painted load at all');
+        }
+        const cart = V.artFor('icon_cart');
+        if (cart && stalls.length > cards.length && !pics.some(o => o.im === cart)) fails.push('the stall waiting for a trader shows no cart');
+        V.orders.length = 0;
+      }
       // and with the switch back on the emoji are what the readers get
       V.plainIcons = true; V.step(0.001); V.draw();
       if (V.iconsDrawn) fails.push('with plain icons asked for, ' + V.iconsDrawn + ' painted icons were still drawn');

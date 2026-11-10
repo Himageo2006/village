@@ -1505,11 +1505,11 @@ const RES_ICON = { wood: '🪵', food: '🌾', stone: '🪨' };
 /* plainIcons keeps the emoji: the soak test's many readers of the canvas find
    a price or a pill by the text drawn, and set it while they read. iconsDrawn
    is this frame's tally, so the draw-call budget can allow for the HUD. */
-let plainIcons = false, iconsDrawn = 0;
-function drawIcon(key, emoji, x, y, px, k = 1.2) {
+let plainIcons = false, iconsDrawn = 0, carriesDrawn = 0;
+function drawIcon(key, emoji, x, y, px, k = 1.2, carried = false) {
   const im = !plainIcons && artFor('icon_' + key);
   if (!im) { g.fillText(emoji, x, y); return; }
-  iconsDrawn++;
+  if (carried) carriesDrawn++; else iconsDrawn++;
   const s = px * k, a = g.textAlign;
   g.drawImage(im, a === 'left' || a === 'start' ? x : a === 'center' ? x - s / 2 : x - s, y - s / 2, s, s);
 }
@@ -1517,7 +1517,7 @@ function drawIcon(key, emoji, x, y, px, k = 1.2) {
    fillText would place the whole line. Each picture is a little narrower than
    the emoji it replaces, so a line fitted with the emoji still fits. Any icon
    not yet loaded stays an emoji. */
-const ALBUM_ICON = { '📖': 'album' };
+const ALBUM_ICON = { '📖': 'album' }, CART_ICON = { '🛒': 'cart' };
 const ICON_OF = { '🪵': 'wood', '🌾': 'food', '🪨': 'stone', '✨': 'charm', '🔒': 'lock' };
 /* The same glyph is a load in a price and a building in a count -- 🌾 is grain
    in "🌾20" and a farm in the hall's "🌾3" -- so a caller says which it means.
@@ -1801,9 +1801,18 @@ function drawPops() {
     g.lineWidth = 8; g.lineJoin = 'round'; g.strokeStyle = 'rgba(8,16,8,.75)';
     const txt = '+' + Math.round(q.n) + ' ' + RES_ICON[q.k];
     const y = -26 - t * 34;
-    g.strokeText(txt, 0, y);
+    const pic = !plainIcons && artFor('icon_' + q.k);
     g.fillStyle = RES_TINT[q.k];
-    g.fillText(txt, 0, y);
+    if (pic) {                              // the figure, outlined as before, and the painted load after it
+      const num = '+' + Math.round(q.n), nw = g.measureText(num).width, sz = POP_PX * 1.2, gap = POP_PX * 0.15;
+      const x0 = -(nw + gap + sz) / 2;
+      g.textAlign = 'left';
+      g.strokeText(num, x0, y); g.fillText(num, x0, y);
+      g.drawImage(pic, x0 + nw + gap, y - sz / 2, sz, sz); iconsDrawn++;
+    } else {
+      g.strokeText(txt, 0, y);
+      g.fillText(txt, 0, y);
+    }
     g.restore();
   }
 }
@@ -5893,7 +5902,7 @@ function drawVillager(v) {
     g.fillStyle = 'rgba(14,22,12,.72)';
     g.beginPath(); g.roundRect(v.x - 15, y - 12, 30, 24, 12); g.fill();
     g.font = '17px Segoe UI, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillText(RES_ICON[v.carry.k], v.x, y + 1);
+    drawIcon(v.carry.k, RES_ICON[v.carry.k], v.x, y + 1, 17, 1.25, true);
     g.restore();
   }
 }
@@ -7378,7 +7387,7 @@ function drawHUD() {
       const r = slots[i];
       g.save();
       // near-opaque: at .80 a bright sea prop behind the board took the label under 4.5:1
-      g.fillStyle = 'rgba(16,26,14,.88)'; g.strokeStyle = 'rgba(255,255,255,.28)'; g.lineWidth = 2;
+      g.fillStyle = 'rgba(40,25,13,.9)'; g.strokeStyle = 'rgba(232,201,138,.4)'; g.lineWidth = 2;
       g.setLineDash([10, 8]);
       g.beginPath(); g.roundRect(r.x - r.w / 2, r.y - r.h / 2, r.w, r.h, 16); g.fill(); g.stroke();
       g.setLineDash([]);
@@ -7386,10 +7395,10 @@ function drawHUD() {
       const first = i === firstFree && wait !== null;
       const secs = first ? Math.ceil(wait) : 0;
       const when = secs >= 60 ? Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0') : secs + 's';
-      const top = first ? 'next trader' : 'empty stall', bottom = first ? 'in ' + when : '';
+      const top = first ? '🛒 next trader' : 'empty stall', bottom = first ? 'in ' + when : '';
       const f1 = fitLines(top, r.w - 20 * u, 21 * u, 12 * u, 1);
       g.font = `${Math.round(f1.px)}px Segoe UI, sans-serif`; g.fillStyle = DIM;
-      g.fillText(f1.lines[0], r.x, bottom ? r.y - 16 * u : r.y);
+      iconText(f1.lines[0], r.x, bottom ? r.y - 16 * u : r.y, f1.px, CART_ICON);
       if (bottom) {
         g.font = `bold ${Math.round(24 * u)}px Segoe UI, sans-serif`; g.fillStyle = '#e8e2c8';
         g.fillText(bottom, r.x, r.y + 17 * u);
@@ -7425,11 +7434,8 @@ function drawHUD() {
       const best = ok && rs.length > 1 && worth(r.o) >= bestWorth - 1e-9
         && rs.some(q => worth(q.o) < bestWorth - 1e-9);
       g.save();
-      g.fillStyle = ok ? 'rgba(22,32,20,.92)' : 'rgba(40,22,20,.92)';
-      g.strokeStyle = best ? 'rgba(240,216,148,.9)'
-        : ok ? 'rgba(159,232,107,.75)' : 'rgba(200,110,90,.5)';
-      g.lineWidth = ok ? 3 : 2.5;
-      g.beginPath(); g.roundRect(r.x - r.w / 2, r.y - r.h / 2, r.w, r.h, 16); g.fill(); g.stroke();
+      woodPanel(r.x - r.w / 2, r.y - r.h / 2, r.w, r.h, 16,
+        best ? 'rgba(240,216,148,.9)' : ok ? 'rgba(159,232,107,.75)' : 'rgba(200,110,90,.6)', ok ? 3 : 2.5, !ok);
       g.textAlign = 'center'; g.textBaseline = 'middle';
       /* Which way the goods go. "🌾42 for 🪵39" reads either way round -- is
          that 42 food for their 39 wood, or 42 food they want for 39 of yours?
@@ -7438,7 +7444,7 @@ function drawHUD() {
         const fit = fitLines(verb + '  ' + RES_ICON[k] + ' ' + n, r.w - 18 * u, 26 * u, 14 * u, 1, 'bold ');
         g.font = `bold ${Math.round(fit.px)}px Segoe UI, sans-serif`;
         g.fillStyle = colour;
-        g.fillText(fit.lines[0], r.x, r.y + r.h * at);
+        iconText(fit.lines[0], r.x, r.y + r.h * at, fit.px);
       };
       side('give', r.o.giveK, r.o.giveN, -0.26, ok ? '#fff' : '#d8b3a6');
       g.font = `${Math.round(20 * u)}px Segoe UI, sans-serif`;
@@ -7456,8 +7462,8 @@ function drawHUD() {
         : short <= 0 && hasRoom(r.o) ? '#f0d894' : '#e59a86';
       const whyFit = fitLines(why, r.w - 16 * u, 20 * u, 13 * u, 1);
       g.font = `${Math.round(whyFit.px)}px Segoe UI, sans-serif`;
-      g.fillText(whyFit.lines[0], r.x, r.y);
-      side('get', r.o.getK, r.o.getN, 0.26, ok ? '#9fe86b' : '#a2907f');
+      iconText(whyFit.lines[0], r.x, r.y, whyFit.px);
+      side('get', r.o.getK, r.o.getN, 0.26, ok ? '#9fe86b' : '#b4a291');   // 4.46 against the warm wood at #a2907f
       g.restore();
     }
   }
@@ -7752,13 +7758,14 @@ function drawGoal() {
     + (prog && prog[0] < prog[1] ? '   ·   ' + prog[0] + '/' + prog[1] : '')
     + (buy ? '   ·   ' + buy : '')
     + (first ? '   ·   ' + firstText(first) : reward ? '   ·   ' + reward : '');
-  const fit = fitLines(txt, W - 108 * u, 22 * u, 13 * u, 2);
+  const fit = fitLines(txt, W - 156 * u, 22 * u, 13 * u, 2);
   const tw = Math.max(...fit.lines.map(l => g.measureText(l).width));
-  const w = Math.min(W - 40 * u, tw + 56 * u);
+  const w = Math.min(W - 40 * u, tw + ELDER * u);
   const hh = Math.max(52 * u, fit.lines.length * fit.px * 1.22 + 28 * u);
   woodPanel(W / 2 - w / 2, y - hh / 2, w, hh, Math.min(hh, 52 * u) / 2);
+  drawElder(W / 2 - w / 2, y, hh, u);
   g.fillStyle = '#c8d9b8';
-  pillLines(fit, W / 2, y);
+  pillLines(fit, W / 2 + elderCx(u), y);
   g.restore();
 }
 
@@ -7911,6 +7918,18 @@ function fitLinesNow(text, maxW, px, minPx, maxLines, weight) {
     if (size <= minPx) return { lines, px: size };
   }
 }
+/* The elder who gives the village its advice (painted by ChatGPT), at the left
+   end of the line she is saying -- the goal, and the one-off hints. Her slot
+   is kept whether or not she has loaded, so the line does not jump sideways
+   when she arrives; she stands a little taller than the pill. */
+const ELDER = 104;                     // what the pill adds for her, against the 56 of plain padding
+const elderCx = u => 24 * u;           // the text's centre moves right by this, off her slot
+function drawElder(x0, y, hh, u) {
+  const im = artFor('icon_elder');
+  if (!im) return;
+  const sz = Math.min(80 * u, hh + 26 * u);
+  g.drawImage(im, x0 + 44 * u - sz / 2, y - sz / 2 - 2 * u, sz, sz);
+}
 function pillLines(fit, cx, cy) {
   const lh = fit.px * 1.22;
   const top = cy - (fit.lines.length - 1) * lh / 2;
@@ -7930,15 +7949,16 @@ function drawHint() {
   const h = currentHint(); if (!h) return;
   const u = US(), y = chipsBot() + 42 * u;
   g.save();
-  const fit = fitLines(hintText(h), W - 108 * u, 23 * u, 13 * u, 2);
+  const fit = fitLines(hintText(h), W - 156 * u, 23 * u, 13 * u, 2);
   const tw = Math.max(...fit.lines.map(l => g.measureText(l).width));
-  const w = Math.min(W - 40 * u, tw + 56 * u);
+  const w = Math.min(W - 40 * u, tw + ELDER * u);
   const hh = Math.max(58 * u, fit.lines.length * fit.px * 1.22 + 30 * u);
   g.globalAlpha = Math.min(1, tutT * 3);           // fades in rather than snapping
   g.fillStyle = 'rgba(20,32,18,.92)'; g.strokeStyle = 'rgba(159,232,107,.55)'; g.lineWidth = 2.5;
   g.beginPath(); g.roundRect(W / 2 - w / 2, y - hh / 2, w, hh, Math.min(hh, 58 * u) / 2); g.fill(); g.stroke();
+  drawElder(W / 2 - w / 2, y, hh, u);
   g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#dff0c8';
-  pillLines(fit, W / 2, y);
+  pillLines(fit, W / 2 + elderCx(u), y);
   g.restore();
 }
 
@@ -9505,7 +9525,7 @@ function drawPanel() {
 }
 
 function draw() {
-  glowsDrawn = 0; iconsDrawn = 0;
+  glowsDrawn = 0; iconsDrawn = 0; carriesDrawn = 0;
   stepAmbience();
   fitCanvas();
   g.setTransform(1, 0, 0, 1, 0, 0);
@@ -10191,7 +10211,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   SEASONS, SEASON_OF, SEASON_LEAF, seasonIdx, season, seasonSkin, drawGround, drawScenery, SCENERY,
   GW, GH, tileToWorld, deliveredOf,
   get seasonForced() { return seasonForced; }, set seasonForced(v) { seasonForced = v; },
-  get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, winterArt, ART, villagerArt, glowKey, get glowsDrawn() { return glowsDrawn; }, get iconsDrawn() { return iconsDrawn; },
+  get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, winterArt, ART, villagerArt, glowKey, get glowsDrawn() { return glowsDrawn; }, get iconsDrawn() { return iconsDrawn; }, get carriesDrawn() { return carriesDrawn; },
   get plainIcons() { return plainIcons; }, set plainIcons(v) { plainIcons = !!v; }, ICON_OF,
   hudTop, hudBot, screenTop, screenBot, readSafeArea, get SAFE() { return SAFE; }, set SAFE(v) { SAFE = v; },
   get safeKnown() { return safeKnown; }, set safeKnown(v) { safeKnown = !!v; },
