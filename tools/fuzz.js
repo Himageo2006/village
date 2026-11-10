@@ -6824,13 +6824,18 @@
          time as the light in its windows -- one more image each, by design,
          so the game's own tally of them is allowed rather than left to the
          spare. Read after the frame count() just drew. */
-      const lit = V.glowsDrawn | 0, icons = V.iconsDrawn | 0, carried = V.carriesDrawn | 0;
-      rows.push({ what, things, lit, icons, carried, drawImage: ops.drawImage, total: ops.total });
+      /* And the painted card furniture -- a card's board and frame, the pieces
+         of a button or the ribbon, the gold disc on the orders tab -- which
+         the game tallies as it draws them, as it does the icons. */
+      const lit = V.glowsDrawn | 0, icons = V.iconsDrawn | 0, carried = V.carriesDrawn | 0, chrome = V.chromeDrawn | 0;
+      rows.push({ what, things, lit, icons, carried, chrome, drawImage: ops.drawImage, total: ops.total });
+      if (chrome > 20) fails.push(what + ' draws ' + chrome + ' pieces of card furniture on one frame -- a card and a tab need perhaps a dozen');
       if (carried > V.villagers.length) fails.push(what + ' draws ' + carried + ' carried loads for ' + V.villagers.length + ' villagers');
       if (icons > 40) fails.push(what + ' draws ' + icons + ' painted icons on one frame -- the HUD has room for perhaps thirty');
-      if (ops.drawImage > things + lit + Math.min(icons, 40) + Math.min(carried, V.villagers.length) + spareHere)
+      if (ops.drawImage > things + lit + Math.min(icons, 40) + Math.min(carried, V.villagers.length) + Math.min(chrome, 20) + spareHere)
         fails.push(what + ' reaches for an image ' + ops.drawImage + ' times with '
           + things + ' things standing on it' + (lit ? ' and ' + lit + ' lit at night' : '')
+          + ' (' + icons + ' icons, ' + carried + ' loads, ' + chrome + ' card pieces)'
           + ', which is more than one each and ' + spareHere + ' for the scenery');
       if (ops.drawImage < things * 0.9)
         fails.push(what + ' has ' + things + ' things standing on it and draws only '
@@ -7031,11 +7036,28 @@
         const none = art.filter(k => !V.artFor(k));
         if (none.length) fails.push('no painting loaded for ' + none.join(', '));
         const faces = ['on', 'warn', 'off'].map(k => V.artFor('btn_' + k));
+        for (const k of ['ui_close', 'ui_count', 'btn_blue']) V.artFor(k);
+        for (let i = 0; i < 50 && !['ui_close', 'ui_count', 'btn_blue'].every(k => V.artFor(k)); i++) await new Promise(r => setTimeout(r, 100));
         const hall = V.placed.find(q => q.key === 'hall');
         V.panel = hall.id; V.step(0.001);
-        { const { ims: pics } = read();
-          if (!pics.some(o => faces.includes(o.im))) fails.push('the building panel drew no painted button'); }
+        { const { texts, ims: pics } = read();
+          if (!pics.some(o => faces.includes(o.im))) fails.push('the building panel drew no painted button');
+          // its close button is the walnut disc, and no bare cross is printed beside it
+          if (!pics.some(o => o.im === V.artFor('ui_close'))) fails.push('the building panel has no painted close button');
+          if (texts.some(o => o.t === '×')) fails.push('the building panel still prints its close cross'); }
         V.panel = null;
+        // the transfer card's buttons are the blue enamel
+        V.carry = { code: 'TEST' }; V.step(0.001);
+        { const { ims: pics } = read();
+          if (!pics.some(o => o.im === V.artFor('btn_blue'))) fails.push('the transfer card drew no blue painted button'); }
+        V.carry = null;
+        // and a trade that can be filled is counted on the orders tab on a gold disc
+        if (!V.orders.length) V.orders.push({ ...V.makeOrder(), slot: V.freeStall() });
+        for (const k of V.RES) V.res[k] = V.caps[k];
+        V.step(0.001);
+        { const { ims: pics } = read();
+          if (V.orders.some(V.canFill) && !pics.some(o => o.im === V.artFor('ui_count'))) fails.push('the count on the orders tab is not on its gold disc'); }
+        V.orders.length = 0;
         V.away = { secs: 7200, got: { wood: 340, food: 220 } };
         for (let i = 0; i < 40; i++) { V.step(0.001); V.draw(); await new Promise(r => setTimeout(r, 50)); }
         const { texts, ims: pics } = read();

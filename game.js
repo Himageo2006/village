@@ -7183,6 +7183,16 @@ function paintedButton(kind, x, y, w, h) {
   g.drawImage(im, 0, 0, sc, ih, x, y, dc, h);
   g.drawImage(im, sc, 0, iw - 2 * sc, ih, x + dc, y, w - 2 * dc, h);
   g.drawImage(im, iw - sc, 0, sc, ih, x + w - dc, y, dc, h);
+  chromeDrawn += 3;
+  return true;
+}
+/* The close button (ChatGPT): a walnut disc with its cross painted on. Drawn
+   over the old circle's place and a little larger, since the painting has a
+   rim; the glyph stays for the text readers. */
+function closeArt(x, y, r) {
+  const im = !plainIcons && artFor('ui_close');
+  if (!im) return false;
+  g.drawImage(im, x - r * 1.15, y - r * 1.15, r * 2.3, r * 2.3); iconsDrawn++;
   return true;
 }
 function cardBoard(R, rim) {
@@ -7213,7 +7223,15 @@ function boardPanel(x, y, w, h, r) {
 /* Real grain under the wood (Leonardo): walnut planks, mirrored into a tile
    that repeats without a seam, and laid under the old gradient, which still
    sets the colour and the darkness the text is measured against. */
-let woodPat = null;
+let woodPat = null, paperPat = null;
+function paperGrain() {
+  if (paperPat) return paperPat;
+  const im = artFor('paper_grain');
+  if (!im) return null;
+  paperPat = g.createPattern(im, 'repeat');
+  paperPat.setTransform(new DOMMatrix().scale(0.5));
+  return paperPat;
+}
 function woodGrain() {
   if (woodPat) return woodPat;
   const im = artFor('wood_grain');
@@ -7559,8 +7577,12 @@ function drawHUD() {
       const n = orders.filter(canFill).length;
       if (n) {
         const bx = t.x + t.w / 2 - 6 * u, by = t.y - t.h / 2 + 4 * u, r2 = 15 * u;
-        g.fillStyle = '#e8b44a'; g.strokeStyle = 'rgba(20,30,16,.9)'; g.lineWidth = 3;
-        g.beginPath(); g.arc(bx, by, r2, 0, 7); g.fill(); g.stroke();
+        const dot = artFor('ui_count');
+        if (dot) { g.drawImage(dot, bx - r2 * 1.3, by - r2 * 1.3, r2 * 2.6, r2 * 2.6); chromeDrawn++; }
+        else {
+          g.fillStyle = '#e8b44a'; g.strokeStyle = 'rgba(20,30,16,.9)'; g.lineWidth = 3;
+          g.beginPath(); g.arc(bx, by, r2, 0, 7); g.fill(); g.stroke();
+        }
         g.fillStyle = '#2a1f08';
         g.font = `bold ${Math.round(19 * u)}px Segoe UI, sans-serif`;
         g.fillText(String(n), bx, by + 1 * u);
@@ -7788,6 +7810,7 @@ function drawGoal() {
       g.drawImage(rib, 0, 0, sw, rib.height, x0, top, tail, bh);
       g.drawImage(rib, sw, 0, rib.width - 2 * sw, rib.height, x0 + tail, top, mid, bh);
       g.drawImage(rib, rib.width - sw, 0, sw, rib.height, x0 + tail + mid, top, tail, bh);
+      chromeDrawn += 3;
       g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#fff';
       g.shadowColor = 'rgba(70,0,0,.75)'; g.shadowOffsetY = 2 * u;
       pillLines(fit, W / 2, cy);
@@ -8056,10 +8079,15 @@ function drawHint() {
   const w = Math.min(W - 40 * u, tw + ELDER * u);
   const hh = Math.max(58 * u, fit.lines.length * fit.px * 1.22 + 30 * u);
   g.globalAlpha = Math.min(1, tutT * 3);           // fades in rather than snapping
-  g.fillStyle = 'rgba(20,32,18,.92)'; g.strokeStyle = 'rgba(159,232,107,.55)'; g.lineWidth = 2.5;
+  /* What the elder tells you is written on a slip of parchment (Leonardo), in
+     ink, where the goal it sits in place of is on wood -- so a hint, which
+     comes once, does not look like the strip that is always there. */
+  const paper = paperGrain();
+  g.fillStyle = paper || 'rgba(20,32,18,.92)';
+  g.strokeStyle = paper ? 'rgba(120,74,30,.95)' : 'rgba(159,232,107,.55)'; g.lineWidth = paper ? 3 : 2.5;
   g.beginPath(); g.roundRect(W / 2 - w / 2, y - hh / 2, w, hh, Math.min(hh, 58 * u) / 2); g.fill(); g.stroke();
   drawElder(W / 2 - w / 2, y, hh, u);
-  g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#dff0c8';
+  g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = paper ? '#3b2410' : '#dff0c8';
   pillLines(fit, W / 2 + elderCx(u), y);
   g.restore();
 }
@@ -8132,10 +8160,12 @@ function drawAlbum() {
     g.font = `${Math.round(20 * u)}px Segoe UI, sans-serif`; g.fillStyle = ink.note;
     g.fillText(!n ? c.a.hint : next ? n + ' caught, ' + (next - n) + ' to the next star' : n + ' caught', cx, b - 28 * u);
   }
-  g.fillStyle = ink.x;
-  g.beginPath(); g.arc(R.close.x, R.close.y, R.close.r, 0, 7); g.fill();
-  g.font = `bold ${Math.round(28 * u)}px Segoe UI, sans-serif`; g.fillStyle = ink.xInk;
-  g.fillText('×', R.close.x, R.close.y);
+  if (!closeArt(R.close.x, R.close.y, R.close.r)) {
+    g.fillStyle = ink.x;
+    g.beginPath(); g.arc(R.close.x, R.close.y, R.close.r, 0, 7); g.fill();
+    g.font = `bold ${Math.round(28 * u)}px Segoe UI, sans-serif`; g.fillStyle = ink.xInk;
+    g.fillText('×', R.close.x, R.close.y);
+  }
   g.restore();
 }
 /* The way in: a chip on the hall's title row, which carries the tally as well. */
@@ -8173,18 +8203,22 @@ function drawCarry() {
   g.fillStyle = carry.note ? '#ffe07a' : '#a9bd9c';
   fit.lines.forEach((l, i) => g.fillText(l, R.x, R.y - R.h / 2 + 100 * u + (i - (fit.lines.length - 1) / 2) * fit.px * 1.2));
   for (const [b, label, on] of [[R.copy, carry.code ? 'Copy this village' : 'Making the code…', !!carry.code], [R.paste, 'Paste a code', true]].concat(R.undo ? [[R.undo, 'Bring back the village before', true]] : [])) {
-    g.fillStyle = on ? 'rgba(44,74,104,.98)' : 'rgba(40,44,36,.9)';
-    g.strokeStyle = on ? '#9fd0ff' : 'rgba(255,255,255,.16)'; g.lineWidth = 3;
-    g.beginPath(); g.roundRect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h, 16 * u); g.fill(); g.stroke();
+    if (!paintedButton(on ? 'blue' : 'off', b.x - b.w / 2, b.y - b.h / 2, b.w, b.h)) {
+      g.fillStyle = on ? 'rgba(44,74,104,.98)' : 'rgba(40,44,36,.9)';
+      g.strokeStyle = on ? '#9fd0ff' : 'rgba(255,255,255,.16)'; g.lineWidth = 3;
+      g.beginPath(); g.roundRect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h, 16 * u); g.fill(); g.stroke();
+    }
     g.font = 'bold ' + Math.round(25 * u) + 'px Segoe UI, sans-serif'; g.fillStyle = on ? '#e6f3ff' : DIM;
     g.fillText(label, b.x, b.y);
   }
   g.font = Math.round(21 * u) + 'px Segoe UI, sans-serif'; g.fillStyle = '#a9bd9c';
   g.fillText('Pasting replaces the village here; it is kept aside', R.x, R.y + R.h / 2 - 36 * u);
-  g.fillStyle = 'rgba(255,255,255,.12)';
-  g.beginPath(); g.arc(R.close.x, R.close.y, R.close.r, 0, 7); g.fill();
-  g.font = 'bold ' + Math.round(28 * u) + 'px Segoe UI, sans-serif'; g.fillStyle = '#fff';
-  g.fillText('×', R.close.x, R.close.y);
+  if (!closeArt(R.close.x, R.close.y, R.close.r)) {
+    g.fillStyle = 'rgba(255,255,255,.12)';
+    g.beginPath(); g.arc(R.close.x, R.close.y, R.close.r, 0, 7); g.fill();
+    g.font = 'bold ' + Math.round(28 * u) + 'px Segoe UI, sans-serif'; g.fillStyle = '#fff';
+    g.fillText('×', R.close.x, R.close.y);
+  }
   g.restore();
 }
 function drawClaim() {
@@ -8236,10 +8270,12 @@ function drawClaim() {
       : overCap ? 'Your stores cannot hold this much yet'
       : 'Need ' + shortText(cost) + ' more', R.yes.x, R.yes.y, (overCap ? 22 : 26) * u);
   }
-  g.fillStyle = 'rgba(255,255,255,.12)';
-  g.beginPath(); g.arc(R.no.x, R.no.y, R.no.r, 0, 7); g.fill();
-  g.fillStyle = '#fff'; g.font = `bold ${Math.round(26 * u)}px Segoe UI, sans-serif`;
-  g.fillText('×', R.no.x, R.no.y);
+  if (!closeArt(R.no.x, R.no.y, R.no.r)) {
+    g.fillStyle = 'rgba(255,255,255,.12)';
+    g.beginPath(); g.arc(R.no.x, R.no.y, R.no.r, 0, 7); g.fill();
+    g.fillStyle = '#fff'; g.font = `bold ${Math.round(26 * u)}px Segoe UI, sans-serif`;
+    g.fillText('×', R.no.x, R.no.y);
+  }
   g.restore();
 }
 
@@ -9547,10 +9583,13 @@ function drawPanel() {
   }
 
   // close
-  g.fillStyle = 'rgba(255,255,255,.12)';
-  g.beginPath(); g.arc(R.close.x, R.close.y, R.close.r, 0, 7); g.fill();
-  g.textAlign = 'center'; g.fillStyle = '#fff';
-  g.font = `bold ${Math.round(26 * u)}px Segoe UI, sans-serif`; g.fillText('×', R.close.x, R.close.y);
+  g.textAlign = 'center';
+  if (!closeArt(R.close.x, R.close.y, R.close.r)) {
+    g.fillStyle = 'rgba(255,255,255,.12)';
+    g.beginPath(); g.arc(R.close.x, R.close.y, R.close.r, 0, 7); g.fill();
+    g.fillStyle = '#fff';
+    g.font = `bold ${Math.round(26 * u)}px Segoe UI, sans-serif`; g.fillText('×', R.close.x, R.close.y);
+  }
 
   const dec = isDecor(p.key);
   /* Not a second answer to "can this be upgraded". upInfo settles the
