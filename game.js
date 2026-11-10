@@ -7604,7 +7604,17 @@ function drawHUD() {
     g.textAlign = 'center'; g.textBaseline = 'middle';
     g.font = `bold ${Math.round(22 * u)}px Segoe UI, sans-serif`;
     g.fillStyle = on ? '#fff3d6' : '#cdb894';
-    g.fillText(t.label, t.x, t.y);
+    /* Each tab's painted icon (ChatGPT) ahead of its word: a hammer and saw,
+       a pot of flowers, the trader's scales. The word alone is still what the
+       text readers get. */
+    const tic = !plainIcons && artFor('icon_tab_' + t.mode);
+    if (tic) {
+      const sz = 30 * u, gap = 6 * u, tw = g.measureText(t.label).width, x0 = t.x - (sz + gap + tw) / 2;
+      g.globalAlpha = on ? 1 : 0.8;
+      g.drawImage(tic, x0, t.y - sz / 2, sz, sz); iconsDrawn++;
+      g.globalAlpha = 1;
+      g.textAlign = 'left'; g.fillText(t.label, x0 + sz + gap, t.y);
+    } else g.fillText(t.label, t.x, t.y);
     /* Trading is where surplus food turns back into wood -- at a full village
        it is 30% of wood income -- but only if you go and look. A count on the
        tab means you never have to. */
@@ -8551,6 +8561,27 @@ function chrome(key, w, h, paint) {
   chromeDrawn++;
   return c;
 }
+/* A gold rule (Leonardo) between what a panel says and what it lets you do.
+   Cut in five, measured off art/divider_gilt.webp: the two curled ends and the
+   oak-leaf centrepiece keep their shape, and the plain bar either side of the
+   leaf stretches to the width asked for. Painted once per width into the
+   chrome cache, so it is one image a frame. */
+const DIV_CUTS = [118, 372, 544, 796];
+function drawDivider(x, y, w, h) {
+  const im = !plainIcons && artFor('divider_gilt');
+  if (!im) return;
+  const s2 = h / im.height, [A, B2, C, D] = DIV_CUTS, iw = im.width;
+  const ends = (A + iw - D + C - B2) * s2;
+  if (w <= ends) return;
+  const bar = (w - ends) / 2;
+  const c = chrome('divider', w, h, b => {
+    let x0 = 0;
+    for (const [sx, sw, dw] of [[0, A, A * s2], [A, B2 - A, bar], [B2, C - B2, (C - B2) * s2], [C, D - C, bar], [D, iw - D, (iw - D) * s2]]) {
+      b.drawImage(im, sx, 0, sw, im.height, x0, 0, dw, h); x0 += dw;
+    }
+  });
+  g.drawImage(c, x, y - h / 2, w, h);
+}
 function drawFrame(x, y, w, h, band) {
   const im = artFor('frame_gilt');
   if (!im) return false;
@@ -8783,6 +8814,17 @@ function drawMute() {
    One definition drives both the drawing and the hit-testing, the same
    discipline as the build bar, so what you can tap cannot drift from what you
    can see. */
+/* The people posted to a building, as faces along the top of its panel, right
+   to left from the close button. A tap on one opens that villager's card. At
+   most four: a building never has more posts than that, and four is what the
+   header has room for beside the longest name and level. */
+function panelFaces(R) {
+  const p = panel == null ? null : byId(panel);
+  if (!p || !B(p.key).jobs || plainIcons) return [];
+  const u = R.u, d = 62 * u;
+  return workersOf(p.id).slice(0, 4).map((v, i) => ({
+    x: R.close.x - R.close.r - 18 * u - d / 2 - i * (d + 10 * u), y: R.close.y + 2 * u, r: d / 2, v }));
+}
 function panelRects() {
   const u = US(), tabs = tabRects();
   const p = panel == null ? null : byId(panel);
@@ -9273,6 +9315,8 @@ function drawPanel() {
      one number under two names. */
   iconText(b.icon + '  ' + b.name + (B(p.key).decor || p.key === BEACON ? '' : '  ·  Level ' + lvlOf(p)),
     lx, R.y - R.h / 2 + 38 * u, 30 * u, { [b.icon]: p.key });
+  for (const f of panelFaces(R)) drawPortrait(f.v, f.x, f.y, f.r * 2);
+  if (R.btn) drawDivider(R.x - R.w / 2 + 40 * u, R.move.y - R.move.h / 2 - 16 * u, R.w - 80 * u, 22 * u);
   /* The hall has three things to say -- what it allows, what the next level
      adds, and how the village is doing -- and two rows to say them in. Its
      blurb is the least useful line on the panel, so the summary takes that
@@ -10276,6 +10320,11 @@ function tap(sx, sy) {
     const hit = r2 => r2 && Math.abs(sx - r2.x) < r2.w / 2
       && Math.abs(sy - r2.y) < padHit(r2.h / 2, 20 * R.u);
     if (p && p.key === 'hall' && hit(albumChip(R))) { album = true; SFX.tap(); return; }
+    {
+      const near = panelFaces(R).map(f => [f, Math.hypot(sx - f.x, sy - f.y)])
+        .filter(([f, d]) => d < Math.max(f.r * 1.15, TOUCH_MIN / 2)).sort((a, b2) => a[1] - b2[1])[0];
+      if (near) { who = near[0].v.seed; panel = null; sellArm = null; SFX.tap(); return; }
+    }
     if (p && p.key === 'hall' && hit(carryChip(R))) { openCarry(); SFX.tap(); return; }
     if (p && hit(R.move)) { moving = p.id; panel = null; who = null; selBuild = null; ghost = null; armed = null; sellArm = null; SFX.tap(); return; }
     if (p && hit(R.sell)) {
@@ -10498,7 +10547,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   SEASONS, SEASON_OF, SEASON_LEAF, seasonIdx, season, seasonSkin, drawGround, drawScenery, SCENERY,
   GW, GH, tileToWorld, deliveredOf,
   get seasonForced() { return seasonForced; }, set seasonForced(v) { seasonForced = v; },
-  get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, winterArt, ART, villagerArt, glowKey, get glowsDrawn() { return glowsDrawn; }, get iconsDrawn() { return iconsDrawn; }, get carriesDrawn() { return carriesDrawn; }, get chromeDrawn() { return chromeDrawn; }, portraitKey, merchantOf, get sparkleCount() { return sparkleCount; }, chromeCache,
+  get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, winterArt, ART, villagerArt, glowKey, get glowsDrawn() { return glowsDrawn; }, get iconsDrawn() { return iconsDrawn; }, get carriesDrawn() { return carriesDrawn; }, get chromeDrawn() { return chromeDrawn; }, portraitKey, merchantOf, panelFaces, get sparkleCount() { return sparkleCount; }, chromeCache,
   get plainIcons() { return plainIcons; }, set plainIcons(v) { plainIcons = !!v; }, ICON_OF,
   hudTop, hudBot, screenTop, screenBot, readSafeArea, get SAFE() { return SAFE; }, set SAFE(v) { SAFE = v; },
   get safeKnown() { return safeKnown; }, set safeKnown(v) { safeKnown = !!v; },

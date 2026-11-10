@@ -7129,6 +7129,30 @@
           if (V.artFor('ring_gilt') && !pics.some(o => o.im === V.artFor('ring_gilt'))) fails.push('a villager\'s face has no gilt ring round it');
         }
         V.who = null;
+        /* And a building's panel shows the faces of the people posted there,
+           and a tap on one opens that villager's card. */
+        const site = V.placed.find(b => V.workersOf(b.id).length);
+        if (!site) fails.push('the panel faces check had no staffed building');
+        else {
+          V.panel = site.id; V.step(0.001); V.panel = site.id;
+          const R = V.panelRects(), faces = V.panelFaces(R), { ims: pics } = read();
+          if (faces.length !== Math.min(4, V.workersOf(site.id).length)) fails.push('the ' + site.key + ' panel shows ' + faces.length + ' faces for ' + V.workersOf(site.id).length + ' workers');
+          for (const f of faces) if (!pics.some(o => o.im === V.artFor(V.portraitKey(f.v)) && Math.hypot(o.x - f.x, o.y - f.y) < f.r))
+            fails.push('the ' + site.key + ' panel has no face for ' + V.villagerName(f.v));
+          if (faces[0]) {
+            V.tap(faces[0].x, faces[0].y);
+            if (V.who !== faces[0].v.seed) fails.push('tapping a worker\'s face on the ' + site.key + ' panel did not open their card');
+          }
+          V.panel = null; V.who = null;
+        }
+        /* The three tabs each carry their painted icon. */
+        for (const m of ['build', 'decor', 'orders']) V.artFor('icon_tab_' + m);
+        for (let i = 0; i < 50 && !['build', 'decor', 'orders'].every(m => V.artFor('icon_tab_' + m)); i++) await new Promise(r => setTimeout(r, 100));
+        {
+          const { ims: pics } = read();
+          for (const t of V.tabRects()) if (!pics.some(o => o.im === V.artFor('icon_tab_' + t.mode) && inside(o, t)))
+            fails.push('the ' + t.label + ' tab has no painted icon');
+        }
       }
       // and with the switch back on the emoji are what the readers get
       V.plainIcons = true; V.step(0.001); V.draw();
