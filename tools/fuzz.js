@@ -12129,6 +12129,14 @@
     if (distinct !== people)
       fails.push(people + ' villagers answer to ' + distinct + ' names, so some of them are the same person as far as the village is concerned');
 
+    /* And each name is from the list that matches the figure, so the face on
+       the card and the name beside it are the same person. */
+    for (const v of V.villagers) {
+      const woman = V.WOMEN_FIGURES.has(V.villagerArt(v, () => true));
+      if (!(woman ? V.WOMEN : V.MEN).includes(V.villagerName(v)))
+        fails.push(V.villagerName(v) + ' is drawn as ' + V.villagerArt(v).replace('villager_', 'the ') + ' but has a name from the other list');
+    }
+
     /* The village comes back with the same people in it. Emptying the list
        and stepping is exactly what a reload does -- they are rebuilt from the
        houses -- so anything rolled at spawn is rolled again here. */

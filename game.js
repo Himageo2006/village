@@ -1931,20 +1931,38 @@ const VILLAGER_MAX = 72;
    Eighty names against a ceiling of seventy-two, stepped by a number coprime
    with eighty, so every seed in range lands on a different one. Nobody shares
    a name, and nobody has to. */
-const NAMES = [
-  'Mara', 'Tomas', 'Jens', 'Alda', 'Piet', 'Nell', 'Otto', 'Greta',
-  'Hans', 'Lise', 'Bram', 'Ilse', 'Gus', 'Mette', 'Arne', 'Fenna',
-  'Joren', 'Saskia', 'Klaas', 'Roos', 'Teun', 'Hilde', 'Wim', 'Anke',
-  'Dirk', 'Marit', 'Sven', 'Lotte', 'Rune', 'Birgit', 'Olav', 'Karin',
-  'Erik', 'Sonja', 'Lars', 'Elin', 'Nils', 'Astrid', 'Jonas', 'Freja',
-  'Kai', 'Signe', 'Bo', 'Inga', 'Halle', 'Rikke', 'Esben', 'Maren',
-  'Finn', 'Tove', 'Soren', 'Liv', 'Odd', 'Hedda', 'Vidar', 'Siri',
-  'Trygve', 'Runa', 'Egil', 'Thora', 'Knut', 'Ylva', 'Harald', 'Gudrun',
-  'Sigurd', 'Asta', 'Leif', 'Solveig', 'Torkel', 'Ragna', 'Einar', 'Dagny',
-  'Bjorn', 'Kari', 'Steinar', 'Alva', 'Gunnar', 'Hanne', 'Magnus', 'Edda',
+/* Two lists, one for the women's figures and one for the men's, and the name
+   is taken from the one that matches the figure the villager is drawn as. The
+   card shows their face beside their name, and one list for everybody put
+   "Mara" under the bearded woodcutter. The figure follows the post, so
+   someone moved to a post drawn the other way answers to the name from the
+   other list -- the face and the name change together, rather than the face
+   alone, which it always did. */
+const WOMEN = [
+  'Mara', 'Alda', 'Nell', 'Greta', 'Lise', 'Ilse', 'Mette', 'Fenna', 'Saskia', 'Roos', 'Hilde', 'Anke',
+  'Marit', 'Lotte', 'Birgit', 'Karin', 'Sonja', 'Elin', 'Astrid', 'Freja', 'Signe', 'Inga', 'Rikke', 'Maren',
+  'Tove', 'Liv', 'Hedda', 'Siri', 'Runa', 'Thora', 'Ylva', 'Gudrun', 'Asta', 'Solveig', 'Ragna', 'Dagny',
+  'Kari', 'Alva', 'Hanne', 'Edda', 'Agnes', 'Aase', 'Bodil', 'Britt', 'Dorte', 'Ebba', 'Elise', 'Frida',
+  'Gerda', 'Hege', 'Ida', 'Ingrid', 'Jorunn', 'Kirsten', 'Linnea', 'Malin', 'Nora', 'Oda', 'Pernille', 'Ronja',
+  'Sanna', 'Silje', 'Stine', 'Tilde', 'Unni', 'Vigdis', 'Wenche', 'Ane', 'Bergljot', 'Cecilie', 'Embla', 'Gry',
+  'Helga', 'Idun', 'Jofrid', 'Kaja', 'Lene', 'Mathilde', 'Randi', 'Sigrid',
 ];
+const MEN = [
+  'Tomas', 'Jens', 'Piet', 'Otto', 'Hans', 'Bram', 'Gus', 'Arne', 'Joren', 'Klaas', 'Teun', 'Wim',
+  'Dirk', 'Sven', 'Rune', 'Olav', 'Erik', 'Lars', 'Nils', 'Jonas', 'Kai', 'Bo', 'Halle', 'Esben',
+  'Finn', 'Soren', 'Odd', 'Vidar', 'Trygve', 'Egil', 'Knut', 'Harald', 'Sigurd', 'Leif', 'Torkel', 'Einar',
+  'Bjorn', 'Steinar', 'Gunnar', 'Magnus', 'Anders', 'Aksel', 'Birger', 'Casper', 'Emil', 'Frode', 'Geir', 'Gisle',
+  'Henrik', 'Ivar', 'Jakob', 'Jorgen', 'Kjell', 'Lukas', 'Mats', 'Morten', 'Oskar', 'Per', 'Rasmus', 'Rolf',
+  'Stig', 'Tor', 'Ulf', 'Viggo', 'Axel', 'Bastian', 'Dag', 'Eskil', 'Halvard', 'Ingvar', 'Jarl', 'Kasper',
+  'Loke', 'Nikolai', 'Ove', 'Ragnar', 'Sindre', 'Tarjei', 'Vemund', 'Arvid',
+];
+const WOMEN_FIGURES = new Set(['villager_basket', 'villager_stonecutter']);
 const NAME_STEP = 37;                 // coprime with 80, so seeds do not collide
-const villagerName = v => NAMES[((v && v.seed | 0) * NAME_STEP) % NAMES.length];
+const villagerName = v => {
+  // the figure they are meant to have, so the name does not change as the art arrives
+  const list = v && WOMEN_FIGURES.has(villagerArt(v, () => true)) ? WOMEN : MEN;
+  return list[((v && v.seed | 0) * NAME_STEP) % list.length];
+};
 /* The smallest number nobody is using. */
 function freeSeed() {
   const taken = new Set(villagers.map(v => v.seed));
@@ -5665,23 +5683,23 @@ const VILLAGER_H = 60;
    and retired the only woman in the game to the ranks of the unemployed. A
    basket of vegetables belongs in a field. Off duty they are whoever they
    happen to be. */
-function villagerArt(v) {
+function villagerArt(v, ask = artFor) {      // ask: whether a figure can be drawn yet
   const p = v.job == null ? null : byId(v.job);
   const b = p && B(p.key);
   if (b && b.makes) {
     /* Before the wood rule, because the market makes wood -- its trickle is
        what the trader turns over -- and so its one hand walked the stalls
        with a felling axe on his shoulder. He carries a crate of goods. */
-    if (p.key === 'market' && artFor(TRADER)) return TRADER;
+    if (p.key === 'market' && ask(TRADER)) return TRADER;
     // the mill makes food too, so it is asked for before the field hands
-    if (p.key === 'mill' && artFor(MILLER)) return MILLER;
+    if (p.key === 'mill' && ask(MILLER)) return MILLER;
     if (b.makes.wood !== undefined) return 'villager_woodcutter';
     /* Stone has a figure of its own: a pick over the shoulder and an apron
        grey with dust. The quarry drew on the food workers until it had one,
        so a basket of vegetables went to work cutting rock. Off duty she
        is whoever the pool says, as everyone else is -- the pool is left at
        three, because each villager's look is picked from its length. */
-    if (b.makes.stone !== undefined && artFor(STONECUTTER)) return STONECUTTER;
+    if (b.makes.stone !== undefined && ask(STONECUTTER)) return STONECUTTER;
     return (v.k % 2) ? 'villager_basket' : 'villager_farmer';
   }
   return VILLAGERS[v.k % VILLAGERS.length];
@@ -10442,7 +10460,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   bestDeliveredOf, reachOf, snugWalkOf,
   panelRects, TOUCH_MIN, padHit, TEXT_MIN, buildingsAt, get panel() { return panel; }, set panel(v) { panel = v; },
   get who() { return who; }, set who(v) { who = v; }, whoIs, villagerAt, tradeOf, doingOf, roundTripOf, drawWho,
-  get villagers() { return villagers; }, workersAt, workersOf, villagerName, nameList, NAMES, freeSeed, boostAt, producers, stores,
+  get villagers() { return villagers; }, workersAt, workersOf, villagerName, nameList, WOMEN, MEN, WOMEN_FIGURES, freeSeed, boostAt, producers, stores,
   assignJobs, desiredJobs, computeJobs, invalidateJobs, established, lvlHeld, buildingAt, ensureHall, jobsOf, VILLAGER_MAX, rebuildStores, nearestStore,
   artRect, paintedAt, isDecor, decorCount, DECOR_MAX, charmTotal, charmMul, charmGainFrom, decorGainAt, deliveredAtMul, charmRoom, usefulCharm, CHARM_FULL,
   // the size of a load: the finest difference any delivery measurement can see
