@@ -7433,3 +7433,28 @@ The game draws a painted icon wherever one has loaded, and the emoji it replaces
 - A tie in depth now goes to the walker. Walkers are drawn after villagers and children, so at the same depth the walker is on top. The milkmaid's tap failed in a battery because a child playing on the very step she stood on took it.
   - The milkmaid check now taps her at the last door with no child strictly in front of her, and expects that door's count, because the children are out at sunrise too.
   - Putting the old tie rule back was not caught on that run, since no child happened to be on her step. It is not proven by injection.
+
+## Round 253: the children in the puddles, frogs, and seventy saves fewer a frame
+
+- **villager_girl_splash** (GPT Image, with the girl's standing figure attached): "New pose for the girl in the first image ..., same character, same painted style, same camera angle, lighting and canvas size: she is jumping with both feet into a rain puddle, caught in mid-air a little above the ground with her knees bent and her arms flung up and out in delight, laughing. Same face, hair, dress and colours as the first image, but wearing a little yellow rain hat and bright red rubber boots. Facing towards the right like the first image. Full body, centred, no puddle, no water, no splash, no ground, on a plain pure white background, no shadow, no text." Processed with `node tools/prep-art.js villager_girl_splash`, capped at 320. Master: `art/original/villager_girl_splash.png`.
+- **villager_boy_splash** (GPT Image, with the boy's standing figure and the girl's splash pose attached): "Now the same for the boy in the first image: same character, same painted style, camera angle, lighting and canvas size as him, posed like the girl in the second image, jumping with both feet into a rain puddle ..., but wearing a little yellow rain hat and bright red rubber boots like hers. Facing towards the right. Full body, centred, ... on a plain pure white background, no shadow, no text." Processed the same way. Master: `art/original/villager_boy_splash.png`.
+  - The hat and boots are only on these poses. Running to and from the puddle, the children are drawn with their ordinary walk frames, without them.
+- **frog** (Leonardo Lucid Origin, free relaxed, four to a batch): "A single small cute plump green frog sitting upright on its haunches, facing right, seen from the side at a three-quarter angle from slightly above, bright golden eyes, pale yellow throat, a few darker green spots on its back, glossy wet skin, soft painterly 3D-rendered storybook illustration like a cozy isometric village building game sprite, soft overcast light, isolated and centred on a flat solid pure magenta #FF00FF background, no shadow, no ground, no water, no lily pad, no outline, no text". The second, upright and facing right, was kept. It was keyed with the flood fill. Master: `art/original/frog.jpg`.
+  - The first try at the prompt went nowhere: a triple-click on the prompt box landed on a duck picture below it and opened Leonardo's image viewer. Nothing was generated or changed there. The generate page was reopened and the prompt typed again.
+- On a wet day the children come out once the puddles are half full (`kidsOut`). Each runs to the puddle nearest their own door, of the ones a child can be seen standing in, a different one each while there are enough (`kidPools`). There they jump: up about ten units, and on landing a ring at their boots and a crown of drops, in one path. Then they run home.
+  - Their card says "Running out to the puddles", "Jumping in the puddles" or "Running home, wet through", and now reads "Out to play by day, indoors at dusk, and out in the puddles when it rains".
+  - The cats still stay in.
+  - The jumping pose is drawn at 0.92 of a child's height, since the knees are up.
+- Frogs sit on the rims of the puddles while it rains and the puddles are full, by day or night (`frogsNow`, two at most). They sit by the puddles the ducks and children reach last, in sight and facing into the water. They puff up to croak every four seconds and give a small hop now and then.
+- The villagers no longer save and restore the canvas each. Each puts the camera's transform back by hand: the only thing the save was protecting, since every colour is set again before use.
+  - On a full village that is about seventy saves a frame fewer. The cost sweep's dearest night went from 1191 to 1084, and the busiest daytime village from 1101 to 1049.
+  - It was needed: with the frogs, the dearest night had come to within nine calls of the ceiling.
+- The icon sweep now checks, on its wet day:
+  - frogs are out, no more than two, each on the rim of a puddle, in sight and drawn;
+  - the wet-day tally counts them;
+  - no cat is out in the rain;
+  - a child does come out to play, each child at play is in a puddle, in sight, and drawn with a splash figure;
+  - the card of a child in a puddle says "Jumping in the puddles".
+- The cost sweep's wet nights must draw every puddle and frog.
+  - It failed as it should with each of these broken: the frogs not drawn, the children playing at the well in the rain, no splash figure, and the cats out in the rain.
+  - Dropping the save and restore was not fault-injected. The full battery and the screenshots are the evidence it changed nothing.

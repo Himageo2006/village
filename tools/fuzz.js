@@ -6831,13 +6831,13 @@
       rows.push({ what, things, lit, icons, carried, chrome, drawImage: ops.drawImage, total: ops.total });
       // the children at play and the cats on the steps, a handful at most
       if (life > V.KIDS_MAX + V.CATS_MAX + 1) fails.push(what + ' draws ' + life + ' children, cats and a plaything, past the ' + (V.KIDS_MAX + V.CATS_MAX + 1) + ' the village has');
-      if ((V.wetDrawn | 0) > V.PUDDLES_MAX + 1) fails.push(what + ' draws ' + V.wetDrawn + ' puddles and ducks, past the ' + V.PUDDLES_MAX + ' puddles and one family a wet day has');
+      if ((V.wetDrawn | 0) > V.PUDDLES_MAX + 1 + V.FROGS_MAX) fails.push(what + ' draws ' + V.wetDrawn + ' puddles, ducks and frogs, past the ' + V.PUDDLES_MAX + ' puddles, one family and ' + V.FROGS_MAX + ' frogs a wet day has');
       if ((V.dawnDrawn | 0) > 2) fails.push(what + ' draws ' + V.dawnDrawn + ' milkmaids and roosters, past the one of each the morning has');
       if ((V.nightDrawn | 0) > V.OWLS_MAX + 1 + V.HOGS_MAX) fails.push(what + ' draws ' + V.nightDrawn + ' owls, hedgehogs and lamplighters, past the ' + (V.OWLS_MAX + 1 + V.HOGS_MAX) + ' the night has');
       if (chrome > 20) fails.push(what + ' draws ' + chrome + ' pieces of card furniture on one frame -- a card and a tab need perhaps a dozen');
       if (carried > V.villagers.length) fails.push(what + ' draws ' + carried + ' carried loads for ' + V.villagers.length + ' villagers');
       if (icons > 40) fails.push(what + ' draws ' + icons + ' painted icons on one frame -- the HUD has room for perhaps thirty');
-      if (ops.drawImage > things + lit + Math.min(icons, 40) + Math.min(carried, V.villagers.length) + Math.min(chrome, 20) + Math.min(thought, 2 * V.villagers.length) + Math.min(life, V.KIDS_MAX + V.CATS_MAX + 1) + Math.min(V.nightDrawn | 0, V.OWLS_MAX + 1 + V.HOGS_MAX) + Math.min(V.dawnDrawn | 0, 2) + Math.min(V.wetDrawn | 0, V.PUDDLES_MAX + 1) + spareHere)
+      if (ops.drawImage > things + lit + Math.min(icons, 40) + Math.min(carried, V.villagers.length) + Math.min(chrome, 20) + Math.min(thought, 2 * V.villagers.length) + Math.min(life, V.KIDS_MAX + V.CATS_MAX + 1) + Math.min(V.nightDrawn | 0, V.OWLS_MAX + 1 + V.HOGS_MAX) + Math.min(V.dawnDrawn | 0, 2) + Math.min(V.wetDrawn | 0, V.PUDDLES_MAX + 1 + V.FROGS_MAX) + spareHere)
         fails.push(what + ' reaches for an image ' + ops.drawImage + ' times with '
           + things + ' things standing on it' + (lit ? ' and ' + lit + ' lit at night' : '')
           + ' (' + icons + ' icons, ' + carried + ' loads, ' + chrome + ' card pieces)'
@@ -6876,8 +6876,8 @@
           V.step(0.001);
           const o = count(), name = V.season().name.toLowerCase() + (wet ? ', wet' : ', dry');
           seen++; nights[name] = o.total;
-          if (wet && (V.rainNow() < 1 || !V.puddleSpots().length || V.wetDrawn !== V.puddleSpots().length))
-            fails.push('the wet ' + name + ' night has rain ' + V.rainNow() + ' and ' + V.wetDrawn + ' of ' + V.puddleSpots().length + ' puddles drawn');
+          if (wet && (V.rainNow() < 1 || !V.puddleSpots().length || V.wetDrawn !== V.puddleSpots().length + V.frogsNow().length))
+            fails.push('the ' + name + ' night has rain ' + V.rainNow() + ' and ' + V.wetDrawn + ' drawn for ' + V.puddleSpots().length + ' puddles and ' + V.frogsNow().length + ' frogs');
           if (!ops || o.total > ops.total) { ops = o; worst = { si, d, name }; }
         }
         if (seen !== 7) fails.push('the night frame was measured in ' + seen + ' of the seven seasons and weathers');
@@ -7208,7 +7208,7 @@
            everybody indoors at night. The clock is moved to the middle of a
            dry day -- a wet one keeps them in too. */
         const artOf = f => [f, ...[1, 2, 3, 4, 5, 6].map(i => f + '_walk' + i)];
-        const KIDART = V.KID_FIGS.flatMap(artOf), LIFE = [...KIDART, ...V.PETS, 'portrait_girl', 'portrait_boy', ...Object.values(V.PLAY_PROP).map(q => q.key), ...artOf(V.LIGHTER), V.OWL, V.LIGHTER_REACH, V.HOG, 'portrait_lamplighter', ...artOf(V.MILKMAID), V.ROOSTER, 'portrait_milkmaid', V.DUCKS, V.PUDDLE, 'portrait_duck'];
+        const KIDART = V.KID_FIGS.flatMap(artOf), LIFE = [...KIDART, ...V.PETS, 'portrait_girl', 'portrait_boy', ...Object.values(V.PLAY_PROP).map(q => q.key), ...artOf(V.LIGHTER), V.OWL, V.LIGHTER_REACH, V.HOG, 'portrait_lamplighter', ...artOf(V.MILKMAID), V.ROOSTER, 'portrait_milkmaid', V.DUCKS, V.PUDDLE, 'portrait_duck', V.FROG, ...Object.values(V.SPLASH)];
         for (const k of LIFE) V.artFor(k);
         for (let i = 0; i < 50 && !LIFE.every(k => V.artFor(k)); i++) await new Promise(r => setTimeout(r, 100));
         /* Houses with open ground in front of their doors, and none built in
@@ -7594,7 +7594,39 @@
                   });
                   const drawnP = wp.filter(o => o.im === V.artFor(V.PUDDLE)).length;
                   if (drawnP !== spots.length) fails.push(spots.length + ' puddles on a wet day and ' + drawnP + ' drawn');
-                  if (V.wetDrawn !== spots.length + (V.ducksNow() ? 1 : 0)) fails.push('the wet-day tally is ' + V.wetDrawn + ' for ' + spots.length + ' puddles' + (V.ducksNow() ? ' and the ducks' : ''));
+                  const frogs = V.frogsNow();
+                  if (V.wetDrawn !== spots.length + (V.ducksNow() ? 1 : 0) + frogs.length) fails.push('the wet-day tally is ' + V.wetDrawn + ' for ' + spots.length + ' puddles, ' + frogs.length + ' frogs' + (V.ducksNow() ? ' and the ducks' : ''));
+                  /* Frogs on the rims of the puddles while it rains: as many as
+                     allowed, each by a puddle, in sight, drawn. */
+                  if (!frogs.length) fails.push('it is raining on ' + spots.length + ' full puddles and no frog is out');
+                  if (frogs.length > V.FROGS_MAX) fails.push(frogs.length + ' frogs, past the ' + V.FROGS_MAX + ' allowed');
+                  frogs.forEach((f, i) => {
+                    const o = spots.find(q => q.id === f.id);
+                    if (!o || Math.hypot(f.x - o.x, f.y - o.y) > V.PUDDLE_W * 0.7) fails.push('frog ' + (i + 1) + ' is not on the rim of a puddle');
+                    if (V.hidden(occ, f.x - 8, f.x + 8, f.y - 13, f.y, f.y)) fails.push('frog ' + (i + 1) + ' is behind something drawn in front of it');
+                  });
+                  if (frogs.length && wp.filter(o => o.im === V.artFor(V.FROG)).length !== frogs.length) fails.push(frogs.length + ' frogs are out and ' + wp.filter(o => o.im === V.artFor(V.FROG)).length + ' were drawn');
+                  /* The children out in the puddles: each at play stands in a
+                     puddle in sight, jumping in their rain hat, and their card
+                     says so; the cats stay in. Wait for a child at play. */
+                  if (V.catsNow().length) fails.push('in the rain ' + V.catsNow().length + ' cats are out on the steps');
+                  let sk = null, st = 0;
+                  for (; st < 240 && !sk; st += 2) { Date.now = () => wd + 0.4 * DAY + st * 1000; sk = V.kidsNow().find(k => k.play); }
+                  if (!V.kidsNow().length && !sk) fails.push('on a wet day with full puddles no child came out');
+                  else if (!sk) fails.push('in four minutes of a wet day no child was ever in a puddle');
+                  else {
+                    const { ims: kp } = read(), pools = V.puddleSpots(), occ2 = V.occluders();
+                    for (const k of V.kidsNow().filter(k => k.play)) {
+                      const o = pools.find(q => q.id === k.pool);
+                      if (!k.splash || !o || Math.hypot(k.x - o.x, k.y - o.y) > 2) fails.push(k.name + ' is playing on a wet day and not in a puddle');
+                      if (V.hidden(occ2, k.x - 10, k.x + 10, k.y - V.KID_H, k.y, k.y)) fails.push(k.name + ' is in a puddle behind something drawn in front of them');
+                    }
+                    if (!kp.some(o => Object.values(V.SPLASH).some(f => o.im === V.artFor(f)))) fails.push('a child is in a puddle and no splash figure was drawn');
+                    V.who = null; V.panel = null; V.kidWho = sk.id; const { texts } = read(), said = texts.map(o => o.t).join(' | ');
+                    if (!said.includes('Jumping in the puddles')) fails.push('the card of a child in a puddle does not say so: ' + said.slice(0, 160));
+                    V.kidWho = null;
+                  }
+                  Date.now = () => wd + 0.4 * DAY;
                   const dr = V.duckRound(), wAt = sec => { Date.now = () => wd + V.DUCK_FROM * DAY + sec * 1000; };
                   if (!farm) {}
                   else if (!dr) fails.push('with a farm and puddles the ducks have no round');
@@ -7611,7 +7643,7 @@
                     const mid = pools[1] || pools[0]; wAt((mid.t0 + mid.t1) / 2);
                     const { ims: dp } = read();
                     if (!dp.some(o => o.im === V.artFor(V.DUCKS))) fails.push('on their way between puddles the ducks were not drawn');
-                    if (V.wetDrawn !== spots.length + 1) fails.push('the ducks are out and the wet-day tally is ' + V.wetDrawn + ', not ' + (spots.length + 1));
+                    if (V.wetDrawn !== spots.length + 1 + V.frogsNow().length) fails.push('the ducks are out and the wet-day tally is ' + V.wetDrawn + ', not ' + (spots.length + 1 + V.frogsNow().length));
                     /* The tap, on a round after the milkmaid is home: hers and
                        theirs cross at the doors, and the nearer is rightly the one
                        opened. Villagers moved off for the same reason. */

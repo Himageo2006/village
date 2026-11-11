@@ -6307,6 +6307,32 @@ function drawPuddles() {
   }
   g.restore();
 }
+/* Frogs (Leonardo) while it rains and the puddles are full, by day or night:
+   two at most, each on the rim of one of the puddles the ducks and children
+   come to last, facing into it, puffing up to croak and now and then a hop. */
+const FROG = 'frog', FROG_H = 13, FROGS_MAX = 2;
+function frogsNow() {
+  if (rainNow() < 0.3 || puddleFill() < 0.5) return [];
+  const occ = occluders(), t = Date.now() / 1000;
+  return puddleSpots().reverse().map(o => ({ x: o.x + PUDDLE_W * o.s * 0.36, y: o.y + 3, id: o.id }))
+    .filter(f => !hidden(occ, f.x - FROG_H * 0.6, f.x + FROG_H * 0.6, f.y - FROG_H, f.y, f.y)).slice(0, FROGS_MAX)
+    .map((f, i) => {
+      const c = reduceMotion ? 0.5 : frac(t / 4 + i * 0.37), h = reduceMotion ? 0.5 : frac(t / 9 + i * 0.61);
+      return { ...f, face: -1, croak: c < 0.12 ? Math.sin(c / 0.12 * Math.PI) : 0, hop: h < 0.06 ? Math.sin(h / 0.06 * Math.PI) * 5 : 0 };
+    });
+}
+function drawFrog(f) {
+  const im = artFor(FROG);
+  if (!ready(im)) return;
+  const w = im.width * (FROG_H / im.height), puff = 1 + 0.07 * f.croak;
+  g.save();
+  g.fillStyle = 'rgba(10,18,8,.22)';
+  g.beginPath(); g.ellipse(f.x, f.y + 1, w * 0.4, w * 0.13, 0, 0, 7); g.fill();
+  g.translate(f.x, f.y - f.hop); g.scale(f.face * puff, 1 / puff);
+  g.drawImage(im, -w / 2, -FROG_H, w, FROG_H);
+  g.restore();
+  wetDrawn++;
+}
 /* And a duck and her ducklings (Leonardo) out from the first farm on a wet
    day, puddle to puddle: a while dabbling in each, then on to the nearest one
    they have not been to, and home, and round again while the day lasts. A
@@ -6427,13 +6453,31 @@ function drawOwl(w) {
   g.drawImage(im, w.x - wd / 2, w.y - OWL_H, wd, OWL_H);
   nightDrawn++;
 }
+/* On a wet day the children come out anyway once the puddles have filled, in
+   rain hats and red boots, and jump in them (ChatGPT): each runs to the puddle
+   nearest their own door, of the ones a child can be seen standing in, a
+   different one each while there are enough. The cats stay in. */
+const SPLASH = { villager_girl: 'villager_girl_splash', villager_boy: 'villager_boy_splash' }, SPLASH_H = KID_H * 0.92;   // knees up, so shorter than standing
+const kidsOut = () => sky().night < 0.35 && (rainNow() < 0.3 || puddleFill() >= 0.5);
+function kidPools(hs) {
+  const occ = occluders(), pools = puddleSpots().filter(o => !hidden(occ, o.x - 10, o.x + 10, o.y - KID_H, o.y, o.y));
+  if (!pools.length) return null;
+  const used = new Set();
+  return hs.map(h => {
+    const d = doorOf(h), far = o => Math.hypot(o.x - d.x, o.y - d.y);
+    const free = pools.filter(o => !used.has(o.id)), pick = (free.length ? free : pools).slice().sort((a, b) => far(a) - far(b) || a.id - b.id)[0];
+    used.add(pick.id);
+    return { x: pick.x, y: pick.y, id: pick.id };
+  });
+}
 function kidsNow() {
-  if (!lifeOut()) return [];
+  if (!kidsOut()) return [];
   const pg = playground();
   if (!pg) return [];
-  const { hs, spot, m } = pg, n = hs.length, t = Date.now() / 1000;
+  const { hs, spot, m } = pg, n = hs.length, t = Date.now() / 1000, wet = rainNow() >= 0.3, pools = wet && kidPools(hs);
+  if (wet && !pools) return [];
   return hs.map((h, i) => {
-    const side = i - (m - 1) / 2, to = rowAt(spot, i, m);     // facing the middle of the row
+    const side = i - (m - 1) / 2, to = wet ? pools[i] : rowAt(spot, i, m);     // facing the middle of the row
     const from = doorOf(h), d = Math.hypot(to.x - from.x, to.y - from.y), run = d / KID_SPD;
     const round = 2 * run + KID_PLAY + KID_HOME;
     let q = reduceMotion ? run + 1 : frac(t / round + rnd(h.id, 22)) * round;
@@ -6445,11 +6489,12 @@ function kidsNow() {
     else { along(0); face = 1; }
     const fig = KID_FIGS[i % 2], girl = fig === KID_FIGS[0];
     return { id: h.id, x, y, face, moving, play, home: q >= run + KID_PLAY, ph: ph * Math.PI / (STRIDE * 0.7), t: t + i,
-      fig, girl, name: (girl ? GIRLS : BOYS)[(h.id * 5) % 12] };
+      fig, girl, name: (girl ? GIRLS : BOYS)[(h.id * 5) % 12], splash: wet, pool: wet ? to.id : null };
   });
 }
 function drawKid(k) {
-  const set = walkFrames(k.fig);
+  const set = walkFrames(k.fig), jump = k.play && k.splash && artFor(SPLASH[k.fig]);
+  if (ready(jump)) { drawSplash(k, jump); return; }
   const im = set ? set[k.moving && !reduceMotion ? Math.floor(k.ph / (Math.PI * 2) * WALK_STEPS) % WALK_STEPS : WALK_STAND] : artFor(k.fig);
   if (!ready(im)) return;
   g.save();
@@ -6465,6 +6510,36 @@ function drawKid(k) {
   const hop = k.play && !reduceMotion ? Math.max(0, Math.sin(k.t * 5)) * 3 : 0;
   g.translate(k.x, k.y - hop); g.scale(k.face, 1);
   g.drawImage(im, -w / 2, -KID_H, w, KID_H);
+  g.restore();
+  lifeDrawn++;
+}
+/* Jumping in a puddle: up, and down with a splash, the drops thrown out
+   from her boots as she lands, in one path. */
+function drawSplash(k, im) {
+  const u = reduceMotion ? 0.5 : frac(k.t * 1.4), air = Math.sin(u * Math.PI), hop = air * 10;
+  const w = im.width * (SPLASH_H / im.height);
+  g.save();
+  g.fillStyle = 'rgba(10,18,8,.28)';
+  g.beginPath(); g.ellipse(k.x, k.y + 2, KID_H * (0.24 - 0.06 * air), KID_H * (0.11 - 0.03 * air), 0, 0, 7); g.fill();
+  if (kidWho === k.id) {
+    g.strokeStyle = '#9fe86b'; g.lineWidth = 2.5;
+    g.beginPath(); g.ellipse(k.x, k.y + 2, KID_H * 0.3, KID_H * 0.14, 0, 0, 7); g.stroke();
+  }
+  if (!reduceMotion && u < 0.3) {                      // just landed: the drops fly out and fall
+    const s = u / 0.3;
+    g.strokeStyle = 'rgba(236,246,255,' + (0.8 * (1 - s)).toFixed(3) + ')'; g.lineWidth = 1.2;
+    g.beginPath(); g.ellipse(k.x, k.y + 1, 7 + s * 12, 3 + s * 5, 0, 0, 7); g.stroke();
+    g.fillStyle = 'rgba(226,240,252,' + (0.95 * (1 - s)).toFixed(3) + ')';
+    g.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const a = Math.PI * (0.08 + 0.84 * i / 9), r = 7 + s * 16, d = 2.2 - s;
+      const dx = -Math.cos(a) * r, dy = -Math.sin(a) * r * 1.1 * (1 - s) + s * s * 6;
+      g.moveTo(k.x + dx + d, k.y + dy); g.arc(k.x + dx, k.y + dy, d, 0, 7);
+    }
+    g.fill();
+  }
+  g.translate(k.x, k.y - hop); g.scale(k.face, 1);
+  g.drawImage(im, -w / 2, -SPLASH_H, w, SPLASH_H);
   g.restore();
   lifeDrawn++;
 }
@@ -6518,10 +6593,11 @@ function drawKidCard() {
   const site = pg && pg.spot.far ? 'on the green' : 'by the ' + (placed.some(p => p.key === 'well' && established(p)) ? 'well' : 'hall');
   // only the girl has the ball; the boy has his catapult, and plays chase
   const prop = propOf();
-  panelRow(k.play ? (prop ? prop.does : k.girl ? 'Playing ball' : 'Playing chase') + ' ' + site
+  panelRow(k.splash ? (k.play ? 'Jumping in the puddles' : k.moving ? (k.home ? 'Running home, wet through' : 'Running out to the puddles') : 'At home on the step')
+    : k.play ? (prop ? prop.does : k.girl ? 'Playing ball' : 'Playing chase') + ' ' + site
     : k.moving ? (k.home ? 'Running home' : 'Running out to play ' + site)
     : 'At home on the step', lx, y - h / 2 + 80 * u, tw, 22 * u, '#bccfae', '');
-  panelRow('Out to play by day, indoors at dusk and when it rains', lx, y - h / 2 + 118 * u, tw, 22 * u, DIM, '');
+  panelRow('Out to play by day, indoors at dusk, and out in the puddles when it rains', lx, y - h / 2 + 118 * u, tw, 22 * u, DIM, '');
   g.restore();
 }
 function catsNow() {
@@ -6610,7 +6686,10 @@ function drawVillager(v) {
   const sy = anim ? 1 + (t - 0.5) * 0.035 : 1;
   const sx = anim ? 1 - (t - 0.5) * 0.03 : 1;
   const lean = anim ? sn * 0.035 + 0.05 * v.face : 0;
-  g.save();
+  /* The camera's transform put back by hand rather than with a save and a
+     restore: nothing else this sets outlives the villager (every colour is
+     set again before use), and a full village is seventy saves a frame. */
+  const camT = g.getTransform();
   g.fillStyle = 'rgba(10,18,8,.34)';
   g.beginPath(); g.ellipse(v.x, v.y + 2, HGT * 0.24, HGT * 0.11, 0, 0, 7); g.fill();
   /* Whose card is open. On the ground rather than over their head, because a
@@ -6631,7 +6710,7 @@ function drawVillager(v) {
     g.fillStyle = '#c9b089'; g.beginPath(); g.arc(v.x, v.y - HGT * 0.75, 6, 0, 7); g.fill();
     g.fillStyle = '#5a6f8a'; g.fillRect(v.x - 5, v.y - HGT * 0.6, 10, HGT * 0.6);
   }
-  g.restore();
+  g.setTransform(camT);
   const wet = rainNow(), brolly = wet > 0.3 ? Math.min(1, (wet - 0.3) / 0.2) : 0;
   if (brolly > 0) drawUmbrella(v, bob, brolly);
   /* What they are carrying, drawn OUTSIDE the mirrored transform so the icon
@@ -7589,6 +7668,7 @@ function drawWorld() {
   { const m = milkmaidNow(); if (m) ents.push({ y: m.y, d: () => drawMilkmaid(m) }); }
   { const o = roosterNow(); if (o) ents.push({ y: o.y, d: () => drawRooster(o) }); }
   { const m = ducksNow(); if (m) ents.push({ y: m.y, d: () => drawDucks(m) }); }
+  for (const f of frogsNow()) ents.push({ y: f.y, d: () => drawFrog(f) });
   for (const w of owlsNow()) ents.push({ y: w.depth, d: () => drawOwl(w) });
   for (const o of hogsNow()) ents.push({ y: o.y, d: () => drawHog(o) });
   if (season().key === 'winter') seasonTiles(occSet, SNOWMEN, 90).forEach((o, i) => ents.push({ y: tileToWorld(o.c, o.r).y, d: () => drawSnowman(o, i) }));
@@ -11271,7 +11351,7 @@ for (const b of BUILDINGS) if (!SET_ART[b.key]) artFor(b.key);
     im.addEventListener('error', done, { once: true });
   }
 }
-for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER, WOODSWOMAN, ...KID_FIGS, ...PETS, ...Object.values(PLAY_PROP).map(q => q.key), LIGHTER, LIGHTER_REACH, OWL, HOG, MILKMAID, ROOSTER, DUCKS, PUDDLE]) artFor(v);
+for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER, WOODSWOMAN, ...KID_FIGS, ...PETS, ...Object.values(PLAY_PROP).map(q => q.key), LIGHTER, LIGHTER_REACH, OWL, HOG, MILKMAID, ROOSTER, DUCKS, PUDDLE, FROG, ...Object.values(SPLASH)]) artFor(v);
 /* Asked for once, here, rather than on the first frame somebody walks: a
    villager with no cycle drawn for him would otherwise send six requests
    the moment he set off, and artFor remembers a miss, so doing it at boot
@@ -11342,7 +11422,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   SEASONS, SEASON_OF, SEASON_LEAF, seasonIdx, season, seasonSkin, drawGround, drawScenery, SCENERY,
   GW, GH, tileToWorld, deliveredOf,
   get seasonForced() { return seasonForced; }, set seasonForced(v) { seasonForced = v; },
-  get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, winterArt, ART, villagerArt, glowKey, get glowsDrawn() { return glowsDrawn; }, get iconsDrawn() { return iconsDrawn; }, get carriesDrawn() { return carriesDrawn; }, get chromeDrawn() { return chromeDrawn; }, portraitKey, merchantOf, panelFaces, thoughtOf, get thoughtsDrawn() { return thoughtsDrawn; }, get lifeDrawn() { return lifeDrawn; }, kidsNow, catsNow, propNow, playground, lampRound, lampLit, lighterNow, LIGHT_FROM, DOUSE_FROM, dawnClock, walkRound, milkRound, milkClock, milkmaidNow, milkmaidAt, MILKMAID, MILK_ID, MILK_NAME, MILK_MAX, MILK_FROM, roosterNow, ROOSTER, rainNow, wetDay, puddleFill, puddleSpots, PUDDLE, PUDDLES_MAX, PUDDLE_W, DUCK_H, duckRound, duckClock, ducksNow, ducksAt, DUCKS, DUCK_ID, DUCK_FROM, DUCK_TO, DUCK_REST, get wetDrawn() { return wetDrawn; }, firstFarm, homes, doorOf, standing, get dawnDrawn() { return dawnDrawn; }, lighterAt, LIGHTER_ID, LIGHTER_NAME, LIGHTER_REACH, hogsNow, HOG, HOGS_MAX, seasonDecorTiles, owlsNow, roundClock, LIGHTER, OWL, OWLS_MAX, get nightDrawn() { return nightDrawn; }, get lampsLit() { return lampsLit; }, PLAY_PROP, occluders, hidden, artRect, kidAt, parentsOf, playSpot, topOf, KID_FIGS, PETS, get kidWho() { return kidWho; }, set kidWho(v) { kidWho = v; }, KIDS_MAX, CATS_MAX, get sparkleCount() { return sparkleCount; }, chromeCache,
+  get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, winterArt, ART, villagerArt, glowKey, get glowsDrawn() { return glowsDrawn; }, get iconsDrawn() { return iconsDrawn; }, get carriesDrawn() { return carriesDrawn; }, get chromeDrawn() { return chromeDrawn; }, portraitKey, merchantOf, panelFaces, thoughtOf, get thoughtsDrawn() { return thoughtsDrawn; }, get lifeDrawn() { return lifeDrawn; }, kidsNow, catsNow, propNow, playground, lampRound, lampLit, lighterNow, LIGHT_FROM, DOUSE_FROM, dawnClock, walkRound, milkRound, milkClock, milkmaidNow, milkmaidAt, MILKMAID, MILK_ID, MILK_NAME, MILK_MAX, MILK_FROM, roosterNow, ROOSTER, rainNow, wetDay, puddleFill, puddleSpots, PUDDLE, PUDDLES_MAX, PUDDLE_W, DUCK_H, FROG, FROGS_MAX, frogsNow, SPLASH, kidPools, kidsOut, duckRound, duckClock, ducksNow, ducksAt, DUCKS, DUCK_ID, DUCK_FROM, DUCK_TO, DUCK_REST, get wetDrawn() { return wetDrawn; }, firstFarm, homes, doorOf, standing, get dawnDrawn() { return dawnDrawn; }, lighterAt, LIGHTER_ID, LIGHTER_NAME, LIGHTER_REACH, hogsNow, HOG, HOGS_MAX, seasonDecorTiles, owlsNow, roundClock, LIGHTER, OWL, OWLS_MAX, get nightDrawn() { return nightDrawn; }, get lampsLit() { return lampsLit; }, PLAY_PROP, occluders, hidden, artRect, kidAt, parentsOf, playSpot, topOf, KID_FIGS, PETS, get kidWho() { return kidWho; }, set kidWho(v) { kidWho = v; }, KIDS_MAX, CATS_MAX, get sparkleCount() { return sparkleCount; }, chromeCache,
   get plainIcons() { return plainIcons; }, set plainIcons(v) { plainIcons = !!v; }, ICON_OF,
   hudTop, hudBot, screenTop, screenBot, readSafeArea, get SAFE() { return SAFE; }, set SAFE(v) { SAFE = v; },
   get safeKnown() { return safeKnown; }, set safeKnown(v) { safeKnown = !!v; },
