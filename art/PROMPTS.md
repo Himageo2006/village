@@ -7392,3 +7392,44 @@ The game draws a painted icon wherever one has loaded, and the emoji it replaces
   - It failed as it should with each of these broken: the lamps ignoring the dawn round, the milkmaid not drawn, the rooster not drawn, and the morning tally over-counted.
 - The cost sweep caps the milkmaid and the rooster at two. Its frames are at midday and midnight, so that cap is a guard that cannot fail today; the exact count is checked at first light in the icon sweep.
 - A tap now goes to whoever is drawn on top. The first full battery failed on tapping the milkmaid: at sunrise a villager was leaving the same door, and villagers were always asked first. Now, where the lamplighter or the milkmaid overlaps a villager or a child, the one nearer the camera is the one tapped. The sweep taps her with the villagers moved aside, since a villager standing in front of her is rightly the one that tap opens.
+
+## Round 252: wet days in the village
+
+- **puddle** (GPT Image): "New picture, a game sprite: one shallow rain puddle lying flat on the ground, seen from above at the same isometric angle as a cozy village building game (a squashed ellipse about twice as wide as it is tall, with a soft irregular wobbly edge), muddy brown damp rim fading out, the water a calm grey-blue reflecting a pale overcast sky with a soft white highlight streak, a couple of small pebbles at the edge, soft painterly storybook style matching the milkmaid. Centred on a perfectly flat solid magenta #FF00FF background, nothing else, no shadow beyond the damp rim, no text." Keyed with the magenta prop key at 160 high. Master: `art/original/puddle.png`.
+- **ducks** (Leonardo Lucid Origin, free relaxed, four to a batch): "A single plump white farmyard mother duck waddling along with three small fluffy yellow ducklings walking in a line behind her, all facing right, seen from the side at a three-quarter angle from slightly above, orange bills and feet, soft painterly 3D-rendered storybook illustration like a cozy isometric village building game sprite, soft overcast light, isolated and centred on a flat solid pure magenta #FF00FF background, no shadow, no ground, no puddle, no outline, no text". The second, with the mother leading and her ducklings behind her, was kept. It has two ducklings, not three.
+  - The background came out dusty pink again, so it was keyed with the rooster's flood fill. That left a pink shadow under the feet, which was then turned into a plain dark shadow wherever a pixel was pink, that is with blue above green and red well above green (the yellow ducklings and orange feet have blue below green).
+  - Master: `art/original/ducks.jpg`.
+- **portrait_duck** (GPT Image, with the ducks and the milkmaid's portrait attached): "Now a card portrait of the mother duck from the first image, in exactly the style of the second image (the milkmaid's portrait): her head and the top of her chest only, the same thick dark outline, soft painterly cartoon shading, warm lighting, the same crop cut off in a soft rounded shape at the bottom. White feathers, orange bill, a bright friendly eye, facing slightly to the viewer's right, and one small fluffy yellow duckling peeping up beside her at the bottom corner. Centred on a perfectly flat solid magenta #FF00FF background, no text." Sliced with the badge slicer at 256. Master: `art/original/portrait_duck.png`.
+- On a wet day, puddles gather on the paths and on the open ground in front of the houses (`puddleSpots`, five at most).
+  - They fill as the rain comes in over the first tenth of the day, show drops landing in rings while it rains, and dry up over the first fifth of the next day (`puddleFill`).
+  - The same hollows fill every time, since they are picked by tile and not by day, and never two side by side.
+  - They are flat and go down with the paths. They only go where nothing standing nearer the camera covers the puddle or the mother duck standing in it.
+- A duck and her ducklings come out from the first farm on a wet day and go from puddle to puddle (`duckRound`, `ducksNow`, built on the walkers' `walkRound`). They waddle with a rock and a bob, dabble a while in each puddle with rings spreading round them, then go home, rest and set out again.
+  - A round only starts if they can be home again by dusk. The first try took 143 seconds a round, which left them indoors from mid-morning, so they are now a little faster with shorter stops, and a typical village gets two rounds.
+  - Their card: "The ducks · A mother and her ducklings", "Dabbling in a puddle · 3 of 5 puddles", "Out from the farm on wet days, from puddle to puddle". It closes when they are home.
+- Taps between the walkers now go to whichever of the lamplighter, the milkmaid and the ducks is nearest the camera. Before, the lamplighter came first and then the milkmaid, and the ducks would have lost to a milkmaid still out on her round.
+- The icon sweep now checks, on the first spring day of forty that is wet with a dry day after it:
+  - the rain is full at midday and the puddles are full;
+  - each puddle is on open ground, in sight, and not next to another, with the mother duck in it in sight too;
+  - exactly as many puddles are drawn as there are, and the wet-day tally is exact;
+  - the ducks go to every puddle, are not out before their time, are in each puddle half way through their stop, and are drawn on the way between puddles;
+  - a tap on them, on a round after the milkmaid is home, opens their card with who they are, their last puddle and their portrait, and the card closes when they are home;
+  - they are not out at dusk or the next day;
+  - the next morning the puddles are half dry, and by noon they are gone.
+  - It failed as it should with each of these broken:
+    - one puddle not drawn;
+    - the ducks never dabbling;
+    - the tap not reaching them;
+    - the puddles never drying;
+    - the ducks left out of the tally.
+  - A first attempt to break "one puddle not drawn" compared freshly made objects and broke nothing. It was redone properly and caught.
+- The cost sweep caps the puddles and ducks at six, and the exact count is checked in the icon sweep.
+- The cost sweep's night frame is now measured in every season, wet and dry, and the dearest is the one held to the 1200-call ceiling. It used to be whatever the clock was on when it ran. This round's second battery failed on it at 1204: the real clock had come round to a wet night, and the drops ringing each puddle had a save and three strokes apiece.
+  - Over the seven nights, that village measured 1230 calls on a dry winter night, so a winter run would have failed before this round. A wet night costs about 45 more than a dry one, for the umbrellas.
+  - Puddles now draw in one save, with one image each and every ring in one stroke.
+  - Snowflakes, autumn leaves and spring petals are now one path and one fill per colour, instead of a fill each (and a save and restore for every leaf). A turning leaf is drawn as a turned, squashed ellipse straight into the path. That is 32 to 59 fewer calls, depending on the season.
+  - After both changes the dearest night was wet summer at 1180, then dry winter at about 1110 on a later run. The night totals move by about 60 calls from run to run with the time.
+  - Putting the 59 snowflake fills back made a dry winter the dearest night, as it should. It did not cross the ceiling on that run, so the ceiling only catches a regression of that size on a heavy run.
+- A tie in depth now goes to the walker. Walkers are drawn after villagers and children, so at the same depth the walker is on top. The milkmaid's tap failed in a battery because a child playing on the very step she stood on took it.
+  - The milkmaid check now taps her at the last door with no child strictly in front of her, and expects that door's count, because the children are out at sunrise too.
+  - Putting the old tie rule back was not caught on that run, since no child happened to be on her step. It is not proven by injection.

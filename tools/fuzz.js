@@ -6831,12 +6831,13 @@
       rows.push({ what, things, lit, icons, carried, chrome, drawImage: ops.drawImage, total: ops.total });
       // the children at play and the cats on the steps, a handful at most
       if (life > V.KIDS_MAX + V.CATS_MAX + 1) fails.push(what + ' draws ' + life + ' children, cats and a plaything, past the ' + (V.KIDS_MAX + V.CATS_MAX + 1) + ' the village has');
+      if ((V.wetDrawn | 0) > V.PUDDLES_MAX + 1) fails.push(what + ' draws ' + V.wetDrawn + ' puddles and ducks, past the ' + V.PUDDLES_MAX + ' puddles and one family a wet day has');
       if ((V.dawnDrawn | 0) > 2) fails.push(what + ' draws ' + V.dawnDrawn + ' milkmaids and roosters, past the one of each the morning has');
       if ((V.nightDrawn | 0) > V.OWLS_MAX + 1 + V.HOGS_MAX) fails.push(what + ' draws ' + V.nightDrawn + ' owls, hedgehogs and lamplighters, past the ' + (V.OWLS_MAX + 1 + V.HOGS_MAX) + ' the night has');
       if (chrome > 20) fails.push(what + ' draws ' + chrome + ' pieces of card furniture on one frame -- a card and a tab need perhaps a dozen');
       if (carried > V.villagers.length) fails.push(what + ' draws ' + carried + ' carried loads for ' + V.villagers.length + ' villagers');
       if (icons > 40) fails.push(what + ' draws ' + icons + ' painted icons on one frame -- the HUD has room for perhaps thirty');
-      if (ops.drawImage > things + lit + Math.min(icons, 40) + Math.min(carried, V.villagers.length) + Math.min(chrome, 20) + Math.min(thought, 2 * V.villagers.length) + Math.min(life, V.KIDS_MAX + V.CATS_MAX + 1) + Math.min(V.nightDrawn | 0, V.OWLS_MAX + 1 + V.HOGS_MAX) + Math.min(V.dawnDrawn | 0, 2) + spareHere)
+      if (ops.drawImage > things + lit + Math.min(icons, 40) + Math.min(carried, V.villagers.length) + Math.min(chrome, 20) + Math.min(thought, 2 * V.villagers.length) + Math.min(life, V.KIDS_MAX + V.CATS_MAX + 1) + Math.min(V.nightDrawn | 0, V.OWLS_MAX + 1 + V.HOGS_MAX) + Math.min(V.dawnDrawn | 0, 2) + Math.min(V.wetDrawn | 0, V.PUDDLES_MAX + 1) + spareHere)
         fails.push(what + ' reaches for an image ' + ops.drawImage + ' times with '
           + things + ' things standing on it' + (lit ? ' and ' + lit + ' lit at night' : '')
           + ' (' + icons + ' icons, ' + carried + ' loads, ' + chrome + ' card pieces)'
@@ -6853,19 +6854,38 @@
     /* ---- the heaviest state there is, rather than the heaviest village ----
 
        Night, with the lamps lit and a panel open, which measured as the dearest
-       of the six states the game can be in. */
+       of the six states the game can be in -- in every season, wet and dry,
+       and the dearest of those is the one held to the ceiling. It used to be
+       whatever season and weather the clock was on when it ran: a winter night
+       was 1230 calls and passed only because the sweep ran in autumn, and a
+       wet night was 45 more than a dry one for the umbrellas alone. */
     {
-      const realNow = Date.now;
+      const realNow = Date.now, wasSeason = V.seasonForced;
       try {
-        const DAY = 8 * 60 * 1000;
-        Date.now = () => realNow() - (realNow() % DAY) + DAY * 0.75;
+        const DAY = 8 * 60 * 1000, base = realNow() - (realNow() % DAY), day0 = Math.floor(base / DAY);
         const mk = V.placed.find(p => p.key === 'market') || V.placed[0];
-        V.panel = mk.id; V.step(0.001);
-        const ops = count();
-        rows.push({ what: 'the same village at night with a panel open',
-          things: V.placed.length + V.villagers.length, drawImage: ops.drawImage, total: ops.total });
+        V.panel = mk.id;
+        let ops = null, worst = null, seen = 0;
+        const nights = {};
+        for (let si = 0; si < 4; si++) for (const wet of [true, false]) {
+          V.seasonForced = si;
+          let d = 0;                                   // a wet day, or a dry one after a dry one: no puddles left over
+          while (d < 80 && (V.wetDay(day0 + d) !== wet || (!wet && V.wetDay(day0 + d - 1)))) d++;
+          if (d >= 80) continue;                       // winter is never wet
+          Date.now = () => base + d * DAY + DAY * 0.75;
+          V.step(0.001);
+          const o = count(), name = V.season().name.toLowerCase() + (wet ? ', wet' : ', dry');
+          seen++; nights[name] = o.total;
+          if (wet && (V.rainNow() < 1 || !V.puddleSpots().length || V.wetDrawn !== V.puddleSpots().length))
+            fails.push('the wet ' + name + ' night has rain ' + V.rainNow() + ' and ' + V.wetDrawn + ' of ' + V.puddleSpots().length + ' puddles drawn');
+          if (!ops || o.total > ops.total) { ops = o; worst = { si, d, name }; }
+        }
+        if (seen !== 7) fails.push('the night frame was measured in ' + seen + ' of the seven seasons and weathers');
+        V.seasonForced = worst.si; Date.now = () => base + worst.d * DAY + DAY * 0.75; V.step(0.001);
+        rows.push({ what: 'the same village at night with a panel open (' + worst.name + ', the dearest)',
+          things: V.placed.length + V.villagers.length, drawImage: ops.drawImage, total: ops.total, nights });
         if (ops.total > CEILING)
-          fails.push('a frame at night with a panel open spends ' + ops.total
+          fails.push('a ' + worst.name + ' frame at night with a panel open spends ' + ops.total
             + ' calls, past the ' + CEILING + ' this game gives itself');
         perFrame = Math.max(perFrame || 0, ops.total);
         /* And it repeats. */
@@ -6874,7 +6894,7 @@
           if ((again[n] || 0) !== (ops[n] || 0))
             fails.push('two draws of the same village reached for ' + n + ' '
               + (ops[n] || 0) + ' times and then ' + (again[n] || 0));
-      } finally { Date.now = realNow; V.panel = null; V.step(0.001); }
+      } finally { Date.now = realNow; V.seasonForced = wasSeason; V.panel = null; V.step(0.001); }
     }
 
     V.goalIdx = 0; V.step(0.001);
@@ -7188,7 +7208,7 @@
            everybody indoors at night. The clock is moved to the middle of a
            dry day -- a wet one keeps them in too. */
         const artOf = f => [f, ...[1, 2, 3, 4, 5, 6].map(i => f + '_walk' + i)];
-        const KIDART = V.KID_FIGS.flatMap(artOf), LIFE = [...KIDART, ...V.PETS, 'portrait_girl', 'portrait_boy', ...Object.values(V.PLAY_PROP).map(q => q.key), ...artOf(V.LIGHTER), V.OWL, V.LIGHTER_REACH, V.HOG, 'portrait_lamplighter', ...artOf(V.MILKMAID), V.ROOSTER, 'portrait_milkmaid'];
+        const KIDART = V.KID_FIGS.flatMap(artOf), LIFE = [...KIDART, ...V.PETS, 'portrait_girl', 'portrait_boy', ...Object.values(V.PLAY_PROP).map(q => q.key), ...artOf(V.LIGHTER), V.OWL, V.LIGHTER_REACH, V.HOG, 'portrait_lamplighter', ...artOf(V.MILKMAID), V.ROOSTER, 'portrait_milkmaid', V.DUCKS, V.PUDDLE, 'portrait_duck'];
         for (const k of LIFE) V.artFor(k);
         for (let i = 0; i < 50 && !LIFE.every(k => V.artFor(k)); i++) await new Promise(r => setTimeout(r, 100));
         /* Houses with open ground in front of their doors, and none built in
@@ -7501,7 +7521,14 @@
                 const { ims: mp } = read(), walk = artOf(V.MILKMAID).map(k => V.artFor(k));
                 if (!mp.some(o => walk.includes(o.im))) fails.push('on her way between houses the milkmaid was not drawn');
                 if (V.dawnDrawn < 1) fails.push('the milkmaid is out and the morning tally drew nothing');
-                const lastM = stops[stops.length - 1]; mAt(lastM.lit + 0.2);
+                /* Her tap at the last door with no child playing in front of it:
+                   the children are out at sunrise too, and a child nearer the
+                   camera is rightly the one a tap there opens. That made this
+                   check pass or fail with the day's games. */
+                const tapPt = m => { const pt = V.camProject(m.x, m.y), sc = V.camScale(); return { x: pt.x, y: pt.y - V.VILLAGER_H * 0.5 * sc }; };
+                let ti = stops.length - 1;
+                for (; ti > 0; ti--) { mAt(stops[ti].lit + 0.2); const m = V.milkmaidNow(), q = m && tapPt(m), k = q && V.kidAt(q.x, q.y); if (!k || k.y < m.y) break; }
+                const lastM = stops[ti]; mAt(lastM.lit + 0.2);
                 const mm = V.milkmaidNow();
                 if (mm) {
                   V.who = null; V.panel = null; V.kidWho = null;
@@ -7510,11 +7537,12 @@
                   const was = V.villagers.map(v => [v.x, v.y]);
                   try { for (const v of V.villagers) { v.x += 4000; } V.tap(pt.x, pt.y - V.VILLAGER_H * 0.5 * sc); }
                   finally { V.villagers.forEach((v, i) => { v.x = was[i][0]; v.y = was[i][1]; }); }
-                  if (V.kidWho !== V.MILK_ID) fails.push('tapping the milkmaid where she is drawn did not open her card');
+                  if (V.kidWho !== V.MILK_ID) fails.push('tapping the milkmaid at door ' + (ti + 1) + ' of ' + stops.length + ' where she is drawn did not open her card: at ' + Math.round(pt.x) + ',' + Math.round(pt.y) + ' it opened ' + JSON.stringify({ kid: V.kidWho, who: V.who, panel: V.panel }) + (V.ducksNow() ? ', with the ducks out' : '') + (V.lighterNow() ? ', with the lamplighter out' : ''));
                   else {
                     const { texts, ims: cp } = read(), said = texts.map(o => o.t).join(' | ');
                     if (!said.includes(V.MILK_NAME) || !said.includes('The milkmaid')) fails.push('the milkmaid\'s card does not give her name and work: ' + said.slice(0, 120));
-                    if (!said.includes('Leaving the milk at a door') || (!said.includes('milk at every door') && !said.includes(stops.length + ' of ' + stops.length + ' houses'))) fails.push('at her last door her card does not say so: ' + said.slice(0, 160));
+                    const last = ti === stops.length - 1, n = (ti + 1) + ' of ' + stops.length + ' houses';
+                    if (!said.includes('Leaving the milk at a door') || !(said.includes(n) || (last && said.includes('milk at every door')))) fails.push('at door ' + (ti + 1) + ' her card does not say so: ' + said.slice(0, 160));
                     if (!cp.some(o => o.im.medal && o.im.medal.face === 'portrait_milkmaid')) fails.push('the milkmaid\'s card has no portrait_milkmaid in the ring');
                     mAt(mr.end + 5); read();
                     if (V.kidWho != null) fails.push('she is back at the farm and her card is still open');
@@ -7540,6 +7568,87 @@
                   if (V.hidden(V.occluders(), ro.x - 8, ro.x + 8, ro.y - 20, ro.y, ro.y)) fails.push('the rooster is behind something drawn in front of it');
                 }
               }
+              /* A wet day: puddles on open ground in front of the houses, in
+                 sight, never side by side, as many drawn as there are; the
+                 ducks out from the farm to each in turn, drawn, dabbling at
+                 each, with a card; dry again by the next noon. Spring, so it
+                 can rain; the first wet day of forty with a dry one after. */
+              const wasSeason = V.seasonForced;
+              try {
+                V.seasonForced = 0;
+                let wd = null;
+                for (let d = 1; d < 40 && wd == null; d++) { const n = Math.floor(day0 / DAY) + d; if (V.wetDay(n) && !V.wetDay(n + 1)) wd = n * DAY; }
+                if (wd == null) fails.push('in forty spring days not one was wet with a dry one after');
+                else {
+                  Date.now = () => wd + 0.4 * DAY;
+                  const spots = V.puddleSpots(), { ims: wp } = read(), solid = V.standing(), occ = V.occluders();
+                  if (V.rainNow() < 1) fails.push('on a wet day at ' + 0.4 + ' the rain is at ' + V.rainNow());
+                  if (V.puddleFill() !== 1) fails.push('half way through a wet day the puddles are ' + V.puddleFill() + ' full');
+                  if (!spots.length) fails.push('on a wet day this village of houses has no puddle');
+                  if (spots.length > V.PUDDLES_MAX) fails.push(spots.length + ' puddles, past the ' + V.PUDDLES_MAX + ' allowed');
+                  spots.forEach((o, i) => {
+                    if (solid.has(o.c + ',' + o.r)) fails.push('puddle ' + (i + 1) + ' is under something standing on tile ' + o.c + ',' + o.r);
+                    if (V.hidden(occ, o.x - V.PUDDLE_W / 2, o.x + V.PUDDLE_W / 2, o.y - 8, o.y + 8, o.y)) fails.push('puddle ' + (i + 1) + ' is behind something drawn in front of it');
+                    if (V.hidden(occ, o.x - V.DUCK_H * 0.5, o.x + V.DUCK_H * 0.5, o.y - V.DUCK_H, o.y - 4, o.y)) fails.push('the ducks in puddle ' + (i + 1) + ' are behind something drawn in front of them');
+                    if (spots.some((q, j) => j !== i && Math.abs(q.c - o.c) <= 1 && Math.abs(q.r - o.r) <= 1)) fails.push('puddle ' + (i + 1) + ' is next to another');
+                  });
+                  const drawnP = wp.filter(o => o.im === V.artFor(V.PUDDLE)).length;
+                  if (drawnP !== spots.length) fails.push(spots.length + ' puddles on a wet day and ' + drawnP + ' drawn');
+                  if (V.wetDrawn !== spots.length + (V.ducksNow() ? 1 : 0)) fails.push('the wet-day tally is ' + V.wetDrawn + ' for ' + spots.length + ' puddles' + (V.ducksNow() ? ' and the ducks' : ''));
+                  const dr = V.duckRound(), wAt = sec => { Date.now = () => wd + V.DUCK_FROM * DAY + sec * 1000; };
+                  if (!farm) {}
+                  else if (!dr) fails.push('with a farm and puddles the ducks have no round');
+                  else {
+                    const pools = dr.legs.filter(l => l.id != null);
+                    if (pools.length !== spots.length) fails.push('the ducks go to ' + pools.length + ' of the ' + spots.length + ' puddles');
+                    Date.now = () => wd + (V.DUCK_FROM - 0.01) * DAY;
+                    if (V.ducksNow()) fails.push('the ducks are out before their time');
+                    pools.forEach((l, i) => {
+                      wAt(l.lit);
+                      const m = V.ducksNow(), o = spots.find(q => q.id === l.id);
+                      if (!m || m.dabbling !== l.id || !o || Math.hypot(m.x - o.x, m.y - o.y) > 2) fails.push('half way through their stop at puddle ' + (i + 1) + ' the ducks are not in it');
+                    });
+                    const mid = pools[1] || pools[0]; wAt((mid.t0 + mid.t1) / 2);
+                    const { ims: dp } = read();
+                    if (!dp.some(o => o.im === V.artFor(V.DUCKS))) fails.push('on their way between puddles the ducks were not drawn');
+                    if (V.wetDrawn !== spots.length + 1) fails.push('the ducks are out and the wet-day tally is ' + V.wetDrawn + ', not ' + (spots.length + 1));
+                    /* The tap, on a round after the milkmaid is home: hers and
+                       theirs cross at the doors, and the nearer is rightly the one
+                       opened. Villagers moved off for the same reason. */
+                    const P = dr.end + V.DUCK_REST, mr2 = V.milkRound(), milkDone = mr2 ? mr2.end + (V.MILK_FROM - V.DUCK_FROM) * DAY / 1000 : 0;
+                    let k = 0; while (k * P <= milkDone) k++;
+                    if (k * P + dr.end > (V.DUCK_TO - V.DUCK_FROM) * DAY / 1000) k = 0;
+                    const lastP = pools[pools.length - 1]; wAt(k * P + lastP.lit + 0.2);
+                    const dm = V.ducksNow();
+                    if (!dm) fails.push('on round ' + (k + 1) + ' at the last puddle the ducks are not out');
+                    else {
+                      V.who = null; V.panel = null; V.kidWho = null;
+                      const pt = V.camProject(dm.x, dm.y), sc = V.camScale(), was = V.villagers.map(v => [v.x, v.y]);
+                      try { for (const v of V.villagers) v.x += 4000; V.tap(pt.x, pt.y - 8 * sc); }
+                      finally { V.villagers.forEach((v, i) => { v.x = was[i][0]; v.y = was[i][1]; }); }
+                      if (V.kidWho !== V.DUCK_ID) fails.push('tapping the ducks where they are drawn did not open their card: at ' + Math.round(pt.x) + ',' + Math.round(pt.y) + ' it opened ' + JSON.stringify({ kid: V.kidWho, who: V.who, panel: V.panel }) + (k ? '' : ' (on their first round, the milkmaid maybe nearer)'));
+                      else {
+                        const { texts, ims: cp } = read(), said = texts.map(o => o.t).join(' | ');
+                        if (!said.includes('The ducks') || !said.includes('A mother and her ducklings')) fails.push('the ducks\' card does not say who they are: ' + said.slice(0, 120));
+                        if (!said.includes('Dabbling in a puddle') || (!said.includes('every puddle tried') && !said.includes(pools.length + ' of ' + pools.length + ' puddles'))) fails.push('at their last puddle the ducks\' card does not say so: ' + said.slice(0, 160));
+                        if (!cp.some(o => o.im.medal && o.im.medal.face === 'portrait_duck')) fails.push('the ducks\' card has no portrait_duck in the ring');
+                        wAt(k * P + dr.end + 5); read();
+                        if (V.kidWho != null) fails.push('the ducks are home and their card is still open');
+                      }
+                      V.kidWho = null;
+                    }
+                    wAt(k * P + dr.end + 5);
+                    if (V.ducksNow()) fails.push('their round is done and the ducks are still out');
+                    Date.now = () => wd + 0.7 * DAY;
+                    if (V.ducksNow()) fails.push('at dusk on a wet day the ducks are still out');
+                  }
+                  Date.now = () => wd + DAY + 0.1 * DAY;
+                  if (Math.abs(V.puddleFill() - 0.5) > 0.01) fails.push('early the morning after a wet day the puddles are ' + V.puddleFill() + ' full, not drying');
+                  if (V.ducksNow()) fails.push('the morning after a wet day the ducks are out on a dry one');
+                  Date.now = () => wd + DAY + 0.4 * DAY; read();
+                  if (V.puddleFill() || V.wetDrawn) fails.push('by noon the day after a wet day ' + V.wetDrawn + ' puddles and ducks are still drawn');
+                }
+              } finally { V.seasonForced = wasSeason; }
               Date.now = () => noon;
               if (V.roosterNow()) fails.push('at noon the rooster is still out');
               if (V.owlsNow().length || V.hogsNow().length) fails.push('at noon ' + V.owlsNow().length + ' owls and ' + V.hogsNow().length + ' hedgehogs are out');

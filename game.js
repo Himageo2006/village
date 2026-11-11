@@ -1190,17 +1190,24 @@ function drawAmbient() {
   if ((key === 'spring' || key === 'summer') && rain === 0 && sky().sun > 0.15) drawButterflies(t, Math.min(1, (sky().sun - 0.15) / 0.2));
   const a = AMBIENT[key];
   if (a) {
+    /* One path and one fill a colour, not one a flake: sixty flakes were sixty
+       fills on a winter night, and that night was over the frame's budget. A
+       leaf turning is its ellipse turned and squashed, drawn straight into the
+       path rather than through a saved and restored transform. */
+    const paths = new Map();
     for (let i = 0; i < a.n; i++) {
       const sp = 0.7 + rnd(i, 1) * 0.6, size = a.size[0] + rnd(i, 2) * (a.size[1] - a.size[0]);
       const y = top + frac(rnd(i, 3) + t * a.fall * sp / hh) * hh;
       const x = frac(rnd(i, 4) + t * 0.006 * sp) * W + Math.sin(t * 0.9 * sp + i) * a.sway;
-      g.fillStyle = a.col(i);
-      if (key === 'winter') { g.beginPath(); g.arc(x, y, size, 0, 7); g.fill(); continue; }
-      g.save(); g.translate(x, y); g.rotate(t * 1.3 * sp + i);
-      g.scale(1, 0.45 + 0.4 * Math.abs(Math.sin(t * 2 * sp + i)));   // tumbling
-      g.beginPath(); g.ellipse(0, 0, size, size * 0.6, 0, 0, 7); g.fill();
-      g.restore();
+      const col = a.col(i);
+      let p = paths.get(col);
+      if (!p) paths.set(col, p = new Path2D());
+      if (key === 'winter') { p.moveTo(x + size, y); p.arc(x, y, size, 0, 7); continue; }
+      const rot = t * 1.3 * sp + i, sq = 0.45 + 0.4 * Math.abs(Math.sin(t * 2 * sp + i));   // tumbling
+      p.moveTo(x + Math.cos(rot) * size, y + Math.sin(rot) * size);
+      p.ellipse(x, y, size, size * 0.6 * sq, rot, 0, 7);
     }
+    for (const [col, p] of paths) { g.fillStyle = col; g.fill(p); }
   }
   const night = sky().night;
   if (key === 'summer' && night > 0.05) {
@@ -6239,6 +6246,129 @@ function drawRooster(o) {
   g.restore();
   dawnDrawn++;
 }
+/* Wet days. Puddles (ChatGPT) gather on the paths and the ground in front of
+   the houses as the rain goes on, ringed by the drops while it falls, and dry
+   up over the next morning. The same hollows fill every time: they are picked
+   by tile, not by day, and never two side by side. Flat, so they go down with
+   the paths, and only where nothing standing nearer the camera covers them,
+   or the ducks that come to dabble in them. */
+const PUDDLE = 'puddle', PUDDLES_MAX = 5, PUDDLE_W = 84;
+let wetDrawn = 0;                                   // puddles and the ducks, for the cost sweep
+const wetDay = day => { const share = RAIN_SHARE[season().key]; return !!share && rnd(day, 16) < share; };
+// how full they are, 0 to 1: filling as the rain comes in over the first tenth of a wet day, drying over the first fifth of the next
+function puddleFill() {
+  const day = Math.floor(Date.now() / DAY_MS), ph = dayPhase();
+  if (wetDay(day)) return Math.min(1, ph / 0.1);
+  return wetDay(day - 1) ? Math.max(0, 1 - ph / 0.2) : 0;
+}
+function puddleSpots() {
+  const solid = standing(), pics = occluders(), seen = new Set(), cand = [];
+  const add = (c, r, path) => {
+    const k = c + ',' + r;
+    if (seen.has(k) || !openAt(c, r, solid)) return;
+    seen.add(k);
+    const at = tileToWorld(c, r);
+    // the puddle, and the mother duck standing up in it, whichever way she faces
+    if (hidden(pics, at.x - PUDDLE_W / 2, at.x + PUDDLE_W / 2, at.y - 8, at.y + 8, at.y) || hidden(pics, at.x - DUCK_H * 0.5, at.x + DUCK_H * 0.5, at.y - DUCK_H, at.y - 4, at.y)) return;
+    cand.push({ c, r, x: at.x, y: at.y, id: c * 1000 + r, s: 0.8 + 0.4 * rnd(c * 53 + r * 97, 29), score: (path ? 0 : 1) + rnd(c * 53 + r * 97, 23) });
+  };
+  for (const q of placed) if (q.key === 'path' && established(q)) add(q.c, q.r, true);
+  for (const h of homes()) { const b = B(h.key);
+    for (let dc = 0; dc <= 2; dc++) for (let dr = 0; dr <= 2; dr++) if (dc || dr) add(h.c + b.w - 1 + dc, h.r + b.h - 1 + dr, false); }
+  cand.sort((a, b) => a.score - b.score || a.id - b.id);
+  const out = [];
+  for (const o of cand) {
+    if (out.length >= PUDDLES_MAX) break;
+    if (!out.some(q => Math.abs(q.c - o.c) <= 1 && Math.abs(q.r - o.r) <= 1)) out.push(o);
+  }
+  return out;
+}
+// one save, an image a puddle, and every drop's ring in one stroke: there can be five of them on a night frame
+function drawPuddles() {
+  const fill = puddleFill(), im = artFor(PUDDLE);
+  if (fill <= 0 || !ready(im)) return;
+  const rain = rainNow(), t = Date.now() / 1000, spots = puddleSpots(), rings = rain > 0.3 && !reduceMotion;
+  g.save();
+  g.globalAlpha = Math.min(1, fill * 2.5);
+  if (rings) g.beginPath();
+  for (const o of spots) {
+    const w = PUDDLE_W * o.s * (0.45 + 0.55 * fill), h = w * im.height / im.width;
+    g.drawImage(im, o.x - w / 2, o.y - h / 2, w, h);
+    wetDrawn++;
+    if (rings) for (let i = 0; i < 2; i++) {           // a drop landing, now here and now there
+      const u = t * 0.9 + i / 2 + rnd(o.id, 31), k = frac(u), n = Math.floor(u);
+      const rx = o.x + (rnd(o.id + n, 37 + i) - 0.5) * w * 0.5, ry = o.y + (rnd(o.id + n, 41 + i) - 0.5) * h * 0.4;
+      g.moveTo(rx + 1 + k * 6, ry); g.ellipse(rx, ry, 1 + k * 6, 0.5 + k * 3, 0, 0, 7);
+    }
+  }
+  if (rings) {
+    g.strokeStyle = 'rgba(236,244,252,' + (0.45 * rain).toFixed(3) + ')'; g.lineWidth = 0.8;
+    g.stroke();
+  }
+  g.restore();
+}
+/* And a duck and her ducklings (Leonardo) out from the first farm on a wet
+   day, puddle to puddle: a while dabbling in each, then on to the nearest one
+   they have not been to, and home, and round again while the day lasts. A
+   round only starts if they can be home again by dusk. From the clock, like the
+   lamplighter, and a card like his. */
+const DUCKS = 'ducks', DUCK_ID = 'ducks', DUCK_H = 24, DUCK_SPD = 24, DUCK_STOP = 6, DUCK_FROM = 0.1, DUCK_TO = 0.62, DUCK_REST = 12;
+function duckRound() {
+  const farm = firstFarm(), pools = farm ? puddleSpots() : [];
+  return pools.length ? walkRound(doorOf(farm), pools.map(o => ({ at: { x: o.x, y: o.y }, id: o.id })), DUCK_SPD, DUCK_STOP) : null;
+}
+// seconds into the round they are on, or less than nought when they are in
+function duckClock(round = duckRound()) {
+  const T = clockFrom(DUCK_FROM);
+  if (!round || T < 0 || !wetDay(Math.floor(Date.now() / DAY_MS))) return -1;
+  const P = round.end + DUCK_REST, start = Math.floor(T / P) * P;
+  return start + round.end <= (DUCK_TO - DUCK_FROM) * DAY_MS / 1000 ? T - start : -1;
+}
+function ducksNow() {
+  const round = duckRound(), m = roundPos(round, duckClock(round));
+  return m && { ...m, dabbling: m.at };
+}
+function ducksAt(sx, sy) {
+  const m = ducksNow(), im = artFor(DUCKS);
+  if (!m) return null;
+  const sc = camScale(), pt = camProject(m.x, m.y), w = ready(im) ? im.width * DUCK_H / im.height : DUCK_H * 1.6;
+  return Math.abs(sx - pt.x) <= Math.max(w * 0.6 * sc, 14) && sy <= pt.y + 8 * sc && sy >= pt.y - Math.max(DUCK_H * 1.4 * sc, 24) ? m : null;
+}
+function drawDucks(m) {
+  const im = artFor(DUCKS);
+  if (!ready(im)) return;
+  const w = im.width * (DUCK_H / im.height), now = Date.now() / 1000;
+  const sway = m.moving && !reduceMotion ? Math.sin(m.ph * 2) * 0.07 : 0;
+  const bob = reduceMotion ? 0 : m.moving ? Math.abs(Math.sin(m.ph * 2)) * 1.2 : Math.sin(now * 1.7) * 0.5;
+  g.save();
+  g.fillStyle = 'rgba(10,18,8,.22)';
+  g.beginPath(); g.ellipse(m.x, m.y + 1, w * 0.5, DUCK_H * 0.16, 0, 0, 7); g.fill();
+  if (m.dabbling != null && !reduceMotion) {          // rings spreading from them on the water
+    g.strokeStyle = 'rgba(236,244,252,.5)'; g.lineWidth = 0.8;
+    const k = frac(now * 0.6);
+    g.globalAlpha = 1 - k;
+    g.beginPath(); g.ellipse(m.x, m.y, w * (0.4 + 0.35 * k), DUCK_H * (0.18 + 0.14 * k), 0, 0, 7); g.stroke();
+    g.globalAlpha = 1;
+  }
+  if (kidWho === DUCK_ID) {
+    g.strokeStyle = '#9fe86b'; g.lineWidth = 2;
+    g.beginPath(); g.ellipse(m.x, m.y + 1, w * 0.62, DUCK_H * 0.26, 0, 0, 7); g.stroke();
+  }
+  g.translate(m.x, m.y - bob); g.scale(m.face, 1); g.rotate(sway);
+  g.drawImage(im, -w * 0.55, -DUCK_H, w, DUCK_H);
+  g.restore();
+  wetDrawn++;
+}
+function drawDuckCard() {
+  if (kidWho !== DUCK_ID || who != null || panel != null || modalUp()) return;
+  const round = duckRound(), t = duckClock(round), m = roundPos(round, t);
+  if (!m) { kidWho = null; return; }
+  const legs = round.legs.filter(l => l.id != null), done = legs.filter(l => t >= l.lit).length, all = done >= legs.length;
+  const doing = m.at != null ? 'Dabbling in a puddle' : all ? 'Waddling back to the farm' : 'Off to the next puddle';
+  walkerCard('portrait_duck', 'The ducks' + ROW_SEP + 'A mother and her ducklings',
+    doing + ROW_SEP + (all ? 'every puddle tried' : done + ' of ' + legs.length + ' puddles'),
+    'Out from the farm on wet days, from puddle to puddle');
+}
 const LIGHTER_NAME = 'Amos';
 /* Hedgehogs (Leonardo) out after dark, the night's answer to the children:
    two at most, each on open ground with nothing standing in front of it,
@@ -6369,7 +6499,7 @@ function kidAt(sx, sy) {
 /* A child's card, where a villager's goes: her face, her name, whose she is,
    and what she is up to. */
 function drawKidCard() {
-  if (kidWho == null || kidWho === LIGHTER_ID || kidWho === MILK_ID || who != null || panel != null || modalUp()) return;
+  if (kidWho == null || kidWho === LIGHTER_ID || kidWho === MILK_ID || kidWho === DUCK_ID || who != null || panel != null || modalUp()) return;
   const k = kidsNow().find(q => q.id === kidWho);
   if (!k) { kidWho = null; return; }                 // home for the night, or in out of the rain
   const u = US(), tabs = tabRects();
@@ -7197,6 +7327,7 @@ function drawWorld() {
   drawGround();
   // paths are painted ON the ground, so they go down before anything stands up
   for (const p of placed) if (B(p.key).flat) drawDecor(p, 1);
+  drawPuddles();                      // lying on the ground and the paths alike
   /* Tap a well and you can see how far it reaches. The panel already says how
      many workplaces it lifts; this says WHICH, which is the part that tells you
      where to move it. */
@@ -7457,6 +7588,7 @@ function drawWorld() {
   { const m = lighterNow(); if (m) ents.push({ y: m.y, d: () => drawLighter(m) }); }
   { const m = milkmaidNow(); if (m) ents.push({ y: m.y, d: () => drawMilkmaid(m) }); }
   { const o = roosterNow(); if (o) ents.push({ y: o.y, d: () => drawRooster(o) }); }
+  { const m = ducksNow(); if (m) ents.push({ y: m.y, d: () => drawDucks(m) }); }
   for (const w of owlsNow()) ents.push({ y: w.depth, d: () => drawOwl(w) });
   for (const o of hogsNow()) ents.push({ y: o.y, d: () => drawHog(o) });
   if (season().key === 'winter') seasonTiles(occSet, SNOWMEN, 90).forEach((o, i) => ents.push({ y: tileToWorld(o.c, o.r).y, d: () => drawSnowman(o, i) }));
@@ -8311,6 +8443,7 @@ function drawHUD() {
   drawKidCard();
   drawLighterCard();
   drawMilkCard();
+  drawDuckCard();
   drawGoal();
   drawSaveState();
   drawHint();
@@ -10501,7 +10634,7 @@ function drawPanel() {
 }
 
 function draw() {
-  glowsDrawn = 0; iconsDrawn = 0; carriesDrawn = 0; chromeDrawn = 0; thoughtsDrawn = 0; lifeDrawn = 0; nightDrawn = 0; dawnDrawn = 0;
+  glowsDrawn = 0; iconsDrawn = 0; carriesDrawn = 0; chromeDrawn = 0; thoughtsDrawn = 0; lifeDrawn = 0; nightDrawn = 0; dawnDrawn = 0; wetDrawn = 0;
   stepAmbience();
   fitCanvas();
   g.setTransform(1, 0, 0, 1, 0, 0);
@@ -11054,15 +11187,17 @@ function tap(sx, sy) {
      hits that, so a near miss onto grass still opens the person aimed at. */
   kidWho = null;
   /* The lamplighter and the milkmaid go to the same doors as the villagers,
-     so either can be standing over one: whoever is nearer the camera, drawn
-     on top, is the one tapped. */
-  const lm = lighterAt(sx, sy), mm = !lm && milkmaidAt(sx, sy);
-  const walker = lm ? { id: LIGHTER_ID, y: lm.y } : mm ? { id: MILK_ID, y: mm.y } : null;
+     so either can be standing over one, and the ducks dabble in front of
+     the houses: whoever is nearer the camera, drawn on top, is the one tapped.
+     At the same depth that is the walker, drawn after the villagers and the
+     children: a girl playing on the very step the milkmaid stood on took her tap. */
+  const walker = [[LIGHTER_ID, lighterAt(sx, sy)], [MILK_ID, milkmaidAt(sx, sy)], [DUCK_ID, ducksAt(sx, sy)]]
+    .filter(o => o[1]).map(([id, m]) => ({ id, y: m.y })).sort((a, b) => b.y - a.y)[0] || null;
   const on = villagerAt(sx, sy, false);
-  if (on && !(walker && walker.y > on.y)) { SFX.tap(); who = on.seed; panel = null; return; }
+  if (on && !(walker && walker.y >= on.y)) { SFX.tap(); who = on.seed; panel = null; return; }
   // a child where she is drawn, next: she stands among the grown-ups and is half their size
   const kid = kidAt(sx, sy);
-  if (kid && !(walker && walker.y > kid.y)) { SFX.tap(); kidWho = kid.id; who = null; panel = null; return; }
+  if (kid && !(walker && walker.y >= kid.y)) { SFX.tap(); kidWho = kid.id; who = null; panel = null; return; }
   if (walker) { SFX.tap(); kidWho = walker.id; who = null; panel = null; return; }
   /* The first tap opens what is drawn here; tapping the same place again goes
      to whatever is standing under it, and round again. That is the whole of
@@ -11136,7 +11271,7 @@ for (const b of BUILDINGS) if (!SET_ART[b.key]) artFor(b.key);
     im.addEventListener('error', done, { once: true });
   }
 }
-for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER, WOODSWOMAN, ...KID_FIGS, ...PETS, ...Object.values(PLAY_PROP).map(q => q.key), LIGHTER, LIGHTER_REACH, OWL, HOG, MILKMAID, ROOSTER]) artFor(v);
+for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER, WOODSWOMAN, ...KID_FIGS, ...PETS, ...Object.values(PLAY_PROP).map(q => q.key), LIGHTER, LIGHTER_REACH, OWL, HOG, MILKMAID, ROOSTER, DUCKS, PUDDLE]) artFor(v);
 /* Asked for once, here, rather than on the first frame somebody walks: a
    villager with no cycle drawn for him would otherwise send six requests
    the moment he set off, and artFor remembers a miss, so doing it at boot
@@ -11207,7 +11342,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   SEASONS, SEASON_OF, SEASON_LEAF, seasonIdx, season, seasonSkin, drawGround, drawScenery, SCENERY,
   GW, GH, tileToWorld, deliveredOf,
   get seasonForced() { return seasonForced; }, set seasonForced(v) { seasonForced = v; },
-  get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, winterArt, ART, villagerArt, glowKey, get glowsDrawn() { return glowsDrawn; }, get iconsDrawn() { return iconsDrawn; }, get carriesDrawn() { return carriesDrawn; }, get chromeDrawn() { return chromeDrawn; }, portraitKey, merchantOf, panelFaces, thoughtOf, get thoughtsDrawn() { return thoughtsDrawn; }, get lifeDrawn() { return lifeDrawn; }, kidsNow, catsNow, propNow, playground, lampRound, lampLit, lighterNow, LIGHT_FROM, DOUSE_FROM, dawnClock, walkRound, milkRound, milkClock, milkmaidNow, milkmaidAt, MILKMAID, MILK_ID, MILK_NAME, MILK_MAX, MILK_FROM, roosterNow, ROOSTER, firstFarm, homes, doorOf, standing, get dawnDrawn() { return dawnDrawn; }, lighterAt, LIGHTER_ID, LIGHTER_NAME, LIGHTER_REACH, hogsNow, HOG, HOGS_MAX, seasonDecorTiles, owlsNow, roundClock, LIGHTER, OWL, OWLS_MAX, get nightDrawn() { return nightDrawn; }, get lampsLit() { return lampsLit; }, PLAY_PROP, occluders, hidden, artRect, kidAt, parentsOf, playSpot, topOf, KID_FIGS, PETS, get kidWho() { return kidWho; }, set kidWho(v) { kidWho = v; }, KIDS_MAX, CATS_MAX, get sparkleCount() { return sparkleCount; }, chromeCache,
+  get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, winterArt, ART, villagerArt, glowKey, get glowsDrawn() { return glowsDrawn; }, get iconsDrawn() { return iconsDrawn; }, get carriesDrawn() { return carriesDrawn; }, get chromeDrawn() { return chromeDrawn; }, portraitKey, merchantOf, panelFaces, thoughtOf, get thoughtsDrawn() { return thoughtsDrawn; }, get lifeDrawn() { return lifeDrawn; }, kidsNow, catsNow, propNow, playground, lampRound, lampLit, lighterNow, LIGHT_FROM, DOUSE_FROM, dawnClock, walkRound, milkRound, milkClock, milkmaidNow, milkmaidAt, MILKMAID, MILK_ID, MILK_NAME, MILK_MAX, MILK_FROM, roosterNow, ROOSTER, rainNow, wetDay, puddleFill, puddleSpots, PUDDLE, PUDDLES_MAX, PUDDLE_W, DUCK_H, duckRound, duckClock, ducksNow, ducksAt, DUCKS, DUCK_ID, DUCK_FROM, DUCK_TO, DUCK_REST, get wetDrawn() { return wetDrawn; }, firstFarm, homes, doorOf, standing, get dawnDrawn() { return dawnDrawn; }, lighterAt, LIGHTER_ID, LIGHTER_NAME, LIGHTER_REACH, hogsNow, HOG, HOGS_MAX, seasonDecorTiles, owlsNow, roundClock, LIGHTER, OWL, OWLS_MAX, get nightDrawn() { return nightDrawn; }, get lampsLit() { return lampsLit; }, PLAY_PROP, occluders, hidden, artRect, kidAt, parentsOf, playSpot, topOf, KID_FIGS, PETS, get kidWho() { return kidWho; }, set kidWho(v) { kidWho = v; }, KIDS_MAX, CATS_MAX, get sparkleCount() { return sparkleCount; }, chromeCache,
   get plainIcons() { return plainIcons; }, set plainIcons(v) { plainIcons = !!v; }, ICON_OF,
   hudTop, hudBot, screenTop, screenBot, readSafeArea, get SAFE() { return SAFE; }, set SAFE(v) { SAFE = v; },
   get safeKnown() { return safeKnown; }, set safeKnown(v) { safeKnown = !!v; },
