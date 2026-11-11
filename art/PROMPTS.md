@@ -7532,3 +7532,32 @@ The game draws a painted icon wherever one has loaded, and the emoji it replaces
   - On a wet day no hen is out in the rain.
 - On its first run the sweep failed on hens at the foot of the ramp, which is on the coop's own tile. The test now allows that tile.
 - It failed as it should with each of these broken, all in one run: hens out in the rain, the coop not counted as standing, hens out at night, the egg count worded wrong, and the hens never pecking.
+
+## Round 257: winter evenings, carol singers and robins
+
+- **villager_carolers** (GPT Image, with the milkmaid's standing figure attached): "New characters for the same village game, in exactly the same painted style, camera angle, lighting, size and pose direction as this villager: a little group of three CAROL SINGERS in winter clothes standing close together, singing with their mouths open in song. At the front a rosy-cheeked woman in a long red wool cloak with a fur-trimmed hood holding up a lit brass lantern on a short pole, its candle glowing warm; beside her a tall man in a long dark green coat, a striped knitted scarf and a top hat, holding an open song book; and a small girl between them in a blue coat, white bobble hat and mittens. Snow on their shoulders and hats. All facing right like the attached villager, the same scale as the attached villager. Full bodies, centred, same canvas size as the attached image, on a plain pure white background, no shadow, no text, no ground, no snow on the ground." Processed with `node tools/prep-art.js villager_carolers`, capped at 320. Master: `art/original/villager_carolers.png`.
+  - The man came out at the front, with the woman and her lantern at the far right.
+- **portrait_carolers** (GPT Image, with the lamplighter's portrait and the singers attached): "Now one portrait for these carol singers' card (the second image), in exactly the style of the first image's portrait: head and shoulders only, the same thick dark outline, soft painterly cartoon shading, warm lantern light, the same head-and-shoulders crop cut off in a soft rounded shape at the bottom. The three of them close together, singing with mouths open: the man in the top hat and striped scarf on the left, the woman in the red fur-trimmed hood on the right with the glowing lantern just showing beside her, and the little girl in the white bobble hat in front between them. A few snowflakes. Centred, on a perfectly flat solid magenta #FF00FF background, no text." Sliced with the badge slicer at 256. Master: `art/original/portrait_carolers.png`.
+- **robin** (Leonardo Lucid Origin, free relaxed, four to a batch): "A single small cute plump European robin redbreast perched as if on a twig, round fluffy body, bright orange-red breast and face, olive-brown back and wings, pale belly, little dark eye with a bright highlight, thin dark legs, tail cocked up, facing right, seen from the side at a three-quarter angle, soft painterly 3D-rendered storybook illustration like a cozy isometric village building game sprite, soft winter daylight, isolated and centred on a flat solid pure magenta #FF00FF background, no shadow, no branch, no snow, no ground, no outline, no text". Of the four, two faced left despite the prompt, and the one facing right stood on a twig.
+  - The first was kept and mirrored to face right. Master: `art/original/robin.jpg`, already mirrored.
+  - The background was dusky pink. It was keyed with the edge flood fill, but a shadow was left under its feet in pink and grey.
+  - Pulling that pink to a dark shadow made a grey blob, and so did turning only the light pink clear. In the end every pinkish pixel was made clear, and the bottom fifth was cut off with the stray bits of leg. The robin sits fluffed up with its legs hidden, as robins do in the cold.
+- On winter evenings from 0.6 of the day the carol singers go out from the hall's door to the doors of the six houses nearest it, nearest first (`carolRound`, through `walkRound` like the lamplighter's).
+  - They sing for nine seconds at each: three notes rise from them in one path, which needs no text.
+  - Their lantern's light and a pool of it on the snow are drawn after the night's tint, with the lamps (`drawCarolLight`). Drawn with the group first, under the tint, it came out as a grey smudge.
+  - A card says "Singing carols at a door", "On their way to the next house" or "Walking back to the hall", with how many houses they have sung at. In the tap order they count as a walker.
+- By day in winter a robin sits on each of the first two snowmen that have a perch in sight. The perches are the top of the hat and the end of each stick arm. A robin hops to another perch every seven seconds and bobs a little.
+  - The first try put robins on the first two snowmen as they came. In the test village every perch on the nearest snowman was behind a building, so there were none: only perches that can be seen are used now.
+- The icon sweep, in winter, now checks:
+  - the singers' round goes to as many houses as it should;
+  - they are not out before dark;
+  - half way through each stop they stand at that house's door;
+  - they are drawn singing;
+  - tapping them opens their card, which says "Singing carols at a door" and has portrait_carolers;
+  - they are in when the round ends;
+  - a robin is out on a winter morning, on a perch of its snowman, in sight, drawn; none at night; none in summer, and no singers in summer.
+- The sweep has to load the painted snowman first. Robins wait for it, and when winter was forced for a moment it had not loaded: that was the first failure of "no robin on any snowman".
+- It failed as it should with each of these broken, all in one run: singers out in summer, the singers never drawn, robins at night, robins off their perches, and the card saying the wrong thing.
+- Two battery runs in this round went wrong for reasons not understood.
+  - One hung (no result in six minutes) and passed when run again.
+  - In one, the cost sweep found two draws of the same village at night differing by one image, fill, save and roundRect. The next run passed, and the one after (the fault run) did not show it. The cause was not found. None of the new drawing uses roundRect, but they make winter nights dearer, which may have made winter the night the sweep measures twice.

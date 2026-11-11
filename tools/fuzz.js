@@ -6832,6 +6832,7 @@
       // the children at play and the cats on the steps, a handful at most
       if (life > V.KIDS_MAX + V.CATS_MAX + 1) fails.push(what + ' draws ' + life + ' children, cats and a plaything, past the ' + (V.KIDS_MAX + V.CATS_MAX + 1) + ' the village has');
       if ((V.wetDrawn | 0) > V.PUDDLES_MAX + 1 + V.FROGS_MAX) fails.push(what + ' draws ' + V.wetDrawn + ' puddles, ducks and frogs, past the ' + V.PUDDLES_MAX + ' puddles, one family and ' + V.FROGS_MAX + ' frogs a wet day has');
+      if ((V.winterDrawn | 0) > 1 + V.ROBINS_MAX) fails.push(what + ' draws ' + V.winterDrawn + ' carol singers and robins, past the one group and ' + V.ROBINS_MAX + ' robins there are');
       if ((V.henDrawn | 0) > 1 + V.HENS) fails.push(what + ' draws ' + V.henDrawn + ' coops and hens, past the one coop and ' + V.HENS + ' hens there are');
       if ((V.wedDrawn | 0) > 2) fails.push(what + ' draws ' + V.wedDrawn + ' wedding arches and couples, past the one of each a wedding has');
       if ((V.washDrawn | 0) > 2 * V.WASH_MAX) fails.push(what + ' draws ' + V.washDrawn + ' washing lines and baskets, past the ' + V.WASH_MAX + ' of each a washing day has');
@@ -6840,7 +6841,7 @@
       if (chrome > 20) fails.push(what + ' draws ' + chrome + ' pieces of card furniture on one frame -- a card and a tab need perhaps a dozen');
       if (carried > V.villagers.length) fails.push(what + ' draws ' + carried + ' carried loads for ' + V.villagers.length + ' villagers');
       if (icons > 40) fails.push(what + ' draws ' + icons + ' painted icons on one frame -- the HUD has room for perhaps thirty');
-      if (ops.drawImage > things + lit + Math.min(icons, 40) + Math.min(carried, V.villagers.length) + Math.min(chrome, 20) + Math.min(thought, 2 * V.villagers.length) + Math.min(life, V.KIDS_MAX + V.CATS_MAX + 1) + Math.min(V.nightDrawn | 0, V.OWLS_MAX + 1 + V.HOGS_MAX) + Math.min(V.dawnDrawn | 0, 2) + Math.min(V.wetDrawn | 0, V.PUDDLES_MAX + 1 + V.FROGS_MAX) + Math.min(V.washDrawn | 0, 3 * V.WASH_MAX) + Math.min(V.wedDrawn | 0, 2) + Math.min(V.henDrawn | 0, 1 + V.HENS) + spareHere)
+      if (ops.drawImage > things + lit + Math.min(icons, 40) + Math.min(carried, V.villagers.length) + Math.min(chrome, 20) + Math.min(thought, 2 * V.villagers.length) + Math.min(life, V.KIDS_MAX + V.CATS_MAX + 1) + Math.min(V.nightDrawn | 0, V.OWLS_MAX + 1 + V.HOGS_MAX) + Math.min(V.dawnDrawn | 0, 2) + Math.min(V.wetDrawn | 0, V.PUDDLES_MAX + 1 + V.FROGS_MAX) + Math.min(V.washDrawn | 0, 3 * V.WASH_MAX) + Math.min(V.wedDrawn | 0, 2) + Math.min(V.henDrawn | 0, 1 + V.HENS) + Math.min(V.winterDrawn | 0, 1 + V.ROBINS_MAX) + spareHere)
         fails.push(what + ' reaches for an image ' + ops.drawImage + ' times with '
           + things + ' things standing on it' + (lit ? ' and ' + lit + ' lit at night' : '')
           + ' (' + icons + ' icons, ' + carried + ' loads, ' + chrome + ' card pieces)'
@@ -7211,7 +7212,7 @@
            everybody indoors at night. The clock is moved to the middle of a
            dry day -- a wet one keeps them in too. */
         const artOf = f => [f, ...[1, 2, 3, 4, 5, 6].map(i => f + '_walk' + i)];
-        const KIDART = V.KID_FIGS.flatMap(artOf), LIFE = [...KIDART, ...V.PETS, 'portrait_girl', 'portrait_boy', ...Object.values(V.PLAY_PROP).map(q => q.key), ...artOf(V.LIGHTER), V.OWL, V.LIGHTER_REACH, V.HOG, 'portrait_lamplighter', ...artOf(V.MILKMAID), V.ROOSTER, 'portrait_milkmaid', V.DUCKS, V.PUDDLE, 'portrait_duck', V.FROG, ...Object.values(V.SPLASH), V.WASH, V.WASH_BARE, V.WASH_BASKET, V.COUPLE, V.WED_ARCH, 'portrait_couple', V.HEN, V.HEN_PECK, V.COOP, 'portrait_hen'];
+        const KIDART = V.KID_FIGS.flatMap(artOf), LIFE = [...KIDART, ...V.PETS, 'portrait_girl', 'portrait_boy', ...Object.values(V.PLAY_PROP).map(q => q.key), ...artOf(V.LIGHTER), V.OWL, V.LIGHTER_REACH, V.HOG, 'portrait_lamplighter', ...artOf(V.MILKMAID), V.ROOSTER, 'portrait_milkmaid', V.DUCKS, V.PUDDLE, 'portrait_duck', V.FROG, ...Object.values(V.SPLASH), V.WASH, V.WASH_BARE, V.WASH_BASKET, V.COUPLE, V.WED_ARCH, 'portrait_couple', V.HEN, V.HEN_PECK, V.COOP, 'portrait_hen', V.CAROL, 'portrait_carolers', V.ROBIN, 'snowman_painted'];
         for (const k of LIFE) V.artFor(k);
         for (let i = 0; i < 50 && !LIFE.every(k => V.artFor(k)); i++) await new Promise(r => setTimeout(r, 100));
         /* Houses with open ground in front of their doors, and none built in
@@ -7835,6 +7836,62 @@
                 for (let d = 0; d < 200; d++) { const n = Math.floor(day0 / DAY) + d; if (V.wetDay(n) && V.wedDay(n)) { fails.push('there is a wedding on a wet day'); break; } }
                 V.seasonForced = 3;
                 for (let d = 0; d < 40; d++) if (V.washDay(Math.floor(day0 / DAY) + d)) { fails.push('there is a washing day in winter'); break; }
+                /* Winter evenings: the carol singers out from the hall as it gets
+                   dark, to the doors of the houses nearest it, singing at each,
+                   drawn, with a card that says so; home again after. By day a
+                   robin on a snowman, at a perch, in sight, drawn; none at night
+                   and none in summer, and no singers in summer either. */
+                {
+                  const wday = Math.floor(day0 / DAY) + 2, R = V.carolRound();
+                  if (!R) fails.push('in winter, with a hall and houses, the carol singers have no round');
+                  else {
+                    const stops = R.legs.filter(l => l.id != null), cAt = sec => { Date.now = () => (wday + V.CAROL_FROM) * DAY + sec * 1000; };
+                    if (stops.length !== Math.min(V.CAROL_MAX, V.homes().length)) fails.push('the carol singers go to ' + stops.length + ' houses');
+                    Date.now = () => (wday + V.CAROL_FROM - 0.01) * DAY;
+                    if (V.carolersNow()) fails.push('the carol singers are out before dark');
+                    stops.forEach((l, i) => {
+                      cAt(l.lit);
+                      const m = V.carolersNow(), h = V.placed.find(q => q.id === l.id), d = h && V.doorOf(h);
+                      if (!m || m.at !== l.id || !d || Math.hypot(m.x - d.x, m.y - d.y) > 2) fails.push('half way through their stop at house ' + (i + 1) + ' the carol singers are not at its door');
+                    });
+                    const last = stops[stops.length - 1]; cAt(last.lit);
+                    const { ims: cp } = read();
+                    if (!cp.some(o => o.im === V.artFor(V.CAROL))) fails.push('singing at a door the carol singers were not drawn');
+                    const m = V.carolersNow();
+                    if (m) {
+                      V.who = null; V.panel = null; V.kidWho = null;
+                      const pt = V.camProject(m.x, m.y), sc = V.camScale(), was = V.villagers.map(v => [v.x, v.y]);
+                      try { for (const v of V.villagers) v.x += 4000; V.tap(pt.x, pt.y - 20 * sc); }
+                      finally { V.villagers.forEach((v, i) => { v.x = was[i][0]; v.y = was[i][1]; }); }
+                      if (V.kidWho !== V.CAROL_ID) fails.push('tapping the carol singers where they are drawn did not open their card (it opened ' + V.kidWho + ')');
+                      else {
+                        const { texts, ims: kp } = read(), said = texts.map(o => o.t).join(' | ');
+                        if (!said.includes('The carol singers') || !said.includes('Singing carols at a door')) fails.push('the card of the carol singers does not say who they are or what they are doing: ' + said.slice(0, 160));
+                        if (!kp.some(o => o.im.medal && o.im.medal.face === 'portrait_carolers')) fails.push('the card of the carol singers has no portrait_carolers in the ring');
+                      }
+                      V.kidWho = null;
+                    }
+                    cAt(R.end + 2);
+                    if (V.carolersNow()) fails.push('their round is done and the carol singers are still out');
+                  }
+                  Date.now = () => (wday + 0.3) * DAY;
+                  const rs = V.robinsNow(), { ims: rp } = read(), occR = V.occluders();
+                  if (!rs.length) fails.push('on a winter morning there is no robin on any snowman');
+                  if (rs.length > V.ROBINS_MAX) fails.push(rs.length + ' robins, past the ' + V.ROBINS_MAX + ' allowed');
+                  rs.forEach((rb, i) => {
+                    const at = V.tileToWorld(rb.c, rb.r);
+                    if (!V.ROBIN_PERCH.some(q => Math.hypot(at.x + q.dx - rb.x, at.y + q.dy - rb.y) < 14)) fails.push('robin ' + (i + 1) + ' is not on its snowman');
+                    if (V.hidden(occR, rb.x - 6, rb.x + 6, rb.y - 11, rb.y, rb.ground + 1)) fails.push('robin ' + (i + 1) + ' is behind something drawn in front of it');
+                  });
+                  if (rp.filter(o => o.im === V.artFor(V.ROBIN)).length !== rs.length) fails.push(rs.length + ' robins out and ' + rp.filter(o => o.im === V.artFor(V.ROBIN)).length + ' drawn');
+                  Date.now = () => (wday + 0.75) * DAY;
+                  if (V.robinsNow().length) fails.push('at night ' + V.robinsNow().length + ' robins are still on the snowmen');
+                  V.seasonForced = 1;
+                  Date.now = () => (wday + 0.3) * DAY;
+                  if (V.robinsNow().length) fails.push('in summer there are robins on snowmen');
+                  if (V.carolRound()) fails.push('in summer the carol singers have a round');
+                  V.seasonForced = 3;
+                }
               } finally { V.seasonForced = wasSeason; }
               Date.now = () => noon;
               if (V.roosterNow()) fails.push('at noon the rooster is still out');
