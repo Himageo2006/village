@@ -6832,13 +6832,14 @@
       // the children at play and the cats on the steps, a handful at most
       if (life > V.KIDS_MAX + V.CATS_MAX + 1) fails.push(what + ' draws ' + life + ' children, cats and a plaything, past the ' + (V.KIDS_MAX + V.CATS_MAX + 1) + ' the village has');
       if ((V.wetDrawn | 0) > V.PUDDLES_MAX + 1 + V.FROGS_MAX) fails.push(what + ' draws ' + V.wetDrawn + ' puddles, ducks and frogs, past the ' + V.PUDDLES_MAX + ' puddles, one family and ' + V.FROGS_MAX + ' frogs a wet day has');
+      if ((V.wedDrawn | 0) > 2) fails.push(what + ' draws ' + V.wedDrawn + ' wedding arches and couples, past the one of each a wedding has');
       if ((V.washDrawn | 0) > 2 * V.WASH_MAX) fails.push(what + ' draws ' + V.washDrawn + ' washing lines and baskets, past the ' + V.WASH_MAX + ' of each a washing day has');
       if ((V.dawnDrawn | 0) > 2) fails.push(what + ' draws ' + V.dawnDrawn + ' milkmaids and roosters, past the one of each the morning has');
       if ((V.nightDrawn | 0) > V.OWLS_MAX + 1 + V.HOGS_MAX) fails.push(what + ' draws ' + V.nightDrawn + ' owls, hedgehogs and lamplighters, past the ' + (V.OWLS_MAX + 1 + V.HOGS_MAX) + ' the night has');
       if (chrome > 20) fails.push(what + ' draws ' + chrome + ' pieces of card furniture on one frame -- a card and a tab need perhaps a dozen');
       if (carried > V.villagers.length) fails.push(what + ' draws ' + carried + ' carried loads for ' + V.villagers.length + ' villagers');
       if (icons > 40) fails.push(what + ' draws ' + icons + ' painted icons on one frame -- the HUD has room for perhaps thirty');
-      if (ops.drawImage > things + lit + Math.min(icons, 40) + Math.min(carried, V.villagers.length) + Math.min(chrome, 20) + Math.min(thought, 2 * V.villagers.length) + Math.min(life, V.KIDS_MAX + V.CATS_MAX + 1) + Math.min(V.nightDrawn | 0, V.OWLS_MAX + 1 + V.HOGS_MAX) + Math.min(V.dawnDrawn | 0, 2) + Math.min(V.wetDrawn | 0, V.PUDDLES_MAX + 1 + V.FROGS_MAX) + Math.min(V.washDrawn | 0, 3 * V.WASH_MAX) + spareHere)
+      if (ops.drawImage > things + lit + Math.min(icons, 40) + Math.min(carried, V.villagers.length) + Math.min(chrome, 20) + Math.min(thought, 2 * V.villagers.length) + Math.min(life, V.KIDS_MAX + V.CATS_MAX + 1) + Math.min(V.nightDrawn | 0, V.OWLS_MAX + 1 + V.HOGS_MAX) + Math.min(V.dawnDrawn | 0, 2) + Math.min(V.wetDrawn | 0, V.PUDDLES_MAX + 1 + V.FROGS_MAX) + Math.min(V.washDrawn | 0, 3 * V.WASH_MAX) + Math.min(V.wedDrawn | 0, 2) + spareHere)
         fails.push(what + ' reaches for an image ' + ops.drawImage + ' times with '
           + things + ' things standing on it' + (lit ? ' and ' + lit + ' lit at night' : '')
           + ' (' + icons + ' icons, ' + carried + ' loads, ' + chrome + ' card pieces)'
@@ -7209,7 +7210,7 @@
            everybody indoors at night. The clock is moved to the middle of a
            dry day -- a wet one keeps them in too. */
         const artOf = f => [f, ...[1, 2, 3, 4, 5, 6].map(i => f + '_walk' + i)];
-        const KIDART = V.KID_FIGS.flatMap(artOf), LIFE = [...KIDART, ...V.PETS, 'portrait_girl', 'portrait_boy', ...Object.values(V.PLAY_PROP).map(q => q.key), ...artOf(V.LIGHTER), V.OWL, V.LIGHTER_REACH, V.HOG, 'portrait_lamplighter', ...artOf(V.MILKMAID), V.ROOSTER, 'portrait_milkmaid', V.DUCKS, V.PUDDLE, 'portrait_duck', V.FROG, ...Object.values(V.SPLASH), V.WASH, V.WASH_BARE, V.WASH_BASKET];
+        const KIDART = V.KID_FIGS.flatMap(artOf), LIFE = [...KIDART, ...V.PETS, 'portrait_girl', 'portrait_boy', ...Object.values(V.PLAY_PROP).map(q => q.key), ...artOf(V.LIGHTER), V.OWL, V.LIGHTER_REACH, V.HOG, 'portrait_lamplighter', ...artOf(V.MILKMAID), V.ROOSTER, 'portrait_milkmaid', V.DUCKS, V.PUDDLE, 'portrait_duck', V.FROG, ...Object.values(V.SPLASH), V.WASH, V.WASH_BARE, V.WASH_BASKET, V.COUPLE, V.WED_ARCH, 'portrait_couple'];
         for (const k of LIFE) V.artFor(k);
         for (let i = 0; i < 50 && !LIFE.every(k => V.artFor(k)); i++) await new Promise(r => setTimeout(r, 100));
         /* Houses with open ground in front of their doors, and none built in
@@ -7720,6 +7721,61 @@
                   Date.now = () => other + 0.3 * DAY;
                   if (V.washLines().length) fails.push('on a day that is not washing day ' + V.washLines().length + ' lines are out');
                 }
+                /* A wedding, the first of sixty summer days: the arch up from
+                   first light on open ground by the hall, in sight and drawn;
+                   nobody under it until the couple set out; then they walk to
+                   it, stand under it with a card that says so and their
+                   names, walk home married, and are in; the arch is down by
+                   dusk; no wedding on other days nor on a wet one. */
+                let wed = null;
+                for (let d = 1; d < 60 && wed == null; d++) { const n = Math.floor(day0 / DAY) + d; if (V.wedDay(n)) wed = n * DAY; }
+                if (wed == null) fails.push('in sixty summer days there was no wedding');
+                else {
+                  const hall = V.placed.find(q => q.key === 'hall');
+                  Date.now = () => wed + (V.WED_WALK - 0.02) * DAY;
+                  const w = V.wedding(), { ims: ap } = read(), solid = V.standing(), occ = V.occluders(), hb = V.B(hall.key);
+                  if (!w) fails.push('on a wedding day there is no arch up by the hall');
+                  else {
+                    const a = w.arch;
+                    if (solid.has(a.c + ',' + a.r)) fails.push('the wedding arch is inside something standing on tile ' + a.c + ',' + a.r);
+                    if (a.c < hall.c - 3 || a.c > hall.c + hb.w + 2 || a.r < hall.r - 3 || a.r > hall.r + hb.h + 2) fails.push('the wedding arch is not by the hall');
+                    if (V.hidden(occ, a.x - 25, a.x + 25, a.y - 90, a.y, a.y)) fails.push('the wedding arch is behind something drawn in front of it');
+                    if (ap.filter(o => o.im === V.artFor(V.WED_ARCH)).length !== 1) fails.push('on the wedding morning ' + ap.filter(o => o.im === V.artFor(V.WED_ARCH)).length + ' arches are drawn');
+                    if (V.coupleNow() || V.wedDrawn !== 1) fails.push('before they set out the couple are out, or the wedding tally is ' + V.wedDrawn);
+                    if (!V.homes().some(h => h.id === w.home)) fails.push('the couple do not live in one of the houses');
+                    const l = V.wedRound(w).legs[0], at = sec => { Date.now = () => wed + V.WED_WALK * DAY + sec * 1000; };
+                    at(l.lit);
+                    const m = V.coupleNow(), { ims: cp } = read();
+                    if (!m || !m.wed || Math.hypot(m.x - a.x, m.y - a.y - 4) > 2) fails.push('half way through the wedding the couple are not under the arch');
+                    else {
+                      if (!cp.some(o => o.im === V.artFor(V.COUPLE))) fails.push('the couple under the arch were not drawn');
+                      if (V.wedDrawn !== 2) fails.push('with the couple under the arch the wedding tally is ' + V.wedDrawn);
+                      if (V.hidden(V.occluders(), m.x - 14, m.x + 14, m.y - 60, m.y, m.y)) fails.push('the couple under the arch are behind something drawn in front of them');
+                      V.who = null; V.panel = null; V.kidWho = null;
+                      const pt = V.camProject(m.x, m.y), sc = V.camScale(), was = V.villagers.map(v => [v.x, v.y]);
+                      try { for (const v of V.villagers) v.x += 4000; V.tap(pt.x, pt.y - 20 * sc); }
+                      finally { V.villagers.forEach((v, i) => { v.x = was[i][0]; v.y = was[i][1]; }); }
+                      if (V.kidWho !== V.WED_ID) fails.push('tapping the couple where they are drawn did not open their card');
+                      else {
+                        const { texts, ims: kp } = read(), said = texts.map(o => o.t).join(' | ');
+                        if (!said.includes(w.bride + ' and ' + w.groom) || !said.includes('Being married under the roses')) fails.push('the card of the couple does not say who they are or what they are doing: ' + said.slice(0, 160));
+                        if (!kp.some(o => o.im.medal && o.im.medal.face === 'portrait_couple')) fails.push('the card of the couple has no portrait_couple in the ring');
+                        at(l.t1 + V.WED_STOP + 3); const { texts: t2 } = read();
+                        if (!t2.map(o => o.t).join(' | ').includes('Walking home, married')) fails.push('on their way home the card of the couple does not say so');
+                      }
+                      V.kidWho = null;
+                    }
+                    at(V.wedRound(w).end + 2);
+                    if (V.coupleNow()) fails.push('the wedding is over and the couple are still out');
+                    Date.now = () => wed + (V.WED_TO + 0.02) * DAY; read();
+                    if (V.wedding() || V.wedDrawn) fails.push('at dusk on the wedding day the arch is still up');
+                  }
+                  let other = null;
+                  for (let d = 1; d < 60 && other == null; d++) { const n = Math.floor(wed / DAY) + d; if (!V.wedDay(n)) other = n * DAY; }
+                  Date.now = () => other + 0.3 * DAY;
+                  if (V.wedding()) fails.push('on a day with no wedding the arch is up');
+                }
+                for (let d = 0; d < 200; d++) { const n = Math.floor(day0 / DAY) + d; if (V.wetDay(n) && V.wedDay(n)) { fails.push('there is a wedding on a wet day'); break; } }
                 V.seasonForced = 3;
                 for (let d = 0; d < 40; d++) if (V.washDay(Math.floor(day0 / DAY) + d)) { fails.push('there is a washing day in winter'); break; }
               } finally { V.seasonForced = wasSeason; }

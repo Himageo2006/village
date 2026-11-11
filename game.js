@@ -6403,6 +6403,91 @@ function drawWashing(o) {
     washDrawn++;
   }
 }
+/* A wedding: now and then on a dry day a couple from one of the houses are
+   married. At first light a rose arch (Leonardo) goes up on the open ground
+   nearest the hall's door, in sight; mid-morning the two of them (ChatGPT)
+   walk arm in arm from their door to it, stand under it a while, and walk
+   home married, rose petals falling round them all the way. The arch comes
+   down before dusk. From the clock, like the milkmaid, and a card like hers. */
+const COUPLE = 'villager_couple', WED_ARCH = 'wedding_arch', WED_ID = 'wedding';
+const WED_SHARE = 0.12, WED_FROM = 0.03, WED_WALK = 0.16, WED_TO = 0.56, WED_SPD = 30, WED_STOP = 70;
+const ARCH_H = VILLAGER_H * 1.7, COUPLE_H = VILLAGER_H * 1.02, WED_PETALS = 18;
+const BRIDES = ['Ada', 'Martha', 'Clara', 'Lily', 'Grace', 'Edith', 'Florence', 'Alice', 'Dora', 'Annie', 'Ruth', 'Sarah'];
+const GROOMS = ['Tom', 'Will', 'Jack', 'Harry', 'George', 'Arthur', 'Fred', 'Albert', 'Walter', 'Joe', 'Ernest', 'Ben'];
+let wedDrawn = 0;                                    // the arch and the couple, for the cost sweep
+const wedDay = day => !wetDay(day) && rnd(day, 93) < WED_SHARE;
+function wedding() {
+  const ph = dayPhase(), day = Math.floor(Date.now() / DAY_MS);
+  if (ph < WED_FROM || ph > WED_TO || !wedDay(day)) return null;
+  const hall = placed.find(q => q.key === 'hall' && established(q)), hs = homes();
+  if (!hall || !hs.length) return null;
+  const b = B(hall.key), d = doorOf(hall), solid = standing(), pics = occluders(), im = artFor(WED_ARCH);
+  const hw = (ready(im) ? ARCH_H * im.width / im.height : ARCH_H) * 0.42;
+  let best = null;
+  for (let R = 1; R <= 3 && !best; R++) for (let c = hall.c - R; c < hall.c + b.w + R; c++) for (let r = hall.r - R; r < hall.r + b.h + R; r++) {
+    if (c >= hall.c && c < hall.c + b.w && r >= hall.r && r < hall.r + b.h) continue;
+    if (!openAt(c, r, solid)) continue;
+    const at = tileToWorld(c, r);
+    // the arch in sight, and the couple standing under it
+    if (hidden(pics, at.x - hw, at.x + hw, at.y - ARCH_H, at.y, at.y) || hidden(pics, at.x - 14, at.x + 14, at.y - COUPLE_H, at.y + 4, at.y + 4)) continue;
+    const k = Math.hypot(at.x - d.x, at.y - d.y);
+    if (!best || k < best.k || (k === best.k && c + r < best.c + best.r)) best = { c, r, x: at.x, y: at.y, k };
+  }
+  if (!best) return null;
+  const home = hs[Math.floor(rnd(day, 94) * hs.length)];
+  return { arch: best, home: home.id, door: doorOf(home), bride: BRIDES[(home.id * 7 + day) % 12], groom: GROOMS[(home.id * 5 + day * 3) % 12] };
+}
+const wedRound = (w = wedding()) => w && walkRound(w.door, [{ at: { x: w.arch.x, y: w.arch.y + 4 }, id: 'arch' }], WED_SPD, WED_STOP);
+const wedClock = () => clockFrom(WED_WALK);
+function coupleNow() {
+  const w = wedding(), m = w && roundPos(wedRound(w), wedClock());
+  return m && { ...m, w, wed: m.at != null };
+}
+const coupleAt = (sx, sy) => figureAt(coupleNow(), sx, sy);
+function drawArch(a) {
+  const im = artFor(WED_ARCH);
+  if (!ready(im)) return;
+  const w = ARCH_H * im.width / im.height;
+  g.drawImage(im, a.x - w / 2, a.y + 3 - ARCH_H, w, ARCH_H);
+  wedDrawn++;
+}
+function drawCouple(m) {
+  const im = artFor(COUPLE);
+  if (!ready(im)) return;
+  const w = im.width * (COUPLE_H / im.height), t = Date.now() / 1000;
+  const bob = reduceMotion ? 0 : m.moving ? Math.abs(Math.sin(m.ph)) * 1.6 : 0, sway = m.moving && !reduceMotion ? Math.sin(m.ph) * 0.025 : 0;
+  const tf = g.getTransform();
+  g.fillStyle = 'rgba(10,18,8,.3)';
+  g.beginPath(); g.ellipse(m.x, m.y + 2, w * 0.42, VILLAGER_H * 0.1, 0, 0, 7); g.fill();
+  if (kidWho === WED_ID) {
+    g.strokeStyle = '#9fe86b'; g.lineWidth = 2.5;
+    g.beginPath(); g.ellipse(m.x, m.y + 2, w * 0.5, VILLAGER_H * 0.13, 0, 0, 7); g.stroke();
+  }
+  g.translate(m.x, m.y - bob); g.scale(m.face, 1); g.rotate(sway);
+  g.drawImage(im, -w / 2, -COUPLE_H, w, COUPLE_H);
+  g.setTransform(tf);
+  if (!reduceMotion) {                                  // petals falling round them, pink and white
+    for (const [k, col] of [[0, 'rgba(244,160,186,.95)'], [1, 'rgba(255,248,240,.95)']]) {
+      g.fillStyle = col; g.beginPath();
+      for (let i = k; i < WED_PETALS; i += 2) {
+        const u = frac(t * 0.35 + i * 0.29), sp = w * 0.75;
+        const x = m.x + (frac(i * 0.618) - 0.5) * sp * 2 + Math.sin(t * 2 + i) * 5, y = m.y - COUPLE_H * 1.25 + u * COUPLE_H * 1.25;
+        g.ellipse(x, y, 2.8, 1.6, t * 3 + i, 0, 7); g.closePath();
+      }
+      g.fill();
+    }
+  }
+  wedDrawn++;
+}
+function drawWedCard() {
+  if (kidWho !== WED_ID || who != null || panel != null || modalUp()) return;
+  const m = coupleNow();
+  if (!m) { kidWho = null; return; }
+  const l = wedRound(m.w).legs[0], back = wedClock() > l.t1 + WED_STOP;
+  const doing = m.wed ? 'Being married under the roses' : back ? 'Walking home, married' : 'Walking to the hall to be married';
+  walkerCard('portrait_couple', m.w.bride + ' and ' + m.w.groom + ROW_SEP + 'The wedding',
+    doing, 'A wedding now and then on a fine day, under a rose arch by the hall');
+}
 /* And a duck and her ducklings (Leonardo) out from the first farm on a wet
    day, puddle to puddle: a while dabbling in each, then on to the nearest one
    they have not been to, and home, and round again while the day lasts. A
@@ -6644,7 +6729,7 @@ function kidAt(sx, sy) {
 /* A child's card, where a villager's goes: her face, her name, whose she is,
    and what she is up to. */
 function drawKidCard() {
-  if (kidWho == null || kidWho === LIGHTER_ID || kidWho === MILK_ID || kidWho === DUCK_ID || who != null || panel != null || modalUp()) return;
+  if (kidWho == null || kidWho === LIGHTER_ID || kidWho === MILK_ID || kidWho === DUCK_ID || kidWho === WED_ID || who != null || panel != null || modalUp()) return;
   const k = kidsNow().find(q => q.id === kidWho);
   if (!k) { kidWho = null; return; }                 // home for the night, or in out of the rain
   const u = US(), tabs = tabRects();
@@ -7740,6 +7825,7 @@ function drawWorld() {
   { const m = ducksNow(); if (m) ents.push({ y: m.y, d: () => drawDucks(m) }); }
   for (const f of frogsNow()) ents.push({ y: f.y, d: () => drawFrog(f) });
   for (const o of washLines()) ents.push({ y: o.y, d: () => drawWashing(o) });
+  { const w = wedding(), m = w && coupleNow(); if (w) ents.push({ y: w.arch.y, d: () => drawArch(w.arch) }); if (m) ents.push({ y: m.y, d: () => drawCouple(m) }); }
   for (const w of owlsNow()) ents.push({ y: w.depth, d: () => drawOwl(w) });
   for (const o of hogsNow()) ents.push({ y: o.y, d: () => drawHog(o) });
   if (season().key === 'winter') seasonTiles(occSet, SNOWMEN, 90).forEach((o, i) => ents.push({ y: tileToWorld(o.c, o.r).y, d: () => drawSnowman(o, i) }));
@@ -8595,6 +8681,7 @@ function drawHUD() {
   drawLighterCard();
   drawMilkCard();
   drawDuckCard();
+  drawWedCard();
   drawGoal();
   drawSaveState();
   drawHint();
@@ -10785,7 +10872,7 @@ function drawPanel() {
 }
 
 function draw() {
-  glowsDrawn = 0; iconsDrawn = 0; carriesDrawn = 0; chromeDrawn = 0; thoughtsDrawn = 0; lifeDrawn = 0; nightDrawn = 0; dawnDrawn = 0; wetDrawn = 0; washDrawn = 0;
+  glowsDrawn = 0; iconsDrawn = 0; carriesDrawn = 0; chromeDrawn = 0; thoughtsDrawn = 0; lifeDrawn = 0; nightDrawn = 0; dawnDrawn = 0; wetDrawn = 0; washDrawn = 0; wedDrawn = 0;
   stepAmbience();
   fitCanvas();
   g.setTransform(1, 0, 0, 1, 0, 0);
@@ -11342,7 +11429,7 @@ function tap(sx, sy) {
      the houses: whoever is nearer the camera, drawn on top, is the one tapped.
      At the same depth that is the walker, drawn after the villagers and the
      children: a girl playing on the very step the milkmaid stood on took her tap. */
-  const walker = [[LIGHTER_ID, lighterAt(sx, sy)], [MILK_ID, milkmaidAt(sx, sy)], [DUCK_ID, ducksAt(sx, sy)]]
+  const walker = [[LIGHTER_ID, lighterAt(sx, sy)], [MILK_ID, milkmaidAt(sx, sy)], [DUCK_ID, ducksAt(sx, sy)], [WED_ID, coupleAt(sx, sy)]]
     .filter(o => o[1]).map(([id, m]) => ({ id, y: m.y })).sort((a, b) => b.y - a.y)[0] || null;
   const on = villagerAt(sx, sy, false);
   if (on && !(walker && walker.y >= on.y)) { SFX.tap(); who = on.seed; panel = null; return; }
@@ -11422,7 +11509,7 @@ for (const b of BUILDINGS) if (!SET_ART[b.key]) artFor(b.key);
     im.addEventListener('error', done, { once: true });
   }
 }
-for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER, WOODSWOMAN, ...KID_FIGS, ...PETS, ...Object.values(PLAY_PROP).map(q => q.key), LIGHTER, LIGHTER_REACH, OWL, HOG, MILKMAID, ROOSTER, DUCKS, PUDDLE, FROG, ...Object.values(SPLASH), WASH, WASH_BARE, WASH_BASKET]) artFor(v);
+for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER, WOODSWOMAN, ...KID_FIGS, ...PETS, ...Object.values(PLAY_PROP).map(q => q.key), LIGHTER, LIGHTER_REACH, OWL, HOG, MILKMAID, ROOSTER, DUCKS, PUDDLE, FROG, ...Object.values(SPLASH), WASH, WASH_BARE, WASH_BASKET, COUPLE, WED_ARCH, 'portrait_couple']) artFor(v);
 /* Asked for once, here, rather than on the first frame somebody walks: a
    villager with no cycle drawn for him would otherwise send six requests
    the moment he set off, and artFor remembers a miss, so doing it at boot
@@ -11493,7 +11580,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   SEASONS, SEASON_OF, SEASON_LEAF, seasonIdx, season, seasonSkin, drawGround, drawScenery, SCENERY,
   GW, GH, tileToWorld, deliveredOf,
   get seasonForced() { return seasonForced; }, set seasonForced(v) { seasonForced = v; },
-  get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, winterArt, ART, villagerArt, glowKey, get glowsDrawn() { return glowsDrawn; }, get iconsDrawn() { return iconsDrawn; }, get carriesDrawn() { return carriesDrawn; }, get chromeDrawn() { return chromeDrawn; }, portraitKey, merchantOf, panelFaces, thoughtOf, get thoughtsDrawn() { return thoughtsDrawn; }, get lifeDrawn() { return lifeDrawn; }, kidsNow, catsNow, propNow, playground, lampRound, lampLit, lighterNow, LIGHT_FROM, DOUSE_FROM, dawnClock, walkRound, milkRound, milkClock, milkmaidNow, milkmaidAt, MILKMAID, MILK_ID, MILK_NAME, MILK_MAX, MILK_FROM, roosterNow, ROOSTER, rainNow, wetDay, puddleFill, puddleSpots, PUDDLE, PUDDLES_MAX, PUDDLE_W, DUCK_H, FROG, FROGS_MAX, frogsNow, WASH, WASH_BARE, WASH_BASKET, WASH_MAX, WASH_HANG, WASH_IN, WASH_TO, WASH_POST, washDay, washOut, washLines, get washDrawn() { return washDrawn; }, SPLASH, kidPools, kidsOut, duckRound, duckClock, ducksNow, ducksAt, DUCKS, DUCK_ID, DUCK_FROM, DUCK_TO, DUCK_REST, get wetDrawn() { return wetDrawn; }, firstFarm, homes, doorOf, standing, get dawnDrawn() { return dawnDrawn; }, lighterAt, LIGHTER_ID, LIGHTER_NAME, LIGHTER_REACH, hogsNow, HOG, HOGS_MAX, seasonDecorTiles, owlsNow, roundClock, LIGHTER, OWL, OWLS_MAX, get nightDrawn() { return nightDrawn; }, get lampsLit() { return lampsLit; }, PLAY_PROP, occluders, hidden, artRect, kidAt, parentsOf, playSpot, topOf, KID_FIGS, PETS, get kidWho() { return kidWho; }, set kidWho(v) { kidWho = v; }, KIDS_MAX, CATS_MAX, get sparkleCount() { return sparkleCount; }, chromeCache,
+  get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, winterArt, ART, villagerArt, glowKey, get glowsDrawn() { return glowsDrawn; }, get iconsDrawn() { return iconsDrawn; }, get carriesDrawn() { return carriesDrawn; }, get chromeDrawn() { return chromeDrawn; }, portraitKey, merchantOf, panelFaces, thoughtOf, get thoughtsDrawn() { return thoughtsDrawn; }, get lifeDrawn() { return lifeDrawn; }, kidsNow, catsNow, propNow, playground, lampRound, lampLit, lighterNow, LIGHT_FROM, DOUSE_FROM, dawnClock, walkRound, milkRound, milkClock, milkmaidNow, milkmaidAt, MILKMAID, MILK_ID, MILK_NAME, MILK_MAX, MILK_FROM, roosterNow, ROOSTER, rainNow, wetDay, puddleFill, puddleSpots, PUDDLE, PUDDLES_MAX, PUDDLE_W, DUCK_H, FROG, FROGS_MAX, frogsNow, WASH, WASH_BARE, WASH_BASKET, WASH_MAX, WASH_HANG, WASH_IN, WASH_TO, WASH_POST, washDay, washOut, washLines, get washDrawn() { return washDrawn; }, COUPLE, WED_ARCH, WED_ID, WED_FROM, WED_WALK, WED_TO, WED_STOP, wedDay, wedding, wedRound, wedClock, coupleNow, coupleAt, get wedDrawn() { return wedDrawn; }, SPLASH, kidPools, kidsOut, duckRound, duckClock, ducksNow, ducksAt, DUCKS, DUCK_ID, DUCK_FROM, DUCK_TO, DUCK_REST, get wetDrawn() { return wetDrawn; }, firstFarm, homes, doorOf, standing, get dawnDrawn() { return dawnDrawn; }, lighterAt, LIGHTER_ID, LIGHTER_NAME, LIGHTER_REACH, hogsNow, HOG, HOGS_MAX, seasonDecorTiles, owlsNow, roundClock, LIGHTER, OWL, OWLS_MAX, get nightDrawn() { return nightDrawn; }, get lampsLit() { return lampsLit; }, PLAY_PROP, occluders, hidden, artRect, kidAt, parentsOf, playSpot, topOf, KID_FIGS, PETS, get kidWho() { return kidWho; }, set kidWho(v) { kidWho = v; }, KIDS_MAX, CATS_MAX, get sparkleCount() { return sparkleCount; }, chromeCache,
   get plainIcons() { return plainIcons; }, set plainIcons(v) { plainIcons = !!v; }, ICON_OF,
   hudTop, hudBot, screenTop, screenBot, readSafeArea, get SAFE() { return SAFE; }, set SAFE(v) { SAFE = v; },
   get safeKnown() { return safeKnown; }, set safeKnown(v) { safeKnown = !!v; },
