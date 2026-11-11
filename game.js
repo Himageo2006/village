@@ -6333,6 +6333,76 @@ function drawFrog(f) {
   g.restore();
   wetDrawn++;
 }
+/* Washing day: the first dry day after a wet one, and now and then another
+   (never in winter). From mid-morning the houses have a line up beside them,
+   along a front wall but never in front of the door, nor on a puddle: the
+   washing is pegged out along it (ChatGPT, the line bare and the line full),
+   stirs in the breeze, and is taken in again in the afternoon, with the
+   basket (Leonardo) at the foot of the line while it goes out and comes in.
+   The full picture is the bare one with the washing on, so hanging it out is
+   showing it from one end, with its posts clipped off so they never sway. */
+const WASH = 'washing_line', WASH_BARE = 'washing_line_bare', WASH_BASKET = 'laundry_basket';
+const WASH_MAX = 4, WASH_W = TW * 0.92, WASH_FROM = 0.08, WASH_HANG = [0.1, 0.14], WASH_IN = [0.42, 0.46], WASH_TO = 0.5, WASH_POST = 0.03;
+let washDrawn = 0;                                   // lines and baskets, for the cost sweep
+const washDay = day => season().key !== 'winter' && !wetDay(day) && (wetDay(day - 1) || rnd(day, 89) < 0.15);
+// how much of a line's washing is out, 0 to 1, the i-th line a little behind the one before
+function washOut(i, ph = dayPhase()) {
+  const d = i * 0.008, up = (ph - WASH_HANG[0] - d) / (WASH_HANG[1] - WASH_HANG[0]), down = (ph - WASH_IN[0] - d) / (WASH_IN[1] - WASH_IN[0]);
+  return Math.max(0, Math.min(1, up, 1 - down));
+}
+function washLines() {
+  const ph = dayPhase();
+  if (ph < WASH_FROM || ph > WASH_TO || !washDay(Math.floor(Date.now() / DAY_MS))) return [];
+  const solid = standing(), pics = occluders(), out = [], taken = new Set();
+  const wet = new Set(puddleFill() > 0 ? puddleSpots().map(o => o.c + ',' + o.r) : []);   // the morning after, still drying
+  const im = artFor(WASH_BARE), hgt = ready(im) ? WASH_W * im.height / im.width : WASH_W * 0.5;
+  for (const h of homes()) {
+    if (out.length >= WASH_MAX) break;
+    const b = B(h.key);
+    /* out along the two front walls, at the far ends from the door, where the
+       line is in front of the house and not behind it (the first ones, on the
+       flanks, were all behind the walls); the picture runs down to the right,
+       so along the right-hand wall it is turned round to run beside it */
+    const flank = [[h.c - 1, h.r + b.h, 1], [h.c + b.w, h.r - 1, -1], [h.c, h.r + b.h, 1], [h.c + b.w, h.r, -1], [h.c - 2, h.r + b.h, 1], [h.c + b.w, h.r - 2, -1]];
+    for (const [c, r, face] of flank) {
+      const k = c + ',' + r;
+      if (c >= h.c + b.w - 1 && r >= h.r + b.h - 1) continue;           // a shallow house: that is in front of the door
+      if (taken.has(k) || wet.has(k) || !openAt(c, r, solid) || out.some(o => Math.abs(o.c - c) <= 1 && Math.abs(o.r - r) <= 1)) continue;
+      const at = tileToWorld(c, r);
+      // each end and the middle in sight, not just most of it
+      if ([-0.5, -1 / 6, 1 / 6].some(u => hidden(pics, at.x + WASH_W * u, at.x + WASH_W * (u + 1 / 3), at.y + TH * 0.25 - hgt, at.y + TH * 0.2, at.y))) continue;
+      taken.add(k);
+      const i = out.length;
+      out.push({ c, r, x: at.x, y: at.y, face, home: h.id, i, hung: washOut(i, ph), basket: (ph < WASH_HANG[1] + 0.02 || ph > WASH_IN[0] - 0.02), t: Date.now() / 1000 + i * 1.7 });
+      break;
+    }
+  }
+  return out;
+}
+function drawWashing(o) {
+  const bare = artFor(WASH_BARE), full = artFor(WASH);
+  if (!ready(bare)) return;
+  const h = WASH_W * bare.height / bare.width, x0 = -WASH_W / 2, top = o.y + TH * 0.25 - h;
+  const m = g.getTransform();
+  g.translate(o.x, 0); g.scale(o.face, 1);
+  g.drawImage(bare, x0, top, WASH_W, h);
+  washDrawn++;
+  if (o.hung > 0 && ready(full)) {
+    const sk = reduceMotion ? 0 : Math.sin(o.t * 2.1) * 0.035 + Math.sin(o.t * 3.3) * 0.015, span = WASH_W * (1 - 2 * WASH_POST);
+    g.save();
+    g.beginPath(); g.rect(x0 + WASH_W * WASH_POST, top - 4, span * o.hung, h + 8); g.clip();
+    g.translate(x0, top); g.transform(1, 0, sk, 1, 0, 0);             // the hems swing, the rope stays
+    g.drawImage(full, 0, 0, WASH_W, h);
+    g.restore();
+  }
+  g.setTransform(m);
+  const bk = o.basket && artFor(WASH_BASKET);
+  if (ready(bk)) {
+    const bh = 15, bw = bk.width * bh / bk.height;
+    g.drawImage(bk, o.x + o.face * WASH_W * 0.16 - bw / 2, o.y + TH * 0.22 - bh, bw, bh);
+    washDrawn++;
+  }
+}
 /* And a duck and her ducklings (Leonardo) out from the first farm on a wet
    day, puddle to puddle: a while dabbling in each, then on to the nearest one
    they have not been to, and home, and round again while the day lasts. A
@@ -7669,6 +7739,7 @@ function drawWorld() {
   { const o = roosterNow(); if (o) ents.push({ y: o.y, d: () => drawRooster(o) }); }
   { const m = ducksNow(); if (m) ents.push({ y: m.y, d: () => drawDucks(m) }); }
   for (const f of frogsNow()) ents.push({ y: f.y, d: () => drawFrog(f) });
+  for (const o of washLines()) ents.push({ y: o.y, d: () => drawWashing(o) });
   for (const w of owlsNow()) ents.push({ y: w.depth, d: () => drawOwl(w) });
   for (const o of hogsNow()) ents.push({ y: o.y, d: () => drawHog(o) });
   if (season().key === 'winter') seasonTiles(occSet, SNOWMEN, 90).forEach((o, i) => ents.push({ y: tileToWorld(o.c, o.r).y, d: () => drawSnowman(o, i) }));
@@ -10714,7 +10785,7 @@ function drawPanel() {
 }
 
 function draw() {
-  glowsDrawn = 0; iconsDrawn = 0; carriesDrawn = 0; chromeDrawn = 0; thoughtsDrawn = 0; lifeDrawn = 0; nightDrawn = 0; dawnDrawn = 0; wetDrawn = 0;
+  glowsDrawn = 0; iconsDrawn = 0; carriesDrawn = 0; chromeDrawn = 0; thoughtsDrawn = 0; lifeDrawn = 0; nightDrawn = 0; dawnDrawn = 0; wetDrawn = 0; washDrawn = 0;
   stepAmbience();
   fitCanvas();
   g.setTransform(1, 0, 0, 1, 0, 0);
@@ -11351,7 +11422,7 @@ for (const b of BUILDINGS) if (!SET_ART[b.key]) artFor(b.key);
     im.addEventListener('error', done, { once: true });
   }
 }
-for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER, WOODSWOMAN, ...KID_FIGS, ...PETS, ...Object.values(PLAY_PROP).map(q => q.key), LIGHTER, LIGHTER_REACH, OWL, HOG, MILKMAID, ROOSTER, DUCKS, PUDDLE, FROG, ...Object.values(SPLASH)]) artFor(v);
+for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER, WOODSWOMAN, ...KID_FIGS, ...PETS, ...Object.values(PLAY_PROP).map(q => q.key), LIGHTER, LIGHTER_REACH, OWL, HOG, MILKMAID, ROOSTER, DUCKS, PUDDLE, FROG, ...Object.values(SPLASH), WASH, WASH_BARE, WASH_BASKET]) artFor(v);
 /* Asked for once, here, rather than on the first frame somebody walks: a
    villager with no cycle drawn for him would otherwise send six requests
    the moment he set off, and artFor remembers a miss, so doing it at boot
@@ -11422,7 +11493,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   SEASONS, SEASON_OF, SEASON_LEAF, seasonIdx, season, seasonSkin, drawGround, drawScenery, SCENERY,
   GW, GH, tileToWorld, deliveredOf,
   get seasonForced() { return seasonForced; }, set seasonForced(v) { seasonForced = v; },
-  get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, winterArt, ART, villagerArt, glowKey, get glowsDrawn() { return glowsDrawn; }, get iconsDrawn() { return iconsDrawn; }, get carriesDrawn() { return carriesDrawn; }, get chromeDrawn() { return chromeDrawn; }, portraitKey, merchantOf, panelFaces, thoughtOf, get thoughtsDrawn() { return thoughtsDrawn; }, get lifeDrawn() { return lifeDrawn; }, kidsNow, catsNow, propNow, playground, lampRound, lampLit, lighterNow, LIGHT_FROM, DOUSE_FROM, dawnClock, walkRound, milkRound, milkClock, milkmaidNow, milkmaidAt, MILKMAID, MILK_ID, MILK_NAME, MILK_MAX, MILK_FROM, roosterNow, ROOSTER, rainNow, wetDay, puddleFill, puddleSpots, PUDDLE, PUDDLES_MAX, PUDDLE_W, DUCK_H, FROG, FROGS_MAX, frogsNow, SPLASH, kidPools, kidsOut, duckRound, duckClock, ducksNow, ducksAt, DUCKS, DUCK_ID, DUCK_FROM, DUCK_TO, DUCK_REST, get wetDrawn() { return wetDrawn; }, firstFarm, homes, doorOf, standing, get dawnDrawn() { return dawnDrawn; }, lighterAt, LIGHTER_ID, LIGHTER_NAME, LIGHTER_REACH, hogsNow, HOG, HOGS_MAX, seasonDecorTiles, owlsNow, roundClock, LIGHTER, OWL, OWLS_MAX, get nightDrawn() { return nightDrawn; }, get lampsLit() { return lampsLit; }, PLAY_PROP, occluders, hidden, artRect, kidAt, parentsOf, playSpot, topOf, KID_FIGS, PETS, get kidWho() { return kidWho; }, set kidWho(v) { kidWho = v; }, KIDS_MAX, CATS_MAX, get sparkleCount() { return sparkleCount; }, chromeCache,
+  get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, winterArt, ART, villagerArt, glowKey, get glowsDrawn() { return glowsDrawn; }, get iconsDrawn() { return iconsDrawn; }, get carriesDrawn() { return carriesDrawn; }, get chromeDrawn() { return chromeDrawn; }, portraitKey, merchantOf, panelFaces, thoughtOf, get thoughtsDrawn() { return thoughtsDrawn; }, get lifeDrawn() { return lifeDrawn; }, kidsNow, catsNow, propNow, playground, lampRound, lampLit, lighterNow, LIGHT_FROM, DOUSE_FROM, dawnClock, walkRound, milkRound, milkClock, milkmaidNow, milkmaidAt, MILKMAID, MILK_ID, MILK_NAME, MILK_MAX, MILK_FROM, roosterNow, ROOSTER, rainNow, wetDay, puddleFill, puddleSpots, PUDDLE, PUDDLES_MAX, PUDDLE_W, DUCK_H, FROG, FROGS_MAX, frogsNow, WASH, WASH_BARE, WASH_BASKET, WASH_MAX, WASH_HANG, WASH_IN, WASH_TO, WASH_POST, washDay, washOut, washLines, get washDrawn() { return washDrawn; }, SPLASH, kidPools, kidsOut, duckRound, duckClock, ducksNow, ducksAt, DUCKS, DUCK_ID, DUCK_FROM, DUCK_TO, DUCK_REST, get wetDrawn() { return wetDrawn; }, firstFarm, homes, doorOf, standing, get dawnDrawn() { return dawnDrawn; }, lighterAt, LIGHTER_ID, LIGHTER_NAME, LIGHTER_REACH, hogsNow, HOG, HOGS_MAX, seasonDecorTiles, owlsNow, roundClock, LIGHTER, OWL, OWLS_MAX, get nightDrawn() { return nightDrawn; }, get lampsLit() { return lampsLit; }, PLAY_PROP, occluders, hidden, artRect, kidAt, parentsOf, playSpot, topOf, KID_FIGS, PETS, get kidWho() { return kidWho; }, set kidWho(v) { kidWho = v; }, KIDS_MAX, CATS_MAX, get sparkleCount() { return sparkleCount; }, chromeCache,
   get plainIcons() { return plainIcons; }, set plainIcons(v) { plainIcons = !!v; }, ICON_OF,
   hudTop, hudBot, screenTop, screenBot, readSafeArea, get SAFE() { return SAFE; }, set SAFE(v) { SAFE = v; },
   get safeKnown() { return safeKnown; }, set safeKnown(v) { safeKnown = !!v; },

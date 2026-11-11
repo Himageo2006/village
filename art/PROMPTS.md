@@ -7458,3 +7458,26 @@ The game draws a painted icon wherever one has loaded, and the emoji it replaces
 - The cost sweep's wet nights must draw every puddle and frog.
   - It failed as it should with each of these broken: the frogs not drawn, the children playing at the well in the rain, no splash figure, and the cats out in the rain.
   - Dropping the save and restore was not fault-injected. The full battery and the screenshots are the evidence it changed nothing.
+
+## Round 254: washing day
+
+- **washing_line** (GPT Image, with the fence sprite attached): "New game sprite in exactly the same painted style, camera angle and lighting as this fence: a village WASHING LINE. Two weathered wooden T-shaped posts about as tall as the fence posts are, one at each end, running in exactly the same direction as this fence (from upper left down to lower right, along the isometric grid), with a rope slung between them sagging a little in the middle. Hanging from the rope with wooden pegs, side by side: a large white bedsheet, a blue linen shirt, a cream apron, a pair of red and white striped stockings, a small yellow child's dress and a striped tea towel, all stirring slightly in a breeze. Nothing on the ground except a little grass at the foot of each post. Same canvas proportions as the fence, centred, on a perfectly flat solid magenta #FF00FF background, no shadow, no text." Master: `art/original/washing_line.png`.
+- **washing_line_bare** (GPT Image, same conversation, straight after): "Now exactly the same picture again, same canvas size, the two posts, the grass and the rope in exactly the same places and the same shapes, pixel for pixel, but with NOTHING hanging on the line: no washing and no pegs, just the bare rope sagging between the posts. Same flat solid magenta #FF00FF background, no shadow, no text." Master: `art/original/washing_line_bare.png`.
+  - The posts and grass came back where they were. The rope did not: bare, it sags lower than the full line, whose rope the washing pulls nearly straight. Under the washing the two ropes mostly overlap, but in the gaps between clothes the bare rope can be seen a little below the full one.
+  - Both were keyed magenta with one shared crop, so the two stay registered (`key_pair.js`, 403 × 256).
+- **laundry_basket** (Leonardo Lucid Origin, free relaxed, four to a batch): "A single round wicker laundry basket with two handles, heaped full of clean folded white sheets and a few colourful clothes with a wooden peg bag on top, seen from the side at a three-quarter angle from slightly above, soft painterly 3D-rendered storybook illustration like a cozy isometric village building game sprite, warm sunny light, isolated and centred on a flat solid pure magenta #FF00FF background, no shadow, no ground, no outline, no text". The first was kept. Its background's blue sat 17 above its green, under the flood keyer's 18, so it was keyed at 12, and the pink left in its shadow was pulled to dark in two passes. Master: `art/original/laundry_basket.jpg`.
+- Washing day is the first dry day after a wet one, and now and then another (`washDay`, never in winter).
+  - From 0.08 of the day to 0.5, up to four houses have a line out on open ground along a front wall, at the far end from the door: never on the door's tile, never on a puddle still drying from yesterday, and never next to another line.
+  - Along the right-hand wall the picture is turned round, so it runs beside the wall.
+  - The washing is pegged out from one end between 0.10 and 0.14. The full picture is clipped over the bare one, a little more of it each frame, and it sways by a small skew. It comes in again between 0.42 and 0.46. The basket stands at the foot of the line only while the washing goes out and comes in.
+- The first try put the lines on the houses' side and back flanks. Every one of them was behind its own house in draw order: the house's wall hid the end of the first line in the screenshot, and the old visibility test missed it because it only looked at the box as a whole. The test now checks each end and the middle in turn. With that, nearly every flank failed, which is why the lines moved out in front.
+- The icon sweep, on the first summer washing day of forty, now checks:
+  - lines are out and no more than four;
+  - each is on open ground beside its house, not in front of the door, each third in sight, not next to another, and fully hung at 0.3;
+  - posts and washing are drawn for each, the tally matches, and no basket is out at midday;
+  - half way through hanging out the line is part hung and every line has its basket;
+  - no line is on a puddle still drying;
+  - by evening, and on a day that is not washing day, no lines are out;
+  - there is no washing day in forty winter days.
+- On its first run the sweep failed on a real bug: on a house one tile deep, the tile beside its right wall is in front of the door. The game now skips it.
+- It failed as it should with each of these broken, all in one run: lines out in the evening, the basket always out, washing days in winter, and the in-sight test removed.

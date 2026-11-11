@@ -6832,12 +6832,13 @@
       // the children at play and the cats on the steps, a handful at most
       if (life > V.KIDS_MAX + V.CATS_MAX + 1) fails.push(what + ' draws ' + life + ' children, cats and a plaything, past the ' + (V.KIDS_MAX + V.CATS_MAX + 1) + ' the village has');
       if ((V.wetDrawn | 0) > V.PUDDLES_MAX + 1 + V.FROGS_MAX) fails.push(what + ' draws ' + V.wetDrawn + ' puddles, ducks and frogs, past the ' + V.PUDDLES_MAX + ' puddles, one family and ' + V.FROGS_MAX + ' frogs a wet day has');
+      if ((V.washDrawn | 0) > 2 * V.WASH_MAX) fails.push(what + ' draws ' + V.washDrawn + ' washing lines and baskets, past the ' + V.WASH_MAX + ' of each a washing day has');
       if ((V.dawnDrawn | 0) > 2) fails.push(what + ' draws ' + V.dawnDrawn + ' milkmaids and roosters, past the one of each the morning has');
       if ((V.nightDrawn | 0) > V.OWLS_MAX + 1 + V.HOGS_MAX) fails.push(what + ' draws ' + V.nightDrawn + ' owls, hedgehogs and lamplighters, past the ' + (V.OWLS_MAX + 1 + V.HOGS_MAX) + ' the night has');
       if (chrome > 20) fails.push(what + ' draws ' + chrome + ' pieces of card furniture on one frame -- a card and a tab need perhaps a dozen');
       if (carried > V.villagers.length) fails.push(what + ' draws ' + carried + ' carried loads for ' + V.villagers.length + ' villagers');
       if (icons > 40) fails.push(what + ' draws ' + icons + ' painted icons on one frame -- the HUD has room for perhaps thirty');
-      if (ops.drawImage > things + lit + Math.min(icons, 40) + Math.min(carried, V.villagers.length) + Math.min(chrome, 20) + Math.min(thought, 2 * V.villagers.length) + Math.min(life, V.KIDS_MAX + V.CATS_MAX + 1) + Math.min(V.nightDrawn | 0, V.OWLS_MAX + 1 + V.HOGS_MAX) + Math.min(V.dawnDrawn | 0, 2) + Math.min(V.wetDrawn | 0, V.PUDDLES_MAX + 1 + V.FROGS_MAX) + spareHere)
+      if (ops.drawImage > things + lit + Math.min(icons, 40) + Math.min(carried, V.villagers.length) + Math.min(chrome, 20) + Math.min(thought, 2 * V.villagers.length) + Math.min(life, V.KIDS_MAX + V.CATS_MAX + 1) + Math.min(V.nightDrawn | 0, V.OWLS_MAX + 1 + V.HOGS_MAX) + Math.min(V.dawnDrawn | 0, 2) + Math.min(V.wetDrawn | 0, V.PUDDLES_MAX + 1 + V.FROGS_MAX) + Math.min(V.washDrawn | 0, 3 * V.WASH_MAX) + spareHere)
         fails.push(what + ' reaches for an image ' + ops.drawImage + ' times with '
           + things + ' things standing on it' + (lit ? ' and ' + lit + ' lit at night' : '')
           + ' (' + icons + ' icons, ' + carried + ' loads, ' + chrome + ' card pieces)'
@@ -7208,7 +7209,7 @@
            everybody indoors at night. The clock is moved to the middle of a
            dry day -- a wet one keeps them in too. */
         const artOf = f => [f, ...[1, 2, 3, 4, 5, 6].map(i => f + '_walk' + i)];
-        const KIDART = V.KID_FIGS.flatMap(artOf), LIFE = [...KIDART, ...V.PETS, 'portrait_girl', 'portrait_boy', ...Object.values(V.PLAY_PROP).map(q => q.key), ...artOf(V.LIGHTER), V.OWL, V.LIGHTER_REACH, V.HOG, 'portrait_lamplighter', ...artOf(V.MILKMAID), V.ROOSTER, 'portrait_milkmaid', V.DUCKS, V.PUDDLE, 'portrait_duck', V.FROG, ...Object.values(V.SPLASH)];
+        const KIDART = V.KID_FIGS.flatMap(artOf), LIFE = [...KIDART, ...V.PETS, 'portrait_girl', 'portrait_boy', ...Object.values(V.PLAY_PROP).map(q => q.key), ...artOf(V.LIGHTER), V.OWL, V.LIGHTER_REACH, V.HOG, 'portrait_lamplighter', ...artOf(V.MILKMAID), V.ROOSTER, 'portrait_milkmaid', V.DUCKS, V.PUDDLE, 'portrait_duck', V.FROG, ...Object.values(V.SPLASH), V.WASH, V.WASH_BARE, V.WASH_BASKET];
         for (const k of LIFE) V.artFor(k);
         for (let i = 0; i < 50 && !LIFE.every(k => V.artFor(k)); i++) await new Promise(r => setTimeout(r, 100));
         /* Houses with open ground in front of their doors, and none built in
@@ -7680,6 +7681,47 @@
                   Date.now = () => wd + DAY + 0.4 * DAY; read();
                   if (V.puddleFill() || V.wetDrawn) fails.push('by noon the day after a wet day ' + V.wetDrawn + ' puddles and ducks are still drawn');
                 }
+                /* Washing day, in summer: the first one of forty days. Lines
+                   beside the houses, on open ground along a front wall, never in
+                   front of the door where the puddles go, in sight, drawn bare
+                   and full; half hung while it goes out, with the baskets;
+                   gone by evening; none on other days, nor ever in winter. */
+                V.seasonForced = 1;
+                let wsh = null;
+                for (let d = 1; d < 40 && wsh == null; d++) { const n = Math.floor(day0 / DAY) + d; if (V.washDay(n)) wsh = n * DAY; }
+                if (wsh == null) fails.push('in forty summer days there was no washing day');
+                else {
+                  Date.now = () => wsh + 0.3 * DAY;
+                  const lines = V.washLines(), { ims: lp } = read(), solid = V.standing(), occ = V.occluders();
+                  const count = k => lp.filter(o => o.im === V.artFor(k)).length;
+                  if (!lines.length) fails.push('on washing day no house has a line out');
+                  if (lines.length > V.WASH_MAX) fails.push(lines.length + ' washing lines, past the ' + V.WASH_MAX + ' allowed');
+                  for (const [i, o] of lines.entries()) {
+                    const h = V.placed.find(q => q.id === o.home), b = h && V.B(h.key);
+                    if (solid.has(o.c + ',' + o.r)) fails.push('washing line ' + (i + 1) + ' is inside something standing on tile ' + o.c + ',' + o.r);
+                    if (!h || o.c < h.c - 2 || o.c > h.c + b.w || o.r < h.r - 2 || o.r > h.r + b.h) fails.push('washing line ' + (i + 1) + ' is not beside its house');
+                    else if (o.c >= h.c + b.w - 1 && o.r >= h.r + b.h - 1) fails.push('washing line ' + (i + 1) + ' is in front of its door, where the puddles go');
+                    if ([-1, 0, 1].some(u => V.hidden(occ, o.x + u * 36 - 12, o.x + u * 36 + 12, o.y - 40, o.y + 10, o.y))) fails.push('washing line ' + (i + 1) + ' is partly behind something drawn in front of it');
+                    if (lines.some((q, j) => j !== i && Math.abs(q.c - o.c) <= 1 && Math.abs(q.r - o.r) <= 1)) fails.push('washing line ' + (i + 1) + ' is next to another');
+                    if (o.hung !== 1) fails.push('at midday washing line ' + (i + 1) + ' has ' + o.hung + ' of its washing out');
+                  }
+                  if (count(V.WASH_BARE) !== lines.length || count(V.WASH) !== lines.length) fails.push(lines.length + ' washing lines out and ' + count(V.WASH_BARE) + ' posts and ' + count(V.WASH) + ' lots of washing drawn');
+                  if (count(V.WASH_BASKET)) fails.push('at midday ' + count(V.WASH_BASKET) + ' laundry baskets are still out');
+                  if (V.washDrawn !== lines.length) fails.push('the washing tally is ' + V.washDrawn + ' for ' + lines.length + ' lines');
+                  Date.now = () => wsh + (V.WASH_HANG[0] + V.WASH_HANG[1]) / 2 * DAY;
+                  const half = V.washLines(), { ims: hp } = read();
+                  if (V.puddleFill() > 0 && half.some(o => V.puddleSpots().some(q => q.c === o.c && q.r === o.r))) fails.push('a washing line is up in a puddle still drying from yesterday');
+                  if (half.length && !(half[0].hung > 0 && half[0].hung < 1)) fails.push('half way through hanging out, the first line has ' + half[0].hung + ' of its washing out');
+                  if (hp.filter(o => o.im === V.artFor(V.WASH_BASKET)).length !== half.length) fails.push('while the washing goes out ' + hp.filter(o => o.im === V.artFor(V.WASH_BASKET)).length + ' baskets are drawn for ' + half.length + ' lines');
+                  Date.now = () => wsh + (V.WASH_TO + 0.05) * DAY; read();
+                  if (V.washLines().length || V.washDrawn) fails.push('in the evening of washing day ' + V.washLines().length + ' lines are still out');
+                  let other = null;
+                  for (let d = 1; d < 40 && other == null; d++) { const n = Math.floor(wsh / DAY) + d; if (!V.washDay(n)) other = n * DAY; }
+                  Date.now = () => other + 0.3 * DAY;
+                  if (V.washLines().length) fails.push('on a day that is not washing day ' + V.washLines().length + ' lines are out');
+                }
+                V.seasonForced = 3;
+                for (let d = 0; d < 40; d++) if (V.washDay(Math.floor(day0 / DAY) + d)) { fails.push('there is a washing day in winter'); break; }
               } finally { V.seasonForced = wasSeason; }
               Date.now = () => noon;
               if (V.roosterNow()) fails.push('at noon the rooster is still out');
