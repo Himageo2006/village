@@ -6830,11 +6830,11 @@
       const lit = V.glowsDrawn | 0, icons = V.iconsDrawn | 0, carried = V.carriesDrawn | 0, chrome = V.chromeDrawn | 0, thought = V.thoughtsDrawn | 0, life = V.lifeDrawn | 0;
       rows.push({ what, things, lit, icons, carried, chrome, drawImage: ops.drawImage, total: ops.total });
       // the children at play and the cats on the steps, a handful at most
-      if (life > V.KIDS_MAX + V.CATS_MAX) fails.push(what + ' draws ' + life + ' children and cats, past the ' + (V.KIDS_MAX + V.CATS_MAX) + ' the village has');
+      if (life > V.KIDS_MAX + V.CATS_MAX + 1) fails.push(what + ' draws ' + life + ' children, cats and a plaything, past the ' + (V.KIDS_MAX + V.CATS_MAX + 1) + ' the village has');
       if (chrome > 20) fails.push(what + ' draws ' + chrome + ' pieces of card furniture on one frame -- a card and a tab need perhaps a dozen');
       if (carried > V.villagers.length) fails.push(what + ' draws ' + carried + ' carried loads for ' + V.villagers.length + ' villagers');
       if (icons > 40) fails.push(what + ' draws ' + icons + ' painted icons on one frame -- the HUD has room for perhaps thirty');
-      if (ops.drawImage > things + lit + Math.min(icons, 40) + Math.min(carried, V.villagers.length) + Math.min(chrome, 20) + Math.min(thought, 2 * V.villagers.length) + Math.min(life, V.KIDS_MAX + V.CATS_MAX) + spareHere)
+      if (ops.drawImage > things + lit + Math.min(icons, 40) + Math.min(carried, V.villagers.length) + Math.min(chrome, 20) + Math.min(thought, 2 * V.villagers.length) + Math.min(life, V.KIDS_MAX + V.CATS_MAX + 1) + spareHere)
         fails.push(what + ' reaches for an image ' + ops.drawImage + ' times with '
           + things + ' things standing on it' + (lit ? ' and ' + lit + ' lit at night' : '')
           + ' (' + icons + ' icons, ' + carried + ' loads, ' + chrome + ' card pieces)'
@@ -7186,7 +7186,7 @@
            everybody indoors at night. The clock is moved to the middle of a
            dry day -- a wet one keeps them in too. */
         const artOf = f => [f, ...[1, 2, 3, 4, 5, 6].map(i => f + '_walk' + i)];
-        const KIDART = V.KID_FIGS.flatMap(artOf), LIFE = [...KIDART, ...V.PETS, 'portrait_girl', 'portrait_boy'];
+        const KIDART = V.KID_FIGS.flatMap(artOf), LIFE = [...KIDART, ...V.PETS, 'portrait_girl', 'portrait_boy', ...Object.values(V.PLAY_PROP).map(q => q.key)];
         for (const k of LIFE) V.artFor(k);
         for (let i = 0; i < 50 && !LIFE.every(k => V.artFor(k)); i++) await new Promise(r => setTimeout(r, 100));
         /* Houses with open ground in front of their doors, and none built in
@@ -7224,7 +7224,8 @@
             const { ims: pics } = read();
             const kids = V.kidsNow().length, cats = V.catsNow().length;
             if (kids > V.KIDS_MAX || cats > V.CATS_MAX) fails.push(kids + ' children and ' + cats + ' cats are out, past the ' + V.KIDS_MAX + ' and ' + V.CATS_MAX + ' allowed');
-            if (V.lifeDrawn !== kids + cats) fails.push(kids + ' children and ' + cats + ' cats are out by day and ' + V.lifeDrawn + ' were drawn');
+            const toy = V.propNow() ? 1 : 0;
+            if (V.lifeDrawn !== kids + cats + toy) fails.push(kids + ' children, ' + cats + ' cats and ' + toy + ' plaything are out by day and ' + V.lifeDrawn + ' were drawn');
             if (!pics.some(o => KIDART.some(k => o.im === V.artFor(k)))) fails.push('no child was drawn with her painted figure by day');
             if (!pics.some(o => o.im === V.artFor('cat_sleep'))) fails.push('no cat was drawn asleep on a step by day');
             // the girl and the boy turn about, and the cat and the dog
@@ -7309,8 +7310,8 @@
               const said = texts.map(o => o.t).join(' | ');
               if (!said.includes(k.name)) fails.push(k.name + '\'s card does not give the name: ' + said.slice(0, 120));
               if (!/(Daughter|Son) of |A child of the village/.test(said)) fails.push(k.name + '\'s card does not say whose child this is');
-              // only the girl is painted with a ball
-              if (/Playing ball/.test(said) !== k.girl) fails.push(k.name + '\'s card says "' + (said.match(/Playing [a-z]+/) || ['nothing of play'])[0] + '", and ' + (k.girl ? 'she has' : 'he has no') + ' ball');
+              // only the girl is painted with a ball (in the seasons with nothing else to play with)
+              if (!V.propNow() && /Playing ball/.test(said) !== k.girl) fails.push(k.name + '\'s card says "' + (said.match(/Playing [a-z]+/) || ['nothing of play'])[0] + '", and ' + (k.girl ? 'she has' : 'he has no') + ' ball');
               const face = 'portrait_' + k.fig.replace('villager_', '');
               if (!cardPics.some(o => o.im.medal && o.im.medal.face === face)) fails.push(k.name + '\'s card has no ' + face + ' in the ring');
               // choosing something to build puts the card away, or the placing pill sits under it
@@ -7324,9 +7325,54 @@
               V.barMode = bar;
             }
             V.kidWho = null;
+            /* What they play with turns with the year: a heap of leaves in
+               autumn, a snowman in winter, and in spring and summer nothing
+               but the ball. Each season's is drawn, at the end of the row,
+               in sight and on open ground, and the card says what they are
+               doing with it. */
+            {
+              const was = V.seasonForced, seen = {};
+              try {
+                for (let si = 0; si < V.SEASONS.length; si++) {
+                  V.seasonForced = si;
+                  const sk = V.season().key, want = V.PLAY_PROP[sk], q = V.propNow();
+                  if (!!want !== !!q || (q && q.key !== want.key)) { fails.push('in ' + sk + ' the plaything out is ' + (q ? q.key : 'none') + ', not ' + (want ? want.key : 'none')); continue; }
+                  const { ims: pics2 } = read();
+                  if (!q) {
+                    if (pics2.some(o => Object.values(V.PLAY_PROP).some(w => o.im === V.artFor(w.key)))) fails.push('in ' + sk + ' a plaything was drawn though the season has none');
+                    // and then only the girl has a ball: the boy plays chase
+                    for (const k of V.kidsNow().filter(k => k.play).slice(0, 2)) {
+                      V.who = null; V.panel = null; V.kidWho = k.id;
+                      const said = read().texts.map(o => o.t).join(' | ');
+                      if (!said.includes(k.girl ? 'Playing ball' : 'Playing chase')) fails.push('in ' + sk + ' ' + k.name + '\'s card does not say "' + (k.girl ? 'Playing ball' : 'Playing chase') + '": ' + said.slice(0, 100));
+                      V.kidWho = null;
+                    }
+                    continue;
+                  }
+                  seen[q.key] = 1;
+                  if (!pics2.some(o => o.im === V.artFor(q.key))) fails.push('in ' + sk + ' the ' + q.key + ' is out and was not drawn');
+                  const at = V.worldToTile(q.x, q.y), c = Math.round(at.c), r = Math.round(at.r);
+                  if (built.has(c + ',' + r)) fails.push('the ' + q.key + ' stands inside something built on tile ' + c + ',' + r);
+                  if (V.hidden(V.occluders(), q.x - 12, q.x + 12, q.y - q.h, q.y, q.y)) fails.push('the ' + q.key + ' at ' + c + ',' + r + ' is behind something drawn in front of it');
+                  for (const k of V.kidsNow().filter(k => k.play))
+                    if (Math.abs(k.x - q.x) < 22 && Math.abs(k.y - q.y) < 10) fails.push(k.name + ' stands on the ' + q.key);
+                  const k = V.kidsNow().find(k => k.play);
+                  if (k) {
+                    V.who = null; V.panel = null; V.kidWho = k.id;
+                    const said = read().texts.map(o => o.t).join(' | ');
+                    if (!said.includes(want.does)) fails.push('in ' + sk + ' ' + k.name + '\'s card does not say "' + want.does + '": ' + said.slice(0, 100));
+                    // "by the well" only where it is true: a crowded village can send them further out
+                    const far = V.playground().spot.far;
+                    if (!said.includes(want.does + (far ? ' on the green' : ' by the '))) fails.push(k.name + ' plays ' + (far ? 'out past the well' : 'by the well') + ' and the card says: ' + (said.match(new RegExp(want.does + '[^|]*')) || [''])[0]);
+                    V.kidWho = null;
+                  }
+                }
+              } finally { V.seasonForced = was; }
+              for (const w of Object.values(V.PLAY_PROP)) if (!seen[w.key]) fails.push('the ' + w.key + ' came out in no season');
+            }
             Date.now = () => noon;
             Date.now = () => noon - (noon % DAY) + DAY * 0.75; V.step(0.001); V.draw();
-            if (V.kidsNow().length || V.catsNow().length || V.lifeDrawn) fails.push('at night ' + V.lifeDrawn + ' children and cats were still out');
+            if (V.kidsNow().length || V.catsNow().length || V.lifeDrawn !== (V.propNow() ? 1 : 0)) fails.push('at night ' + V.lifeDrawn + ' children and cats were still out');
           }
         } finally { Date.now = realNow; V.step(0.001); }
       }

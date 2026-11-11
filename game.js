@@ -5843,6 +5843,15 @@ let kidWho = null;                                  // the house whose child's c
 const KID = KID_FIGS[0], KIDS_MAX = 4, KID_H = VILLAGER_H * 0.7, KID_SPD = 40;
 const KID_PLAY = 36, KID_HOME = 10;                // seconds at the well, and at the door
 const CAT = 'cat_sleep', CATS_MAX = 3, CAT_W = 36;
+/* What the children play with changes with the year. In autumn a heap of
+   leaves at the end of their row to jump in (Leonardo), in winter a snowman
+   they are building (ChatGPT); in spring and summer the ball, and nothing
+   stands there. It stands at the end of the row, a step further out than a
+   child, so the search for where they play keeps it in sight too. It stays
+   there when they go in: a snowman does not walk home. Height in world units. */
+const PLAY_PROP = { autumn: { key: 'leaf_pile', h: KID_H * 0.75, does: 'Jumping in the leaves' },
+                    winter: { key: 'snowman_kids', h: KID_H * 0.95, does: 'Building a snowman' } };
+const propOf = () => PLAY_PROP[season().key] || null;
 let lifeDrawn = 0;                                  // children and cats, tallied for the cost sweep
 function lifeOut() { return sky().night < 0.35 && rainNow() < 0.3; }
 const homes = () => placed.filter(p => B(p.key).pop && p.key !== 'hall' && established(p)).sort((a, b) => a.id - b.id);
@@ -5949,7 +5958,14 @@ function playSpot(solid, n) {
   const bs = TEXT_MIN / BADGE_TEXT_PX;
   const badgeSpots = placed.filter(q => q.t >= 1).map(q => { const t = topOf(q);
     return { x: t.x, y: t.y - 14 * bs, hw: (q.key === 'hall' ? 82 : 30) * bs, hh: 22 * bs }; });
-  for (let dc = -3; dc <= 4; dc++) for (let dr = -3; dr <= 4; dr++) {
+  /* Near the well first, and further out only if nothing near has the whole
+     row in sight: with a heap of leaves at its end the row is a place
+     longer, and in a crowded village every spot within three put the heap
+     behind the hall's bell tower. */
+  for (const R of [3, 6]) {
+  if (best && best.behind === 0) break;
+  for (let dc = -R; dc <= R + 1; dc++) for (let dr = -R; dr <= R + 1; dr++) {
+    if (R > 3 && Math.max(Math.abs(dc - 0.5), Math.abs(dr - 0.5)) <= 3.5) continue;    // the near ring is done
     const c = c0 + dc, r = r0 + dr;
     /* Not on the back edge of the land either: the shade over the wild is
        painted over everything standing, and a child there had her head and
@@ -5970,22 +5986,49 @@ function playSpot(solid, n) {
     for (let i = 0; i < n; i++) { const k = rowAt(w, i, n);
       if (badgeSpots.some(q => Math.abs(q.x - k.x) < q.hw + 10 && k.y > q.y - q.hh && k.y - KID_H < q.y + q.hh)) behind++; }
     const d = Math.hypot(dc - 0.5, dr - 0.5) + behind * 20;
-    if (!best || d < best.d) best = { c, r, d };
+    if (!best || d < best.d) best = { c, r, d, behind };
   }
-  return best && tileToWorld(best.c, best.r);
+  }
+  // far: out past the near ring, where "by the well" is no longer true
+  return best && { ...tileToWorld(best.c, best.r), far: Math.max(Math.abs(best.c - c0 - 0.5), Math.abs(best.r - r0 - 0.5)) > 3.5 };
 }
 /* Where each child is at this instant. A round is: run to the well, play,
    run home, a rest at the door -- and each child is a different way through
    it, so they do not all leave at once. */
+/* Who plays and where: every other house, in the order they were built, so
+   a new one never moves a child, and one more place in the row when the
+   season has something to play with. */
+function playground() {
+  const hs = homes().filter((h, i) => i % 2 === 0).slice(0, KIDS_MAX);
+  const prop = propOf(), m = hs.length + (prop ? 1 : 0);
+  const spot = hs.length && playSpot(standing(), m);
+  return spot ? { hs, prop, m, spot } : null;
+}
+// the season's plaything, at the far end of the row, by day and by night
+function propNow() {
+  const pg = playground();
+  if (!pg || !pg.prop) return null;
+  const at = rowAt(pg.spot, pg.m - 1, pg.m);
+  return { ...pg.prop, x: at.x + 6, y: at.y };
+}
+function drawProp(q) {
+  const im = artFor(q.key);
+  if (!ready(im)) return;
+  const w = q.h * im.width / im.height;
+  g.save();
+  g.fillStyle = 'rgba(10,18,8,.28)';
+  g.beginPath(); g.ellipse(q.x, q.y + 1, w * 0.42, w * 0.16, 0, 0, 7); g.fill();
+  g.drawImage(im, q.x - w / 2, q.y - q.h * 0.94, w, q.h);
+  g.restore();
+  lifeDrawn++;
+}
 function kidsNow() {
   if (!lifeOut()) return [];
-  // every other house, in the order they were built, so a new one never moves a child
-  const hs = homes().filter((h, i) => i % 2 === 0).slice(0, KIDS_MAX);
-  const spot = hs.length && playSpot(standing(), hs.length);
-  if (!spot) return [];
-  const n = hs.length, t = Date.now() / 1000;
+  const pg = playground();
+  if (!pg) return [];
+  const { hs, spot, m } = pg, n = hs.length, t = Date.now() / 1000;
   return hs.map((h, i) => {
-    const side = i - (n - 1) / 2, to = rowAt(spot, i, n);     // facing the middle of the row
+    const side = i - (m - 1) / 2, to = rowAt(spot, i, m);     // facing the middle of the row
     const from = doorOf(h), d = Math.hypot(to.x - from.x, to.y - from.y), run = d / KID_SPD;
     const round = 2 * run + KID_PLAY + KID_HOME;
     let q = reduceMotion ? run + 1 : frac(t / round + rnd(h.id, 22)) * round;
@@ -6066,10 +6109,12 @@ function drawKidCard() {
   const folk = parentsOf(k.id);
   panelRow(k.name + ROW_SEP + (folk.length ? (k.girl ? 'Daughter of ' : 'Son of ') + nameList(folk) : 'A child of the village'),
     lx, y - h / 2 + 38 * u, tw, 30 * u, '#fff');
-  const site = placed.some(p => p.key === 'well' && established(p)) ? 'well' : 'hall';
+  const pg = playground();
+  const site = pg && pg.spot.far ? 'on the green' : 'by the ' + (placed.some(p => p.key === 'well' && established(p)) ? 'well' : 'hall');
   // only the girl has the ball; the boy has his catapult, and plays chase
-  panelRow(k.play ? (k.girl ? 'Playing ball by the ' : 'Playing chase by the ') + site
-    : k.moving ? (k.home ? 'Running home' : 'Running down to the ' + site)
+  const prop = propOf();
+  panelRow(k.play ? (prop ? prop.does : k.girl ? 'Playing ball' : 'Playing chase') + ' ' + site
+    : k.moving ? (k.home ? 'Running home' : 'Running out to play ' + site)
     : 'At home on the step', lx, y - h / 2 + 80 * u, tw, 22 * u, '#bccfae', '');
   panelRow('Out to play by day, indoors at dusk and when it rains', lx, y - h / 2 + 118 * u, tw, 22 * u, DIM, '');
   g.restore();
@@ -7133,6 +7178,7 @@ function drawWorld() {
   for (const v of villagers) ents.push({ y: v.y, d: () => drawVillager(v) });
   for (const k of kidsNow()) ents.push({ y: k.y, d: () => drawKid(k) });
   for (const c of catsNow()) ents.push({ y: c.y, d: () => drawCat(c) });
+  { const q = propNow(); if (q) ents.push({ y: q.y, d: () => drawProp(q) }); }
   if (season().key === 'winter') seasonTiles(occSet, SNOWMEN, 90).forEach((o, i) => ents.push({ y: tileToWorld(o.c, o.r).y, d: () => drawSnowman(o, i) }));
   pumpkinTiles = season().key === 'autumn' ? seasonTiles(occSet, PUMPKINS, 91, 3) : [];
   for (const o of pumpkinTiles) ents.push({ y: tileToWorld(o.c, o.r).y, d: () => drawPumpkin(o) });
@@ -10802,7 +10848,7 @@ for (const b of BUILDINGS) if (!SET_ART[b.key]) artFor(b.key);
     im.addEventListener('error', done, { once: true });
   }
 }
-for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER, WOODSWOMAN, ...KID_FIGS, ...PETS]) artFor(v);
+for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER, WOODSWOMAN, ...KID_FIGS, ...PETS, ...Object.values(PLAY_PROP).map(q => q.key)]) artFor(v);
 /* Asked for once, here, rather than on the first frame somebody walks: a
    villager with no cycle drawn for him would otherwise send six requests
    the moment he set off, and artFor remembers a miss, so doing it at boot
@@ -10873,7 +10919,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   SEASONS, SEASON_OF, SEASON_LEAF, seasonIdx, season, seasonSkin, drawGround, drawScenery, SCENERY,
   GW, GH, tileToWorld, deliveredOf,
   get seasonForced() { return seasonForced; }, set seasonForced(v) { seasonForced = v; },
-  get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, winterArt, ART, villagerArt, glowKey, get glowsDrawn() { return glowsDrawn; }, get iconsDrawn() { return iconsDrawn; }, get carriesDrawn() { return carriesDrawn; }, get chromeDrawn() { return chromeDrawn; }, portraitKey, merchantOf, panelFaces, thoughtOf, get thoughtsDrawn() { return thoughtsDrawn; }, get lifeDrawn() { return lifeDrawn; }, kidsNow, catsNow, occluders, hidden, artRect, kidAt, parentsOf, playSpot, topOf, KID_FIGS, PETS, get kidWho() { return kidWho; }, set kidWho(v) { kidWho = v; }, KIDS_MAX, CATS_MAX, get sparkleCount() { return sparkleCount; }, chromeCache,
+  get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, winterArt, ART, villagerArt, glowKey, get glowsDrawn() { return glowsDrawn; }, get iconsDrawn() { return iconsDrawn; }, get carriesDrawn() { return carriesDrawn; }, get chromeDrawn() { return chromeDrawn; }, portraitKey, merchantOf, panelFaces, thoughtOf, get thoughtsDrawn() { return thoughtsDrawn; }, get lifeDrawn() { return lifeDrawn; }, kidsNow, catsNow, propNow, playground, PLAY_PROP, occluders, hidden, artRect, kidAt, parentsOf, playSpot, topOf, KID_FIGS, PETS, get kidWho() { return kidWho; }, set kidWho(v) { kidWho = v; }, KIDS_MAX, CATS_MAX, get sparkleCount() { return sparkleCount; }, chromeCache,
   get plainIcons() { return plainIcons; }, set plainIcons(v) { plainIcons = !!v; }, ICON_OF,
   hudTop, hudBot, screenTop, screenBot, readSafeArea, get SAFE() { return SAFE; }, set SAFE(v) { SAFE = v; },
   get safeKnown() { return safeKnown; }, set safeKnown(v) { safeKnown = !!v; },
