@@ -7359,3 +7359,36 @@ The game draws a painted icon wherever one has loaded, and the emoji it replaces
   - at midnight there are one or two hedgehogs, each drawn, none in anything built, none on or beside a pumpkin or snowman, and none hidden;
   - at noon there are none.
   It failed as it should with the reach, the tap, the hedgehogs' drawing and their in-sight filter each taken out. Keeping them off the pumpkins did not fail when taken out, because in the sweep's village no hedgehog lands near one; that is seen only in the screenshot village.
+
+## Round 251: morning in the village
+
+- **villager_milkmaid** (GPT Image, with the woodswoman attached for the style and scale): "New character for the same village game, in exactly the same painted style, camera angle, lighting, size and pose direction as this villager: the village MILKMAID, a cheerful plump young woman with rosy cheeks and a long dark-blonde plait, a white linen cap, a sky-blue dress with rolled-up sleeves under a white apron, brown clogs, carrying a wooden yoke across her shoulders with a wooden milk pail hanging from each end, one hand steadying the yoke. Walking towards the right like the attached villager. Full body, centred, same canvas size as the attached image, on a plain pure white background, no shadow, no text." Then the walk, with the woodswoman's six-frame strip attached: "Now a 6-frame walk cycle for this milkmaid, one frame per image, like the attached strip of a villager walking: the same woman, same clothes, same camera, same canvas size, same plain pure white background, walking towards the right, the yoke kept across the same shoulders with one hand on it, the two milk pails hanging from its ends and swinging a little with her step. Frame 1 of 6 now." Frames 2 to 6 as before ("Frame N of 6. Same character, same camera ... the next step of the stride").
+  - Frame 1 came back as a strip of six tiny figures, copying the guide. It was asked for again after frame 6: "Frame 1 of 6 again, please: your first frame came out as a strip of six small figures. Draw it as ONE single milkmaid at full size, filling the canvas exactly like frames 2 to 6 ... Not a strip." The redo is the one kept.
+  - Processed with `node tools/prep-art.js villager_milkmaid`, capped at 320. Masters: `art/original/villager_milkmaid*.png`.
+- **portrait_milkmaid** (GPT Image, with the lamplighter's portrait and her standing figure attached): "Now one portrait for this milkmaid's card (the second image), in exactly the style of the first image's portrait: head and shoulders only, the same thick dark outline, soft painterly cartoon shading, warm lighting, the same head-and-shoulders crop cut off in a soft rounded shape at the bottom, a big friendly smile, facing slightly to the viewer's right. Her white linen cap, dark-blonde plait over her shoulder, rosy freckled cheeks, sky-blue dress and white apron, the wooden yoke across her shoulder with the rim of a milk pail peeking up at one side. Centred, on a perfectly flat solid magenta #FF00FF background, no text." Sliced with the badge slicer at 256. Master: `art/original/portrait_milkmaid.png`.
+- **rooster** (Leonardo Lucid Origin, free relaxed, four to a batch): "A single proud farmyard rooster standing and crowing with its beak open and head raised, facing right, ... on a flat solid pure magenta #FF00FF background, no shadow, no ground, no outline, no text". All four came on a dusty pink with a soft shadow; the first, facing right, was kept.
+  - Neither colour key worked: magenta left the square, and the gentler pink key ate his red comb, which touches the background.
+  - Keyed instead by flood fill from the edges over pink with at least 52 green (the comb has 47 or less, the background 56 or more), plus enclosed pockets of plain background pink between the tail feathers.
+  - Master: `art/original/rooster.jpg`.
+- The lamplighter now puts the lamps out too. At first light (phase 0.83, while it is still dark enough to see them go) he leaves the hall again and goes the same round, and each lamp fades as he reaches it. His card says "Putting out a lamp · 2 of 4 lamps out", then "every lamp out".
+- His round is now one routine that both walkers share (`walkRound`, `roundPos`): from home to the nearest stop not yet visited, a pause there, then home.
+- Hetty the milkmaid leaves the first farm at sunrise for the doors of the eight houses nearest it, in turn. At each door she stops a moment, then goes back to the farm (`milkRound`, `milkmaidNow`). It is worked out from the clock, like the lamplighter. A tap on her opens her card: her face, "Hetty · The milkmaid", "On her way to the next house · 2 of 5 houses", "Leaving the milk at a door", "Walking back to the farm". The card closes when she is back.
+- A rooster stands by the first farm from the last of the dark until the sun is up, drawing himself up to crow every few seconds (`roosterNow`). He stands on the open tile round the farm nearest the camera, in sight of it. When the farm is built in on every side he goes a step further out: in the sweep's crowded village every tile next to the farm was taken or hidden.
+- The icon sweep now checks:
+  - at dawn, as the lamplighter reaches each lamp, the lamps before it are dark and the ones after it still glow;
+  - at his last lamp his card says he is putting them out;
+  - after the dawn round no lamp glows;
+  - the milkmaid's round:
+    - she goes to the doors of the houses nearest the farm and sets out from the farm;
+    - she is not out before sunrise;
+    - she is at each door as the milk is left;
+    - she is drawn walking;
+  - a tap on her opens her card with her name, work, portrait and her last door, and it closes when she is back;
+  - the rooster:
+    - he is out at first light and drawn;
+    - he stands within two tiles of the farm, not inside anything and not hidden;
+    - he is gone by noon;
+    - exactly one morning thing is drawn for him.
+  - It failed as it should with each of these broken: the lamps ignoring the dawn round, the milkmaid not drawn, the rooster not drawn, and the morning tally over-counted.
+- The cost sweep caps the milkmaid and the rooster at two. Its frames are at midday and midnight, so that cap is a guard that cannot fail today; the exact count is checked at first light in the icon sweep.
+- A tap now goes to whoever is drawn on top. The first full battery failed on tapping the milkmaid: at sunrise a villager was leaving the same door, and villagers were always asked first. Now, where the lamplighter or the milkmaid overlaps a villager or a child, the one nearer the camera is the one tapped. The sweep taps her with the villagers moved aside, since a villager standing in front of her is rightly the one that tap opens.

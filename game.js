@@ -1275,10 +1275,10 @@ function drawLamps() {
   g.globalCompositeOperation = 'lighter';
   drawBeam(night);
   drawLanterns(night);
-  const round = lampRound(), clock = roundClock();
+  const round = lampRound(), clock = roundClock(), dawn = dawnClock();
   for (const p of placed) {
     if (p.key !== 'lamp') continue;
-    const lit = lampLit(p, round, clock);
+    const lit = lampLit(p, round, clock, dawn);
     if (lit <= 0) continue;
     lampsLit++;
     const at = LAMP_GLOW[lookOf(p)] || LAMP_GLOW.lamp;
@@ -6043,45 +6043,63 @@ const LIGHTER = 'villager_lamplighter', LIGHT_SPD = 46, LIGHT_STOP = 2.4, LIGHT_
 let nightDrawn = 0;                                 // the lamplighter and the owls, for the cost sweep
 // where he stands to light a lamp: just in front of its post, a little to the left
 const lampFoot = q => { const o = tileToWorld(q.c, q.r); return { x: o.x - 18, y: o.y + 6 }; };
-function lampRound() {
-  const hall = placed.find(q => q.key === 'hall');
-  const left = placed.filter(q => q.key === 'lamp' && established(q)).map(q => ({ q, at: lampFoot(q) }));
-  if (!hall || !left.length) return null;
-  const home = doorOf(hall), legs = [];
+/* A round on foot, the lamplighter's and the milkmaid's: from home to the
+   nearest stop not yet been to, every time, a pause there, and home. Each leg
+   sets out at t0 and arrives at t1; `lit`, half way through the pause, is
+   when the work at that stop is done. Seconds from setting out. */
+function walkRound(home, stops, spd, pause) {
+  const left = stops.slice(), legs = [];
   let at = home, t = 0;
-  while (left.length) {                              // the nearest lamp not yet lit, every time
+  while (left.length) {
     const far = o => Math.hypot(o.at.x - at.x, o.at.y - at.y);
-    left.sort((a, b) => far(a) - far(b) || a.q.id - b.q.id);
-    const n = left.shift(), walk = far(n) / LIGHT_SPD;
-    legs.push({ from: at, to: n.at, t0: t, t1: t + walk, lit: t + walk + LIGHT_STOP * 0.5, id: n.q.id });
-    t += walk + LIGHT_STOP; at = n.at;
+    left.sort((a, b) => far(a) - far(b) || a.id - b.id);
+    const n = left.shift(), walk = far(n) / spd;
+    legs.push({ from: at, to: n.at, t0: t, t1: t + walk, lit: t + walk + pause * 0.5, id: n.id });
+    t += walk + pause; at = n.at;
   }
-  const walk = Math.hypot(home.x - at.x, home.y - at.y) / LIGHT_SPD;
+  const walk = Math.hypot(home.x - at.x, home.y - at.y) / spd;
   legs.push({ from: at, to: home, t0: t, t1: t + walk });
   return { legs, end: t + walk };
 }
-// seconds since he set out this evening; less than nought by day
-const roundClock = () => { const ph = dayPhase(); return ph >= LIGHT_FROM ? (ph - LIGHT_FROM) * DAY_MS / 1000 : -1; };
-/* How lit a lamp is, 0 to 1: dark until he reaches it, then up over half a
-   second. A lamp still being built is not on his round and, as before, glows. */
-function lampLit(q, round = lampRound(), t = roundClock()) {
-  const leg = round && round.legs.find(l => l.id === q.id);
-  if (!leg || reduceMotion) return 1;
-  return Math.max(0, Math.min(1, (t - leg.lit) / 0.5));
-}
-function lighterNow() {
-  const round = lampRound(), t = roundClock();
+// where a walker is t seconds into a round, or null when in; `at` is the stop he is standing at
+function roundPos(round, t) {
   if (!round || reduceMotion || t < 0 || t > round.end) return null;
   for (let i = 0; i < round.legs.length; i++) {
     const l = round.legs[i], next = round.legs[i + 1];
     if (t <= l.t1) {
       const k = (t - l.t0) / Math.max(1e-6, l.t1 - l.t0), d = Math.hypot(l.to.x - l.from.x, l.to.y - l.from.y);
       return { x: l.from.x + (l.to.x - l.from.x) * k, y: l.from.y + (l.to.y - l.from.y) * k,
-        face: l.to.x < l.from.x ? -1 : 1, moving: true, ph: k * d * Math.PI / STRIDE, lighting: null };
+        face: l.to.x < l.from.x ? -1 : 1, moving: true, ph: k * d * Math.PI / STRIDE, at: null };
     }
-    if (next && t < next.t0) return { x: l.to.x, y: l.to.y, face: 1, moving: false, ph: 0, lighting: l.id };
+    if (next && t < next.t0) return { x: l.to.x, y: l.to.y, face: 1, moving: false, ph: 0, at: l.id };
   }
   return null;
+}
+function lampRound() {
+  const hall = placed.find(q => q.key === 'hall');
+  const lamps = placed.filter(q => q.key === 'lamp' && established(q)).map(q => ({ at: lampFoot(q), id: q.id }));
+  return hall && lamps.length ? walkRound(doorOf(hall), lamps, LIGHT_SPD, LIGHT_STOP) : null;
+}
+// seconds since a phase of the day; less than nought before it
+const clockFrom = from => { const ph = dayPhase(); return ph >= from ? (ph - from) * DAY_MS / 1000 : -1; };
+// seconds since he set out this evening; less than nought by day
+const roundClock = () => clockFrom(LIGHT_FROM);
+/* And at first light he goes round again the same way and puts them out,
+   while it is still dark enough to see them go. */
+const DOUSE_FROM = 0.83;
+const dawnClock = () => clockFrom(DOUSE_FROM);
+/* How lit a lamp is, 0 to 1: dark until he reaches it, then up over half a
+   second, and down again over half a second when he comes back at dawn. A
+   lamp still being built is not on his round and, as before, glows. */
+function lampLit(q, round = lampRound(), t = roundClock(), td = dawnClock()) {
+  const leg = round && round.legs.find(l => l.id === q.id);
+  if (!leg || reduceMotion) return 1;
+  const on = Math.max(0, Math.min(1, (t - leg.lit) / 0.5));
+  return td < 0 ? on : on * (1 - Math.max(0, Math.min(1, (td - leg.lit) / 0.5)));
+}
+function lighterNow() {
+  const td = dawnClock(), dawn = td >= 0, m = roundPos(lampRound(), dawn ? td : roundClock());
+  return m && { ...m, lighting: m.at, dawn };
 }
 /* At a lamp he reaches up to it with the pole raised (ChatGPT), instead of
    standing beside it with the pole on his shoulder. The picture is the pole
@@ -6106,12 +6124,29 @@ function drawLighter(m) {
   g.restore();
   nightDrawn++;
 }
-/* Him under a fingertip, where he is drawn. */
-function lighterAt(sx, sy) {
-  const m = lighterNow();
+/* A walker under a fingertip, where they are drawn. */
+function figureAt(m, sx, sy) {
   if (!m) return null;
   const sc = camScale(), pt = camProject(m.x, m.y), hw = Math.max(VILLAGER_H * 0.28 * sc, 14), hh = VILLAGER_H * sc;
   return Math.abs(sx - pt.x) <= hw && sy <= pt.y + hh * 0.18 && sy >= pt.y - hh ? m : null;
+}
+const lighterAt = (sx, sy) => figureAt(lighterNow(), sx, sy);
+/* A walker's card, where a villager's goes: a face in the ring, a name and
+   work, what they are doing, and when they are out. */
+function walkerCard(face, title, doing, when) {
+  const u = US(), tabs = tabRects();
+  const w = Math.min(W - 48 * u, 960), h = 152 * u;
+  const y = tabs[0].y - tabs[0].h / 2 - 14 * u - h / 2;
+  g.save();
+  boardPanel(W / 2 - w / 2, y - h / 2, w, h, 20 * u);
+  const pd = h - 40 * u;
+  drawMedallion(face, W / 2 - w / 2 + 24 * u + pd / 2, y, pd);
+  g.textAlign = 'left'; g.textBaseline = 'middle';
+  const lx = W / 2 - w / 2 + 44 * u + pd, tw = w - 74 * u - pd;
+  panelRow(title, lx, y - h / 2 + 38 * u, tw, 30 * u, '#fff');
+  panelRow(doing, lx, y - h / 2 + 80 * u, tw, 22 * u, '#bccfae', '');
+  panelRow(when, lx, y - h / 2 + 118 * u, tw, 22 * u, DIM, '');
+  g.restore();
 }
 /* His card, where a villager's goes: his face, his name, where he has got to
    on his round, and when he is out. It closes when he goes in. */
@@ -6119,22 +6154,90 @@ function drawLighterCard() {
   if (kidWho !== LIGHTER_ID || who != null || panel != null || modalUp()) return;
   const m = lighterNow(), round = lampRound();
   if (!m || !round) { kidWho = null; return; }
-  const legs = round.legs.filter(l => l.id != null), t = roundClock();
-  const lit = legs.filter(l => t >= l.lit).length;
-  const u = US(), tabs = tabRects();
-  const w = Math.min(W - 48 * u, 960), h = 152 * u;
-  const y = tabs[0].y - tabs[0].h / 2 - 14 * u - h / 2;
+  const legs = round.legs.filter(l => l.id != null), t = m.dawn ? dawnClock() : roundClock();
+  const done = legs.filter(l => t >= l.lit).length, all = done >= legs.length, word = m.dawn ? 'out' : 'lit';
+  const doing = m.lighting != null ? (m.dawn ? 'Putting out a lamp' : 'Lighting a lamp') : all ? 'Walking home' : 'On his way to the next lamp';
+  walkerCard('portrait_lamplighter', LIGHTER_NAME + ROW_SEP + 'The lamplighter',
+    doing + ROW_SEP + (all ? 'every lamp ' + word : done + ' of ' + legs.length + ' lamps ' + word),
+    'Lights the lamps as it gets dark, and puts them out at first light');
+}
+/* The milkmaid (ChatGPT, with her own walk), the morning's answer to the
+   lamplighter: out from the first farm as the sun comes up, a pail at each
+   end of her yoke, to the door of each of the houses nearest the farm, a
+   moment on the step, and back. From the clock, like him. */
+const MILKMAID = 'villager_milkmaid', MILK_ID = 'milkmaid', MILK_NAME = 'Hetty';
+const MILK_FROM = 0.005, MILK_SPD = 50, MILK_STOP = 1.6, MILK_MAX = 8;
+let dawnDrawn = 0;                                  // the milkmaid and the rooster, for the cost sweep
+const firstFarm = () => placed.filter(q => q.key === 'farm' && established(q)).sort((a, b) => a.id - b.id)[0];
+function milkRound() {
+  const farm = firstFarm();
+  if (!farm) return null;
+  const home = doorOf(farm), far = o => Math.hypot(o.at.x - home.x, o.at.y - home.y);
+  const doors = homes().map(q => ({ at: doorOf(q), id: q.id })).sort((a, b) => far(a) - far(b) || a.id - b.id).slice(0, MILK_MAX);
+  return doors.length ? walkRound(home, doors, MILK_SPD, MILK_STOP) : null;
+}
+const milkClock = () => clockFrom(MILK_FROM);
+const milkmaidNow = () => roundPos(milkRound(), milkClock());
+const milkmaidAt = (sx, sy) => figureAt(milkmaidNow(), sx, sy);
+function drawMilkmaid(m) {
+  const set = walkFrames(MILKMAID);
+  const im = set ? set[m.moving ? Math.floor(m.ph / (Math.PI * 2) * WALK_STEPS) % WALK_STEPS : WALK_STAND] : artFor(MILKMAID);
+  if (!ready(im)) return;
+  const w = im.width * (VILLAGER_H / im.height);
   g.save();
-  boardPanel(W / 2 - w / 2, y - h / 2, w, h, 20 * u);
-  const pd = h - 40 * u;
-  drawMedallion('portrait_lamplighter', W / 2 - w / 2 + 24 * u + pd / 2, y, pd);
-  g.textAlign = 'left'; g.textBaseline = 'middle';
-  const lx = W / 2 - w / 2 + 44 * u + pd, tw = w - 74 * u - pd;
-  panelRow(LIGHTER_NAME + ROW_SEP + 'The lamplighter', lx, y - h / 2 + 38 * u, tw, 30 * u, '#fff');
-  const doing = m.lighting != null ? 'Lighting a lamp' : lit >= legs.length ? 'Walking home' : 'On his way to the next lamp';
-  panelRow(doing + ROW_SEP + (lit >= legs.length ? 'every lamp lit' : lit + ' of ' + legs.length + ' lamps lit'), lx, y - h / 2 + 80 * u, tw, 22 * u, '#bccfae', '');
-  panelRow('Out as it gets dark, round every lamp, then home', lx, y - h / 2 + 118 * u, tw, 22 * u, DIM, '');
+  g.fillStyle = 'rgba(10,18,8,.3)';
+  g.beginPath(); g.ellipse(m.x, m.y + 2, VILLAGER_H * 0.26, VILLAGER_H * 0.1, 0, 0, 7); g.fill();
+  if (kidWho === MILK_ID) {
+    g.strokeStyle = '#9fe86b'; g.lineWidth = 2.5;
+    g.beginPath(); g.ellipse(m.x, m.y + 2, VILLAGER_H * 0.3, VILLAGER_H * 0.13, 0, 0, 7); g.stroke();
+  }
+  g.translate(m.x, m.y); g.scale(m.face, 1);
+  g.drawImage(im, -w / 2, -VILLAGER_H, w, VILLAGER_H);
   g.restore();
+  dawnDrawn++;
+}
+function drawMilkCard() {
+  if (kidWho !== MILK_ID || who != null || panel != null || modalUp()) return;
+  const m = milkmaidNow(), round = milkRound();
+  if (!m || !round) { kidWho = null; return; }
+  const legs = round.legs.filter(l => l.id != null), t = milkClock();
+  const done = legs.filter(l => t >= l.lit).length, all = done >= legs.length;
+  const doing = m.at != null ? 'Leaving the milk at a door' : all ? 'Walking back to the farm' : 'On her way to the next house';
+  walkerCard('portrait_milkmaid', MILK_NAME + ROW_SEP + 'The milkmaid',
+    doing + ROW_SEP + (all ? 'milk at every door' : done + ' of ' + legs.length + ' houses'),
+    'Out from the farm at sunrise with milk for the houses, then back');
+}
+/* A rooster (Leonardo) by the first farm from the last of the dark until
+   the sun is up, crowing now and then: he draws himself up, head back. On
+   the open tile round the farm nearest the camera, in sight; a step further
+   out when the farm is built in on every side. */
+const ROOSTER = 'rooster', ROOST_H = 20, ROOST_FROM = 0.93, ROOST_TO = 0.07;
+function roosterNow() {
+  const ph = dayPhase(), farm = firstFarm();
+  if ((ph < ROOST_FROM && ph > ROOST_TO) || !farm) return null;
+  const b = B(farm.key), solid = standing(), pics = occluders(), ring = [];
+  for (let R = 1; R <= 2 && !ring.length; R++) for (let c = farm.c - R; c < farm.c + b.w + R; c++) for (let r = farm.r - R; r < farm.r + b.h + R; r++) {
+    if (c >= farm.c && c < farm.c + b.w && r >= farm.r && r < farm.r + b.h) continue;
+    if (!openAt(c, r, solid)) continue;
+    const at = tileToWorld(c, r);
+    if (!hidden(pics, at.x - ROOST_H * 0.4, at.x + ROOST_H * 0.4, at.y - ROOST_H, at.y, at.y)) ring.push({ c, r, x: at.x, y: at.y });
+  }
+  if (!ring.length) return null;
+  ring.sort((a, b) => b.y - a.y || a.c - b.c);
+  const o = ring[0], mid = tileToWorld(farm.c + (b.w - 1) / 2, farm.r + (b.h - 1) / 2), t = Date.now() / 1000;
+  return { x: o.x, y: o.y, c: o.c, r: o.r, face: mid.x < o.x ? -1 : 1, crow: !reduceMotion && t % 7 < 1.1 };
+}
+function drawRooster(o) {
+  const im = artFor(ROOSTER);
+  if (!ready(im)) return;
+  const h = ROOST_H * (o.crow ? 1.06 : 1), w = im.width * (ROOST_H / im.height);
+  g.save();
+  g.fillStyle = 'rgba(10,18,8,.25)';
+  g.beginPath(); g.ellipse(o.x, o.y + 1, w * 0.4, w * 0.14, 0, 0, 7); g.fill();
+  g.translate(o.x, o.y); g.scale(o.face, 1);
+  g.drawImage(im, -w / 2, -h, w, h);
+  g.restore();
+  dawnDrawn++;
 }
 const LIGHTER_NAME = 'Amos';
 /* Hedgehogs (Leonardo) out after dark, the night's answer to the children:
@@ -6266,7 +6369,7 @@ function kidAt(sx, sy) {
 /* A child's card, where a villager's goes: her face, her name, whose she is,
    and what she is up to. */
 function drawKidCard() {
-  if (kidWho == null || kidWho === LIGHTER_ID || who != null || panel != null || modalUp()) return;
+  if (kidWho == null || kidWho === LIGHTER_ID || kidWho === MILK_ID || who != null || panel != null || modalUp()) return;
   const k = kidsNow().find(q => q.id === kidWho);
   if (!k) { kidWho = null; return; }                 // home for the night, or in out of the rain
   const u = US(), tabs = tabRects();
@@ -7352,6 +7455,8 @@ function drawWorld() {
   for (const c of catsNow()) ents.push({ y: c.y, d: () => drawCat(c) });
   { const q = propNow(); if (q) ents.push({ y: q.y, d: () => drawProp(q) }); }
   { const m = lighterNow(); if (m) ents.push({ y: m.y, d: () => drawLighter(m) }); }
+  { const m = milkmaidNow(); if (m) ents.push({ y: m.y, d: () => drawMilkmaid(m) }); }
+  { const o = roosterNow(); if (o) ents.push({ y: o.y, d: () => drawRooster(o) }); }
   for (const w of owlsNow()) ents.push({ y: w.depth, d: () => drawOwl(w) });
   for (const o of hogsNow()) ents.push({ y: o.y, d: () => drawHog(o) });
   if (season().key === 'winter') seasonTiles(occSet, SNOWMEN, 90).forEach((o, i) => ents.push({ y: tileToWorld(o.c, o.r).y, d: () => drawSnowman(o, i) }));
@@ -8205,6 +8310,7 @@ function drawHUD() {
   drawWho();
   drawKidCard();
   drawLighterCard();
+  drawMilkCard();
   drawGoal();
   drawSaveState();
   drawHint();
@@ -10395,7 +10501,7 @@ function drawPanel() {
 }
 
 function draw() {
-  glowsDrawn = 0; iconsDrawn = 0; carriesDrawn = 0; chromeDrawn = 0; thoughtsDrawn = 0; lifeDrawn = 0; nightDrawn = 0;
+  glowsDrawn = 0; iconsDrawn = 0; carriesDrawn = 0; chromeDrawn = 0; thoughtsDrawn = 0; lifeDrawn = 0; nightDrawn = 0; dawnDrawn = 0;
   stepAmbience();
   fitCanvas();
   g.setTransform(1, 0, 0, 1, 0, 0);
@@ -10947,12 +11053,17 @@ function tap(sx, sy) {
      having: a villager at the far zoom out is eleven pixels tall and nobody
      hits that, so a near miss onto grass still opens the person aimed at. */
   kidWho = null;
+  /* The lamplighter and the milkmaid go to the same doors as the villagers,
+     so either can be standing over one: whoever is nearer the camera, drawn
+     on top, is the one tapped. */
+  const lm = lighterAt(sx, sy), mm = !lm && milkmaidAt(sx, sy);
+  const walker = lm ? { id: LIGHTER_ID, y: lm.y } : mm ? { id: MILK_ID, y: mm.y } : null;
   const on = villagerAt(sx, sy, false);
-  if (on) { SFX.tap(); who = on.seed; panel = null; return; }
+  if (on && !(walker && walker.y > on.y)) { SFX.tap(); who = on.seed; panel = null; return; }
   // a child where she is drawn, next: she stands among the grown-ups and is half their size
   const kid = kidAt(sx, sy);
-  if (kid) { SFX.tap(); kidWho = kid.id; who = null; panel = null; return; }
-  if (lighterAt(sx, sy)) { SFX.tap(); kidWho = LIGHTER_ID; who = null; panel = null; return; }
+  if (kid && !(walker && walker.y > kid.y)) { SFX.tap(); kidWho = kid.id; who = null; panel = null; return; }
+  if (walker) { SFX.tap(); kidWho = walker.id; who = null; panel = null; return; }
   /* The first tap opens what is drawn here; tapping the same place again goes
      to whatever is standing under it, and round again. That is the whole of
      the fix for a buried building: the patch you have to hit is the COVERING
@@ -11025,12 +11136,12 @@ for (const b of BUILDINGS) if (!SET_ART[b.key]) artFor(b.key);
     im.addEventListener('error', done, { once: true });
   }
 }
-for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER, WOODSWOMAN, ...KID_FIGS, ...PETS, ...Object.values(PLAY_PROP).map(q => q.key), LIGHTER, LIGHTER_REACH, OWL, HOG]) artFor(v);
+for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER, WOODSWOMAN, ...KID_FIGS, ...PETS, ...Object.values(PLAY_PROP).map(q => q.key), LIGHTER, LIGHTER_REACH, OWL, HOG, MILKMAID, ROOSTER]) artFor(v);
 /* Asked for once, here, rather than on the first frame somebody walks: a
    villager with no cycle drawn for him would otherwise send six requests
    the moment he set off, and artFor remembers a miss, so doing it at boot
    costs the same misses at a moment when nothing is moving yet. */
-for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER, WOODSWOMAN, ...KID_FIGS, LIGHTER]) for (let i = 1; i <= WALK_STEPS; i++) artFor(v + '_walk' + i);
+for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER, WOODSWOMAN, ...KID_FIGS, LIGHTER, MILKMAID]) for (let i = 1; i <= WALK_STEPS; i++) artFor(v + '_walk' + i);
 /* The beacon's five, asked for here for the same reason the walk frames are:
    a village with none of them drawn would otherwise send five requests the
    moment it finished, and artFor remembers a miss. */
@@ -11096,7 +11207,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   SEASONS, SEASON_OF, SEASON_LEAF, seasonIdx, season, seasonSkin, drawGround, drawScenery, SCENERY,
   GW, GH, tileToWorld, deliveredOf,
   get seasonForced() { return seasonForced; }, set seasonForced(v) { seasonForced = v; },
-  get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, winterArt, ART, villagerArt, glowKey, get glowsDrawn() { return glowsDrawn; }, get iconsDrawn() { return iconsDrawn; }, get carriesDrawn() { return carriesDrawn; }, get chromeDrawn() { return chromeDrawn; }, portraitKey, merchantOf, panelFaces, thoughtOf, get thoughtsDrawn() { return thoughtsDrawn; }, get lifeDrawn() { return lifeDrawn; }, kidsNow, catsNow, propNow, playground, lampRound, lampLit, lighterNow, LIGHT_FROM, lighterAt, LIGHTER_ID, LIGHTER_NAME, LIGHTER_REACH, hogsNow, HOG, HOGS_MAX, seasonDecorTiles, owlsNow, roundClock, LIGHTER, OWL, OWLS_MAX, get nightDrawn() { return nightDrawn; }, get lampsLit() { return lampsLit; }, PLAY_PROP, occluders, hidden, artRect, kidAt, parentsOf, playSpot, topOf, KID_FIGS, PETS, get kidWho() { return kidWho; }, set kidWho(v) { kidWho = v; }, KIDS_MAX, CATS_MAX, get sparkleCount() { return sparkleCount; }, chromeCache,
+  get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, winterArt, ART, villagerArt, glowKey, get glowsDrawn() { return glowsDrawn; }, get iconsDrawn() { return iconsDrawn; }, get carriesDrawn() { return carriesDrawn; }, get chromeDrawn() { return chromeDrawn; }, portraitKey, merchantOf, panelFaces, thoughtOf, get thoughtsDrawn() { return thoughtsDrawn; }, get lifeDrawn() { return lifeDrawn; }, kidsNow, catsNow, propNow, playground, lampRound, lampLit, lighterNow, LIGHT_FROM, DOUSE_FROM, dawnClock, walkRound, milkRound, milkClock, milkmaidNow, milkmaidAt, MILKMAID, MILK_ID, MILK_NAME, MILK_MAX, MILK_FROM, roosterNow, ROOSTER, firstFarm, homes, doorOf, standing, get dawnDrawn() { return dawnDrawn; }, lighterAt, LIGHTER_ID, LIGHTER_NAME, LIGHTER_REACH, hogsNow, HOG, HOGS_MAX, seasonDecorTiles, owlsNow, roundClock, LIGHTER, OWL, OWLS_MAX, get nightDrawn() { return nightDrawn; }, get lampsLit() { return lampsLit; }, PLAY_PROP, occluders, hidden, artRect, kidAt, parentsOf, playSpot, topOf, KID_FIGS, PETS, get kidWho() { return kidWho; }, set kidWho(v) { kidWho = v; }, KIDS_MAX, CATS_MAX, get sparkleCount() { return sparkleCount; }, chromeCache,
   get plainIcons() { return plainIcons; }, set plainIcons(v) { plainIcons = !!v; }, ICON_OF,
   hudTop, hudBot, screenTop, screenBot, readSafeArea, get SAFE() { return SAFE; }, set SAFE(v) { SAFE = v; },
   get safeKnown() { return safeKnown; }, set safeKnown(v) { safeKnown = !!v; },

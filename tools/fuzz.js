@@ -6831,11 +6831,12 @@
       rows.push({ what, things, lit, icons, carried, chrome, drawImage: ops.drawImage, total: ops.total });
       // the children at play and the cats on the steps, a handful at most
       if (life > V.KIDS_MAX + V.CATS_MAX + 1) fails.push(what + ' draws ' + life + ' children, cats and a plaything, past the ' + (V.KIDS_MAX + V.CATS_MAX + 1) + ' the village has');
+      if ((V.dawnDrawn | 0) > 2) fails.push(what + ' draws ' + V.dawnDrawn + ' milkmaids and roosters, past the one of each the morning has');
       if ((V.nightDrawn | 0) > V.OWLS_MAX + 1 + V.HOGS_MAX) fails.push(what + ' draws ' + V.nightDrawn + ' owls, hedgehogs and lamplighters, past the ' + (V.OWLS_MAX + 1 + V.HOGS_MAX) + ' the night has');
       if (chrome > 20) fails.push(what + ' draws ' + chrome + ' pieces of card furniture on one frame -- a card and a tab need perhaps a dozen');
       if (carried > V.villagers.length) fails.push(what + ' draws ' + carried + ' carried loads for ' + V.villagers.length + ' villagers');
       if (icons > 40) fails.push(what + ' draws ' + icons + ' painted icons on one frame -- the HUD has room for perhaps thirty');
-      if (ops.drawImage > things + lit + Math.min(icons, 40) + Math.min(carried, V.villagers.length) + Math.min(chrome, 20) + Math.min(thought, 2 * V.villagers.length) + Math.min(life, V.KIDS_MAX + V.CATS_MAX + 1) + Math.min(V.nightDrawn | 0, V.OWLS_MAX + 1 + V.HOGS_MAX) + spareHere)
+      if (ops.drawImage > things + lit + Math.min(icons, 40) + Math.min(carried, V.villagers.length) + Math.min(chrome, 20) + Math.min(thought, 2 * V.villagers.length) + Math.min(life, V.KIDS_MAX + V.CATS_MAX + 1) + Math.min(V.nightDrawn | 0, V.OWLS_MAX + 1 + V.HOGS_MAX) + Math.min(V.dawnDrawn | 0, 2) + spareHere)
         fails.push(what + ' reaches for an image ' + ops.drawImage + ' times with '
           + things + ' things standing on it' + (lit ? ' and ' + lit + ' lit at night' : '')
           + ' (' + icons + ' icons, ' + carried + ' loads, ' + chrome + ' card pieces)'
@@ -7187,7 +7188,7 @@
            everybody indoors at night. The clock is moved to the middle of a
            dry day -- a wet one keeps them in too. */
         const artOf = f => [f, ...[1, 2, 3, 4, 5, 6].map(i => f + '_walk' + i)];
-        const KIDART = V.KID_FIGS.flatMap(artOf), LIFE = [...KIDART, ...V.PETS, 'portrait_girl', 'portrait_boy', ...Object.values(V.PLAY_PROP).map(q => q.key), ...artOf(V.LIGHTER), V.OWL, V.LIGHTER_REACH, V.HOG, 'portrait_lamplighter'];
+        const KIDART = V.KID_FIGS.flatMap(artOf), LIFE = [...KIDART, ...V.PETS, 'portrait_girl', 'portrait_boy', ...Object.values(V.PLAY_PROP).map(q => q.key), ...artOf(V.LIGHTER), V.OWL, V.LIGHTER_REACH, V.HOG, 'portrait_lamplighter', ...artOf(V.MILKMAID), V.ROOSTER, 'portrait_milkmaid'];
         for (const k of LIFE) V.artFor(k);
         for (let i = 0; i < 50 && !LIFE.every(k => V.artFor(k)); i++) await new Promise(r => setTimeout(r, 100));
         /* Houses with open ground in front of their doors, and none built in
@@ -7432,6 +7433,34 @@
                 Date.now = () => day0 + 0.75 * DAY; read();
                 const want = V.placed.filter(q => q.key === 'lamp').length;
                 if (V.lampsLit !== want) fails.push('at midnight ' + V.lampsLit + ' of ' + want + ' lamps glow');
+                /* At first light he goes round the same way and puts them out:
+                   as he reaches each lamp the ones before it are dark and the
+                   ones after it still glow; his card says so; and once he is
+                   home no lamp glows. */
+                const dawnAt = s => { Date.now = () => day0 + V.DOUSE_FROM * DAY + s * 1000; };
+                Date.now = () => day0 + (V.DOUSE_FROM - 0.01) * DAY;
+                if (V.lighterNow()) fails.push('the lamplighter is out between his rounds, before first light');
+                legs.forEach((l, i) => {
+                  dawnAt(l.lit - 0.3);
+                  const m = V.lighterNow();
+                  if (!m || !m.dawn || Math.hypot(m.x - l.to.x, m.y - l.to.y) > 2) fails.push('as lamp ' + (i + 1) + ' is put out at dawn the lamplighter is not at it');
+                  legs.forEach((o, j) => { const lit = V.lampLit(V.placed.find(q => q.id === o.id));
+                    if (j < i ? lit !== 0 : lit !== 1) fails.push('at dawn lamp ' + (j + 1) + ' is ' + (lit ? 'lit' : 'dark') + ' while he is at lamp ' + (i + 1)); });
+                });
+                dawnAt(last.lit + 0.2);
+                const dm = V.lighterNow();
+                if (dm) {
+                  V.who = null; V.panel = null; V.kidWho = null;
+                  const pt = V.camProject(dm.x, dm.y), sc = V.camScale();
+                  V.tap(pt.x, pt.y - V.VILLAGER_H * 0.5 * sc);
+                  const said = read().texts.map(o => o.t).join(' | ');
+                  if (V.kidWho !== V.LIGHTER_ID) fails.push('tapping the lamplighter at dawn did not open his card');
+                  else if (!said.includes('Putting out a lamp') || (!said.includes('every lamp out') && !said.includes(legs.length + ' of ' + legs.length + ' lamps out'))) fails.push('at his last lamp at dawn his card does not say he is putting the lamps out: ' + said.slice(0, 160));
+                  V.kidWho = null;
+                }
+                dawnAt(round.end + 5); read();
+                if (V.lighterNow()) fails.push('his dawn round is done and the lamplighter is still out');
+                if (V.lampsLit) fails.push('after his dawn round ' + V.lampsLit + ' lamps still glow');
               }
               /* Owls in the tall trees at night and none by day, each one
                  painted, three at most, and nothing else of the night drawn
@@ -7451,7 +7480,68 @@
                 if (V.hidden(V.occluders(), o.x - 8, o.x + 8, o.y - 13, o.y, o.y)) fails.push('a hedgehog on tile ' + key + ' is behind something drawn in front of it');
                 if (V.seasonDecorTiles(V.occupied()).some(q => Math.abs(q.c - Math.round(at2.c)) <= 1 && Math.abs(q.r - Math.round(at2.r)) <= 1)) fails.push('a hedgehog on tile ' + key + ' is on or beside one of the season\'s pumpkins or snowmen'); }
               if (V.nightDrawn !== owls.length + hogs.length) fails.push('at midnight ' + V.nightDrawn + ' night things were drawn for ' + owls.length + ' owls and ' + hogs.length + ' hedgehogs');
+              /* The milkmaid: out from the first farm at sunrise, to the door of
+                 each of the houses nearest it in turn, and back; drawn walking;
+                 at each door as the milk is left; a card that says so. */
+              const farm = V.firstFarm(), mr = V.milkRound(), mAt = s => { Date.now = () => day0 + V.MILK_FROM * DAY + s * 1000; };
+              if (!farm || !V.homes().length) fails.push('the sweep village has no farm or no house, so the milkmaid went unchecked');
+              else if (!mr) fails.push('with a farm and houses the milkmaid has no round');
+              else {
+                const stops = mr.legs.filter(l => l.id != null), want = Math.min(V.MILK_MAX, V.homes().length), home = V.doorOf(farm);
+                if (stops.length !== want) fails.push('the milkmaid goes to ' + stops.length + ' doors, not the ' + want + ' nearest the farm');
+                if (Math.hypot(mr.legs[0].from.x - home.x, mr.legs[0].from.y - home.y) > 1) fails.push('the milkmaid does not set out from the farm');
+                Date.now = () => day0 + 0.95 * DAY;
+                if (V.milkmaidNow()) fails.push('the milkmaid is out before sunrise');
+                stops.forEach((l, i) => {
+                  mAt(l.lit);
+                  const m = V.milkmaidNow(), q = V.placed.find(o => o.id === l.id), d = q && V.doorOf(q);
+                  if (!m || m.at !== l.id || !d || Math.hypot(m.x - d.x, m.y - d.y) > 2) fails.push('as the milk is left at house ' + (i + 1) + ' the milkmaid is not at its door');
+                });
+                const mid = stops[1] || stops[0]; mAt((mid.t0 + mid.t1) / 2);
+                const { ims: mp } = read(), walk = artOf(V.MILKMAID).map(k => V.artFor(k));
+                if (!mp.some(o => walk.includes(o.im))) fails.push('on her way between houses the milkmaid was not drawn');
+                if (V.dawnDrawn < 1) fails.push('the milkmaid is out and the morning tally drew nothing');
+                const lastM = stops[stops.length - 1]; mAt(lastM.lit + 0.2);
+                const mm = V.milkmaidNow();
+                if (mm) {
+                  V.who = null; V.panel = null; V.kidWho = null;
+                  const pt = V.camProject(mm.x, mm.y), sc = V.camScale();
+                  // her own tap: a villager at the same door, nearer the camera, is rightly the one a tap there opens
+                  const was = V.villagers.map(v => [v.x, v.y]);
+                  try { for (const v of V.villagers) { v.x += 4000; } V.tap(pt.x, pt.y - V.VILLAGER_H * 0.5 * sc); }
+                  finally { V.villagers.forEach((v, i) => { v.x = was[i][0]; v.y = was[i][1]; }); }
+                  if (V.kidWho !== V.MILK_ID) fails.push('tapping the milkmaid where she is drawn did not open her card');
+                  else {
+                    const { texts, ims: cp } = read(), said = texts.map(o => o.t).join(' | ');
+                    if (!said.includes(V.MILK_NAME) || !said.includes('The milkmaid')) fails.push('the milkmaid\'s card does not give her name and work: ' + said.slice(0, 120));
+                    if (!said.includes('Leaving the milk at a door') || (!said.includes('milk at every door') && !said.includes(stops.length + ' of ' + stops.length + ' houses'))) fails.push('at her last door her card does not say so: ' + said.slice(0, 160));
+                    if (!cp.some(o => o.im.medal && o.im.medal.face === 'portrait_milkmaid')) fails.push('the milkmaid\'s card has no portrait_milkmaid in the ring');
+                    mAt(mr.end + 5); read();
+                    if (V.kidWho != null) fails.push('she is back at the farm and her card is still open');
+                  }
+                  V.kidWho = null;
+                }
+                mAt(mr.end + 5);
+                if (V.milkmaidNow()) fails.push('her round is done and the milkmaid is still out');
+              }
+              /* The rooster: by the first farm at first light, in sight, on open
+                 ground beside it and not on it; gone by noon. */
+              if (farm) {
+                Date.now = () => day0 + 0.97 * DAY;
+                const { ims: rp } = read(), ro = V.roosterNow(), b = V.B(farm.key);
+                if (!ro) fails.push('at first light there is no rooster by the farm');
+                else {
+                  if (!rp.some(o => o.im === V.artFor(V.ROOSTER))) fails.push('the rooster is out and was not drawn');
+                  if (V.dawnDrawn !== (V.milkmaidNow() ? 2 : 1)) fails.push('at first light ' + V.dawnDrawn + ' morning things were drawn for one rooster' + (V.milkmaidNow() ? ' and the milkmaid' : ''));
+                  const inFarm = ro.c >= farm.c && ro.c < farm.c + b.w && ro.r >= farm.r && ro.r < farm.r + b.h;
+                  const beside = ro.c >= farm.c - 2 && ro.c <= farm.c + b.w + 1 && ro.r >= farm.r - 2 && ro.r <= farm.r + b.h + 1;
+                  if (inFarm || !beside) fails.push('the rooster is on tile ' + ro.c + ',' + ro.r + ', not beside the farm');
+                  if (V.standing().has(ro.c + ',' + ro.r)) fails.push('the rooster is inside something standing on tile ' + ro.c + ',' + ro.r);
+                  if (V.hidden(V.occluders(), ro.x - 8, ro.x + 8, ro.y - 20, ro.y, ro.y)) fails.push('the rooster is behind something drawn in front of it');
+                }
+              }
               Date.now = () => noon;
+              if (V.roosterNow()) fails.push('at noon the rooster is still out');
               if (V.owlsNow().length || V.hogsNow().length) fails.push('at noon ' + V.owlsNow().length + ' owls and ' + V.hogsNow().length + ' hedgehogs are out');
             } finally { for (const h of lamps) V.placed.splice(V.placed.indexOf(h), 1); }
           }
