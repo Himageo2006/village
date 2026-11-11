@@ -7504,3 +7504,31 @@ The game draws a painted icon wherever one has loaded, and the emoji it replaces
   - there is no arch on a day without a wedding, and no wedding on a wet day in two hundred days.
 - The cost sweep caps the wedding tally at the arch and the couple, and allows for them.
 - It failed as it should with each of these broken, all in one run: the arch never drawn, the arch up past dusk, weddings on wet days, and the card saying the wrong thing. Removing the couple from the tap order was not tried. The pass needs the tap to open their card, from a cleared card, so the tap is exercised.
+
+## Round 256: hens and their coop
+
+- **hen** (GPT Image, with the rooster attached): "New game sprite in exactly the same painted style, camera angle and lighting as this rooster: a plump little brown farmyard HEN (his hen), russet-brown feathers with darker speckles on the wings, a small red comb and wattle, yellow legs, standing on the ground facing right, head up, alert and friendly, side-on at a three-quarter angle like the rooster. Full body, centred, on a perfectly flat solid magenta #FF00FF background, no shadow, no ground, no grass, no text." Master: `art/original/hen.png`.
+- **hen_peck** (GPT Image, same conversation, straight after): "Now exactly the same hen again, same canvas size, same scale, same feathers and colours, the same feet in exactly the same place, facing right, but PECKING at the ground: body tipped forward and her head right down so the beak touches the ground in front of her feet, tail up. Same flat solid magenta #FF00FF background, no shadow, no ground, no grain, no text." Master: `art/original/hen_peck.png`.
+  - Both were keyed magenta with one shared crop (`key_pair.js`, height 96), so switching between them does not jump. The pecking feet still came back a little to the right of the standing ones.
+- **portrait_hen** (GPT Image, with the duck's portrait and the hen attached): "Now one portrait for the hens' card, of the hen in the second image, in exactly the style of the first image's portrait: head and shoulders only, the same thick dark outline, soft painterly cartoon shading, warm lighting, the same crop cut off in a soft rounded shape at the bottom. Her russet-brown speckled feathers, red comb and wattle, a bright friendly eye, beak a little open as if clucking, facing slightly to the viewer's right, with a single brown egg peeking up beside her at the bottom. Centred, on a perfectly flat solid magenta #FF00FF background, no text." Sliced with the badge slicer at 256. Master: `art/original/portrait_hen.png`.
+- **hen_coop** (Leonardo Lucid Origin, free relaxed, four to a batch): "A single small rustic wooden chicken coop for a cottage farm: a little weathered plank hen house on short legs with a mossy wooden shingle roof, a small round doorway with a wooden ramp with slats leading down from it, a nesting box at the side with straw poking out, a tuft of grass at its feet, seen from the front-left at an isometric three-quarter angle from above, soft painterly 3D-rendered storybook illustration like a cozy isometric village building game sprite, warm sunny light, isolated and centred on a flat solid pure magenta #FF00FF background, no shadow, no ground, no chickens, no animals, no outline, no text". The second was kept: doorway and ramp on its left, nest box on its right.
+  - The first click on Generate did nothing. The prompt box had grown and pushed the button down; the second click started the batch.
+  - The background came back pink, not magenta. It was keyed with the edge flood fill, and the pink shadow left under it was pulled to a soft dark shadow. Master: `art/original/hen_coop.jpg`.
+- The coop stands by the first farm, on the open tile at one end of its front, the way the washing lines stand by the houses.
+  - It counts as standing. `standing()` is now the old set (`standingBase`) plus the coop's tile, so no puddle, line, arch, game or rooster is put on it.
+  - It is turned so its doorway faces away from the farm. It is drawn by day and by night.
+- From 0.05 of the day to 0.56 the four hens come out of the coop and scratch about round it, unless it is raining.
+  - Each goes off to a new spot every six seconds: on open ground within about fifty units, and in sight. Failing that she goes to a place in a row by the ramp, and failing that she waits on the ramp. She pecks there, switching between the two pictures.
+  - They come out from the foot of the ramp and go back to it, over about six seconds at each end of the day.
+- Tapping a hen opens a card for the hens. It counts the eggs in the nest box, one more every 0.07 of the day up to four.
+- The first look had three of the four hens behind a cottage and a hedge, so each spot now has to be in sight. In the crowded test village that leaves little room: most of the hens end up by the ramp, and the children's kite, which is not counted as hiding anything, overlaps one.
+- The icon sweep now checks, on a dry summer day with a farm:
+  - the coop is on a free tile beside the farm, counts as standing, is in sight, and is drawn once;
+  - at noon all four hens are out, on open ground (the coop's own tile allowed, for the ramp), within ninety units, drawn, and tallied;
+  - over half a minute they both peck and walk;
+  - just after sunrise they are on their way out, nearer the door;
+  - tapping one opens the card, with the egg count and portrait_hen;
+  - at night they are in and only the coop is drawn.
+  - On a wet day no hen is out in the rain.
+- On its first run the sweep failed on hens at the foot of the ramp, which is on the coop's own tile. The test now allows that tile.
+- It failed as it should with each of these broken, all in one run: hens out in the rain, the coop not counted as standing, hens out at night, the egg count worded wrong, and the hens never pecking.

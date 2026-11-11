@@ -6832,6 +6832,7 @@
       // the children at play and the cats on the steps, a handful at most
       if (life > V.KIDS_MAX + V.CATS_MAX + 1) fails.push(what + ' draws ' + life + ' children, cats and a plaything, past the ' + (V.KIDS_MAX + V.CATS_MAX + 1) + ' the village has');
       if ((V.wetDrawn | 0) > V.PUDDLES_MAX + 1 + V.FROGS_MAX) fails.push(what + ' draws ' + V.wetDrawn + ' puddles, ducks and frogs, past the ' + V.PUDDLES_MAX + ' puddles, one family and ' + V.FROGS_MAX + ' frogs a wet day has');
+      if ((V.henDrawn | 0) > 1 + V.HENS) fails.push(what + ' draws ' + V.henDrawn + ' coops and hens, past the one coop and ' + V.HENS + ' hens there are');
       if ((V.wedDrawn | 0) > 2) fails.push(what + ' draws ' + V.wedDrawn + ' wedding arches and couples, past the one of each a wedding has');
       if ((V.washDrawn | 0) > 2 * V.WASH_MAX) fails.push(what + ' draws ' + V.washDrawn + ' washing lines and baskets, past the ' + V.WASH_MAX + ' of each a washing day has');
       if ((V.dawnDrawn | 0) > 2) fails.push(what + ' draws ' + V.dawnDrawn + ' milkmaids and roosters, past the one of each the morning has');
@@ -6839,7 +6840,7 @@
       if (chrome > 20) fails.push(what + ' draws ' + chrome + ' pieces of card furniture on one frame -- a card and a tab need perhaps a dozen');
       if (carried > V.villagers.length) fails.push(what + ' draws ' + carried + ' carried loads for ' + V.villagers.length + ' villagers');
       if (icons > 40) fails.push(what + ' draws ' + icons + ' painted icons on one frame -- the HUD has room for perhaps thirty');
-      if (ops.drawImage > things + lit + Math.min(icons, 40) + Math.min(carried, V.villagers.length) + Math.min(chrome, 20) + Math.min(thought, 2 * V.villagers.length) + Math.min(life, V.KIDS_MAX + V.CATS_MAX + 1) + Math.min(V.nightDrawn | 0, V.OWLS_MAX + 1 + V.HOGS_MAX) + Math.min(V.dawnDrawn | 0, 2) + Math.min(V.wetDrawn | 0, V.PUDDLES_MAX + 1 + V.FROGS_MAX) + Math.min(V.washDrawn | 0, 3 * V.WASH_MAX) + Math.min(V.wedDrawn | 0, 2) + spareHere)
+      if (ops.drawImage > things + lit + Math.min(icons, 40) + Math.min(carried, V.villagers.length) + Math.min(chrome, 20) + Math.min(thought, 2 * V.villagers.length) + Math.min(life, V.KIDS_MAX + V.CATS_MAX + 1) + Math.min(V.nightDrawn | 0, V.OWLS_MAX + 1 + V.HOGS_MAX) + Math.min(V.dawnDrawn | 0, 2) + Math.min(V.wetDrawn | 0, V.PUDDLES_MAX + 1 + V.FROGS_MAX) + Math.min(V.washDrawn | 0, 3 * V.WASH_MAX) + Math.min(V.wedDrawn | 0, 2) + Math.min(V.henDrawn | 0, 1 + V.HENS) + spareHere)
         fails.push(what + ' reaches for an image ' + ops.drawImage + ' times with '
           + things + ' things standing on it' + (lit ? ' and ' + lit + ' lit at night' : '')
           + ' (' + icons + ' icons, ' + carried + ' loads, ' + chrome + ' card pieces)'
@@ -7210,7 +7211,7 @@
            everybody indoors at night. The clock is moved to the middle of a
            dry day -- a wet one keeps them in too. */
         const artOf = f => [f, ...[1, 2, 3, 4, 5, 6].map(i => f + '_walk' + i)];
-        const KIDART = V.KID_FIGS.flatMap(artOf), LIFE = [...KIDART, ...V.PETS, 'portrait_girl', 'portrait_boy', ...Object.values(V.PLAY_PROP).map(q => q.key), ...artOf(V.LIGHTER), V.OWL, V.LIGHTER_REACH, V.HOG, 'portrait_lamplighter', ...artOf(V.MILKMAID), V.ROOSTER, 'portrait_milkmaid', V.DUCKS, V.PUDDLE, 'portrait_duck', V.FROG, ...Object.values(V.SPLASH), V.WASH, V.WASH_BARE, V.WASH_BASKET, V.COUPLE, V.WED_ARCH, 'portrait_couple'];
+        const KIDART = V.KID_FIGS.flatMap(artOf), LIFE = [...KIDART, ...V.PETS, 'portrait_girl', 'portrait_boy', ...Object.values(V.PLAY_PROP).map(q => q.key), ...artOf(V.LIGHTER), V.OWL, V.LIGHTER_REACH, V.HOG, 'portrait_lamplighter', ...artOf(V.MILKMAID), V.ROOSTER, 'portrait_milkmaid', V.DUCKS, V.PUDDLE, 'portrait_duck', V.FROG, ...Object.values(V.SPLASH), V.WASH, V.WASH_BARE, V.WASH_BASKET, V.COUPLE, V.WED_ARCH, 'portrait_couple', V.HEN, V.HEN_PECK, V.COOP, 'portrait_hen'];
         for (const k of LIFE) V.artFor(k);
         for (let i = 0; i < 50 && !LIFE.every(k => V.artFor(k)); i++) await new Promise(r => setTimeout(r, 100));
         /* Houses with open ground in front of their doors, and none built in
@@ -7611,6 +7612,7 @@
                   /* The children out in the puddles: each at play stands in a
                      puddle in sight, jumping in their rain hat, and their card
                      says so; the cats stay in. Wait for a child at play. */
+                  if (V.hensNow().length) fails.push('in the rain ' + V.hensNow().length + ' hens are out of the coop');
                   if (V.catsNow().length) fails.push('in the rain ' + V.catsNow().length + ' cats are out on the steps');
                   let sk = null, st = 0;
                   for (; st < 240 && !sk; st += 2) { Date.now = () => wd + 0.4 * DAY + st * 1000; sk = V.kidsNow().find(k => k.play); }
@@ -7720,6 +7722,61 @@
                   for (let d = 1; d < 40 && other == null; d++) { const n = Math.floor(wsh / DAY) + d; if (!V.washDay(n)) other = n * DAY; }
                   Date.now = () => other + 0.3 * DAY;
                   if (V.washLines().length) fails.push('on a day that is not washing day ' + V.washLines().length + ' lines are out');
+                }
+                /* The hens and their coop on a dry summer day. The coop on open
+                   ground at one end of the farm's front, counted as standing so
+                   nothing else goes on it, in sight and drawn, day and night;
+                   at noon all the hens out about it on open ground, drawn, and
+                   over half a minute both pecking and walking; coming out in
+                   the morning nearer the door; in at night; a card when one is
+                   tapped that says what they are doing and counts the eggs. */
+                if (farm) {
+                  let dry = null;
+                  for (let d = 1; d < 40 && dry == null; d++) { const n = Math.floor(day0 / DAY) + d; if (!V.wetDay(n)) dry = n * DAY; }
+                  Date.now = () => dry + 0.3 * DAY;
+                  const co = V.coopNow(), fm = V.firstFarm(), fb = fm && V.B(fm.key);
+                  if (!co) fails.push('there is a farm and no hen coop beside it');
+                  else {
+                    const key = co.c + ',' + co.r, { ims: hp } = read(), occ = V.occluders();
+                    if (V.standingBase().has(key)) fails.push('the hen coop is on tile ' + key + ', where something already stands');
+                    if (!V.standing().has(key)) fails.push('the hen coop does not count as standing, so a puddle or a game could be put on it');
+                    if (co.c < fm.c - 2 || co.c > fm.c + fb.w || co.r < fm.r - 2 || co.r > fm.r + fb.h) fails.push('the hen coop is not beside the farm');
+                    if (V.hidden(occ, co.x - 20, co.x + 20, co.y - 44, co.y + 10, co.y)) fails.push('the hen coop is behind something drawn in front of it');
+                    if (hp.filter(o => o.im === V.artFor(V.COOP)).length !== 1) fails.push('at noon ' + hp.filter(o => o.im === V.artFor(V.COOP)).length + ' hen coops are drawn');
+                    const hens = V.hensNow(), solid2 = V.standingBase();   // the foot of the ramp is on the coop's own tile
+                    if (hens.length !== V.HENS) fails.push('at noon on a dry day ' + hens.length + ' of ' + V.HENS + ' hens are out');
+                    hens.forEach(h => {
+                      const tl = V.worldToTile(h.x, h.y);
+                      if (solid2.has(Math.round(tl.c) + ',' + Math.round(tl.r))) fails.push('hen ' + (h.i + 1) + ' is inside something standing');
+                      if (Math.hypot(h.x - co.x, h.y - co.y) > 90) fails.push('hen ' + (h.i + 1) + ' has wandered ' + Math.round(Math.hypot(h.x - co.x, h.y - co.y)) + ' from the coop');
+                    });
+                    const drawnH = hp.filter(o => o.im === V.artFor(V.HEN) || o.im === V.artFor(V.HEN_PECK)).length;
+                    if (drawnH !== hens.length) fails.push(hens.length + ' hens out and ' + drawnH + ' drawn');
+                    if (V.henDrawn !== 1 + hens.length) fails.push('the hen tally is ' + V.henDrawn + ' for the coop and ' + hens.length + ' hens');
+                    let pecked = false, walked = false;
+                    for (let k = 0; k < 60; k++) { Date.now = () => dry + 0.3 * DAY + k * 500; for (const h of V.hensNow()) { if (h.peck) pecked = true; if (h.moving) walked = true; } }
+                    if (!pecked || !walked) fails.push('in half a minute at noon the hens ' + (pecked ? '' : 'never pecked') + (pecked || walked ? '' : ' and ') + (walked ? '' : 'never walked'));
+                    Date.now = () => dry + 0.3 * DAY;
+                    const near = V.hensNow().reduce((a, h) => a + Math.hypot(h.x - co.door.x, h.y - co.door.y), 0);
+                    Date.now = () => dry + (V.HEN_FROM + 0.004) * DAY;
+                    const early = V.hensNow(), nearE = early.reduce((a, h) => a + Math.hypot(h.x - co.door.x, h.y - co.door.y), 0);
+                    if (early.length !== V.HENS || !(nearE < near * 0.6)) fails.push('just after sunrise the hens are not on their way out of the coop');
+                    Date.now = () => dry + 0.3 * DAY; const h0 = V.hensNow()[0];
+                    V.who = null; V.panel = null; V.kidWho = null;
+                    const pt = V.camProject(h0.x, h0.y), sc = V.camScale(), was = V.villagers.map(v => [v.x, v.y]);
+                    try { for (const v of V.villagers) v.x += 4000; V.tap(pt.x, pt.y - 6 * sc); }
+                    finally { V.villagers.forEach((v, i) => { v.x = was[i][0]; v.y = was[i][1]; }); }
+                    if (V.kidWho !== V.HEN_ID) fails.push('tapping a hen where she is drawn did not open the card of the hens (it opened ' + V.kidWho + ')');
+                    else {
+                      const { texts, ims: kp } = read(), said = texts.map(o => o.t).join(' | ');
+                      if (!said.includes('The hens') || !said.includes(V.eggsToday() + ' eggs in the nest box today')) fails.push('the card of the hens does not say who they are or count the eggs: ' + said.slice(0, 160));
+                      if (!kp.some(o => o.im.medal && o.im.medal.face === 'portrait_hen')) fails.push('the card of the hens has no portrait_hen in the ring');
+                    }
+                    V.kidWho = null;
+                    Date.now = () => dry + 0.75 * DAY; const { ims: np } = read();
+                    if (V.hensNow().length) fails.push('at night ' + V.hensNow().length + ' hens are out of the coop');
+                    if (np.filter(o => o.im === V.artFor(V.COOP)).length !== 1 || V.henDrawn !== 1) fails.push('at night the coop is not drawn, or the hen tally is ' + V.henDrawn);
+                  }
                 }
                 /* A wedding, the first of sixty summer days: the arch up from
                    first light on open ground by the hall, in sight and drawn;
