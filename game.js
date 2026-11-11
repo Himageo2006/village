@@ -5830,8 +5830,8 @@ function drawSnowman(o, i) {
    have a ginger cat (painted by Leonardo) asleep on the step. Both are out
    by day and indoors at night or in the rain.
 
-   Neither is a villager. They hold no post, carry nothing, have no card and
-   are not saved: where a child is is worked out from the clock, the way the
+   Neither is a villager. They hold no post, carry nothing and are not saved
+   (a child does have a card, with whose child she is): where a child is is worked out from the clock, the way the
    kites and the geese are, so a reload finds her exactly where she was. Under
    reduce motion she stands at the well with her ball and does not run. */
 /* A girl and a boy (both ChatGPT), turn and turn about down the houses, and
@@ -5876,7 +5876,7 @@ function occluders() {
     for (let dc = 0; dc < b.w; dc++) for (let dr = 0; dr < b.h; dr++) solid.add((p.c + dc) + ',' + (p.r + dr));
     const depth = tileToWorld(p.c + b.w - 1, p.r + b.h - 1).y, R = artRect(p);
     // a decoration is drawn to no plot of its own: a post or a statue on its tile
-    out.push(R ? { x0: R.left, x1: R.left + R.wid, top: R.top, depth }
+    out.push(R ? { x0: R.left, x1: R.left + R.wid, top: R.top, bot: R.top + R.hgt, depth, mask: ready(R.art) ? maskOf(R.art) : null }
       : { x0: tileToWorld(p.c, p.r).x - TW * 0.25, x1: tileToWorld(p.c, p.r).x + TW * 0.25, top: depth - 70, depth });
   }
   for (const o of SCENERY) {
@@ -5887,13 +5887,44 @@ function occluders() {
   }
   return out;
 }
-// more than a fifth of the box under any one picture drawn after it
+/* Where a picture is actually painted, as a coarse grid of its alpha.
+
+   The box a building is drawn in is mostly air: the hall's is as wide as its
+   hall and as tall as its spire, so every tile behind it counted as hidden.
+   Near a well with the hall in front, every spot did, the search had nothing
+   to choose between, and it put a boy squarely behind the spire. The grid
+   says which of those tiles the paint covers. Made once a picture. */
+const MASK_W = 32, masks = new WeakMap();
+function maskOf(im) {
+  if (masks.has(im)) return masks.get(im);
+  let m = null;
+  try {
+    const mh = Math.max(1, Math.round(MASK_W * im.height / im.width));
+    const c = document.createElement('canvas'); c.width = MASK_W; c.height = mh;
+    const x = c.getContext('2d'); x.drawImage(im, 0, 0, MASK_W, mh);
+    const d = x.getImageData(0, 0, MASK_W, mh).data, a = new Uint8Array(MASK_W * mh);
+    for (let i = 0; i < a.length; i++) a[i] = d[i * 4 + 3] > 96 ? 1 : 0;
+    m = { w: MASK_W, h: mh, a };
+  } catch (e) { m = null; }                          // a canvas that cannot be read: the box, as before
+  masks.set(im, m);
+  return m;
+}
+// more than a fifth of the box under any one picture drawn after it -- its paint, where that is known
 function hidden(occ, x0, x1, top, bot, depth) {
   const area = (x1 - x0) * (bot - top);
   return occ.some(o => {
     if (o.depth <= depth) return false;
     const w = Math.min(x1, o.x1) - Math.max(x0, o.x0), h = Math.min(bot, o.depth + TH / 2) - Math.max(top, o.top);
-    return w > 0 && h > 0 && w * h > area * 0.2;
+    if (!(w > 0 && h > 0 && w * h > area * 0.2)) return false;
+    if (!o.mask) return true;
+    const m = o.mask, floor = o.depth + TH / 2, N = 5, M = 8;
+    let on = 0;
+    for (let i = 0; i < N; i++) for (let j = 0; j < M; j++) {
+      const x = x0 + (i + 0.5) * (x1 - x0) / N, y = top + (j + 0.5) * (bot - top) / M;
+      if (x < o.x0 || x >= o.x1 || y < o.top || y >= o.bot || y > floor) continue;
+      if (m.a[Math.floor((y - o.top) / (o.bot - o.top) * m.h) * m.w + Math.floor((x - o.x0) / (o.x1 - o.x0) * m.w)]) on++;
+    }
+    return on > N * M * 0.2;
   });
 }
 /* The open tile nearest the well that is nearest the hall -- or the hall
@@ -5915,6 +5946,9 @@ function playSpot(solid, n) {
   if (!site) return null;
   const b = B(site.key), c0 = site.c + b.w - 1, r0 = site.r + b.h - 1;
   let best = null;
+  const bs = TEXT_MIN / BADGE_TEXT_PX;
+  const badgeSpots = placed.filter(q => q.t >= 1).map(q => { const t = topOf(q);
+    return { x: t.x, y: t.y - 14 * bs, hw: (q.key === 'hall' ? 82 : 30) * bs, hh: 22 * bs }; });
   for (let dc = -3; dc <= 4; dc++) for (let dr = -3; dr <= 4; dr++) {
     const c = c0 + dc, r = r0 + dr;
     /* Not on the back edge of the land either: the shade over the wild is
@@ -5928,6 +5962,13 @@ function playSpot(solid, n) {
     let behind = 0;
     for (let i = 0; i < n; i++) { const k = rowAt(w, i, n);
       if (hidden(occ, k.x - 10, k.x + 10, k.y - KID_H, k.y, k.y)) behind++; }
+    /* Nor under a building's badge. The badges are painted over everything
+       in the world, and the well's green "can improve" disc -- a well is short,
+       so it hangs at a child's height -- came down at a girl's shoulder. Any
+       building may grow one, so every building's badge place is kept clear,
+       sized at the camera's resting zoom. */
+    for (let i = 0; i < n; i++) { const k = rowAt(w, i, n);
+      if (badgeSpots.some(q => Math.abs(q.x - k.x) < q.hw + 10 && k.y > q.y - q.hh && k.y - KID_H < q.y + q.hh)) behind++; }
     const d = Math.hypot(dc - 0.5, dr - 0.5) + behind * 20;
     if (!best || d < best.d) best = { c, r, d };
   }
@@ -6026,7 +6067,8 @@ function drawKidCard() {
   panelRow(k.name + ROW_SEP + (folk.length ? (k.girl ? 'Daughter of ' : 'Son of ') + nameList(folk) : 'A child of the village'),
     lx, y - h / 2 + 38 * u, tw, 30 * u, '#fff');
   const site = placed.some(p => p.key === 'well' && established(p)) ? 'well' : 'hall';
-  panelRow(k.play ? 'Playing ball by the ' + site
+  // only the girl has the ball; the boy has his catapult, and plays chase
+  panelRow(k.play ? (k.girl ? 'Playing ball by the ' : 'Playing chase by the ') + site
     : k.moving ? (k.home ? 'Running home' : 'Running down to the ' + site)
     : 'At home on the step', lx, y - h / 2 + 80 * u, tw, 22 * u, '#bccfae', '');
   panelRow('Out to play by day, indoors at dusk and when it rains', lx, y - h / 2 + 118 * u, tw, 22 * u, DIM, '');
@@ -10602,7 +10644,7 @@ function tap(sx, sy) {
       if (near) { who = near[0].v.seed; panel = null; sellArm = null; SFX.tap(); return; }
     }
     if (p && p.key === 'hall' && hit(carryChip(R))) { openCarry(); SFX.tap(); return; }
-    if (p && hit(R.move)) { moving = p.id; panel = null; who = null; selBuild = null; ghost = null; armed = null; sellArm = null; SFX.tap(); return; }
+    if (p && hit(R.move)) { moving = p.id; panel = null; who = null; kidWho = null; selBuild = null; ghost = null; armed = null; sellArm = null; SFX.tap(); return; }
     if (p && hit(R.sell)) {
       if (!canSell(p)) { SFX.deny(); return; }
       if (!sellArm || sellArm.id !== p.id) { sellArm = { id: p.id, t: SELL_ARM }; SFX.tap(); return; }
@@ -10641,7 +10683,11 @@ function tap(sx, sy) {
       }
       SFX.tap();
       selBuild = (selBuild === r.b.key) ? null : r.b.key;
-      panel = null; ghost = null; armed = null;
+      /* A card open over the bar stayed open, and the "Tap a tile to try it"
+         pill came up underneath it, showing through its bottom edge: the one
+         instruction a placement needs, half covered. Choosing what to build
+         puts the card away, as it puts a building's panel away. */
+      panel = null; who = null; kidWho = null; ghost = null; armed = null;
       return;
     }
   }
@@ -10827,7 +10873,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   SEASONS, SEASON_OF, SEASON_LEAF, seasonIdx, season, seasonSkin, drawGround, drawScenery, SCENERY,
   GW, GH, tileToWorld, deliveredOf,
   get seasonForced() { return seasonForced; }, set seasonForced(v) { seasonForced = v; },
-  get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, winterArt, ART, villagerArt, glowKey, get glowsDrawn() { return glowsDrawn; }, get iconsDrawn() { return iconsDrawn; }, get carriesDrawn() { return carriesDrawn; }, get chromeDrawn() { return chromeDrawn; }, portraitKey, merchantOf, panelFaces, thoughtOf, get thoughtsDrawn() { return thoughtsDrawn; }, get lifeDrawn() { return lifeDrawn; }, kidsNow, catsNow, occluders, hidden, artRect, kidAt, parentsOf, KID_FIGS, PETS, get kidWho() { return kidWho; }, set kidWho(v) { kidWho = v; }, KIDS_MAX, CATS_MAX, get sparkleCount() { return sparkleCount; }, chromeCache,
+  get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, winterArt, ART, villagerArt, glowKey, get glowsDrawn() { return glowsDrawn; }, get iconsDrawn() { return iconsDrawn; }, get carriesDrawn() { return carriesDrawn; }, get chromeDrawn() { return chromeDrawn; }, portraitKey, merchantOf, panelFaces, thoughtOf, get thoughtsDrawn() { return thoughtsDrawn; }, get lifeDrawn() { return lifeDrawn; }, kidsNow, catsNow, occluders, hidden, artRect, kidAt, parentsOf, playSpot, topOf, KID_FIGS, PETS, get kidWho() { return kidWho; }, set kidWho(v) { kidWho = v; }, KIDS_MAX, CATS_MAX, get sparkleCount() { return sparkleCount; }, chromeCache,
   get plainIcons() { return plainIcons; }, set plainIcons(v) { plainIcons = !!v; }, ICON_OF,
   hudTop, hudBot, screenTop, screenBot, readSafeArea, get SAFE() { return SAFE; }, set SAFE(v) { SAFE = v; },
   get safeKnown() { return safeKnown; }, set safeKnown(v) { safeKnown = !!v; },

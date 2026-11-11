@@ -7249,6 +7249,55 @@
               else if (V.hidden(V.occluders(), k.x - 10, k.x + 10, k.y - 42, k.y, k.y)) fails.push('a child at play on tile ' + c + ',' + r + ' is behind something drawn in front of her');
             }
             if (!V.kidsNow().some(k => k.play)) fails.push('in two minutes of a dry noon no child was at play, so where they play went unchecked');
+            /* Hidden means under the paint, not under the box it is drawn in:
+               across the top of the hall's picture a child is behind the
+               spire but not behind the air beside it. On the box alone the
+               whole band was "hidden", and a boy was put behind the spire. */
+            {
+              const hall = V.placed.find(q => q.key === 'hall'), R = hall && V.artRect(hall);
+              if (R) {
+                const one = [V.occluders().find(o => Math.abs(o.x0 - R.left) < 0.5 && Math.abs(o.top - R.top) < 0.5)].filter(Boolean);
+                const band = []; for (let x = R.left; x + 20 <= R.left + R.wid; x += 10) band.push(V.hidden(one, x, x + 20, R.top + 4, R.top + 46, R.top));
+                if (!one.length) fails.push('the hall is not among what can hide a child');
+                else if (!band.some(Boolean) || band.every(Boolean)) fails.push('across the top of the hall a child is ' + (band.every(Boolean) ? 'hidden everywhere, behind air as much as the spire' : 'hidden nowhere, not even behind the spire'));
+              }
+            }
+            /* Nor under a badge: they are painted over the whole world. Full
+               stores, so every building that can improve wears its disc. */
+            const kept = {}; for (const k of V.RES) { kept[k] = V.res[k]; V.res[k] = V.caps[k]; }
+            /* As built, and then with a well or a house put up on each tile
+               round where they play. In this open village nothing stood near
+               them and the check alone never failed. The badge that came
+               nearest a girl was the well's, which is short, so its disc hangs
+               at a child's height right where they play. */
+            // at every zoom: a badge is held to a size on screen, so pulled back it is bigger on the ground
+            const under = () => { let n = 0; const z0 = V.CAM.z;
+              try {
+                for (const z of [V.ZMIN, 1, V.ZMAX]) { V.CAM.z = z; read();
+                  for (const k of V.kidsNow().filter(k => k.play))
+                    for (const b of V.lastBadges)
+                      if (Math.abs(b.x - k.x) < b.hw + 10 && k.y > b.y - b.hh && k.y - 42 < b.y + b.hh) n++, fails.length < 40 &&
+                        fails.push(k.name + ', at play, is under a building\'s badge at ' + Math.round(b.x) + ',' + Math.round(b.y) + ' at zoom ' + z);
+                }
+              } finally { V.CAM.z = z0; }
+              return n; };
+            const atPlay = () => { for (let s2 = 0; s2 < 120; s2 += 2) { Date.now = () => noon + s2 * 1000; if (V.kidsNow().some(k => k.play)) return true; } return false; };
+            try {
+              under();
+              if (!V.lastBadges.length) fails.push('with full stores no building wore a badge, so the children went unchecked against them');
+              const pl = V.kidsNow().filter(k => k.play), mid = pl.length && V.worldToTile(pl.reduce((s, k) => s + k.x, 0) / pl.length, pl.reduce((s, k) => s + k.y, 0) / pl.length);
+              const tried = { well: 0, house: 0 };
+              for (const key of ['well', 'house'])
+                for (let dc = -3; mid && dc <= 4; dc++) for (let dr = -3; dr <= 4; dr++) {
+                  const c = Math.round(mid.c) + dc, r = Math.round(mid.r) + dr;
+                  if (Math.abs(dc) + Math.abs(dr) < 2 || !V.canPlace(key, c, r, V.occupied())) continue;
+                  if (!V.place(key, c, r)) continue;
+                  const h = V.placed[V.placed.length - 1];
+                  h.t = 1; h.build = 0;
+                  try { if (atPlay() && V.canUpgrade(h)) { tried[key]++; under(); } } finally { V.placed.splice(V.placed.indexOf(h), 1); Date.now = () => noon; }
+                }
+              for (const key in tried) if (!tried[key]) fails.push('no ' + key + ' wearing a badge could be put up round where the children play, so it went unchecked');
+            } finally { for (const k of V.RES) V.res[k] = kept[k]; read(); }
             /* A tap on a child opens her card: her name, whose she is, and her
                face in the ring. */
             for (const k of V.kidsNow().filter(k => k.play).slice(0, 2)) {
@@ -7260,8 +7309,19 @@
               const said = texts.map(o => o.t).join(' | ');
               if (!said.includes(k.name)) fails.push(k.name + '\'s card does not give the name: ' + said.slice(0, 120));
               if (!/(Daughter|Son) of |A child of the village/.test(said)) fails.push(k.name + '\'s card does not say whose child this is');
+              // only the girl is painted with a ball
+              if (/Playing ball/.test(said) !== k.girl) fails.push(k.name + '\'s card says "' + (said.match(/Playing [a-z]+/) || ['nothing of play'])[0] + '", and ' + (k.girl ? 'she has' : 'he has no') + ' ball');
               const face = 'portrait_' + k.fig.replace('villager_', '');
               if (!cardPics.some(o => o.im.medal && o.im.medal.face === face)) fails.push(k.name + '\'s card has no ' + face + ' in the ring');
+              // choosing something to build puts the card away, or the placing pill sits under it
+              const bar = V.barMode; V.barMode = 'build';
+              const card = V.barRects().find(r => !V.atLimit || !V.atLimit(r.b.key));
+              if (card) {
+                V.tap(card.x, card.y);
+                if (V.kidWho != null || V.who != null) fails.push('with ' + k.name + '\'s card open, choosing a ' + card.b.key + ' to build left the card up over the placing pill');
+                V.sel = null;
+              }
+              V.barMode = bar;
             }
             V.kidWho = null;
             Date.now = () => noon;
