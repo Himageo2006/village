@@ -5742,6 +5742,9 @@ function drawUmbrella(v, bob, k) {
    by the same sort of hash as the scenery so they stay put from one day to the
    next, and moving on only if something gets built where they stand. */
 const SNOWMEN = 4, SNOWMAN_SCARF = ['#c8473c', '#3f74b5', '#4f9a62', '#e0a93a'];
+// the snowmen in winter and the lit pumpkins in autumn, where drawWorld puts them
+const seasonDecorTiles = occ => season().key === 'winter' ? seasonTiles(occ, SNOWMEN, 90)
+  : season().key === 'autumn' ? seasonTiles(occ, PUMPKINS, 91, 3) : [];
 function seasonTiles(occ, count, salt, inFront = 0) {
   const h = hallOf(), L = landBounds(), out = [], taken = new Set(SCENERY.map(o => o.c + ',' + o.r)),
     tall = new Set(SCENERY.filter(o => o.kind.startsWith('tree')).map(o => o.c + ',' + o.r));
@@ -6080,17 +6083,93 @@ function lighterNow() {
   }
   return null;
 }
+/* At a lamp he reaches up to it with the pole raised (ChatGPT), instead of
+   standing beside it with the pole on his shoulder. The picture is the pole
+   as much as the man: drawn so the man is a villager's height, his feet at
+   REACH_FOOT across it. Measured off the two pictures side by side. */
+const LIGHTER_REACH = 'villager_lamplighter_reach', REACH_H = 1.13, REACH_FOOT = 0.3;
+const LIGHTER_ID = 'lamplighter';                    // his card is opened the way a child's is
 function drawLighter(m) {
-  const set = walkFrames(LIGHTER);
-  const im = set ? set[m.moving ? Math.floor(m.ph / (Math.PI * 2) * WALK_STEPS) % WALK_STEPS : WALK_STAND] : artFor(LIGHTER);
+  const set = walkFrames(LIGHTER), reach = m.lighting != null && artFor(LIGHTER_REACH);
+  const im = ready(reach) ? reach : set ? set[m.moving ? Math.floor(m.ph / (Math.PI * 2) * WALK_STEPS) % WALK_STEPS : WALK_STAND] : artFor(LIGHTER);
   if (!ready(im)) return;
-  const w = im.width * (VILLAGER_H / im.height);
+  const h = im === reach ? VILLAGER_H * REACH_H : VILLAGER_H, w = im.width * (h / im.height), fx = im === reach ? REACH_FOOT : 0.5;
   g.save();
   g.fillStyle = 'rgba(10,18,8,.3)';
   g.beginPath(); g.ellipse(m.x, m.y + 2, VILLAGER_H * 0.22, VILLAGER_H * 0.1, 0, 0, 7); g.fill();
-  // at a lamp he stretches up to it on his toes
-  g.translate(m.x, m.y - (m.lighting != null ? 2 : 0)); g.scale(m.face, 1);
-  g.drawImage(im, -w / 2, -VILLAGER_H, w, VILLAGER_H);
+  if (kidWho === LIGHTER_ID) {
+    g.strokeStyle = '#9fe86b'; g.lineWidth = 2.5;
+    g.beginPath(); g.ellipse(m.x, m.y + 2, VILLAGER_H * 0.28, VILLAGER_H * 0.13, 0, 0, 7); g.stroke();
+  }
+  g.translate(m.x, m.y); g.scale(m.face, 1);
+  g.drawImage(im, -w * fx, -h, w, h);
+  g.restore();
+  nightDrawn++;
+}
+/* Him under a fingertip, where he is drawn. */
+function lighterAt(sx, sy) {
+  const m = lighterNow();
+  if (!m) return null;
+  const sc = camScale(), pt = camProject(m.x, m.y), hw = Math.max(VILLAGER_H * 0.28 * sc, 14), hh = VILLAGER_H * sc;
+  return Math.abs(sx - pt.x) <= hw && sy <= pt.y + hh * 0.18 && sy >= pt.y - hh ? m : null;
+}
+/* His card, where a villager's goes: his face, his name, where he has got to
+   on his round, and when he is out. It closes when he goes in. */
+function drawLighterCard() {
+  if (kidWho !== LIGHTER_ID || who != null || panel != null || modalUp()) return;
+  const m = lighterNow(), round = lampRound();
+  if (!m || !round) { kidWho = null; return; }
+  const legs = round.legs.filter(l => l.id != null), t = roundClock();
+  const lit = legs.filter(l => t >= l.lit).length;
+  const u = US(), tabs = tabRects();
+  const w = Math.min(W - 48 * u, 960), h = 152 * u;
+  const y = tabs[0].y - tabs[0].h / 2 - 14 * u - h / 2;
+  g.save();
+  boardPanel(W / 2 - w / 2, y - h / 2, w, h, 20 * u);
+  const pd = h - 40 * u;
+  drawMedallion('portrait_lamplighter', W / 2 - w / 2 + 24 * u + pd / 2, y, pd);
+  g.textAlign = 'left'; g.textBaseline = 'middle';
+  const lx = W / 2 - w / 2 + 44 * u + pd, tw = w - 74 * u - pd;
+  panelRow(LIGHTER_NAME + ROW_SEP + 'The lamplighter', lx, y - h / 2 + 38 * u, tw, 30 * u, '#fff');
+  const doing = m.lighting != null ? 'Lighting a lamp' : lit >= legs.length ? 'Walking home' : 'On his way to the next lamp';
+  panelRow(doing + ROW_SEP + (lit >= legs.length ? 'every lamp lit' : lit + ' of ' + legs.length + ' lamps lit'), lx, y - h / 2 + 80 * u, tw, 22 * u, '#bccfae', '');
+  panelRow('Out as it gets dark, round every lamp, then home', lx, y - h / 2 + 118 * u, tw, 22 * u, DIM, '');
+  g.restore();
+}
+const LIGHTER_NAME = 'Amos';
+/* Hedgehogs (Leonardo) out after dark, the night's answer to the children:
+   two at most, each on open ground with nothing standing in front of it,
+   pottering a little way one way and back, nose down. */
+const HOG = 'hedgehog', HOGS_MAX = 2, HOG_H = 13;
+function hogsNow() {
+  if (sky().night < 0.5) return [];
+  const t = Date.now() / 1000;
+  /* Not on, or just behind, the season's own things on the ground: they come
+     from the same search, and the first hedgehog went missing behind an
+     autumn jack-o'-lantern. */
+  const occ = occupied(), near = new Set();
+  for (const o of seasonDecorTiles(occ)) for (let dc = -1; dc <= 1; dc++) for (let dr = -1; dr <= 1; dr++) near.add((o.c + dc) + ',' + (o.r + dr));
+  for (const k of near) occ.add(k);
+  /* And in sight: a tile clear in front can still be behind the hall, whose
+     tower reaches over several. Against the painted pictures, across the
+     whole of the little way it walks. */
+  const pics = occluders();
+  return seasonTiles(occ, 12, 63, 1).filter(o => { const at = tileToWorld(o.c, o.r);
+    return !hidden(pics, at.x - 22, at.x + 22, at.y + 2 - HOG_H, at.y + 2, at.y + 2); }).slice(0, HOGS_MAX).map((o, i) => {
+    const at = tileToWorld(o.c, o.r), k = t * 0.3 + i * 2.1, dx = Math.sin(k) * 14;
+    const moving = !reduceMotion && Math.abs(Math.cos(k)) > 0.2;
+    return { x: at.x + (reduceMotion ? 0 : dx), y: at.y + 2, face: Math.cos(k) >= 0 ? 1 : -1, moving, t: t + i };
+  });
+}
+function drawHog(o) {
+  const im = artFor(HOG);
+  if (!ready(im)) return;
+  const w = im.width * (HOG_H / im.height), bob = o.moving ? Math.abs(Math.sin(o.t * 7)) * 0.8 : 0;
+  g.save();
+  g.fillStyle = 'rgba(10,18,8,.25)';
+  g.beginPath(); g.ellipse(o.x, o.y + 1, w * 0.4, w * 0.14, 0, 0, 7); g.fill();
+  g.translate(o.x, o.y - bob); g.scale(o.face, 1);
+  g.drawImage(im, -w / 2, -HOG_H, w, HOG_H);
   g.restore();
   nightDrawn++;
 }
@@ -6187,7 +6266,7 @@ function kidAt(sx, sy) {
 /* A child's card, where a villager's goes: her face, her name, whose she is,
    and what she is up to. */
 function drawKidCard() {
-  if (kidWho == null || who != null || panel != null || modalUp()) return;
+  if (kidWho == null || kidWho === LIGHTER_ID || who != null || panel != null || modalUp()) return;
   const k = kidsNow().find(q => q.id === kidWho);
   if (!k) { kidWho = null; return; }                 // home for the night, or in out of the rain
   const u = US(), tabs = tabRects();
@@ -7274,6 +7353,7 @@ function drawWorld() {
   { const q = propNow(); if (q) ents.push({ y: q.y, d: () => drawProp(q) }); }
   { const m = lighterNow(); if (m) ents.push({ y: m.y, d: () => drawLighter(m) }); }
   for (const w of owlsNow()) ents.push({ y: w.depth, d: () => drawOwl(w) });
+  for (const o of hogsNow()) ents.push({ y: o.y, d: () => drawHog(o) });
   if (season().key === 'winter') seasonTiles(occSet, SNOWMEN, 90).forEach((o, i) => ents.push({ y: tileToWorld(o.c, o.r).y, d: () => drawSnowman(o, i) }));
   pumpkinTiles = season().key === 'autumn' ? seasonTiles(occSet, PUMPKINS, 91, 3) : [];
   for (const o of pumpkinTiles) ents.push({ y: tileToWorld(o.c, o.r).y, d: () => drawPumpkin(o) });
@@ -8124,6 +8204,7 @@ function drawHUD() {
   drawPanel();
   drawWho();
   drawKidCard();
+  drawLighterCard();
   drawGoal();
   drawSaveState();
   drawHint();
@@ -10871,6 +10952,7 @@ function tap(sx, sy) {
   // a child where she is drawn, next: she stands among the grown-ups and is half their size
   const kid = kidAt(sx, sy);
   if (kid) { SFX.tap(); kidWho = kid.id; who = null; panel = null; return; }
+  if (lighterAt(sx, sy)) { SFX.tap(); kidWho = LIGHTER_ID; who = null; panel = null; return; }
   /* The first tap opens what is drawn here; tapping the same place again goes
      to whatever is standing under it, and round again. That is the whole of
      the fix for a buried building: the patch you have to hit is the COVERING
@@ -10943,7 +11025,7 @@ for (const b of BUILDINGS) if (!SET_ART[b.key]) artFor(b.key);
     im.addEventListener('error', done, { once: true });
   }
 }
-for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER, WOODSWOMAN, ...KID_FIGS, ...PETS, ...Object.values(PLAY_PROP).map(q => q.key), LIGHTER, OWL]) artFor(v);
+for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER, WOODSWOMAN, ...KID_FIGS, ...PETS, ...Object.values(PLAY_PROP).map(q => q.key), LIGHTER, LIGHTER_REACH, OWL, HOG]) artFor(v);
 /* Asked for once, here, rather than on the first frame somebody walks: a
    villager with no cycle drawn for him would otherwise send six requests
    the moment he set off, and artFor remembers a miss, so doing it at boot
@@ -11014,7 +11096,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   SEASONS, SEASON_OF, SEASON_LEAF, seasonIdx, season, seasonSkin, drawGround, drawScenery, SCENERY,
   GW, GH, tileToWorld, deliveredOf,
   get seasonForced() { return seasonForced; }, set seasonForced(v) { seasonForced = v; },
-  get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, winterArt, ART, villagerArt, glowKey, get glowsDrawn() { return glowsDrawn; }, get iconsDrawn() { return iconsDrawn; }, get carriesDrawn() { return carriesDrawn; }, get chromeDrawn() { return chromeDrawn; }, portraitKey, merchantOf, panelFaces, thoughtOf, get thoughtsDrawn() { return thoughtsDrawn; }, get lifeDrawn() { return lifeDrawn; }, kidsNow, catsNow, propNow, playground, lampRound, lampLit, lighterNow, LIGHT_FROM, owlsNow, roundClock, LIGHTER, OWL, OWLS_MAX, get nightDrawn() { return nightDrawn; }, get lampsLit() { return lampsLit; }, PLAY_PROP, occluders, hidden, artRect, kidAt, parentsOf, playSpot, topOf, KID_FIGS, PETS, get kidWho() { return kidWho; }, set kidWho(v) { kidWho = v; }, KIDS_MAX, CATS_MAX, get sparkleCount() { return sparkleCount; }, chromeCache,
+  get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, winterArt, ART, villagerArt, glowKey, get glowsDrawn() { return glowsDrawn; }, get iconsDrawn() { return iconsDrawn; }, get carriesDrawn() { return carriesDrawn; }, get chromeDrawn() { return chromeDrawn; }, portraitKey, merchantOf, panelFaces, thoughtOf, get thoughtsDrawn() { return thoughtsDrawn; }, get lifeDrawn() { return lifeDrawn; }, kidsNow, catsNow, propNow, playground, lampRound, lampLit, lighterNow, LIGHT_FROM, lighterAt, LIGHTER_ID, LIGHTER_NAME, LIGHTER_REACH, hogsNow, HOG, HOGS_MAX, seasonDecorTiles, owlsNow, roundClock, LIGHTER, OWL, OWLS_MAX, get nightDrawn() { return nightDrawn; }, get lampsLit() { return lampsLit; }, PLAY_PROP, occluders, hidden, artRect, kidAt, parentsOf, playSpot, topOf, KID_FIGS, PETS, get kidWho() { return kidWho; }, set kidWho(v) { kidWho = v; }, KIDS_MAX, CATS_MAX, get sparkleCount() { return sparkleCount; }, chromeCache,
   get plainIcons() { return plainIcons; }, set plainIcons(v) { plainIcons = !!v; }, ICON_OF,
   hudTop, hudBot, screenTop, screenBot, readSafeArea, get SAFE() { return SAFE; }, set SAFE(v) { SAFE = v; },
   get safeKnown() { return safeKnown; }, set safeKnown(v) { safeKnown = !!v; },

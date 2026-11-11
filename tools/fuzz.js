@@ -6831,11 +6831,11 @@
       rows.push({ what, things, lit, icons, carried, chrome, drawImage: ops.drawImage, total: ops.total });
       // the children at play and the cats on the steps, a handful at most
       if (life > V.KIDS_MAX + V.CATS_MAX + 1) fails.push(what + ' draws ' + life + ' children, cats and a plaything, past the ' + (V.KIDS_MAX + V.CATS_MAX + 1) + ' the village has');
-      if ((V.nightDrawn | 0) > V.OWLS_MAX + 1) fails.push(what + ' draws ' + V.nightDrawn + ' owls and lamplighters, past the ' + (V.OWLS_MAX + 1) + ' the night has');
+      if ((V.nightDrawn | 0) > V.OWLS_MAX + 1 + V.HOGS_MAX) fails.push(what + ' draws ' + V.nightDrawn + ' owls, hedgehogs and lamplighters, past the ' + (V.OWLS_MAX + 1 + V.HOGS_MAX) + ' the night has');
       if (chrome > 20) fails.push(what + ' draws ' + chrome + ' pieces of card furniture on one frame -- a card and a tab need perhaps a dozen');
       if (carried > V.villagers.length) fails.push(what + ' draws ' + carried + ' carried loads for ' + V.villagers.length + ' villagers');
       if (icons > 40) fails.push(what + ' draws ' + icons + ' painted icons on one frame -- the HUD has room for perhaps thirty');
-      if (ops.drawImage > things + lit + Math.min(icons, 40) + Math.min(carried, V.villagers.length) + Math.min(chrome, 20) + Math.min(thought, 2 * V.villagers.length) + Math.min(life, V.KIDS_MAX + V.CATS_MAX + 1) + Math.min(V.nightDrawn | 0, V.OWLS_MAX + 1) + spareHere)
+      if (ops.drawImage > things + lit + Math.min(icons, 40) + Math.min(carried, V.villagers.length) + Math.min(chrome, 20) + Math.min(thought, 2 * V.villagers.length) + Math.min(life, V.KIDS_MAX + V.CATS_MAX + 1) + Math.min(V.nightDrawn | 0, V.OWLS_MAX + 1 + V.HOGS_MAX) + spareHere)
         fails.push(what + ' reaches for an image ' + ops.drawImage + ' times with '
           + things + ' things standing on it' + (lit ? ' and ' + lit + ' lit at night' : '')
           + ' (' + icons + ' icons, ' + carried + ' loads, ' + chrome + ' card pieces)'
@@ -7187,7 +7187,7 @@
            everybody indoors at night. The clock is moved to the middle of a
            dry day -- a wet one keeps them in too. */
         const artOf = f => [f, ...[1, 2, 3, 4, 5, 6].map(i => f + '_walk' + i)];
-        const KIDART = V.KID_FIGS.flatMap(artOf), LIFE = [...KIDART, ...V.PETS, 'portrait_girl', 'portrait_boy', ...Object.values(V.PLAY_PROP).map(q => q.key), ...artOf(V.LIGHTER), V.OWL];
+        const KIDART = V.KID_FIGS.flatMap(artOf), LIFE = [...KIDART, ...V.PETS, 'portrait_girl', 'portrait_boy', ...Object.values(V.PLAY_PROP).map(q => q.key), ...artOf(V.LIGHTER), V.OWL, V.LIGHTER_REACH, V.HOG, 'portrait_lamplighter'];
         for (const k of LIFE) V.artFor(k);
         for (let i = 0; i < 50 && !LIFE.every(k => V.artFor(k)); i++) await new Promise(r => setTimeout(r, 100));
         /* Houses with open ground in front of their doors, and none built in
@@ -7404,6 +7404,28 @@
                 const { ims: pics3 } = read();
                 const walkArt = [V.LIGHTER, ...[1, 2, 3, 4, 5, 6].map(i => V.LIGHTER + '_walk' + i)].map(k => V.artFor(k));
                 if (!pics3.some(o => walkArt.includes(o.im))) fails.push('on his way between lamps the lamplighter was not drawn');
+                if (pics3.some(o => o.im === V.artFor(V.LIGHTER_REACH))) fails.push('walking between lamps he is drawn reaching up');
+                /* At a lamp he reaches up to it; and a tap on him opens his card:
+                   his name, his face, and how far round he has got. */
+                const last = legs[legs.length - 1]; at(last.lit + 0.2);
+                const { ims: pics5 } = read();
+                if (!pics5.some(o => o.im === V.artFor(V.LIGHTER_REACH))) fails.push('at a lamp the lamplighter is not drawn reaching up to it');
+                const lm = V.lighterNow();
+                if (lm) {
+                  V.who = null; V.panel = null; V.kidWho = null;
+                  const pt = V.camProject(lm.x, lm.y), sc = V.camScale();
+                  V.tap(pt.x, pt.y - V.VILLAGER_H * 0.5 * sc);
+                  if (V.kidWho !== V.LIGHTER_ID) fails.push('tapping the lamplighter where he is drawn did not open his card');
+                  else {
+                    const { texts, ims: cardPics } = read(), said = texts.map(o => o.t).join(' | ');
+                    if (!said.includes(V.LIGHTER_NAME) || !said.includes('The lamplighter')) fails.push('the lamplighter\'s card does not give his name and work: ' + said.slice(0, 120));
+                    if (!said.includes(legs.length + ' of ' + legs.length + ' lamps lit') && !said.includes('every lamp lit')) fails.push('at his last lamp his card does not say every lamp is lit: ' + said.slice(0, 160));
+                    if (!cardPics.some(o => o.im.medal && o.im.medal.face === 'portrait_lamplighter')) fails.push('the lamplighter\'s card has no portrait_lamplighter in the ring');
+                    at(round.end + 5); read();
+                    if (V.kidWho != null) fails.push('he has gone in and his card is still open');
+                  }
+                  V.kidWho = null;
+                }
                 at(round.end + 5);
                 if (V.lighterNow()) fails.push('the round is done and the lamplighter is still out');
                 // and at midnight every lamp glows, and he is in
@@ -7420,9 +7442,17 @@
               if (owls.length > V.OWLS_MAX) fails.push(owls.length + ' owls are out, past the ' + V.OWLS_MAX);
               if (trees && !owls.length) fails.push('at midnight with ' + trees + ' tall trees in the village no owl is out');
               if (pics4.filter(o => o.im === V.artFor(V.OWL)).length !== owls.length) fails.push(owls.length + ' owls are out and ' + pics4.filter(o => o.im === V.artFor(V.OWL)).length + ' were drawn');
-              if (V.nightDrawn !== owls.length) fails.push('at midnight ' + V.nightDrawn + ' owls and lamplighters were drawn for ' + owls.length + ' owls');
+              // and the hedgehogs: two at most, each painted, on open ground
+              const hogs = V.hogsNow(), hogPics = pics4.filter(o => o.im === V.artFor(V.HOG)).length;
+              if (!hogs.length || hogs.length > V.HOGS_MAX) fails.push('at midnight ' + hogs.length + ' hedgehogs are out, not 1 to ' + V.HOGS_MAX);
+              if (hogPics !== hogs.length) fails.push(hogs.length + ' hedgehogs are out and ' + hogPics + ' were drawn');
+              for (const o of hogs) { const at2 = V.worldToTile(o.x, o.y), key = Math.round(at2.c) + ',' + Math.round(at2.r);
+                if (V.occupied().has(key)) fails.push('a hedgehog is inside something built on tile ' + key);
+                if (V.hidden(V.occluders(), o.x - 8, o.x + 8, o.y - 13, o.y, o.y)) fails.push('a hedgehog on tile ' + key + ' is behind something drawn in front of it');
+                if (V.seasonDecorTiles(V.occupied()).some(q => Math.abs(q.c - Math.round(at2.c)) <= 1 && Math.abs(q.r - Math.round(at2.r)) <= 1)) fails.push('a hedgehog on tile ' + key + ' is on or beside one of the season\'s pumpkins or snowmen'); }
+              if (V.nightDrawn !== owls.length + hogs.length) fails.push('at midnight ' + V.nightDrawn + ' night things were drawn for ' + owls.length + ' owls and ' + hogs.length + ' hedgehogs');
               Date.now = () => noon;
-              if (V.owlsNow().length) fails.push('at noon ' + V.owlsNow().length + ' owls are out');
+              if (V.owlsNow().length || V.hogsNow().length) fails.push('at noon ' + V.owlsNow().length + ' owls and ' + V.hogsNow().length + ' hedgehogs are out');
             } finally { for (const h of lamps) V.placed.splice(V.placed.indexOf(h), 1); }
           }
         } finally { Date.now = realNow; V.step(0.001); }
