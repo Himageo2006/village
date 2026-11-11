@@ -1266,19 +1266,25 @@ function drawLanterns(night) {
     g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
   }
 }
+let lampsLit = 0;                                    // lamps glowing in the last frame, for the sweep
 function drawLamps() {
   const { night } = sky();
+  lampsLit = 0;
   if (night < 0.04) return;
   g.save();
   g.globalCompositeOperation = 'lighter';
   drawBeam(night);
   drawLanterns(night);
+  const round = lampRound(), clock = roundClock();
   for (const p of placed) {
     if (p.key !== 'lamp') continue;
+    const lit = lampLit(p, round, clock);
+    if (lit <= 0) continue;
+    lampsLit++;
     const at = LAMP_GLOW[lookOf(p)] || LAMP_GLOW.lamp;
     const o = tileToWorld(p.c, p.r), x = o.x + at.dx, y = o.y + at.dy;
     const r = 92, gr = g.createRadialGradient(x, y, 0, x, y, r);
-    const a = 0.50 * night;
+    const a = 0.50 * night * lit;
     gr.addColorStop(0, 'rgba(255,206,120,' + a.toFixed(3) + ')');
     gr.addColorStop(0.45, 'rgba(255,178,80,' + (a * 0.35).toFixed(3) + ')');
     gr.addColorStop(1, 'rgba(255,170,70,0)');
@@ -6022,6 +6028,93 @@ function drawProp(q) {
   g.restore();
   lifeDrawn++;
 }
+/* The lamplighter (ChatGPT, with his own walk). The lamps used to come on
+   by themselves at dusk, all at once. Now an old man in a green coat leaves
+   the hall as the sun goes down, walks to the nearest lamp, reaches up with
+   his pole, and it lights; then the next nearest, and so on round the
+   village, and home. A lamp is dark until he has been to it. Worked out from
+   the clock, like the children: where he is and which lamps are lit is the
+   same on every screen and after a reload. Under reduce motion he stays in
+   and every lamp is lit at dusk, as before. */
+const LIGHTER = 'villager_lamplighter', LIGHT_SPD = 46, LIGHT_STOP = 2.4, LIGHT_FROM = 0.58;    // once it is getting dark
+let nightDrawn = 0;                                 // the lamplighter and the owls, for the cost sweep
+// where he stands to light a lamp: just in front of its post, a little to the left
+const lampFoot = q => { const o = tileToWorld(q.c, q.r); return { x: o.x - 18, y: o.y + 6 }; };
+function lampRound() {
+  const hall = placed.find(q => q.key === 'hall');
+  const left = placed.filter(q => q.key === 'lamp' && established(q)).map(q => ({ q, at: lampFoot(q) }));
+  if (!hall || !left.length) return null;
+  const home = doorOf(hall), legs = [];
+  let at = home, t = 0;
+  while (left.length) {                              // the nearest lamp not yet lit, every time
+    const far = o => Math.hypot(o.at.x - at.x, o.at.y - at.y);
+    left.sort((a, b) => far(a) - far(b) || a.q.id - b.q.id);
+    const n = left.shift(), walk = far(n) / LIGHT_SPD;
+    legs.push({ from: at, to: n.at, t0: t, t1: t + walk, lit: t + walk + LIGHT_STOP * 0.5, id: n.q.id });
+    t += walk + LIGHT_STOP; at = n.at;
+  }
+  const walk = Math.hypot(home.x - at.x, home.y - at.y) / LIGHT_SPD;
+  legs.push({ from: at, to: home, t0: t, t1: t + walk });
+  return { legs, end: t + walk };
+}
+// seconds since he set out this evening; less than nought by day
+const roundClock = () => { const ph = dayPhase(); return ph >= LIGHT_FROM ? (ph - LIGHT_FROM) * DAY_MS / 1000 : -1; };
+/* How lit a lamp is, 0 to 1: dark until he reaches it, then up over half a
+   second. A lamp still being built is not on his round and, as before, glows. */
+function lampLit(q, round = lampRound(), t = roundClock()) {
+  const leg = round && round.legs.find(l => l.id === q.id);
+  if (!leg || reduceMotion) return 1;
+  return Math.max(0, Math.min(1, (t - leg.lit) / 0.5));
+}
+function lighterNow() {
+  const round = lampRound(), t = roundClock();
+  if (!round || reduceMotion || t < 0 || t > round.end) return null;
+  for (let i = 0; i < round.legs.length; i++) {
+    const l = round.legs[i], next = round.legs[i + 1];
+    if (t <= l.t1) {
+      const k = (t - l.t0) / Math.max(1e-6, l.t1 - l.t0), d = Math.hypot(l.to.x - l.from.x, l.to.y - l.from.y);
+      return { x: l.from.x + (l.to.x - l.from.x) * k, y: l.from.y + (l.to.y - l.from.y) * k,
+        face: l.to.x < l.from.x ? -1 : 1, moving: true, ph: k * d * Math.PI / STRIDE, lighting: null };
+    }
+    if (next && t < next.t0) return { x: l.to.x, y: l.to.y, face: 1, moving: false, ph: 0, lighting: l.id };
+  }
+  return null;
+}
+function drawLighter(m) {
+  const set = walkFrames(LIGHTER);
+  const im = set ? set[m.moving ? Math.floor(m.ph / (Math.PI * 2) * WALK_STEPS) % WALK_STEPS : WALK_STAND] : artFor(LIGHTER);
+  if (!ready(im)) return;
+  const w = im.width * (VILLAGER_H / im.height);
+  g.save();
+  g.fillStyle = 'rgba(10,18,8,.3)';
+  g.beginPath(); g.ellipse(m.x, m.y + 2, VILLAGER_H * 0.22, VILLAGER_H * 0.1, 0, 0, 7); g.fill();
+  // at a lamp he stretches up to it on his toes
+  g.translate(m.x, m.y - (m.lighting != null ? 2 : 0)); g.scale(m.face, 1);
+  g.drawImage(im, -w / 2, -VILLAGER_H, w, VILLAGER_H);
+  g.restore();
+  nightDrawn++;
+}
+/* Owls (Leonardo) in the tall trees after dark, the night's answer to the
+   cats on the steps by day: three at most, each on a tree the camera can see
+   into, chosen by the tree so they come back to the same branches. */
+const OWL = 'owl', OWLS_MAX = 3, OWL_H = 22;
+const OWL_TREES = new Set(['tree_pine', 'tree_spruce', 'tree_oak', 'tree_poplar', 'tree_birch', 'tree_willow', 'tree_cherry']);
+function owlsNow() {
+  if (sky().night < 0.5) return [];
+  const occ = occluders();
+  return SCENERY.filter(o => OWL_TREES.has(o.kind) && inLand(o.c, o.r))
+    .map(o => { const at = tileToWorld(o.c, o.r), h = (SCENERY_H[o.kind] || 100) * (o.s || 1);
+      return { x: at.x + h * 0.06, y: at.y - h * 0.5, depth: at.y + 0.5, n: rnd(o.c * 37 + o.r, 41) }; })
+    .filter(w => !hidden(occ, w.x - OWL_H * 0.4, w.x + OWL_H * 0.4, w.y - OWL_H, w.y, w.depth))
+    .sort((a, b) => a.n - b.n).slice(0, OWLS_MAX);
+}
+function drawOwl(w) {
+  const im = artFor(OWL);
+  if (!ready(im)) return;
+  const wd = im.width * (OWL_H / im.height);
+  g.drawImage(im, w.x - wd / 2, w.y - OWL_H, wd, OWL_H);
+  nightDrawn++;
+}
 function kidsNow() {
   if (!lifeOut()) return [];
   const pg = playground();
@@ -7179,6 +7272,8 @@ function drawWorld() {
   for (const k of kidsNow()) ents.push({ y: k.y, d: () => drawKid(k) });
   for (const c of catsNow()) ents.push({ y: c.y, d: () => drawCat(c) });
   { const q = propNow(); if (q) ents.push({ y: q.y, d: () => drawProp(q) }); }
+  { const m = lighterNow(); if (m) ents.push({ y: m.y, d: () => drawLighter(m) }); }
+  for (const w of owlsNow()) ents.push({ y: w.depth, d: () => drawOwl(w) });
   if (season().key === 'winter') seasonTiles(occSet, SNOWMEN, 90).forEach((o, i) => ents.push({ y: tileToWorld(o.c, o.r).y, d: () => drawSnowman(o, i) }));
   pumpkinTiles = season().key === 'autumn' ? seasonTiles(occSet, PUMPKINS, 91, 3) : [];
   for (const o of pumpkinTiles) ents.push({ y: tileToWorld(o.c, o.r).y, d: () => drawPumpkin(o) });
@@ -10219,7 +10314,7 @@ function drawPanel() {
 }
 
 function draw() {
-  glowsDrawn = 0; iconsDrawn = 0; carriesDrawn = 0; chromeDrawn = 0; thoughtsDrawn = 0; lifeDrawn = 0;
+  glowsDrawn = 0; iconsDrawn = 0; carriesDrawn = 0; chromeDrawn = 0; thoughtsDrawn = 0; lifeDrawn = 0; nightDrawn = 0;
   stepAmbience();
   fitCanvas();
   g.setTransform(1, 0, 0, 1, 0, 0);
@@ -10848,12 +10943,12 @@ for (const b of BUILDINGS) if (!SET_ART[b.key]) artFor(b.key);
     im.addEventListener('error', done, { once: true });
   }
 }
-for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER, WOODSWOMAN, ...KID_FIGS, ...PETS, ...Object.values(PLAY_PROP).map(q => q.key)]) artFor(v);
+for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER, WOODSWOMAN, ...KID_FIGS, ...PETS, ...Object.values(PLAY_PROP).map(q => q.key), LIGHTER, OWL]) artFor(v);
 /* Asked for once, here, rather than on the first frame somebody walks: a
    villager with no cycle drawn for him would otherwise send six requests
    the moment he set off, and artFor remembers a miss, so doing it at boot
    costs the same misses at a moment when nothing is moving yet. */
-for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER, WOODSWOMAN, ...KID_FIGS]) for (let i = 1; i <= WALK_STEPS; i++) artFor(v + '_walk' + i);
+for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER, WOODSWOMAN, ...KID_FIGS, LIGHTER]) for (let i = 1; i <= WALK_STEPS; i++) artFor(v + '_walk' + i);
 /* The beacon's five, asked for here for the same reason the walk frames are:
    a village with none of them drawn would otherwise send five requests the
    moment it finished, and artFor remembers a miss. */
@@ -10919,7 +11014,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   SEASONS, SEASON_OF, SEASON_LEAF, seasonIdx, season, seasonSkin, drawGround, drawScenery, SCENERY,
   GW, GH, tileToWorld, deliveredOf,
   get seasonForced() { return seasonForced; }, set seasonForced(v) { seasonForced = v; },
-  get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, winterArt, ART, villagerArt, glowKey, get glowsDrawn() { return glowsDrawn; }, get iconsDrawn() { return iconsDrawn; }, get carriesDrawn() { return carriesDrawn; }, get chromeDrawn() { return chromeDrawn; }, portraitKey, merchantOf, panelFaces, thoughtOf, get thoughtsDrawn() { return thoughtsDrawn; }, get lifeDrawn() { return lifeDrawn; }, kidsNow, catsNow, propNow, playground, PLAY_PROP, occluders, hidden, artRect, kidAt, parentsOf, playSpot, topOf, KID_FIGS, PETS, get kidWho() { return kidWho; }, set kidWho(v) { kidWho = v; }, KIDS_MAX, CATS_MAX, get sparkleCount() { return sparkleCount; }, chromeCache,
+  get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, winterArt, ART, villagerArt, glowKey, get glowsDrawn() { return glowsDrawn; }, get iconsDrawn() { return iconsDrawn; }, get carriesDrawn() { return carriesDrawn; }, get chromeDrawn() { return chromeDrawn; }, portraitKey, merchantOf, panelFaces, thoughtOf, get thoughtsDrawn() { return thoughtsDrawn; }, get lifeDrawn() { return lifeDrawn; }, kidsNow, catsNow, propNow, playground, lampRound, lampLit, lighterNow, LIGHT_FROM, owlsNow, roundClock, LIGHTER, OWL, OWLS_MAX, get nightDrawn() { return nightDrawn; }, get lampsLit() { return lampsLit; }, PLAY_PROP, occluders, hidden, artRect, kidAt, parentsOf, playSpot, topOf, KID_FIGS, PETS, get kidWho() { return kidWho; }, set kidWho(v) { kidWho = v; }, KIDS_MAX, CATS_MAX, get sparkleCount() { return sparkleCount; }, chromeCache,
   get plainIcons() { return plainIcons; }, set plainIcons(v) { plainIcons = !!v; }, ICON_OF,
   hudTop, hudBot, screenTop, screenBot, readSafeArea, get SAFE() { return SAFE; }, set SAFE(v) { SAFE = v; },
   get safeKnown() { return safeKnown; }, set safeKnown(v) { safeKnown = !!v; },

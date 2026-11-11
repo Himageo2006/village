@@ -6831,10 +6831,11 @@
       rows.push({ what, things, lit, icons, carried, chrome, drawImage: ops.drawImage, total: ops.total });
       // the children at play and the cats on the steps, a handful at most
       if (life > V.KIDS_MAX + V.CATS_MAX + 1) fails.push(what + ' draws ' + life + ' children, cats and a plaything, past the ' + (V.KIDS_MAX + V.CATS_MAX + 1) + ' the village has');
+      if ((V.nightDrawn | 0) > V.OWLS_MAX + 1) fails.push(what + ' draws ' + V.nightDrawn + ' owls and lamplighters, past the ' + (V.OWLS_MAX + 1) + ' the night has');
       if (chrome > 20) fails.push(what + ' draws ' + chrome + ' pieces of card furniture on one frame -- a card and a tab need perhaps a dozen');
       if (carried > V.villagers.length) fails.push(what + ' draws ' + carried + ' carried loads for ' + V.villagers.length + ' villagers');
       if (icons > 40) fails.push(what + ' draws ' + icons + ' painted icons on one frame -- the HUD has room for perhaps thirty');
-      if (ops.drawImage > things + lit + Math.min(icons, 40) + Math.min(carried, V.villagers.length) + Math.min(chrome, 20) + Math.min(thought, 2 * V.villagers.length) + Math.min(life, V.KIDS_MAX + V.CATS_MAX + 1) + spareHere)
+      if (ops.drawImage > things + lit + Math.min(icons, 40) + Math.min(carried, V.villagers.length) + Math.min(chrome, 20) + Math.min(thought, 2 * V.villagers.length) + Math.min(life, V.KIDS_MAX + V.CATS_MAX + 1) + Math.min(V.nightDrawn | 0, V.OWLS_MAX + 1) + spareHere)
         fails.push(what + ' reaches for an image ' + ops.drawImage + ' times with '
           + things + ' things standing on it' + (lit ? ' and ' + lit + ' lit at night' : '')
           + ' (' + icons + ' icons, ' + carried + ' loads, ' + chrome + ' card pieces)'
@@ -7186,7 +7187,7 @@
            everybody indoors at night. The clock is moved to the middle of a
            dry day -- a wet one keeps them in too. */
         const artOf = f => [f, ...[1, 2, 3, 4, 5, 6].map(i => f + '_walk' + i)];
-        const KIDART = V.KID_FIGS.flatMap(artOf), LIFE = [...KIDART, ...V.PETS, 'portrait_girl', 'portrait_boy', ...Object.values(V.PLAY_PROP).map(q => q.key)];
+        const KIDART = V.KID_FIGS.flatMap(artOf), LIFE = [...KIDART, ...V.PETS, 'portrait_girl', 'portrait_boy', ...Object.values(V.PLAY_PROP).map(q => q.key), ...artOf(V.LIGHTER), V.OWL];
         for (const k of LIFE) V.artFor(k);
         for (let i = 0; i < 50 && !LIFE.every(k => V.artFor(k)); i++) await new Promise(r => setTimeout(r, 100));
         /* Houses with open ground in front of their doors, and none built in
@@ -7373,6 +7374,56 @@
             Date.now = () => noon;
             Date.now = () => noon - (noon % DAY) + DAY * 0.75; V.step(0.001); V.draw();
             if (V.kidsNow().length || V.catsNow().length || V.lifeDrawn !== (V.propNow() ? 1 : 0)) fails.push('at night ' + V.lifeDrawn + ' children and cats were still out');
+            /* The lamplighter: out at sundown, to each lamp in turn, and each
+               lamp dark until he has reached it; then home. Three lamps of
+               this sweep's own, put up and taken down again. */
+            const lamps = [], L2 = V.landBounds();
+            for (let c = L2.hi; c >= L2.lo && lamps.length < 3; c -= 3) for (let r = L2.lo; r <= L2.hi; r += 2) {
+              if (!V.canPlace('lamp', c, r, V.occupied()) || !V.place('lamp', c, r)) continue;
+              const h = V.placed[V.placed.length - 1]; h.t = 1; h.build = 0; lamps.push(h); break;
+            }
+            try {
+              const day0 = noon - (noon % DAY), round = V.lampRound();
+              const at = s => { Date.now = () => day0 + V.LIGHT_FROM * DAY + s * 1000; };
+              if (lamps.length < 3) fails.push('only ' + lamps.length + ' lamps could be put up, so the lamplighter went unchecked');
+              else if (!round) fails.push('with ' + lamps.length + ' lamps up the lamplighter has no round');
+              else {
+                const legs = round.legs.filter(l => l.id != null);
+                if (legs.length !== V.placed.filter(q => q.key === 'lamp' && V.established(q)).length) fails.push('the lamplighter goes to ' + legs.length + ' lamps of ' + V.placed.filter(q => q.key === 'lamp').length);
+                Date.now = () => day0 + (V.LIGHT_FROM - 0.02) * DAY;
+                if (V.lighterNow()) fails.push('the lamplighter is out before sundown');
+                legs.forEach((l, i) => {
+                  at(l.lit - 0.3);                               // reaching up to lamp i
+                  const m = V.lighterNow();
+                  if (!m || Math.hypot(m.x - l.to.x, m.y - l.to.y) > 2) fails.push('as lamp ' + (i + 1) + ' is lit the lamplighter is not at it');
+                  legs.forEach((o, j) => { const lit = V.lampLit(V.placed.find(q => q.id === o.id));
+                    if (j < i ? lit !== 1 : lit !== 0) fails.push('lamp ' + (j + 1) + ' is ' + (lit ? 'lit' : 'dark') + ' while he is at lamp ' + (i + 1)); });
+                });
+                // on his way: drawn, walking
+                const mid = legs[1] || legs[0]; at((mid.t0 + mid.t1) / 2);
+                const { ims: pics3 } = read();
+                const walkArt = [V.LIGHTER, ...[1, 2, 3, 4, 5, 6].map(i => V.LIGHTER + '_walk' + i)].map(k => V.artFor(k));
+                if (!pics3.some(o => walkArt.includes(o.im))) fails.push('on his way between lamps the lamplighter was not drawn');
+                at(round.end + 5);
+                if (V.lighterNow()) fails.push('the round is done and the lamplighter is still out');
+                // and at midnight every lamp glows, and he is in
+                Date.now = () => day0 + 0.75 * DAY; read();
+                const want = V.placed.filter(q => q.key === 'lamp').length;
+                if (V.lampsLit !== want) fails.push('at midnight ' + V.lampsLit + ' of ' + want + ' lamps glow');
+              }
+              /* Owls in the tall trees at night and none by day, each one
+                 painted, three at most, and nothing else of the night drawn
+                 once he is home. */
+              Date.now = () => day0 + 0.75 * DAY;
+              const { ims: pics4 } = read(), owls = V.owlsNow();
+              const trees = V.SCENERY.filter(o => /^tree_(pine|spruce|oak|poplar|birch|willow|cherry)$/.test(o.kind) && V.inLand(o.c, o.r)).length;
+              if (owls.length > V.OWLS_MAX) fails.push(owls.length + ' owls are out, past the ' + V.OWLS_MAX);
+              if (trees && !owls.length) fails.push('at midnight with ' + trees + ' tall trees in the village no owl is out');
+              if (pics4.filter(o => o.im === V.artFor(V.OWL)).length !== owls.length) fails.push(owls.length + ' owls are out and ' + pics4.filter(o => o.im === V.artFor(V.OWL)).length + ' were drawn');
+              if (V.nightDrawn !== owls.length) fails.push('at midnight ' + V.nightDrawn + ' owls and lamplighters were drawn for ' + owls.length + ' owls');
+              Date.now = () => noon;
+              if (V.owlsNow().length) fails.push('at noon ' + V.owlsNow().length + ' owls are out');
+            } finally { for (const h of lamps) V.placed.splice(V.placed.indexOf(h), 1); }
           }
         } finally { Date.now = realNow; V.step(0.001); }
       }
