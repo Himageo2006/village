@@ -7561,3 +7561,29 @@ The game draws a painted icon wherever one has loaded, and the emoji it replaces
 - Two battery runs in this round went wrong for reasons not understood.
   - One hung (no result in six minutes) and passed when run again.
   - In one, the cost sweep found two draws of the same village at night differing by one image, fill, save and roundRect. The next run passed, and the one after (the fault run) did not show it. The cause was not found. None of the new drawing uses roundRect, but they make winter nights dearer, which may have made winter the night the sweep measures twice.
+
+## Round 258: autumn, the geese painted and squirrels at the trees
+
+- **goose_up, goose_down** (GPT Image, one picture with both frames): "New image please, wide landscape 3:2. Two frames of the SAME flying Canada goose side by side, left and right halves, identical size, colours and style, both flying to the right, seen from the side and slightly below as from a cozy isometric village game: LEFT frame wings raised high in an upstroke, RIGHT frame wings pushed down in a downstroke. Black neck and head with the white chin strap, brown-grey body, pale belly, dark tail, long neck stretched forward. Soft painterly storybook game-sprite style matching the earlier cottages. Each goose small and fully inside its half with plenty of space around it. Flat solid pure magenta #FF00FF background over the whole image, no sky, no shadow, no clouds, no text, no frame borders." Master: `art/original/geese_pair.png`.
+  - The picture was cut into halves. The right half was moved 58 right and 22 down, so the eye sits where it does in the left half, and both were keyed with one shared crop so they stay registered. The magenta came off cleanly.
+- **squirrel** (Leonardo Lucid Origin, free relaxed, four to a batch): "A single small cute red squirrel sitting up on its haunches holding a brown acorn in its front paws, big bushy curled tail raised behind it, russet-orange fur, cream belly, tufted ears, bright dark eye, facing right, seen from the side at a three-quarter angle from slightly above, soft painterly 3D-rendered storybook illustration like a cozy isometric village building game sprite, warm autumn daylight, isolated and centred on a flat solid pure magenta #FF00FF background, no shadow, no ground, no leaves, no branch, no outline, no text". Master: `art/original/squirrel_sit.jpg`, the second of four, which was the plainest side view.
+- **squirrel_run** (Leonardo, the same): "A single small cute red squirrel running and bounding to the right in mid-leap, body stretched out low, front paws reaching forward, back legs pushing off, big bushy tail streaming out behind it, russet-orange fur, cream belly, tufted ears, bright dark eye, seen from the side, soft painterly 3D-rendered storybook illustration like a cozy isometric village building game sprite, warm autumn daylight, isolated and centred on a flat solid pure magenta #FF00FF background, no shadow, no ground, no leaves, no acorn, no outline, no text". Master: `art/original/squirrel_run.jpg`, the first of four.
+  - As with the robin, the backgrounds came out dusky pink with a shadow. They were keyed with the edge flood fill, and then every pixel bluer than it is green in the lower part was made clear. Fur, belly and acorn are all less blue than green, so only the shadow went.
+- The geese that cross in spring and autumn were dark strokes and are now the painted goose. Each of the nine in the V swaps wings up and down on its own beat, so a ripple runs down the skein. They fade with the light, and the strokes are kept for before the pictures have loaded.
+  - At 30 high they were too small to tell from the old strokes; they are 46.
+- On a dry autumn day, from a little after sunrise to before dusk, there is a squirrel at each of two trees. A tree qualifies when its foot is in sight and there is open ground in front of it, not a pumpkin's tile or a washing line's.
+  - Every five seconds a squirrel darts to a spot in front of its tree, sits up there with the acorn, and then digs it in with its nose down, throwing up a little earth drawn in one path.
+  - About one turn in four it runs up the trunk instead, waits, and comes down head first, using the running picture turned on end. It climbs only where the trunk can be seen.
+  - The first try let them use the ground beside and behind the tree too, and one sat 150 across from its pine, on what looked like the top of a ruined wall. Now they use only the three tiles in front, six tenths of the way out.
+  - Asking for two open spots left no tree in the test village; one is enough, because the foot of the tree is the other end of the dart.
+- The icon sweep, in autumn, now checks:
+  - on a dry morning there is at least one squirrel, and no more than two;
+  - each is at a tree whose foot is in sight;
+  - every spot is on open ground, not on a pumpkin, on the tile it was picked for, in sight, and just in front of its tree;
+  - as many are drawn as are out;
+  - over two minutes they sit, run and dig, and climb only trees whose trunk can be seen;
+  - none are out at night, in the rain, in summer or in winter;
+  - the geese going over are all nine painted, with both frames, flying south, and counted in the tally;
+  - no geese in winter.
+- The cost sweep allows the geese and squirrels a tally of their own, capped at nine geese and two squirrels.
+- It failed as it should with each of these broken, all in one run: squirrels out in every season, the geese drawn with their wings only ever up, the spots pulled back onto the tree's own tile, and the squirrels left out of the tally.

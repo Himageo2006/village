@@ -6832,6 +6832,7 @@
       // the children at play and the cats on the steps, a handful at most
       if (life > V.KIDS_MAX + V.CATS_MAX + 1) fails.push(what + ' draws ' + life + ' children, cats and a plaything, past the ' + (V.KIDS_MAX + V.CATS_MAX + 1) + ' the village has');
       if ((V.wetDrawn | 0) > V.PUDDLES_MAX + 1 + V.FROGS_MAX) fails.push(what + ' draws ' + V.wetDrawn + ' puddles, ducks and frogs, past the ' + V.PUDDLES_MAX + ' puddles, one family and ' + V.FROGS_MAX + ' frogs a wet day has');
+      if ((V.wildDrawn | 0) > 2 * V.GEESE + 1 + V.SQUIRRELS_MAX) fails.push(what + ' draws ' + V.wildDrawn + ' geese and squirrels, past the ' + (2 * V.GEESE + 1) + ' geese and ' + V.SQUIRRELS_MAX + ' squirrels there are');
       if ((V.winterDrawn | 0) > 1 + V.ROBINS_MAX) fails.push(what + ' draws ' + V.winterDrawn + ' carol singers and robins, past the one group and ' + V.ROBINS_MAX + ' robins there are');
       if ((V.henDrawn | 0) > 1 + V.HENS) fails.push(what + ' draws ' + V.henDrawn + ' coops and hens, past the one coop and ' + V.HENS + ' hens there are');
       if ((V.wedDrawn | 0) > 2) fails.push(what + ' draws ' + V.wedDrawn + ' wedding arches and couples, past the one of each a wedding has');
@@ -6841,7 +6842,7 @@
       if (chrome > 20) fails.push(what + ' draws ' + chrome + ' pieces of card furniture on one frame -- a card and a tab need perhaps a dozen');
       if (carried > V.villagers.length) fails.push(what + ' draws ' + carried + ' carried loads for ' + V.villagers.length + ' villagers');
       if (icons > 40) fails.push(what + ' draws ' + icons + ' painted icons on one frame -- the HUD has room for perhaps thirty');
-      if (ops.drawImage > things + lit + Math.min(icons, 40) + Math.min(carried, V.villagers.length) + Math.min(chrome, 20) + Math.min(thought, 2 * V.villagers.length) + Math.min(life, V.KIDS_MAX + V.CATS_MAX + 1) + Math.min(V.nightDrawn | 0, V.OWLS_MAX + 1 + V.HOGS_MAX) + Math.min(V.dawnDrawn | 0, 2) + Math.min(V.wetDrawn | 0, V.PUDDLES_MAX + 1 + V.FROGS_MAX) + Math.min(V.washDrawn | 0, 3 * V.WASH_MAX) + Math.min(V.wedDrawn | 0, 2) + Math.min(V.henDrawn | 0, 1 + V.HENS) + Math.min(V.winterDrawn | 0, 1 + V.ROBINS_MAX) + spareHere)
+      if (ops.drawImage > things + lit + Math.min(icons, 40) + Math.min(carried, V.villagers.length) + Math.min(chrome, 20) + Math.min(thought, 2 * V.villagers.length) + Math.min(life, V.KIDS_MAX + V.CATS_MAX + 1) + Math.min(V.nightDrawn | 0, V.OWLS_MAX + 1 + V.HOGS_MAX) + Math.min(V.dawnDrawn | 0, 2) + Math.min(V.wetDrawn | 0, V.PUDDLES_MAX + 1 + V.FROGS_MAX) + Math.min(V.washDrawn | 0, 3 * V.WASH_MAX) + Math.min(V.wedDrawn | 0, 2) + Math.min(V.henDrawn | 0, 1 + V.HENS) + Math.min(V.winterDrawn | 0, 1 + V.ROBINS_MAX) + Math.min(V.wildDrawn | 0, 2 * V.GEESE + 1 + V.SQUIRRELS_MAX) + spareHere)
         fails.push(what + ' reaches for an image ' + ops.drawImage + ' times with '
           + things + ' things standing on it' + (lit ? ' and ' + lit + ' lit at night' : '')
           + ' (' + icons + ' icons, ' + carried + ' loads, ' + chrome + ' card pieces)'
@@ -7212,7 +7213,7 @@
            everybody indoors at night. The clock is moved to the middle of a
            dry day -- a wet one keeps them in too. */
         const artOf = f => [f, ...[1, 2, 3, 4, 5, 6].map(i => f + '_walk' + i)];
-        const KIDART = V.KID_FIGS.flatMap(artOf), LIFE = [...KIDART, ...V.PETS, 'portrait_girl', 'portrait_boy', ...Object.values(V.PLAY_PROP).map(q => q.key), ...artOf(V.LIGHTER), V.OWL, V.LIGHTER_REACH, V.HOG, 'portrait_lamplighter', ...artOf(V.MILKMAID), V.ROOSTER, 'portrait_milkmaid', V.DUCKS, V.PUDDLE, 'portrait_duck', V.FROG, ...Object.values(V.SPLASH), V.WASH, V.WASH_BARE, V.WASH_BASKET, V.COUPLE, V.WED_ARCH, 'portrait_couple', V.HEN, V.HEN_PECK, V.COOP, 'portrait_hen', V.CAROL, 'portrait_carolers', V.ROBIN, 'snowman_painted'];
+        const KIDART = V.KID_FIGS.flatMap(artOf), LIFE = [...KIDART, ...V.PETS, 'portrait_girl', 'portrait_boy', ...Object.values(V.PLAY_PROP).map(q => q.key), ...artOf(V.LIGHTER), V.OWL, V.LIGHTER_REACH, V.HOG, 'portrait_lamplighter', ...artOf(V.MILKMAID), V.ROOSTER, 'portrait_milkmaid', V.DUCKS, V.PUDDLE, 'portrait_duck', V.FROG, ...Object.values(V.SPLASH), V.WASH, V.WASH_BARE, V.WASH_BASKET, V.COUPLE, V.WED_ARCH, 'portrait_couple', V.HEN, V.HEN_PECK, V.COOP, 'portrait_hen', V.CAROL, 'portrait_carolers', V.ROBIN, 'snowman_painted', V.GOOSE_UP, V.GOOSE_DOWN, V.SQUIRREL, V.SQUIRREL_RUN];
         for (const k of LIFE) V.artFor(k);
         for (let i = 0; i < 50 && !LIFE.every(k => V.artFor(k)); i++) await new Promise(r => setTimeout(r, 100));
         /* Houses with open ground in front of their doors, and none built in
@@ -7834,6 +7835,65 @@
                   if (V.wedding()) fails.push('on a day with no wedding the arch is up');
                 }
                 for (let d = 0; d < 200; d++) { const n = Math.floor(day0 / DAY) + d; if (V.wetDay(n) && V.wedDay(n)) { fails.push('there is a wedding on a wet day'); break; } }
+                /* Autumn. On a dry day the squirrels at the trees: one or two,
+                   each at a tree whose foot is in sight, its spots on open ground
+                   in front of it, never on a pumpkin's tile, each on its own tile,
+                   in sight, and drawn; over two minutes sitting up, darting and
+                   digging, and up a trunk only where that can be seen; none at
+                   night, in the rain, in winter or in summer. And the geese going
+                   over painted, the whole V, in both frames, flying south. */
+                V.seasonForced = 2;
+                {
+                  let dry = null, wet = null;
+                  for (let d = 1; d < 60 && (dry == null || wet == null); d++) { const n = Math.floor(day0 / DAY) + d; if (!V.wetDay(n)) { if (dry == null) dry = n * DAY; } else if (wet == null) wet = n * DAY; }
+                  Date.now = () => dry + 0.3 * DAY;
+                  const trees = V.squirrelTrees(), sqs = V.squirrelsNow(), { ims: sp } = read(), occS = V.occluders(), solidS = V.standing();
+                  const pump = new Set(V.seasonDecorTiles(V.occupied()).map(o => o.c + ',' + o.r));
+                  if (!trees.length) fails.push('on a dry autumn morning no tree has a squirrel');
+                  if (trees.length > V.SQUIRRELS_MAX) fails.push(trees.length + ' squirrels, past the ' + V.SQUIRRELS_MAX + ' allowed');
+                  if (sqs.length !== trees.length) fails.push(trees.length + ' trees with squirrels and ' + sqs.length + ' squirrels out');
+                  const drawnS = sp.filter(o => o.im === V.artFor(V.SQUIRREL) || o.im === V.artFor(V.SQUIRREL_RUN)).length;
+                  if (drawnS !== sqs.length) fails.push(sqs.length + ' squirrels out and ' + drawnS + ' drawn');
+                  trees.forEach((tr, i) => {
+                    if (!V.OWL_TREES.has(tr.kind)) fails.push('squirrel ' + (i + 1) + ' is at a ' + tr.kind + ', not a tree');
+                    if (V.hidden(occS, tr.at.x - 10, tr.at.x + 10, tr.at.y - 12, tr.at.y + 6, tr.at.y + 0.5)) fails.push('the foot of the tree of squirrel ' + (i + 1) + ' is behind something drawn in front of it');
+                    for (const o of tr.spots) {
+                      const tl = V.worldToTile(o.x, o.y), key = o.c + ',' + o.r;
+                      if (solidS.has(key) || pump.has(key)) fails.push('squirrel ' + (i + 1) + ' sits on tile ' + key + ', where something stands');
+                      if (Math.round(tl.c) !== o.c || Math.round(tl.r) !== o.r) fails.push('a spot of squirrel ' + (i + 1) + ' is not on the tile it was picked for');
+                      if (V.hidden(occS, o.x - 9, o.x + 9, o.y - 12, o.y, o.y)) fails.push('a spot of squirrel ' + (i + 1) + ' is behind something drawn in front of it');
+                      if (o.y < tr.at.y || Math.hypot(o.x - tr.at.x, o.y - tr.at.y) > 50) fails.push('a spot of squirrel ' + (i + 1) + ' is not just in front of its tree');
+                    }
+                  });
+                  const poses = new Set();
+                  for (let k = 0; k < 480; k++) {
+                    Date.now = () => dry + 0.3 * DAY + k * 250;
+                    for (const q of V.squirrelsNow()) { poses.add(q.pose); if (q.pose === 'climb' && !trees[q.i].climb) { fails.push('squirrel ' + (q.i + 1) + ' climbs a trunk that is out of sight'); break; } }
+                  }
+                  for (const [pz, said] of [['sit', 'sat up'], ['run', 'ran'], ['dig', 'dug']]) if (!poses.has(pz)) fails.push('in two minutes the squirrels never ' + said);
+                  if (trees.some(t => t.climb) && !poses.has('climb')) fails.push('in two minutes no squirrel ran up its tree');
+                  Date.now = () => dry + 0.75 * DAY;
+                  if (V.squirrelsNow().length) fails.push('at night ' + V.squirrelsNow().length + ' squirrels are out');
+                  if (wet != null) { Date.now = () => wet + 0.4 * DAY; if (V.rainNow() >= 0.3 && V.squirrelsNow().length) fails.push('in the rain ' + V.squirrelsNow().length + ' squirrels are out'); }
+                  const rm = V.reduceMotion; V.reduceMotion = false;
+                  try {
+                    let gk = null;
+                    for (let k = 0; k < 200 && gk == null; k++) { Date.now = () => dry + 0.3 * DAY + k * 1000; const gv = V.geeseNow(); if (gv && gv.birds[V.GEESE].x > 100 && gv.birds[V.GEESE].x < 500) gk = k; }
+                    if (gk == null) fails.push('in two hundred seconds of an autumn day no geese went over');
+                    else {
+                      const { ims: gp } = read(), up = gp.filter(o => o.im === V.artFor(V.GOOSE_UP)).length, dn = gp.filter(o => o.im === V.artFor(V.GOOSE_DOWN)).length;
+                      if (up + dn !== 2 * V.GEESE + 1 || !up || !dn) fails.push('the geese going over are drawn as ' + up + ' with wings up and ' + dn + ' with wings down, for ' + (2 * V.GEESE + 1) + ' geese');
+                      if (V.geeseNow().dir !== -1) fails.push('in autumn the geese are not flying south');
+                      if (V.wildDrawn !== up + dn + V.squirrelsNow().length) fails.push('the tally of geese and squirrels is ' + V.wildDrawn + ' for ' + (up + dn) + ' geese and ' + V.squirrelsNow().length + ' squirrels');
+                    }
+                  } finally { V.reduceMotion = rm; }
+                  Date.now = () => dry + 0.3 * DAY;
+                  V.seasonForced = 1;
+                  if (V.squirrelsNow().length) fails.push('in summer there are squirrels out');
+                  V.seasonForced = 3;
+                  if (V.squirrelsNow().length) fails.push('in winter there are squirrels out');
+                  for (let k = 0; k < 200; k++) if (V.geeseNow(dry / 1000 + k)) { fails.push('geese go over in winter'); break; }
+                }
                 V.seasonForced = 3;
                 for (let d = 0; d < 40; d++) if (V.washDay(Math.floor(day0 / DAY) + d)) { fails.push('there is a washing day in winter'); break; }
                 /* Winter evenings: the carol singers out from the hall as it gets

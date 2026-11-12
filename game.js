@@ -936,12 +936,40 @@ function drawDoves(t, q) {
    a half or so, north in spring and south in autumn, which here is up and down
    the screen's slant. */
 const GEESE_MS = 90, GEESE = 4;
-function drawGeese(t, top, hh, day, key) {
+/* The geese are painted (ChatGPT): the same goose twice, wings up and wings
+   down, swapped on each one's own beat so the skein ripples down the V. The
+   strokes stay for before the pictures have come. */
+const GOOSE_UP = 'goose_up', GOOSE_DOWN = 'goose_down', GOOSE_H = 46;
+let wildDrawn = 0;                                   // the geese and the squirrels, for the cost sweep
+function geeseNow(t = Date.now() / 1000, key = season().key) {
+  if ((key !== 'spring' && key !== 'autumn') || rainNow() > 0) return null;
   const k = t / GEESE_MS, ph = frac(k), n = Math.floor(k);
-  if (ph > 0.45) return;
+  if (ph > 0.45) return null;
+  const top = screenTop(), hh = screenBot() - top;
   const q = ph / 0.45, dir = key === 'spring' ? 1 : -1, span = W + 700;
   const hx = dir > 0 ? -350 + q * span : W + 350 - q * span;
   const hy = top + hh * (0.12 + 0.4 * rnd(n, 50)) - dir * (q - 0.5) * hh * 0.12;
+  const birds = [];
+  for (let j = -GEESE; j <= GEESE; j++) birds.push({ x: hx - dir * Math.abs(j) * 62, y: hy + j * 40, up: Math.sin(t * 6 + j * 1.4) > 0, j });
+  return { dir, birds };
+}
+function drawGeese(t, top, hh, day, key) {
+  const v = geeseNow(t, key);
+  if (!v) return;
+  const { dir } = v, up = artFor(GOOSE_UP), dn = artFor(GOOSE_DOWN);
+  if (ready(up) && ready(dn)) {
+    const w = up.width * (GOOSE_H / up.height), tf = g.getTransform(), was = g.globalAlpha;
+    g.globalAlpha = Math.min(1, day * 1.15);
+    for (const b of v.birds) {
+      g.translate(b.x, b.y); g.scale(dir, 1);
+      g.drawImage(b.up ? up : dn, -w / 2, -GOOSE_H / 2, w, GOOSE_H);
+      g.setTransform(tf);
+      wildDrawn++;
+    }
+    g.globalAlpha = was;
+    return;
+  }
+  const hx = v.birds[GEESE].x, hy = v.birds[GEESE].y;
   g.strokeStyle = 'rgba(30,34,38,' + (0.8 * day).toFixed(3) + ')'; g.lineWidth = 5; g.lineCap = 'round';
   g.beginPath();
   for (let j = -GEESE; j <= GEESE; j++) {
@@ -6795,6 +6823,89 @@ function drawHog(o) {
   g.restore();
   nightDrawn++;
 }
+/* Squirrels (Leonardo: one sitting up with an acorn, one bounding) at the
+   trees on a dry autumn day, the day's answer to the owls: two at most, each
+   at a tree whose foot is in sight with open ground round it. Every few
+   seconds one darts to a new spot near its tree and sits up there with its
+   acorn, then digs it in; now and then it runs up the trunk instead, waits,
+   and comes down head first. Where each is comes from the clock. */
+const SQUIRREL = 'squirrel', SQUIRREL_RUN = 'squirrel_run', SQUIRRELS_MAX = 2, SQ_H = 12, SQ_RUN_H = 8;
+const SQ_SEG = 5, SQ_DART = 0.6, SQ_FROM = 0.06, SQ_TO = 0.54, SQ_CLIMB = 1.1;
+function squirrelTrees() {
+  const ph = dayPhase();
+  if (season().key !== 'autumn' || rainNow() >= 0.3 || ph < SQ_FROM || ph > SQ_TO) return [];
+  const occ = occluders(), solid = standing(), under = occupied(), busy = new Set();
+  for (const o of seasonDecorTiles(under)) busy.add(o.c + ',' + o.r);
+  for (const o of washLines()) busy.add(o.c + ',' + o.r);
+  const out = [];
+  const trees = SCENERY.filter(o => OWL_TREES.has(o.kind) && inLand(o.c, o.r) && !under.has(o.c + ',' + o.r))
+    .sort((a, b) => rnd(a.c * 37 + a.r, 42) - rnd(b.c * 37 + b.r, 42) || a.c - b.c || a.r - b.r);
+  for (const o of trees) {
+    const at = tileToWorld(o.c, o.r), h = (SCENERY_H[o.kind] || 100) * (o.s || 1);
+    if (hidden(occ, at.x - 10, at.x + 10, at.y - SQ_H, at.y + 6, at.y + 0.5)) continue;
+    const spots = [];
+    for (const [dc, dr] of [[1, 0], [0, 1], [1, 1]]) {        // in front of the tree, where it can be seen
+      const c = o.c + dc, r = o.r + dr;
+      if (!openAt(c, r, solid) || busy.has(c + ',' + r)) continue;
+      const q = tileToWorld(c, r), x = at.x + (q.x - at.x) * 0.6, y = at.y + (q.y - at.y) * 0.6;
+      if (!hidden(occ, x - 9, x + 9, y - SQ_H, y, y)) spots.push({ x, y, c, r });
+    }
+    if (!spots.length) continue;
+    const lift = Math.min(28, h * 0.2), trunk = at.x;
+    const climb = !hidden(occ, trunk - 12, trunk + 12, at.y - lift - 12, at.y, at.y + 0.5);
+    out.push({ c: o.c, r: o.r, kind: o.kind, at, lift, trunk, climb, spots, foot: { x: at.x + 7, y: at.y + 5 } });
+    if (out.length >= SQUIRRELS_MAX) break;
+  }
+  return out;
+}
+function squirrelsNow() {
+  const t = Date.now() / 1000;
+  return squirrelTrees().map((s, i) => {
+    const q = reduceMotion ? SQ_SEG * 0.5 : t + i * 2.3 + rnd(s.c * 7 + s.r, 43) * SQ_SEG, k = Math.floor(q / SQ_SEG), u = q - k * SQ_SEG;
+    const plan = j => (s.climb && rnd(s.c * 13 + s.r * 5 + j, 44) < 0.25) ? null : s.spots[Math.floor(rnd(s.c + s.r * 3 + j, 45) * s.spots.length)];
+    const end = j => plan(j) || s.foot;              // a climb starts and ends at the foot
+    const a = end(k - 1), b = plan(k), to = b || s.foot;
+    const base = { i, c: s.c, r: s.r, depth: 0, hop: 0, face: to.x < a.x ? -1 : 1, up: true };
+    if (u < SQ_DART && !reduceMotion) {             // darting there, in bounds
+      const e = u / SQ_DART, x = a.x + (to.x - a.x) * e, y = a.y + (to.y - a.y) * e;
+      return { ...base, x, y, depth: y, pose: 'run', hop: Math.abs(Math.sin(e * Math.PI * 3)) * 3 };
+    }
+    if (b) {                                         // sat up with the acorn, then digging it in
+      const dig = !reduceMotion && u > SQ_SEG * 0.62 && u < SQ_SEG * 0.92;
+      return { ...base, x: b.x, y: b.y, depth: b.y, pose: dig ? 'dig' : 'sit', at: b };
+    }
+    // up the trunk, a wait, and down head first
+    const w = u - SQ_DART, rest = SQ_SEG - SQ_DART - 2 * SQ_CLIMB;
+    const f = reduceMotion ? 1 : w < SQ_CLIMB ? w / SQ_CLIMB : w < SQ_CLIMB + rest ? 1 : Math.max(0, 1 - (w - SQ_CLIMB - rest) / SQ_CLIMB);
+    const down = !reduceMotion && w >= SQ_CLIMB + rest;
+    return { ...base, x: s.trunk + (down ? 1 : -1), y: s.at.y - 4 - f * s.lift, depth: s.at.y + 0.5, pose: 'climb', up: !down, face: 1 };
+  });
+}
+function drawSquirrel(q) {
+  const run = q.pose === 'run' || q.pose === 'climb', im = artFor(run ? SQUIRREL_RUN : SQUIRREL);
+  if (!ready(im)) return;
+  const H = run ? SQ_RUN_H : SQ_H, w = im.width * (H / im.height), tf = g.getTransform();
+  if (q.pose !== 'climb') {
+    g.fillStyle = 'rgba(10,18,8,.24)';
+    g.beginPath(); g.ellipse(q.x, q.y + 1, w * 0.36, H * 0.12, 0, 0, 7); g.fill();
+  }
+  g.translate(q.x, q.y - q.hop);
+  // the bounding picture faces right: turned up the trunk, the feet on the bark
+  if (q.pose === 'climb') g.rotate(q.up ? -Math.PI / 2 : Math.PI / 2);
+  g.scale(q.face, 1);
+  if (q.pose === 'dig') g.rotate(0.38);              // nose down into the leaves
+  g.drawImage(im, -w / 2, -H, w, H);
+  g.setTransform(tf);
+  if (q.pose === 'dig') {                            // a little earth thrown up behind, in one path
+    const t = Date.now() / 1000, bits = new Path2D();
+    for (let j = 0; j < 3; j++) {
+      const u = frac(t * 2.2 + j / 3), x = q.x - q.face * (4 + u * 9), y = q.y - 2 - Math.sin(u * Math.PI) * 6;
+      bits.moveTo(x + 1.1, y); bits.arc(x, y, 1.1, 0, 7);
+    }
+    g.fillStyle = 'rgba(92,62,34,.85)'; g.fill(bits);
+  }
+  wildDrawn++;
+}
 /* Owls (Leonardo) in the tall trees after dark, the night's answer to the
    cats on the steps by day: three at most, each on a tree the camera can see
    into, chosen by the tree so they come back to the same branches. */
@@ -8039,6 +8150,7 @@ function drawWorld() {
   for (const rb of robinsNow()) ents.push({ y: rb.ground + 1, d: () => drawRobin(rb) });     // just after the snowman under it
   { const w = wedding(), m = w && coupleNow(); if (w) ents.push({ y: w.arch.y, d: () => drawArch(w.arch) }); if (m) ents.push({ y: m.y, d: () => drawCouple(m) }); }
   for (const w of owlsNow()) ents.push({ y: w.depth, d: () => drawOwl(w) });
+  for (const q of squirrelsNow()) ents.push({ y: q.depth, d: () => drawSquirrel(q) });
   for (const o of hogsNow()) ents.push({ y: o.y, d: () => drawHog(o) });
   if (season().key === 'winter') seasonTiles(occSet, SNOWMEN, 90).forEach((o, i) => ents.push({ y: tileToWorld(o.c, o.r).y, d: () => drawSnowman(o, i) }));
   pumpkinTiles = season().key === 'autumn' ? seasonTiles(occSet, PUMPKINS, 91, 3) : [];
@@ -11086,7 +11198,7 @@ function drawPanel() {
 }
 
 function draw() {
-  glowsDrawn = 0; iconsDrawn = 0; carriesDrawn = 0; chromeDrawn = 0; thoughtsDrawn = 0; lifeDrawn = 0; nightDrawn = 0; dawnDrawn = 0; wetDrawn = 0; washDrawn = 0; wedDrawn = 0; henDrawn = 0; winterDrawn = 0;
+  glowsDrawn = 0; iconsDrawn = 0; carriesDrawn = 0; chromeDrawn = 0; thoughtsDrawn = 0; lifeDrawn = 0; nightDrawn = 0; dawnDrawn = 0; wetDrawn = 0; washDrawn = 0; wedDrawn = 0; henDrawn = 0; winterDrawn = 0; wildDrawn = 0;
   stepAmbience();
   fitCanvas();
   g.setTransform(1, 0, 0, 1, 0, 0);
@@ -11723,7 +11835,7 @@ for (const b of BUILDINGS) if (!SET_ART[b.key]) artFor(b.key);
     im.addEventListener('error', done, { once: true });
   }
 }
-for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER, WOODSWOMAN, ...KID_FIGS, ...PETS, ...Object.values(PLAY_PROP).map(q => q.key), LIGHTER, LIGHTER_REACH, OWL, HOG, MILKMAID, ROOSTER, DUCKS, PUDDLE, FROG, ...Object.values(SPLASH), WASH, WASH_BARE, WASH_BASKET, COUPLE, WED_ARCH, 'portrait_couple', HEN, HEN_PECK, COOP, 'portrait_hen', CAROL, 'portrait_carolers', ROBIN]) artFor(v);
+for (const v of [...VILLAGERS, STONECUTTER, TRADER, MILLER, WOODSWOMAN, ...KID_FIGS, ...PETS, ...Object.values(PLAY_PROP).map(q => q.key), LIGHTER, LIGHTER_REACH, OWL, HOG, MILKMAID, ROOSTER, DUCKS, PUDDLE, FROG, ...Object.values(SPLASH), WASH, WASH_BARE, WASH_BASKET, COUPLE, WED_ARCH, 'portrait_couple', HEN, HEN_PECK, COOP, 'portrait_hen', CAROL, 'portrait_carolers', ROBIN, GOOSE_UP, GOOSE_DOWN, SQUIRREL, SQUIRREL_RUN]) artFor(v);
 /* Asked for once, here, rather than on the first frame somebody walks: a
    villager with no cycle drawn for him would otherwise send six requests
    the moment he set off, and artFor remembers a miss, so doing it at boot
@@ -11794,7 +11906,7 @@ window.__v = { res, RES, RES_SET, RES_ICON, RES_TINT, get placed() { return plac
   SEASONS, SEASON_OF, SEASON_LEAF, seasonIdx, season, seasonSkin, drawGround, drawScenery, SCENERY,
   GW, GH, tileToWorld, deliveredOf,
   get seasonForced() { return seasonForced; }, set seasonForced(v) { seasonForced = v; },
-  get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, winterArt, ART, villagerArt, glowKey, get glowsDrawn() { return glowsDrawn; }, get iconsDrawn() { return iconsDrawn; }, get carriesDrawn() { return carriesDrawn; }, get chromeDrawn() { return chromeDrawn; }, portraitKey, merchantOf, panelFaces, thoughtOf, get thoughtsDrawn() { return thoughtsDrawn; }, get lifeDrawn() { return lifeDrawn; }, kidsNow, catsNow, propNow, playground, lampRound, lampLit, lighterNow, LIGHT_FROM, DOUSE_FROM, dawnClock, walkRound, milkRound, milkClock, milkmaidNow, milkmaidAt, MILKMAID, MILK_ID, MILK_NAME, MILK_MAX, MILK_FROM, roosterNow, ROOSTER, rainNow, wetDay, puddleFill, puddleSpots, PUDDLE, PUDDLES_MAX, PUDDLE_W, DUCK_H, FROG, FROGS_MAX, frogsNow, WASH, WASH_BARE, WASH_BASKET, WASH_MAX, WASH_HANG, WASH_IN, WASH_TO, WASH_POST, washDay, washOut, washLines, get washDrawn() { return washDrawn; }, COUPLE, WED_ARCH, WED_ID, WED_FROM, WED_WALK, WED_TO, WED_STOP, wedDay, wedding, wedRound, wedClock, coupleNow, coupleAt, get wedDrawn() { return wedDrawn; }, HEN, HEN_PECK, COOP, HEN_ID, HENS, HEN_FROM, HEN_TO, coopNow, coopTile, standingBase, henOut, hensNow, hensAt, eggsToday, get henDrawn() { return henDrawn; }, CAROL, CAROL_ID, CAROL_FROM, CAROL_MAX, carolRound, carolClock, carolersNow, carolersAt, ROBIN, ROBINS_MAX, ROBIN_FROM, ROBIN_TO, ROBIN_PERCH, robinsNow, seasonTiles, SNOWMEN, get winterDrawn() { return winterDrawn; }, SPLASH, kidPools, kidsOut, duckRound, duckClock, ducksNow, ducksAt, DUCKS, DUCK_ID, DUCK_FROM, DUCK_TO, DUCK_REST, get wetDrawn() { return wetDrawn; }, firstFarm, homes, doorOf, standing, get dawnDrawn() { return dawnDrawn; }, lighterAt, LIGHTER_ID, LIGHTER_NAME, LIGHTER_REACH, hogsNow, HOG, HOGS_MAX, seasonDecorTiles, owlsNow, roundClock, LIGHTER, OWL, OWLS_MAX, get nightDrawn() { return nightDrawn; }, get lampsLit() { return lampsLit; }, PLAY_PROP, occluders, hidden, artRect, kidAt, parentsOf, playSpot, topOf, KID_FIGS, PETS, get kidWho() { return kidWho; }, set kidWho(v) { kidWho = v; }, KIDS_MAX, CATS_MAX, get sparkleCount() { return sparkleCount; }, chromeCache,
+  get reduceMotion() { return reduceMotion; }, set reduceMotion(v) { reduceMotion = !!v; }, landFitZoom, landWorldBounds, builtBounds, artFor, winterArt, ART, villagerArt, glowKey, get glowsDrawn() { return glowsDrawn; }, get iconsDrawn() { return iconsDrawn; }, get carriesDrawn() { return carriesDrawn; }, get chromeDrawn() { return chromeDrawn; }, portraitKey, merchantOf, panelFaces, thoughtOf, get thoughtsDrawn() { return thoughtsDrawn; }, get lifeDrawn() { return lifeDrawn; }, kidsNow, catsNow, propNow, playground, lampRound, lampLit, lighterNow, LIGHT_FROM, DOUSE_FROM, dawnClock, walkRound, milkRound, milkClock, milkmaidNow, milkmaidAt, MILKMAID, MILK_ID, MILK_NAME, MILK_MAX, MILK_FROM, roosterNow, ROOSTER, rainNow, wetDay, puddleFill, puddleSpots, PUDDLE, PUDDLES_MAX, PUDDLE_W, DUCK_H, FROG, FROGS_MAX, frogsNow, WASH, WASH_BARE, WASH_BASKET, WASH_MAX, WASH_HANG, WASH_IN, WASH_TO, WASH_POST, washDay, washOut, washLines, get washDrawn() { return washDrawn; }, COUPLE, WED_ARCH, WED_ID, WED_FROM, WED_WALK, WED_TO, WED_STOP, wedDay, wedding, wedRound, wedClock, coupleNow, coupleAt, get wedDrawn() { return wedDrawn; }, HEN, HEN_PECK, COOP, HEN_ID, HENS, HEN_FROM, HEN_TO, coopNow, coopTile, standingBase, henOut, hensNow, hensAt, eggsToday, get henDrawn() { return henDrawn; }, CAROL, CAROL_ID, CAROL_FROM, CAROL_MAX, carolRound, carolClock, carolersNow, carolersAt, ROBIN, ROBINS_MAX, ROBIN_FROM, ROBIN_TO, ROBIN_PERCH, robinsNow, seasonTiles, SNOWMEN, get winterDrawn() { return winterDrawn; }, GOOSE_UP, GOOSE_DOWN, GEESE, geeseNow, SQUIRREL, SQUIRREL_RUN, SQUIRRELS_MAX, SQ_FROM, SQ_TO, squirrelTrees, squirrelsNow, OWL_TREES, get wildDrawn() { return wildDrawn; }, SPLASH, kidPools, kidsOut, duckRound, duckClock, ducksNow, ducksAt, DUCKS, DUCK_ID, DUCK_FROM, DUCK_TO, DUCK_REST, get wetDrawn() { return wetDrawn; }, firstFarm, homes, doorOf, standing, get dawnDrawn() { return dawnDrawn; }, lighterAt, LIGHTER_ID, LIGHTER_NAME, LIGHTER_REACH, hogsNow, HOG, HOGS_MAX, seasonDecorTiles, owlsNow, roundClock, LIGHTER, OWL, OWLS_MAX, get nightDrawn() { return nightDrawn; }, get lampsLit() { return lampsLit; }, PLAY_PROP, occluders, hidden, artRect, kidAt, parentsOf, playSpot, topOf, KID_FIGS, PETS, get kidWho() { return kidWho; }, set kidWho(v) { kidWho = v; }, KIDS_MAX, CATS_MAX, get sparkleCount() { return sparkleCount; }, chromeCache,
   get plainIcons() { return plainIcons; }, set plainIcons(v) { plainIcons = !!v; }, ICON_OF,
   hudTop, hudBot, screenTop, screenBot, readSafeArea, get SAFE() { return SAFE; }, set SAFE(v) { SAFE = v; },
   get safeKnown() { return safeKnown; }, set safeKnown(v) { safeKnown = !!v; },
