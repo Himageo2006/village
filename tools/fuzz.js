@@ -6832,6 +6832,7 @@
       // the children at play and the cats on the steps, a handful at most
       if (life > V.KIDS_MAX + V.CATS_MAX + 1) fails.push(what + ' draws ' + life + ' children, cats and a plaything, past the ' + (V.KIDS_MAX + V.CATS_MAX + 1) + ' the village has');
       if ((V.wetDrawn | 0) > V.PUDDLES_MAX + 1 + V.FROGS_MAX) fails.push(what + ' draws ' + V.wetDrawn + ' puddles, ducks and frogs, past the ' + V.PUDDLES_MAX + ' puddles, one family and ' + V.FROGS_MAX + ' frogs a wet day has');
+      if ((V.postDrawn | 0) > 2) fails.push(what + ' draws ' + V.postDrawn + ' post boxes and postmen, past the one of each there is');
       if ((V.wildDrawn | 0) > 2 * V.GEESE + 1 + V.SQUIRRELS_MAX) fails.push(what + ' draws ' + V.wildDrawn + ' geese and squirrels, past the ' + (2 * V.GEESE + 1) + ' geese and ' + V.SQUIRRELS_MAX + ' squirrels there are');
       if ((V.winterDrawn | 0) > 1 + V.ROBINS_MAX) fails.push(what + ' draws ' + V.winterDrawn + ' carol singers and robins, past the one group and ' + V.ROBINS_MAX + ' robins there are');
       if ((V.henDrawn | 0) > 1 + V.HENS) fails.push(what + ' draws ' + V.henDrawn + ' coops and hens, past the one coop and ' + V.HENS + ' hens there are');
@@ -6842,7 +6843,7 @@
       if (chrome > 20) fails.push(what + ' draws ' + chrome + ' pieces of card furniture on one frame -- a card and a tab need perhaps a dozen');
       if (carried > V.villagers.length) fails.push(what + ' draws ' + carried + ' carried loads for ' + V.villagers.length + ' villagers');
       if (icons > 40) fails.push(what + ' draws ' + icons + ' painted icons on one frame -- the HUD has room for perhaps thirty');
-      if (ops.drawImage > things + lit + Math.min(icons, 40) + Math.min(carried, V.villagers.length) + Math.min(chrome, 20) + Math.min(thought, 2 * V.villagers.length) + Math.min(life, V.KIDS_MAX + V.CATS_MAX + 1) + Math.min(V.nightDrawn | 0, V.OWLS_MAX + 1 + V.HOGS_MAX) + Math.min(V.dawnDrawn | 0, 2) + Math.min(V.wetDrawn | 0, V.PUDDLES_MAX + 1 + V.FROGS_MAX) + Math.min(V.washDrawn | 0, 3 * V.WASH_MAX) + Math.min(V.wedDrawn | 0, 2) + Math.min(V.henDrawn | 0, 1 + V.HENS) + Math.min(V.winterDrawn | 0, 1 + V.ROBINS_MAX) + Math.min(V.wildDrawn | 0, 2 * V.GEESE + 1 + V.SQUIRRELS_MAX) + spareHere)
+      if (ops.drawImage > things + lit + Math.min(icons, 40) + Math.min(carried, V.villagers.length) + Math.min(chrome, 20) + Math.min(thought, 2 * V.villagers.length) + Math.min(life, V.KIDS_MAX + V.CATS_MAX + 1) + Math.min(V.nightDrawn | 0, V.OWLS_MAX + 1 + V.HOGS_MAX) + Math.min(V.dawnDrawn | 0, 2) + Math.min(V.wetDrawn | 0, V.PUDDLES_MAX + 1 + V.FROGS_MAX) + Math.min(V.washDrawn | 0, 3 * V.WASH_MAX) + Math.min(V.wedDrawn | 0, 2) + Math.min(V.henDrawn | 0, 1 + V.HENS) + Math.min(V.winterDrawn | 0, 1 + V.ROBINS_MAX) + Math.min(V.wildDrawn | 0, 2 * V.GEESE + 1 + V.SQUIRRELS_MAX) + Math.min(V.postDrawn | 0, 2) + spareHere)
         fails.push(what + ' reaches for an image ' + ops.drawImage + ' times with '
           + things + ' things standing on it' + (lit ? ' and ' + lit + ' lit at night' : '')
           + ' (' + icons + ' icons, ' + carried + ' loads, ' + chrome + ' card pieces)'
@@ -7213,7 +7214,7 @@
            everybody indoors at night. The clock is moved to the middle of a
            dry day -- a wet one keeps them in too. */
         const artOf = f => [f, ...[1, 2, 3, 4, 5, 6].map(i => f + '_walk' + i)];
-        const KIDART = V.KID_FIGS.flatMap(artOf), LIFE = [...KIDART, ...V.PETS, 'portrait_girl', 'portrait_boy', ...Object.values(V.PLAY_PROP).map(q => q.key), ...artOf(V.LIGHTER), V.OWL, V.LIGHTER_REACH, V.HOG, 'portrait_lamplighter', ...artOf(V.MILKMAID), V.ROOSTER, 'portrait_milkmaid', V.DUCKS, V.PUDDLE, 'portrait_duck', V.FROG, ...Object.values(V.SPLASH), V.WASH, V.WASH_BARE, V.WASH_BASKET, V.COUPLE, V.WED_ARCH, 'portrait_couple', V.HEN, V.HEN_PECK, V.COOP, 'portrait_hen', V.CAROL, 'portrait_carolers', V.ROBIN, 'snowman_painted', V.GOOSE_UP, V.GOOSE_DOWN, V.SQUIRREL, V.SQUIRREL_RUN];
+        const KIDART = V.KID_FIGS.flatMap(artOf), LIFE = [...KIDART, ...V.PETS, 'portrait_girl', 'portrait_boy', ...Object.values(V.PLAY_PROP).map(q => q.key), ...artOf(V.LIGHTER), V.OWL, V.LIGHTER_REACH, V.HOG, 'portrait_lamplighter', ...artOf(V.MILKMAID), V.ROOSTER, 'portrait_milkmaid', V.DUCKS, V.PUDDLE, 'portrait_duck', V.FROG, ...Object.values(V.SPLASH), V.WASH, V.WASH_BARE, V.WASH_BASKET, V.COUPLE, V.WED_ARCH, 'portrait_couple', V.HEN, V.HEN_PECK, V.COOP, 'portrait_hen', V.CAROL, 'portrait_carolers', V.ROBIN, 'snowman_painted', V.GOOSE_UP, V.GOOSE_DOWN, V.SQUIRREL, V.SQUIRREL_RUN, V.POSTMAN, V.POST_BOX, 'portrait_postman'];
         for (const k of LIFE) V.artFor(k);
         for (let i = 0; i < 50 && !LIFE.every(k => V.artFor(k)); i++) await new Promise(r => setTimeout(r, 100));
         /* Houses with open ground in front of their doors, and none built in
@@ -7835,6 +7836,68 @@
                   if (V.wedding()) fails.push('on a day with no wedding the arch is up');
                 }
                 for (let d = 0; d < 200; d++) { const n = Math.floor(day0 / DAY) + d; if (V.wetDay(n) && V.wedDay(n)) { fails.push('there is a wedding on a wet day'); break; } }
+                /* The post. The box by the hall: on open ground the base set
+                   leaves, counted as standing, not on the coop, not in front of
+                   the hall's door, within three tiles of the hall, in sight,
+                   drawn once; no snowman or pumpkin on it in their seasons. The
+                   postman: out from it in the morning to as many houses as he
+                   should, not before; at each door half way through his stop,
+                   a letter going in; drawn; a card when tapped; in again after. */
+                V.seasonForced = 1;
+                {
+                  const pd = Math.floor(day0 / DAY) + 4, pAt = sec => { Date.now = () => (pd + V.POST_FROM) * DAY + sec * 1000; };
+                  Date.now = () => (pd + 0.3) * DAY;
+                  const box = V.postBox(), hall = V.hallOf(), hb = hall && V.B(hall.key);
+                  if (!box) fails.push('there is a hall and no post box beside it');
+                  else {
+                    const key = box.c + ',' + box.r, { ims: bp } = read(), co = V.coopTile(V.standingBase());
+                    if (V.standingBase().has(key)) fails.push('the post box is on tile ' + key + ', where something already stands');
+                    if (!V.standing().has(key)) fails.push('the post box does not count as standing, so something else could be put on it');
+                    if (co && co.c === box.c && co.r === box.r) fails.push('the post box is on the hen coop');
+                    if (box.c >= hall.c + hb.w - 1 && box.r >= hall.r + hb.h - 1) fails.push('the post box is in front of the hall door');
+                    if (box.c < hall.c - 3 || box.c > hall.c + hb.w + 2 || box.r < hall.r - 3 || box.r > hall.r + hb.h + 2) fails.push('the post box is not beside the hall');
+                    if (V.hidden(V.occluders(), box.x - 16, box.x + 16, box.y - 60, box.y, box.y)) fails.push('the post box is behind something drawn in front of it');
+                    if (bp.filter(o => o.im === V.artFor(V.POST_BOX)).length !== 1) fails.push(bp.filter(o => o.im === V.artFor(V.POST_BOX)).length + ' post boxes are drawn');
+                    for (const sk of [2, 3]) { V.seasonForced = sk; if (V.seasonDecorTiles(V.occupied()).some(o => o.c === box.c && o.r === box.r)) fails.push('in ' + (sk === 2 ? 'autumn a pumpkin' : 'winter a snowman') + ' is on the post box'); }
+                    V.seasonForced = 1;
+                    const R = V.postRound();
+                    if (!R) fails.push('there is a post box and houses and the postman has no round');
+                    else {
+                      const stops = R.legs.filter(l => l.id != null);
+                      if (stops.length !== Math.min(V.POST_MAX, V.homes().length)) fails.push('the postman goes to ' + stops.length + ' houses');
+                      Date.now = () => (pd + V.POST_FROM - 0.01) * DAY;
+                      if (V.postmanNow()) fails.push('the postman is out before his time');
+                      stops.forEach((l, i) => {
+                        pAt(l.lit);
+                        const m = V.postmanNow(), h = V.placed.find(q => q.id === l.id), d = h && V.doorOf(h), u = V.letterAt(m);
+                        if (!m || m.at !== l.id || !d || Math.hypot(m.x - d.x, m.y - d.y) > 2) fails.push('half way through his stop at house ' + (i + 1) + ' the postman is not at its door');
+                        else if (!(u > 0 && u < 1)) fails.push('half way through his stop at house ' + (i + 1) + ' the letter is ' + u + ' of the way in');
+                      });
+                      const first = stops[0]; pAt(first.lit);
+                      const { ims: mp } = read();
+                      if (!mp.some(o => o.im === V.artFor(V.POSTMAN))) fails.push('at a door the postman was not drawn');
+                      if (V.postDrawn !== 2) fails.push('with the postman out the post tally is ' + V.postDrawn);
+                      const m = V.postmanNow();
+                      if (m) {
+                        V.who = null; V.panel = null; V.kidWho = null;
+                        const pt = V.camProject(m.x, m.y), sc = V.camScale(), was = V.villagers.map(v => [v.x, v.y]);
+                        try { for (const v of V.villagers) v.x += 4000; V.tap(pt.x, pt.y - 20 * sc); }
+                        finally { V.villagers.forEach((v, i) => { v.x = was[i][0]; v.y = was[i][1]; }); }
+                        if (V.kidWho !== V.POST_ID) fails.push('tapping the postman where he is drawn did not open his card (it opened ' + V.kidWho + ')');
+                        else {
+                          const { texts, ims: kp } = read(), said = texts.map(o => o.t).join(' | ');
+                          if (!said.includes(V.POST_NAME) || !said.includes('The postman') || !said.includes('Putting a letter through a door')) fails.push('the card of the postman does not say who he is or what he is doing: ' + said.slice(0, 160));
+                          if (!kp.some(o => o.im.medal && o.im.medal.face === 'portrait_postman')) fails.push('the card of the postman has no portrait_postman in the ring');
+                        }
+                        V.kidWho = null;
+                      }
+                      pAt(R.end + 2);
+                      if (V.postmanNow()) fails.push('his round is done and the postman is still out');
+                      const { ims: ep } = read();
+                      if (ep.filter(o => o.im === V.artFor(V.POST_BOX)).length !== 1 || V.postDrawn !== 1) fails.push('with the postman in, the box is not drawn alone (tally ' + V.postDrawn + ')');
+                    }
+                  }
+                }
                 /* Autumn. On a dry day the squirrels at the trees: one or two,
                    each at a tree whose foot is in sight, its spots on open ground
                    in front of it, never on a pumpkin's tile, each on its own tile,
